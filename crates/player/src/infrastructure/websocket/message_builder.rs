@@ -385,7 +385,7 @@ impl ClientMessageBuilder {
         let decision = match decision {
             "approve" => TimeSuggestionDecision::Approve,
             "modify" => TimeSuggestionDecision::Modify {
-                minutes: modified_minutes.unwrap_or(0),
+                seconds: modified_minutes.unwrap_or(0),
             },
             "skip" => TimeSuggestionDecision::Skip,
             _ => TimeSuggestionDecision::Skip,
@@ -397,16 +397,16 @@ impl ClientMessageBuilder {
         }
     }
 
-    /// Create an AdvanceGameTimeMinutes request message
+    /// Create an AdvanceGameTimeSeconds request message
     ///
     /// Note: world_id should be provided by the caller from session state.
     /// Pass empty string if not available - handler should fill from session.
-    pub fn advance_time(world_id: &str, minutes: u32, reason: &str) -> ClientMessage {
+    pub fn advance_time(world_id: &str, seconds: u32, reason: &str) -> ClientMessage {
         ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::Time(TimeRequest::AdvanceGameTimeMinutes {
+            payload: RequestPayload::Time(TimeRequest::AdvanceGameTimeSeconds {
                 world_id: world_id.to_string(),
-                minutes,
+                seconds,
                 reason: Some(reason.to_string()),
             }),
         }

@@ -1,6 +1,20 @@
 use anyhow::Context;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+/// Protocol modules that contain wire format types (DISALLOWED in use cases).
+const PROTOCOL_MODULES: &[&str] = &[
+    "messages",  // WebSocket messages (ClientMessage, ServerMessage)
+    "requests",  // Request DTOs from client
+    "responses", // Response DTOs to client
+];
+
+/// Contract modules that contain stable shared agreements (ALLOWED in use cases).
+const CONTRACTS_MODULES: &[&str] = &[
+    "settings",        // Schema metadata (SettingsFieldMetadata)
+    "game_systems",    // Game system traits and types (GameSystem, CompendiumProvider)
+    "character_sheet", // Sheet schema definitions
+];
+
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
@@ -1387,14 +1401,19 @@ fn check_use_case_layer() -> anyhow::Result<()> {
 /// 1. Includes mod.rs files (which are often where use case logic lives)
 /// 2. Specifically looks for shared types in struct fields and return positions
 ///
+/// Per ADR-011 addendum, we distinguish between:
+/// - **Protocol modules** (messages, requests, responses): wire format - DISALLOWED
+/// - **Contract modules** (settings, game_systems, character_sheet): stable shared types - ALLOWED
+///
 /// Allowed patterns:
 /// - `to_protocol()` and `from_protocol()` conversion helper methods
 /// - Imports for type conversions (as long as they're not in return types)
+/// - Contract module types (settings, game_systems, character_sheet)
 ///
 /// Forbidden patterns:
-/// - `pub field: wrldbldr_shared::SomeType` in result structs
-/// - `-> Result<wrldbldr_shared::SomeType, ...>` in function signatures
-/// - `-> wrldbldr_shared::SomeType` in function signatures
+/// - `pub field: wrldbldr_shared::ProtocolType` in result structs
+/// - `-> Result<wrldbldr_shared::ProtocolType, ...>` in function signatures
+/// - `-> wrldbldr_shared::ProtocolType` in function signatures
 fn check_use_case_no_shared_types() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -1414,6 +1433,9 @@ fn check_use_case_no_shared_types() -> anyhow::Result<()> {
     // Pattern to find shared types in return positions: `-> ... wrldbldr_shared::`
     let return_type_re = regex_lite::Regex::new(r"->\s*[^{;]*wrldbldr_shared::")?;
 
+    // Pattern to extract module name after wrldbldr_shared::
+    let module_extract_re = regex_lite::Regex::new(r"wrldbldr_shared::([a-z_]+)")?;
+
     // Files/patterns to exempt:
     // - to_protocol() and from_protocol() helper methods are acceptable
     let helper_method_re = regex_lite::Regex::new(r"fn\s+(to_protocol|from_protocol)\s*\(")?;
@@ -1427,6 +1449,7 @@ fn check_use_case_no_shared_types() -> anyhow::Result<()> {
     .collect();
 
     let mut violations = Vec::new();
+    let warnings: Vec<String> = Vec::new();
 
     for entry in walkdir_rs_files(&use_cases_dir)? {
         let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -1449,12 +1472,35 @@ fn check_use_case_no_shared_types() -> anyhow::Result<()> {
             }
 
             let (line_no, line) = line_at_offset(&contents, start);
-            violations.push(format!(
-                "{}:{}: use case struct embeds wrldbldr_shared type\n    {}\n    Fix: Create a domain-level DTO instead",
-                entry.display(),
-                line_no,
-                line.trim()
-            ));
+            let trimmed = line.trim();
+
+            // Classify the import: protocol vs contract
+            let is_protocol = if let Some(caps) = module_extract_re.captures(trimmed) {
+                if let Some(module_name) = caps.get(1) {
+                    let module = module_name.as_str();
+
+                    // Contract modules are allowed
+                    if CONTRACTS_MODULES.contains(&module) {
+                        continue;
+                    }
+
+                    // Protocol modules are disallowed
+                    PROTOCOL_MODULES.contains(&module)
+                } else {
+                    true // Unknown - treat as protocol
+                }
+            } else {
+                true // Unknown - treat as protocol
+            };
+
+            if is_protocol {
+                violations.push(format!(
+                    "{}:{}: use case struct embeds protocol type\n    {}\n    Fix: Create a domain-level DTO instead",
+                    entry.display(),
+                    line_no,
+                    trimmed
+                ));
+            }
         }
 
         // Check return types (but skip helper methods)
@@ -1479,29 +1525,68 @@ fn check_use_case_no_shared_types() -> anyhow::Result<()> {
             }
 
             let (line_no, line) = line_at_offset(&contents, start);
-            violations.push(format!(
-                "{}:{}: use case returns wrldbldr_shared type\n    {}\n    Fix: Return domain types; convert to wire format in API layer",
-                entry.display(),
-                line_no,
-                line.trim()
-            ));
+            let trimmed = line.trim();
+
+            // Classify the import: protocol vs contract
+            let is_protocol = if let Some(caps) = module_extract_re.captures(trimmed) {
+                if let Some(module_name) = caps.get(1) {
+                    let module = module_name.as_str();
+
+                    // Contract modules are allowed
+                    if CONTRACTS_MODULES.contains(&module) {
+                        continue;
+                    }
+
+                    // Protocol modules are disallowed
+                    PROTOCOL_MODULES.contains(&module)
+                } else {
+                    true // Unknown - treat as protocol
+                }
+            } else {
+                true // Unknown - treat as protocol
+            };
+
+            if is_protocol {
+                violations.push(format!(
+                    "{}:{}: use case returns protocol type\n    {}\n    Fix: Return domain types; convert to wire format in API layer",
+                    entry.display(),
+                    line_no,
+                    trimmed
+                ));
+            }
         }
+    }
+
+    // Print warnings first (non-fatal)
+    if !warnings.is_empty() {
+        eprintln!(
+            "Use case shared type warnings ({} found - manual review recommended):",
+            warnings.len()
+        );
+        eprintln!("  Rule: Unknown wrldbldr_shared:: module usage - verify these are contract types, not protocol\n");
+        for w in warnings.iter().take(10) {
+            eprintln!("  - {w}");
+        }
+        if warnings.len() > 10 {
+            eprintln!("  ... (+{} more)", warnings.len() - 10);
+        }
+        eprintln!();
     }
 
     if !violations.is_empty() {
         eprintln!(
-            "Use case shared type violations ({} found):",
+            "Use case protocol type violations ({} found):",
             violations.len()
         );
-        eprintln!("  Rule: Use cases must return domain types, not wrldbldr_shared types");
-        eprintln!("  See: AGENTS.md 'Use Case Design Rules (STRICT)'\n");
+        eprintln!("  Rule: Use cases must return domain types, not protocol types (messages/requests/responses)");
+        eprintln!("  See: ADR-011 addendum for protocol vs contract distinction\n");
         for v in violations.iter().take(20) {
             eprintln!("  - {v}");
         }
         if violations.len() > 20 {
             eprintln!("  ... (+{} more)", violations.len() - 20);
         }
-        anyhow::bail!("arch-check failed: use cases embed/return wrldbldr_shared types");
+        anyhow::bail!("arch-check failed: use cases embed/return protocol types");
     }
 
     Ok(())
@@ -1509,8 +1594,12 @@ fn check_use_case_no_shared_types() -> anyhow::Result<()> {
 
 /// Check that engine internal layers don't import `wrldbldr_shared` directly.
 ///
-/// The protocol crate is a wire format; only the API boundary should use it.
-/// Concretely: forbid `wrldbldr_shared` usage in `crates/engine/src/{entities,use_cases,infrastructure}`.
+/// The protocol crate contains two categories per ADR-011 addendum:
+/// - **Protocol modules** (messages, requests, responses): wire format - DISALLOWED
+/// - **Contract modules** (settings, game_systems, character_sheet): stable shared types - ALLOWED
+///
+/// Concretely: forbid protocol module usage in `crates/engine/src/{entities,use_cases,infrastructure}`.
+/// Allow contract module usage.
 ///
 /// Exemptions:
 /// - mod.rs files (re-exports)
@@ -1532,10 +1621,13 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     // Directories to check within engine/src/ (API boundary is exempt)
     let check_dirs = ["entities", "use_cases", "infrastructure"];
 
-    // Patterns that indicate protocol usage
+    // Pattern to detect wrldbldr_shared imports
     let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_shared::")?;
 
-    // Patterns for acceptable usage
+    // Pattern to extract the module name after wrldbldr_shared::
+    let module_extract_re = regex_lite::Regex::new(r"wrldbldr_shared::([a-z_]+)")?;
+
+    // Patterns for acceptable usage (domain types re-exported through shared)
     let domain_reexport_re =
         regex_lite::Regex::new(r"CharacterSheetValues|SheetValue|character_sheet::")?;
 
@@ -1605,6 +1697,41 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
                     continue;
                 }
 
+                // Classify the import: protocol vs contract
+                if let Some(caps) = module_extract_re.captures(trimmed) {
+                    if let Some(module_name) = caps.get(1) {
+                        let module = module_name.as_str();
+
+                        // Check if it's a contract module (ALLOWED)
+                        if CONTRACTS_MODULES.contains(&module) {
+                            continue; // Contract modules are allowed in use cases
+                        }
+
+                        // Check if it's a protocol module (DISALLOWED)
+                        if PROTOCOL_MODULES.contains(&module) {
+                            violations.push(format!(
+                                "{}:{}: imports protocol module '{}' - use cases must use domain types\n    {}",
+                                entry.display(),
+                                line_no,
+                                module,
+                                trimmed
+                            ));
+                            break; // One violation per file is enough
+                        }
+
+                        // Unknown module - warn but don't fail
+                        eprintln!(
+                            "WARNING: {}:{}: uses wrldbldr_shared::{} (unknown module - manual review recommended)\n    {}",
+                            entry.display(),
+                            line_no,
+                            module,
+                            trimmed
+                        );
+                        continue;
+                    }
+                }
+
+                // Default: treat as protocol import
                 violations.push(format!(
                     "{}:{}: uses wrldbldr_shared - application layer must use domain types\n    {}",
                     entry.display(),

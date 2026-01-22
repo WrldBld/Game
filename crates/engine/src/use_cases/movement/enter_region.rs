@@ -3,7 +3,6 @@
 //! Handles player character movement to a region within the same location.
 //! Coordinates with staging, observation, scene resolution, narrative, and time systems.
 
-use chrono::Utc;
 use std::sync::Arc;
 use wrldbldr_domain::{
     NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId,
@@ -11,7 +10,7 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{
-    FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
+    ClockPort, FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
     StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
@@ -67,6 +66,7 @@ pub struct EnterRegion {
     flag: Arc<dyn FlagRepo>,
     world: Arc<dyn WorldRepo>,
     suggest_time: Arc<SuggestTime>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl EnterRegion {
@@ -82,6 +82,7 @@ impl EnterRegion {
         flag: Arc<dyn FlagRepo>,
         world: Arc<dyn WorldRepo>,
         suggest_time: Arc<SuggestTime>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             player_character,
@@ -95,6 +96,7 @@ impl EnterRegion {
             flag,
             world,
             suggest_time,
+            clock,
         }
     }
 
@@ -136,7 +138,8 @@ impl EnterRegion {
         if let Some(current_region_id) = pc.current_region_id() {
             // Don't require path if already in target region
             if current_region_id != region_id {
-                match self.check_connection(current_region_id, region_id).await {
+                let connection_result = self.check_connection(current_region_id, region_id).await?;
+                match connection_result {
                     ConnectionCheckResult::NoConnection => {
                         return Err(EnterRegionError::NoPathToRegion);
                     }
@@ -156,8 +159,8 @@ impl EnterRegion {
             .get(pc.world_id())
             .await?
             .ok_or(EnterRegionError::WorldNotFound(pc.world_id()))?;
-        let current_game_time_minutes = world_data.game_time().total_minutes();
-        let real_timestamp = Utc::now();
+        let current_game_time_seconds = world_data.game_time().total_seconds();
+        let real_timestamp = self.clock.now();
 
         // 6. Check for valid staging (with TTL check using game time)
         let (npcs, staging_status) = resolve_staging_for_region(
@@ -165,7 +168,7 @@ impl EnterRegion {
             region_id,
             region.location_id(),
             pc.world_id(),
-            current_game_time_minutes,
+            current_game_time_seconds,
             real_timestamp,
         )
         .await?;
@@ -174,7 +177,7 @@ impl EnterRegion {
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
             self.record_visit
-                .execute(pc_id, region_id, &npcs, current_game_time_minutes)
+                .execute(pc_id, region_id, &npcs, current_game_time_seconds)
                 .await?;
         }
 
@@ -242,11 +245,8 @@ impl EnterRegion {
         &self,
         from_region_id: RegionId,
         to_region_id: RegionId,
-    ) -> ConnectionCheckResult {
-        let connections = match self.location.get_connections(from_region_id, None).await {
-            Ok(c) => c,
-            Err(_) => return ConnectionCheckResult::NoConnection,
-        };
+    ) -> Result<ConnectionCheckResult, EnterRegionError> {
+        let connections = self.location.get_connections(from_region_id, None).await?;
 
         // Find connection to target region
         match connections.iter().find(|c| c.to_region == to_region_id) {
@@ -256,10 +256,10 @@ impl EnterRegion {
                     .as_ref()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "The way is blocked".to_string());
-                ConnectionCheckResult::Locked(reason)
+                Ok(ConnectionCheckResult::Locked(reason))
             }
-            Some(_) => ConnectionCheckResult::Open,
-            None => ConnectionCheckResult::NoConnection,
+            Some(_) => Ok(ConnectionCheckResult::Open),
+            None => Ok(ConnectionCheckResult::NoConnection),
         }
     }
 }
@@ -296,7 +296,7 @@ pub enum EnterRegionError {
 mod tests {
     use std::sync::Arc;
 
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
     use wrldbldr_domain::{
         value_objects::RegionName, CharacterName, Description, LocationId, PlayerCharacterId,
         Region, RegionConnection, RegionId, UserId, WorldId,
@@ -305,16 +305,20 @@ mod tests {
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
-        MockStagingRepo, MockWorldRepo,
+        MockStagingRepo, MockWorldRepo, RepoError,
     };
 
     use crate::use_cases::scene::ResolveScene;
     use crate::use_cases::NarrativeOps;
 
-    struct FixedClock(chrono::DateTime<chrono::Utc>);
+    fn fixed_time() -> chrono::DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
+
+    struct FixedClock(chrono::DateTime<Utc>);
 
     impl ClockPort for FixedClock {
-        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        fn now(&self) -> chrono::DateTime<Utc> {
             self.0
         }
     }
@@ -363,7 +367,7 @@ mod tests {
         ));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
             world_repo.clone(),
-            clock_port,
+            clock_port.clone(),
         ));
 
         super::EnterRegion::new(
@@ -378,6 +382,7 @@ mod tests {
             flag_repo,
             world_repo,
             suggest_time,
+            clock_port,
         )
     }
 
@@ -385,6 +390,7 @@ mod tests {
     async fn when_pc_missing_then_returns_player_character_not_found() {
         let pc_id = PlayerCharacterId::new();
         let region_id = RegionId::new();
+        let now = fixed_time();
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         pc_repo
@@ -396,7 +402,7 @@ mod tests {
             pc_repo,
             MockLocationRepo::new(),
             MockWorldRepo::new(),
-            Arc::new(FixedClock(Utc::now())),
+            Arc::new(FixedClock(now)),
         );
 
         let err = use_case.execute(pc_id, region_id).await.unwrap_err();
@@ -408,11 +414,11 @@ mod tests {
 
     #[tokio::test]
     async fn when_region_missing_then_returns_region_not_found() {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
         let region_id = RegionId::new();
+        let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             UserId::new("user").unwrap(),
@@ -448,11 +454,11 @@ mod tests {
 
     #[tokio::test]
     async fn when_region_in_different_location_then_returns_region_not_in_current_location() {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let pc_location_id = LocationId::new();
         let other_location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
+        let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             UserId::new("user").unwrap(),
@@ -504,10 +510,10 @@ mod tests {
 
     #[tokio::test]
     async fn when_no_connection_then_returns_no_path_to_region() {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
+        let now = fixed_time();
 
         let from_region_id = RegionId::new();
         let to_region_id = RegionId::new();
@@ -562,11 +568,70 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_connection_locked_then_returns_movement_blocked() {
-        let now = Utc::now();
+    async fn when_get_connections_repo_error_then_propagates() {
         let world_id = WorldId::new();
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
+        let from_region_id = RegionId::new();
+        let to_region_id = RegionId::new();
+        let now = fixed_time();
+
+        let to_region = Region::from_parts(
+            to_region_id,
+            location_id,
+            RegionName::new("Target").unwrap(),
+            Description::default(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
+
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            UserId::new("user").unwrap(),
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_starting_region(from_region_id);
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut location_repo = MockLocationRepo::new();
+        let to_region_for_get = to_region.clone();
+        location_repo
+            .expect_get_region()
+            .withf(move |id| *id == to_region_id)
+            .returning(move |_| Ok(Some(to_region_for_get.clone())));
+        location_repo
+            .expect_get_connections()
+            .withf(move |id, _limit| *id == from_region_id)
+            .returning(|_, _| Err(RepoError::database("get_connections", "Database error")));
+
+        let use_case = build_use_case(
+            pc_repo,
+            location_repo,
+            MockWorldRepo::new(),
+            Arc::new(FixedClock(now)),
+        );
+
+        let err = use_case.execute(pc_id, to_region_id).await.unwrap_err();
+        assert!(matches!(err, super::EnterRegionError::Repo(_)));
+    }
+
+    #[tokio::test]
+    async fn when_connection_locked_then_returns_movement_blocked() {
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let pc_id = PlayerCharacterId::new();
+        let now = fixed_time();
 
         let from_region_id = RegionId::new();
         let to_region_id = RegionId::new();
@@ -634,10 +699,10 @@ mod tests {
 
     #[tokio::test]
     async fn when_world_missing_then_returns_world_not_found() {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
+        let now = fixed_time();
 
         let region_id = RegionId::new();
         let region = Region::from_parts(

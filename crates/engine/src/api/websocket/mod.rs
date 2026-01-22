@@ -17,9 +17,12 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
+use tracing::Instrument;
 
 use wrldbldr_domain::ConnectionId;
+use crate::infrastructure::correlation::CorrelationId;
 
+mod correlation_helper;
 mod ws_actantial;
 mod ws_approval;
 mod ws_challenge;
@@ -175,10 +178,11 @@ impl Default for PendingStagingStoreImpl {
 
 impl PendingStagingStoreImpl {
     /// Atomic check-and-mark operation to prevent double-approval.
-    /// Returns true if the key was removed from processed_ids (was not already present).
+    /// Inserts the key into processed_ids and returns true only if it was not already present
+    /// (i.e., the key was newly inserted). Returns false if the key was already in the set.
     pub fn mark_processed(&self, key: &str) -> bool {
         let mut processed_ids = self.processed_ids.write().unwrap();
-        processed_ids.remove(key)
+        processed_ids.insert(key.to_string())
     }
 }
 
@@ -288,13 +292,29 @@ async fn handle_socket(socket: WebSocket, state: Arc<WsState>) {
     // Create a bounded channel for sending messages to this client
     let (tx, mut rx) = mpsc::channel::<ServerMessage>(CONNECTION_CHANNEL_BUFFER);
 
-    // Register the connection
+    // Register the connection (this creates a correlation_id)
     state
         .connections
         .register(connection_id, user_id, tx.clone())
         .await;
 
-    tracing::info!(connection_id = %connection_id, "WebSocket connection established");
+    // Fetch correlation_id from ConnectionInfo, generate if not found
+    let correlation_id = state
+        .connections
+        .get(connection_id)
+        .await
+        .map(|info| info.correlation_id)
+        .unwrap_or_else(CorrelationId::new);
+
+    // Create a span for this connection that includes correlation context
+    let connection_span = tracing::info_span!(
+        "websocket_connection",
+        connection_id = %connection_id,
+        correlation_id = %correlation_id,
+        correlation_id_short = %correlation_id.short(),
+    );
+
+    tracing::info!(parent: &connection_span, "WebSocket connection established");
 
     // Spawn a task to forward messages from the channel to the WebSocket
     let send_task = tokio::spawn(async move {
@@ -307,45 +327,48 @@ async fn handle_socket(socket: WebSocket, state: Arc<WsState>) {
         }
     });
 
-    // Handle incoming messages
-    while let Some(result) = ws_receiver.next().await {
-        match result {
-            Ok(Message::Text(text)) => match serde_json::from_str::<ClientMessage>(text.as_str()) {
-                Ok(msg) => {
-                    if let Some(response) =
-                        handle_message(msg, &state, connection_id, tx.clone()).await
-                    {
-                        if tx.try_send(response).is_err() {
-                            tracing::warn!(
-                                connection_id = %connection_id,
-                                "Failed to send response, channel full or closed"
-                            );
+    // Handle incoming messages within the connection span
+    async {
+        while let Some(result) = ws_receiver.next().await {
+            match result {
+                Ok(Message::Text(text)) => match serde_json::from_str::<ClientMessage>(text.as_str()) {
+                    Ok(msg) => {
+                        if let Some(response) =
+                            handle_message(msg, &state, connection_id, correlation_id, tx.clone()).await
+                        {
+                            if tx.try_send(response).is_err() {
+                                tracing::warn!(
+                                    "Failed to send response, channel full or closed"
+                                );
+                            }
                         }
                     }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to parse message");
+                        let error = error_response(
+                            ErrorCode::BadRequest,
+                            &format!("Invalid message format: {}", e),
+                        );
+                        let _ = tx.try_send(error);
+                    }
+                },
+                Ok(Message::Ping(_)) => {
+                    let _ = tx.try_send(ServerMessage::Pong);
+                }
+                Ok(Message::Close(_)) => {
+                    tracing::info!("WebSocket closed by client");
+                    break;
                 }
                 Err(e) => {
-                    tracing::warn!(connection_id = %connection_id, error = %e, "Failed to parse message");
-                    let error = error_response(
-                        ErrorCode::BadRequest,
-                        &format!("Invalid message format: {}", e),
-                    );
-                    let _ = tx.try_send(error);
+                    tracing::error!(error = %e, "WebSocket error");
+                    break;
                 }
-            },
-            Ok(Message::Ping(_)) => {
-                let _ = tx.try_send(ServerMessage::Pong);
+                _ => {}
             }
-            Ok(Message::Close(_)) => {
-                tracing::info!(connection_id = %connection_id, "WebSocket closed by client");
-                break;
-            }
-            Err(e) => {
-                tracing::error!(connection_id = %connection_id, error = %e, "WebSocket error");
-                break;
-            }
-            _ => {}
         }
     }
+    .instrument(connection_span)
+    .await;
 
     // Clean up
     state.connections.unregister(connection_id).await;
@@ -359,6 +382,7 @@ async fn handle_message(
     msg: ClientMessage,
     state: &WsState,
     connection_id: ConnectionId,
+    correlation_id: CorrelationId,
     _sender: mpsc::Sender<ServerMessage>,
 ) -> Option<ServerMessage> {
     match msg {
@@ -373,7 +397,6 @@ async fn handle_message(
             spectate_pc_id,
         } => {
             tracing::info!(
-                connection_id = %connection_id,
                 world_id = %world_id,
                 ?role,
                 %user_id,
@@ -467,7 +490,53 @@ async fn handle_message(
         ClientMessage::Request {
             request_id,
             payload,
-        } => handle_request(state, connection_id, request_id, payload).await,
+        } => {
+            // Get payload type name for logging
+            let payload_type = match &payload {
+                RequestPayload::Lore(_) => "Lore",
+                RequestPayload::StoryEvent(_) => "StoryEvent",
+                RequestPayload::World(_) => "World",
+                RequestPayload::Character(_) => "Character",
+                RequestPayload::Location(_) => "Location",
+                RequestPayload::Region(_) => "Region",
+                RequestPayload::Time(_) => "Time",
+                RequestPayload::Npc(_) => "Npc",
+                RequestPayload::Items(_) => "Items",
+                RequestPayload::PlayerCharacter(_) => "PlayerCharacter",
+                RequestPayload::Relationship(_) => "Relationship",
+                RequestPayload::Observation(_) => "Observation",
+                RequestPayload::Generation(_) => "Generation",
+                RequestPayload::Ai(_) => "Ai",
+                RequestPayload::Expression(_) => "Expression",
+                RequestPayload::Challenge(_) => "Challenge",
+                RequestPayload::NarrativeEvent(_) => "NarrativeEvent",
+                RequestPayload::EventChain(_) => "EventChain",
+                RequestPayload::Goal(_) => "Goal",
+                RequestPayload::Want(_) => "Want",
+                RequestPayload::Actantial(_) => "Actantial",
+                RequestPayload::Scene(_) => "Scene",
+                RequestPayload::Act(_) => "Act",
+                RequestPayload::Interaction(_) => "Interaction",
+                RequestPayload::Skill(_) => "Skill",
+                RequestPayload::Stat(_) => "Stat",
+                RequestPayload::CharacterSheet(_) => "CharacterSheet",
+                RequestPayload::Content(_) => "Content",
+                RequestPayload::Unknown => "Unknown",
+            };
+
+            // Create a child span for Request messages with request context
+            let request_span = tracing::debug_span!(
+                "request",
+                request_id = %request_id,
+                payload_type = payload_type,
+            );
+
+            async {
+                handle_request(state, connection_id, correlation_id, request_id, payload).await
+            }
+            .instrument(request_span)
+            .await
+        }
 
         // Challenge handlers
         ClientMessage::ChallengeRoll { challenge_id, roll } => {
@@ -730,7 +799,7 @@ async fn handle_message(
 
         // Forward compatibility - return error so client doesn't hang
         ClientMessage::Unknown => {
-            tracing::warn!(connection_id = %connection_id, "Received unknown message type");
+            tracing::warn!("Received unknown message type");
             Some(error_response(
                 ErrorCode::BadRequest,
                 "Unrecognized message type",
@@ -739,7 +808,7 @@ async fn handle_message(
 
         // All other message types - return not implemented for now
         _ => {
-            tracing::debug!(connection_id = %connection_id, "Unhandled message type");
+            tracing::debug!("Unhandled message type");
             Some(error_response(
                 ErrorCode::NotImplemented,
                 "This message type is not yet implemented",
@@ -751,6 +820,7 @@ async fn handle_message(
 async fn handle_request(
     state: &WsState,
     connection_id: ConnectionId,
+    _correlation_id: CorrelationId,
     request_id: String,
     payload: RequestPayload,
 ) -> Option<ServerMessage> {

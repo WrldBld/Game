@@ -635,6 +635,8 @@ impl Character {
 // ============================================================================
 
 /// Intermediate format for serialization that matches the wire format
+///
+/// Uses string-based state for backward compatibility with legacy data.
 #[derive(Serialize, Deserialize)]
 struct CharacterWireFormat {
     id: CharacterId,
@@ -647,7 +649,7 @@ struct CharacterWireFormat {
     current_archetype: CampbellArchetype,
     archetype_history: Vec<ArchetypeChange>,
     stats: StatBlock,
-    state: CharacterState,
+    state: String,
     default_disposition: DispositionLevel,
     default_mood: MoodState,
     expression_config: ExpressionConfig,
@@ -669,7 +671,7 @@ impl Serialize for Character {
             current_archetype: self.current_archetype,
             archetype_history: self.archetype_history.clone(),
             stats: self.stats.clone(),
-            state: self.state,
+            state: self.state.to_string(),
             default_disposition: self.default_disposition,
             default_mood: self.default_mood,
             expression_config: self.expression_config.clone(),
@@ -683,70 +685,36 @@ impl<'de> Deserialize<'de> for Character {
     where
         D: Deserializer<'de>,
     {
-        // First try to deserialize as the new format
-        // If that fails (missing 'state' field), try legacy format
-        #[derive(Deserialize)]
-        struct LegacyCharacterFormat {
-            id: CharacterId,
-            world_id: WorldId,
-            name: CharacterName,
-            #[serde(default)]
-            description: Description,
-            sprite_asset: Option<String>,
-            portrait_asset: Option<String>,
-            base_archetype: CampbellArchetype,
-            current_archetype: CampbellArchetype,
-            #[serde(default)]
-            archetype_history: Vec<ArchetypeChange>,
-            #[serde(default)]
-            stats: StatBlock,
-            // Legacy format: might have is_alive/is_active OR state
-            #[serde(default)]
-            state: Option<CharacterState>,
-            #[serde(default)]
-            is_alive: Option<bool>,
-            #[serde(default)]
-            is_active: Option<bool>,
-            #[serde(default)]
-            default_disposition: DispositionLevel,
-            #[serde(default)]
-            default_mood: MoodState,
-            #[serde(default)]
-            expression_config: ExpressionConfig,
-        }
+        let wire = CharacterWireFormat::deserialize(deserializer)?;
 
-        let legacy = LegacyCharacterFormat::deserialize(deserializer)?;
-
-        // Determine state from either new or legacy format
-        let state = match legacy.state {
-            Some(s) => s,
-            None => {
-                // Fall back to legacy boolean format
-                let is_alive = legacy.is_alive.unwrap_or(true);
-                let is_active = legacy.is_active.unwrap_or(true);
-                CharacterState::from_legacy(is_alive, is_active)
+        // Convert string state to CharacterState
+        let state = match wire.state.as_str() {
+            "Active" => CharacterState::Active,
+            "Inactive" => CharacterState::Inactive,
+            "Dead" => CharacterState::Dead,
+            s => {
+                return Err(serde::de::Error::custom(format!(
+                    "Invalid character state: {}",
+                    s
+                )))
             }
         };
 
-        // Convert legacy String asset paths to AssetPath (skip invalid ones)
-        let sprite_asset = legacy.sprite_asset.and_then(|s| AssetPath::new(s).ok());
-        let portrait_asset = legacy.portrait_asset.and_then(|s| AssetPath::new(s).ok());
-
         Ok(Character {
-            id: legacy.id,
-            world_id: legacy.world_id,
-            name: legacy.name,
-            description: legacy.description,
-            sprite_asset,
-            portrait_asset,
-            base_archetype: legacy.base_archetype,
-            current_archetype: legacy.current_archetype,
-            archetype_history: legacy.archetype_history,
-            stats: legacy.stats,
+            id: wire.id,
+            world_id: wire.world_id,
+            name: wire.name,
+            description: wire.description,
+            sprite_asset: wire.sprite_asset,
+            portrait_asset: wire.portrait_asset,
+            base_archetype: wire.base_archetype,
+            current_archetype: wire.current_archetype,
+            archetype_history: wire.archetype_history,
+            stats: wire.stats,
             state,
-            default_disposition: legacy.default_disposition,
-            default_mood: legacy.default_mood,
-            expression_config: legacy.expression_config,
+            default_disposition: wire.default_disposition,
+            default_mood: wire.default_mood,
+            expression_config: wire.expression_config,
         })
     }
 }

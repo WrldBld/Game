@@ -43,7 +43,7 @@ impl LocationManagement {
         setting: Option<String>,
     ) -> Result<wrldbldr_domain::Location, ManagementError> {
         let location_name = value_objects::LocationName::new(&name)
-            .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            .map_err(ManagementError::Domain)?;
         let mut location = wrldbldr_domain::Location::new(
             world_id,
             location_name,
@@ -51,12 +51,12 @@ impl LocationManagement {
         );
         if let Some(description) = description {
             let desc = value_objects::Description::new(&description)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             location = location.with_description(desc);
         }
         if let Some(setting) = setting {
             let atm = value_objects::Atmosphere::new(&setting)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             location = location.with_atmosphere(atm);
         }
 
@@ -92,18 +92,15 @@ impl LocationManagement {
 
         if let Some(name) = name {
             require_non_empty(&name, "Location name")?;
-            let location_name = value_objects::LocationName::new(&name)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            let location_name = value_objects::LocationName::new(&name)?;
             location.set_name(location_name);
         }
         if let Some(description) = description {
-            let desc = value_objects::Description::new(&description)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            let desc = value_objects::Description::new(&description)?;
             location.set_description(desc);
         }
         if let Some(setting) = setting {
-            let atm = value_objects::Atmosphere::new(&setting)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            let atm = value_objects::Atmosphere::new(&setting)?;
             location.set_atmosphere(Some(atm));
         }
 
@@ -140,7 +137,7 @@ impl LocationManagement {
         is_spawn_point: Option<bool>,
     ) -> Result<wrldbldr_domain::Region, ManagementError> {
         let region_name =
-            RegionName::new(&name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            RegionName::new(&name).map_err(ManagementError::Domain)?;
 
         let mut region = wrldbldr_domain::Region::new(location_id, region_name);
         if let Some(description) = description {
@@ -172,7 +169,7 @@ impl LocationManagement {
 
         // Regions are immutable - rebuild with updated values using from_parts
         let new_name = if let Some(name) = name {
-            RegionName::new(&name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?
+            RegionName::new(&name).map_err(ManagementError::Domain)?
         } else {
             region.name().clone()
         };

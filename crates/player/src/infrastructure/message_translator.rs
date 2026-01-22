@@ -819,7 +819,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         ServerMessage::GameTimeAdvanced { data } => PlayerEvent::GameTimeAdvanced {
             previous_time: data.previous_time,
             new_time: data.new_time,
-            minutes_advanced: data.minutes_advanced,
+            seconds_advanced: data.seconds_advanced,
             reason: data.reason,
             period_changed: data.period_changed,
             new_period: data.new_period,
@@ -831,7 +831,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             pc_name: data.pc_name,
             action_type: data.action_type,
             action_description: data.action_description,
-            suggested_minutes: data.suggested_minutes,
+            suggested_seconds: data.suggested_seconds,
             current_time: data.current_time,
             resulting_time: data.resulting_time,
             period_change: data.period_change,
@@ -1023,7 +1023,7 @@ mod tests {
             data: TimeAdvanceData {
                 previous_time: previous_time.clone(),
                 new_time: new_time.clone(),
-                minutes_advanced: 90,
+                seconds_advanced: 90,
                 reason: "Travel".to_string(),
                 period_changed: true,
                 new_period: Some("morning".to_string()),
@@ -1035,14 +1035,14 @@ mod tests {
             PlayerEvent::GameTimeAdvanced {
                 previous_time: prev,
                 new_time: next,
-                minutes_advanced,
+                seconds_advanced,
                 reason,
                 period_changed,
                 new_period,
             } => {
                 assert_eq!(prev, previous_time);
                 assert_eq!(next, new_time);
-                assert_eq!(minutes_advanced, 90);
+                assert_eq!(seconds_advanced, 90);
                 assert_eq!(reason, "Travel");
                 assert!(period_changed);
                 assert_eq!(new_period.as_deref(), Some("morning"));
@@ -1062,8 +1062,8 @@ mod tests {
                 pc_id: "pc-1".to_string(),
                 pc_name: "Alice".to_string(),
                 action_type: "conversation".to_string(),
-                action_description: "Talk to the merchant".to_string(),
-                suggested_minutes: 10,
+                action_description: "Talk to merchant".to_string(),
+                suggested_seconds: 10,
                 current_time: current_time.clone(),
                 resulting_time: resulting_time.clone(),
                 period_change: None,
@@ -1078,7 +1078,7 @@ mod tests {
                 pc_name,
                 action_type,
                 action_description,
-                suggested_minutes,
+                suggested_seconds,
                 current_time: cur,
                 resulting_time: res,
                 period_change,
@@ -1087,8 +1087,8 @@ mod tests {
                 assert_eq!(pc_id, "pc-1");
                 assert_eq!(pc_name, "Alice");
                 assert_eq!(action_type, "conversation");
-                assert_eq!(action_description, "Talk to the merchant");
-                assert_eq!(suggested_minutes, 10);
+                assert_eq!(action_description, "Talk to merchant");
+                assert_eq!(suggested_seconds, 10);
                 assert_eq!(cur, current_time);
                 assert_eq!(res, resulting_time);
                 assert_eq!(period_change, None);

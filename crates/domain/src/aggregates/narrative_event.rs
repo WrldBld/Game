@@ -37,7 +37,7 @@ pub use crate::entities::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum EventActivation {
+pub enum EventActivation {
     Active,
     Inactive,
 }
@@ -49,7 +49,7 @@ enum EventRepeatability {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FavoriteStatus {
+pub enum FavoriteStatus {
     Normal,
     Favorite,
 }
@@ -650,17 +650,17 @@ impl NarrativeEvent {
     }
 
     /// Set the event's active state.
-    pub fn set_active(&mut self, active: bool, now: DateTime<Utc>) -> NarrativeEventUpdate {
-        let previous = self.is_active();
-        self.activation = if active {
-            EventActivation::Active
-        } else {
-            EventActivation::Inactive
-        };
+    pub fn set_active(
+        &mut self,
+        active: EventActivation,
+        now: DateTime<Utc>,
+    ) -> NarrativeEventUpdate {
+        let previous = self.activation.clone();
+        self.activation = active;
         self.updated_at = now;
         NarrativeEventUpdate::ActivationChanged {
             from: previous,
-            to: self.is_active(),
+            to: self.activation,
         }
     }
 
@@ -676,17 +676,17 @@ impl NarrativeEvent {
     }
 
     /// Set the event's favorite state.
-    pub fn set_favorite(&mut self, favorite: bool, now: DateTime<Utc>) -> NarrativeEventUpdate {
-        let previous = self.is_favorite();
-        self.favorite = if favorite {
-            FavoriteStatus::Favorite
-        } else {
-            FavoriteStatus::Normal
-        };
+    pub fn set_favorite(
+        &mut self,
+        favorite: FavoriteStatus,
+        now: DateTime<Utc>,
+    ) -> NarrativeEventUpdate {
+        let previous = self.favorite.clone();
+        self.favorite = favorite;
         self.updated_at = now;
         NarrativeEventUpdate::FavoriteChanged {
             from: previous,
-            to: self.is_favorite(),
+            to: self.favorite,
         }
     }
 
@@ -1272,10 +1272,10 @@ mod tests {
         fn set_active_works() {
             let mut event = create_test_event();
             let now = fixed_time();
-            event.set_active(false, now);
+            event.set_active(EventActivation::Inactive, now);
             assert!(!event.is_active());
 
-            event.set_active(true, now);
+            event.set_active(EventActivation::Active, now);
             assert!(event.is_active());
         }
 
@@ -1290,10 +1290,10 @@ mod tests {
         fn set_favorite_works() {
             let mut event = create_test_event();
             let now = fixed_time();
-            event.set_favorite(true, now);
+            event.set_favorite(FavoriteStatus::Favorite, now);
             assert!(event.is_favorite());
 
-            event.set_favorite(false, now);
+            event.set_favorite(FavoriteStatus::Normal, now);
             assert!(!event.is_favorite());
         }
     }

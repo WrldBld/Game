@@ -50,14 +50,17 @@ impl Neo4jWorldRepo {
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        // GameTime fields - use defaults for backwards compatibility
+        // GameTime fields
         let game_time_paused = node.get_bool_or("game_time_paused", true);
 
-        // Parse game time as total minutes since epoch
-        // For backwards compatibility: if stored as DateTime string, default to 0
-        // New storage format uses game_time_minutes (i64)
-        let total_minutes = node.get_i64_or("game_time_minutes", 0);
-        let mut game_time = GameTime::from_minutes(total_minutes);
+        // Parse game time as total seconds since epoch
+        let total_seconds: i64 = node.get("game_time_seconds").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'game_time_seconds' for World {}: {}", id, e),
+            )
+        })?;
+        let mut game_time = GameTime::from_seconds(total_seconds);
         game_time.set_paused(game_time_paused);
 
         // Parse time config or use defaults
@@ -116,7 +119,7 @@ impl WorldRepo for Neo4jWorldRepo {
             SET w.name = $name,
                 w.description = $description,
                 w.rule_system = $rule_system,
-                w.game_time_minutes = $game_time_minutes,
+                w.game_time_seconds = $game_time_seconds,
                 w.game_time_paused = $game_time_paused,
                 w.time_config = $time_config,
                 w.created_at = $created_at,
@@ -127,7 +130,7 @@ impl WorldRepo for Neo4jWorldRepo {
         .param("name", world.name().as_str().to_owned())
         .param("description", world.description().as_str().to_owned())
         .param("rule_system", rule_system_json)
-        .param("game_time_minutes", world.game_time().total_minutes())
+        .param("game_time_seconds", world.game_time().total_seconds())
         .param("game_time_paused", world.game_time().is_paused())
         .param("time_config", time_config_json)
         .param("created_at", world.created_at().to_rfc3339())

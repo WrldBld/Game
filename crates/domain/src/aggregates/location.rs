@@ -377,55 +377,35 @@ impl<'de> Deserialize<'de> for Location {
     where
         D: Deserializer<'de>,
     {
-        // Support both new format (newtypes) and legacy format (raw strings)
-        #[derive(Deserialize)]
-        struct LegacyLocationFormat {
-            id: LocationId,
-            world_id: WorldId,
-            name: LocationName,
-            #[serde(default)]
-            description: Description,
-            location_type: LocationType,
-            backdrop_asset: Option<String>,
-            map_asset: Option<String>,
-            parent_map_bounds: Option<MapBounds>,
-            default_region_id: Option<RegionId>,
-            atmosphere: Option<String>,
-            #[serde(default = "default_presence_ttl")]
-            presence_cache_ttl_hours: i32,
-            #[serde(default = "default_llm_presence")]
-            use_llm_presence: bool,
+        let wire = LocationWireFormat::deserialize(deserializer)?;
+        let mut location = Location::new(wire.world_id, wire.name, wire.location_type)
+            .with_description(wire.description);
+        if let Some(backdrop) = wire.backdrop_asset {
+            location = location.with_backdrop(AssetPath::new(backdrop).map_err(|e| {
+                serde::de::Error::custom(format!("Invalid backdrop asset path: {}", e))
+            })?);
         }
-
-        fn default_presence_ttl() -> i32 {
-            3
+        if let Some(map) = wire.map_asset {
+            location =
+                location.with_map(AssetPath::new(map).map_err(|e| {
+                    serde::de::Error::custom(format!("Invalid map asset path: {}", e))
+                })?);
         }
-        fn default_llm_presence() -> bool {
-            true
+        if let Some(bounds) = wire.parent_map_bounds {
+            location = location.with_parent_map_bounds(bounds);
         }
-
-        let legacy = LegacyLocationFormat::deserialize(deserializer)?;
-
-        // Convert Option<String> to Option<AssetPath>, ignoring invalid paths
-        let backdrop_asset = legacy.backdrop_asset.and_then(|s| AssetPath::new(s).ok());
-        let map_asset = legacy.map_asset.and_then(|s| AssetPath::new(s).ok());
-        // Convert Option<String> to Option<Atmosphere>, ignoring invalid values
-        let atmosphere = legacy.atmosphere.and_then(|s| Atmosphere::new(s).ok());
-
-        Ok(Location {
-            id: legacy.id,
-            world_id: legacy.world_id,
-            name: legacy.name,
-            description: legacy.description,
-            location_type: legacy.location_type,
-            backdrop_asset,
-            map_asset,
-            parent_map_bounds: legacy.parent_map_bounds,
-            default_region_id: legacy.default_region_id,
-            atmosphere,
-            presence_cache_ttl_hours: legacy.presence_cache_ttl_hours,
-            use_llm_presence: legacy.use_llm_presence,
-        })
+        if let Some(region_id) = wire.default_region_id {
+            location = location.with_default_region(region_id);
+        }
+        if let Some(atm) = wire.atmosphere {
+            location = location.with_atmosphere(
+                Atmosphere::new(atm)
+                    .map_err(|e| serde::de::Error::custom(format!("Invalid atmosphere: {}", e)))?,
+            );
+        }
+        location = location.with_presence_ttl(wire.presence_cache_ttl_hours);
+        location = location.with_llm_presence(wire.use_llm_presence);
+        Ok(location)
     }
 }
 

@@ -1,4 +1,8 @@
 //! Value objects - Immutable objects defined by their attributes
+//!
+//! This module contains domain value objects organized by tier classification.
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for the complete tier-level classification system (Tiers 1-5).
 
 mod actantial_context;
 mod activation_rules;

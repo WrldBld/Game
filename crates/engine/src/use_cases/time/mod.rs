@@ -105,10 +105,10 @@ impl SuggestTime {
             .ok_or(SuggestTimeError::WorldNotFound(world_id))?;
 
         let config = world.time_config();
-        let cost_minutes = config.time_costs().cost_for_action(action_type);
+        let cost_seconds = config.time_costs().cost_for_action(action_type);
 
         // If no cost, nothing to do
-        if cost_minutes == 0 {
+        if cost_seconds == 0 {
             return Ok(SuggestTimeResult::NoCost);
         }
 
@@ -122,7 +122,7 @@ impl SuggestTime {
                 // Create suggestion for DM approval
                 let mut resulting_time = world.game_time().clone();
                 let previous_period = resulting_time.time_of_day();
-                resulting_time.advance_minutes(cost_minutes);
+                resulting_time.advance_seconds(cost_seconds);
                 let new_period = resulting_time.time_of_day();
 
                 let period_change = if previous_period != new_period {
@@ -131,14 +131,14 @@ impl SuggestTime {
                     None
                 };
 
-                let suggestion = TimeSuggestion {
+            let suggestion = TimeSuggestion {
                     id: TimeSuggestionId::new(),
                     world_id,
                     pc_id,
                     pc_name,
                     action_type: action_type.to_string(),
                     action_description,
-                    suggested_minutes: cost_minutes,
+                    suggested_seconds: cost_seconds,
                     current_time: world.game_time().clone(),
                     resulting_time,
                     period_change,
@@ -226,15 +226,15 @@ impl TimeControl {
         Ok(TimeAdvanceOutcome {
             previous_time: result.previous_time,
             new_time: result.new_time,
-            minutes_advanced: result.minutes_advanced,
+            seconds_advanced: result.seconds_advanced,
             period_changed: result.period_changed,
         })
     }
 
-    pub async fn advance_minutes(
+    pub async fn advance_seconds(
         &self,
         world_id: WorldId,
-        minutes: u32,
+        seconds: u32,
         reason: TimeAdvanceReason,
     ) -> Result<TimeAdvanceOutcome, TimeControlError> {
         let mut world = self
@@ -245,14 +245,14 @@ impl TimeControl {
 
         let previous_time = world.game_time().clone();
         let previous_period = previous_time.time_of_day();
-        let result = world.advance_time(minutes, reason, self.clock.now());
+        let result = world.advance_time(seconds, reason, self.clock.now());
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time,
             new_time: result.new_time.clone(),
-            minutes_advanced: result.minutes_advanced,
+            seconds_advanced: result.seconds_advanced,
             period_changed: previous_period != result.new_time.time_of_day(),
         })
     }
@@ -279,7 +279,7 @@ impl TimeControl {
         Ok(TimeAdvanceOutcome {
             previous_time,
             new_time: world.game_time().clone(),
-            minutes_advanced: 0,
+            seconds_advanced: 0,
             period_changed: previous_period != world.game_time().time_of_day(),
         })
     }
@@ -297,7 +297,7 @@ impl TimeControl {
 
         let previous_time = world.game_time().clone();
         let previous_period = previous_time.time_of_day();
-        let minutes_until = world.game_time().minutes_until_period(period);
+        let seconds_until = world.game_time().seconds_until_period(period);
         world.game_time_mut().skip_to_period(period);
 
         self.world.save(&world).await?;
@@ -305,7 +305,7 @@ impl TimeControl {
         Ok(TimeAdvanceOutcome {
             previous_time,
             new_time: world.game_time().clone(),
-            minutes_advanced: minutes_until,
+            seconds_advanced: seconds_until,
             period_changed: previous_period != period,
         })
     }
@@ -354,8 +354,8 @@ impl TimeControl {
 
         // Update via the individual setters (which auto-update updated_at)
         let now = self.clock.now();
-        world.set_time_mode(config.mode(), now);
-        world.set_time_costs(config.time_costs().clone(), now);
+        let _ = world.set_time_mode(config.mode(), now);
+        let _ = world.set_time_costs(config.time_costs().clone(), now);
 
         self.world.save(&world).await?;
 
@@ -367,7 +367,7 @@ impl TimeControl {
 pub struct TimeAdvanceOutcome {
     pub previous_time: GameTime,
     pub new_time: GameTime,
-    pub minutes_advanced: u32,
+    pub seconds_advanced: u32,
     pub period_changed: bool,
 }
 
@@ -418,9 +418,9 @@ impl TimeSuggestions {
             return Err(TimeSuggestionError::WorldMismatch);
         }
 
-        let minutes_to_advance = decision.resolved_minutes(suggestion.suggested_minutes);
+        let seconds_to_advance = decision.resolved_seconds(suggestion.suggested_seconds);
 
-        if minutes_to_advance == 0 {
+        if seconds_to_advance == 0 {
             return Ok(None);
         }
 
@@ -431,20 +431,20 @@ impl TimeSuggestions {
 
         let result = self
             .control
-            .advance_minutes(world_id, minutes_to_advance, reason.clone())
+            .advance_seconds(world_id, seconds_to_advance, reason.clone())
             .await?;
 
         let advance_data = crate::use_cases::time::build_time_advance_data(
             &result.previous_time,
             &result.new_time,
-            result.minutes_advanced,
+            result.seconds_advanced,
             &reason,
         );
 
         Ok(Some(TimeSuggestionResolution {
             world_id,
             suggestion_id,
-            minutes_advanced: minutes_to_advance,
+            seconds_advanced: seconds_to_advance,
             advance_data,
         }))
     }
@@ -452,12 +452,12 @@ impl TimeSuggestions {
 
 /// Result of resolving a time suggestion.
 ///
-/// Contains all the data needed to broadcast the time advance event.
+/// Contains all data needed to broadcast time advance event.
 #[derive(Debug, Clone)]
 pub struct TimeSuggestionResolution {
     pub world_id: WorldId,
     pub suggestion_id: TimeSuggestionId,
-    pub minutes_advanced: u32,
+    pub seconds_advanced: u32,
     /// Domain-level time advance data (convert to protocol at API boundary)
     pub advance_data: TimeAdvanceResultData,
 }
@@ -465,12 +465,12 @@ pub struct TimeSuggestionResolution {
 /// Domain-level time advance result data.
 ///
 /// Contains all information about a time advancement for use within the engine.
-/// Converted to `wrldbldr_shared::types::TimeAdvanceData` at the API boundary.
+/// Converted to `wrldbldr_shared::types::TimeAdvanceData` at API boundary.
 #[derive(Debug, Clone)]
 pub struct TimeAdvanceResultData {
     pub previous_time: GameTime,
     pub new_time: GameTime,
-    pub minutes_advanced: u32,
+    pub seconds_advanced: u32,
     pub reason: String,
     pub period_changed: bool,
     pub new_period: Option<String>,
@@ -492,11 +492,11 @@ pub enum TimeSuggestionError {
 
 /// Build domain-level time advance result data.
 ///
-/// This returns a domain type that can be converted to protocol format at the API boundary.
+/// This returns a domain type that can be converted to protocol format at API boundary.
 pub fn build_time_advance_data(
     previous: &GameTime,
     new: &GameTime,
-    minutes: u32,
+    seconds: u32,
     reason: &TimeAdvanceReason,
 ) -> TimeAdvanceResultData {
     let previous_period = previous.time_of_day();
@@ -506,7 +506,7 @@ pub fn build_time_advance_data(
     TimeAdvanceResultData {
         previous_time: previous.clone(),
         new_time: new.clone(),
-        minutes_advanced: minutes,
+        seconds_advanced: seconds,
         reason: reason.description(),
         period_changed,
         new_period: if period_changed {
@@ -580,7 +580,7 @@ mod tests {
 
         assert_eq!(suggestion.world_id, world_id);
         assert_eq!(suggestion.action_type, "challenge");
-        assert_eq!(suggestion.suggested_minutes, 10);
+        assert_eq!(suggestion.suggested_seconds, 600); // 10 minutes = 600 seconds
         assert_eq!(suggestion.current_time, *domain_world.game_time());
         assert_eq!(
             suggestion.resulting_time.day(),

@@ -150,7 +150,7 @@ pub struct TimeSuggestionData {
     pub pc_name: String,
     pub action_type: String,
     pub action_description: String,
-    pub suggested_minutes: u32,
+    pub suggested_seconds: u32,
     pub current_time: GameTime,
     pub resulting_time: GameTime,
     pub period_change: Option<(String, String)>,

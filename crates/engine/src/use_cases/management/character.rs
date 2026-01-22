@@ -45,7 +45,7 @@ impl CharacterManagement {
     ) -> Result<wrldbldr_domain::Character, ManagementError> {
         // Create validated CharacterName (handles empty/whitespace validation)
         let character_name = wrldbldr_domain::CharacterName::new(name)
-            .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            .map_err(ManagementError::Domain)?;
 
         let archetype_value = archetype
             .as_deref()
@@ -57,17 +57,17 @@ impl CharacterManagement {
 
         if let Some(description) = description {
             let desc = wrldbldr_domain::Description::new(description)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             character = character.with_description(desc);
         }
         if let Some(sprite) = sprite_asset {
             let asset_path = wrldbldr_domain::AssetPath::new(sprite)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             character = character.with_sprite(asset_path);
         }
         if let Some(portrait) = portrait_asset {
             let asset_path = wrldbldr_domain::AssetPath::new(portrait)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             character = character.with_portrait(asset_path);
         }
 
@@ -106,7 +106,7 @@ impl CharacterManagement {
         // since fields are private. We use the with_* methods for immutable updates.
         if let Some(name) = name {
             let validated_name = wrldbldr_domain::CharacterName::new(name)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             // Rebuild character with new name using aggregate's constructor + builder
             let new_character = wrldbldr_domain::Character::new(
                 character.world_id(),
@@ -137,17 +137,17 @@ impl CharacterManagement {
         }
         if let Some(description) = description {
             let desc = wrldbldr_domain::Description::new(description)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             character.set_description(desc);
         }
         if let Some(sprite) = sprite_asset {
             let asset_path = wrldbldr_domain::AssetPath::new(sprite)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             character.set_sprite(Some(asset_path));
         }
         if let Some(portrait) = portrait_asset {
             let asset_path = wrldbldr_domain::AssetPath::new(portrait)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             character.set_portrait(Some(asset_path));
         }
         if let Some(is_alive) = is_alive {

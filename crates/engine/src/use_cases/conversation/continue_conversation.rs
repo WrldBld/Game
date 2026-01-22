@@ -112,12 +112,12 @@ impl ContinueConversation {
             .get(world_id)
             .await?
             .ok_or(ConversationError::WorldNotFound(world_id))?;
-        let current_game_time_minutes = world_data.game_time().total_minutes();
+        let current_game_time_seconds = world_data.game_time().total_seconds();
 
         // Get active staging and filter to visible NPCs
         let active_staging = self
             .staging
-            .get_active_staging(pc_region_id, current_game_time_minutes)
+            .get_active_staging(pc_region_id, current_game_time_seconds)
             .await?;
         let staged_npcs = active_staging
             .map(|s| {
@@ -710,12 +710,12 @@ mod tests {
         // Staging has a different NPC, not the one we're trying to talk to
         let mut staged_npc = StagedNpc::new(other_npc_id, "Other NPC", true, "here");
         staged_npc.mood = MoodState::Calm;
-        let game_time_minutes = current_game_time.total_minutes();
+        let game_time_seconds = current_game_time.total_seconds();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            game_time_minutes,
+            game_time_seconds,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -727,7 +727,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
+            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         let clock = build_clock(now);
@@ -816,12 +816,12 @@ mod tests {
         let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
         npc.mood = MoodState::Calm;
         let staged_npc = npc;
-        let game_time_minutes = current_game_time.total_minutes();
+        let game_time_seconds = current_game_time.total_seconds();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            game_time_minutes,
+            game_time_seconds,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -833,7 +833,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
+            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         // Narrative repo says conversation is NOT active (ended)
@@ -929,12 +929,12 @@ mod tests {
         let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
         npc.mood = MoodState::Calm;
         let staged_npc = npc;
-        let game_time_minutes = current_game_time.total_minutes();
+        let game_time_seconds = current_game_time.total_seconds();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            game_time_minutes,
+            game_time_seconds,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -946,7 +946,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
+            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         // Narrative repo returns no active conversation
@@ -1045,12 +1045,12 @@ mod tests {
         let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
         npc.mood = MoodState::Calm;
         let staged_npc = npc;
-        let game_time_minutes = current_game_time.total_minutes();
+        let game_time_seconds = current_game_time.total_seconds();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            game_time_minutes,
+            game_time_seconds,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -1062,7 +1062,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
+            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         // Conversation is active
@@ -1172,12 +1172,12 @@ mod tests {
         let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
         npc.mood = MoodState::Calm;
         let staged_npc = npc;
-        let game_time_minutes = current_game_time.total_minutes();
+        let game_time_seconds = current_game_time.total_seconds();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            game_time_minutes,
+            game_time_seconds,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -1189,7 +1189,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
+            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         // Narrative repo returns an active conversation when looked up

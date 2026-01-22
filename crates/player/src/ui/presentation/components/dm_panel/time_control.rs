@@ -193,7 +193,7 @@ fn TimeDisplay(game_time: GameTime) -> Element {
 fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
     let command_bus = use_command_bus();
     let mut game_state = use_game_state();
-    let mut custom_minutes = use_signal(|| suggestion.suggested_minutes);
+    let mut custom_seconds = use_signal(|| suggestion.suggested_seconds);
 
     let current_display = display_time(&suggestion.current_time);
     let resulting_display = display_time(&suggestion.resulting_time);
@@ -225,7 +225,7 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
                 span { class: "text-gray-400", "{current_display}" }
                 span { class: "text-gray-500", "" }
                 span { class: "text-blue-400", "{resulting_display}" }
-                span { class: "text-gray-500 ml-2", "(+{suggestion.suggested_minutes} min)" }
+                span { class: "text-gray-500 ml-2", "(+{suggestion.suggested_seconds} sec)" }
             }
 
             // Period change warning
@@ -239,15 +239,15 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
             // Modify time input
             div {
                 class: "flex items-center gap-2 mb-3",
-                label { class: "text-gray-400 text-sm", "Minutes:" }
+                label { class: "text-gray-400 text-sm", "Seconds:" }
                 input {
                     r#type: "number",
-                    value: "{custom_minutes}",
+                    value: "{custom_seconds}",
                     min: "0",
-                    max: "1440",
+                    max: "86400",
                     oninput: move |e| {
                         if let Ok(v) = e.value().parse::<u32>() {
-                            custom_minutes.set(v);
+                            custom_seconds.set(v);
                         }
                     },
                     class: "w-20 px-2 py-1 bg-dark-surface border border-gray-600 rounded text-white text-sm",
@@ -260,12 +260,12 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
 
                 button {
                     onclick: move |_| {
-                        let minutes = *custom_minutes.read();
-                        // Use the time suggestion response method via CommandBus
+                        let seconds = *custom_seconds.read();
+                        // Use to time suggestion response method via CommandBus
                         let msg = ClientMessageBuilder::respond_to_time_suggestion(
                             &suggestion_id_approve,
                             "approve",
-                            Some(minutes),
+                            Some(seconds),
                         );
                         let _ = command_bus.send(msg);
                         game_state.remove_time_suggestion(&suggestion_id_approve);

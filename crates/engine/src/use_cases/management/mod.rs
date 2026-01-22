@@ -46,12 +46,8 @@ pub enum ManagementError {
     Repo(#[from] RepoError),
     #[error("Domain error: {0}")]
     Domain(#[from] DomainError),
-}
-
-impl From<ValidationError> for ManagementError {
-    fn from(err: ValidationError) -> Self {
-        ManagementError::InvalidInput(err.to_string())
-    }
+    #[error("Validation error: {0}")]
+    Validation(#[from] ValidationError),
 }
 
 /// Container for management use cases.
@@ -95,3 +91,77 @@ impl ManagementUseCases {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod error_handling {
+        use super::*;
+
+        #[test]
+        fn test_domain_error_preserved() {
+            let domain_err = DomainError::validation("Character name cannot be empty");
+
+            // Test that mapping DomainError via From trait preserves the error
+            let use_case_err: ManagementError = ManagementError::Domain(domain_err);
+
+            // Verify the source DomainError is accessible
+            assert!(matches!(use_case_err, ManagementError::Domain(_)));
+
+            let error_msg = use_case_err.to_string();
+            assert!(error_msg.contains("Character name cannot be empty"));
+        }
+
+        #[test]
+        fn test_validation_error_preserves_chain() {
+            let validation_err = ValidationError::Empty {
+                field_name: "Character name",
+            };
+
+            // Test that ValidationError converts to ManagementError via From trait
+            let use_case_err: ManagementError = validation_err.into();
+
+            // Verify it's a Validation variant and the source ValidationError is accessible
+            assert!(matches!(use_case_err, ManagementError::Validation(_)));
+
+            let error_msg = use_case_err.to_string();
+            assert!(error_msg.contains("Character name"));
+            assert!(error_msg.contains("cannot be empty"));
+        }
+
+        #[test]
+        fn test_validation_error_message_preserved() {
+            let validation_err = ValidationError::TooLong {
+                field_name: "Description",
+                max: 1000,
+            };
+
+            let use_case_err: ManagementError = validation_err.into();
+
+            // Verify the original error message is accessible
+            let error_msg = use_case_err.to_string();
+            assert!(error_msg.contains("Description"));
+            assert!(error_msg.contains("1000"));
+        }
+
+        #[test]
+        fn test_repo_error_preserved_via_from() {
+            let repo_err = RepoError::NotFound {
+                entity_type: "Character",
+                id: "123e4567-e89b-12d3-a456-426614174000".to_string(),
+            };
+
+            // Test that RepoError converts via From trait
+            let use_case_err: ManagementError = repo_err.into();
+
+            // Verify the source RepoError is accessible
+            assert!(matches!(use_case_err, ManagementError::Repo(_)));
+
+            let error_msg = use_case_err.to_string();
+            assert!(error_msg.contains("Character"));
+            assert!(error_msg.contains("123e4567"));
+        }
+    }
+}
+

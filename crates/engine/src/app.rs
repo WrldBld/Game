@@ -194,6 +194,7 @@ impl App {
                 repos.flag.clone(),
                 repos.world.clone(),
                 suggest_time.clone(),
+                clock_port.clone(),
             )),
             Arc::new(use_cases::movement::ExitLocation::new(
                 repos.player_character.clone(),
@@ -207,6 +208,7 @@ impl App {
                 repos.flag.clone(),
                 repos.world.clone(),
                 suggest_time.clone(),
+                clock_port.clone(),
             )),
         );
 

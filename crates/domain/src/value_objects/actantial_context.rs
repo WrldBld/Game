@@ -1,12 +1,12 @@
 //! Actantial context value objects for LLM consumption
 //!
-//! These types represent the resolved, aggregated actantial model data
-//! that gets passed to the LLM for character roleplay context.
+//! These types represent resolved, aggregated actantial model data
+//! that gets passed to LLM for character roleplay context.
 //!
 //! # Design Notes
 //!
 //! - `ActantialTarget` distinguishes between NPC and PC targets for actantial views
-//! - `WantTarget` is the resolved target of a want (Character, Item, or Goal)
+//! - `WantTarget` is a resolved target of a want (Character, Item, or Goal)
 //! - `WantContext` is a fully resolved want with all its associated data
 //! - `ActantialContext` is the complete context for a character
 //!
@@ -14,6 +14,15 @@
 //!
 //! The `ActantialContextService` aggregates data from multiple repositories
 //! to build these resolved contexts for LLM consumption.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - Most types (`ActantialActor`,
+//!   `WantContext`, `SecretMotivationContext`, etc.) are simple data structs.
+//! - **Tier 2: Validated Enum** - `ActorType` represents mutually exclusive actor types.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use serde::{Deserialize, Serialize};
 

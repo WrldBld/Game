@@ -1,4 +1,14 @@
 //! Character relationships for social network modeling
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - `Relationship`, `RelationshipEvent`,
+//!   `FamilyRelation` are simple data structs with public fields (no invariants).
+//! - **Tier 2: Validated Enum** - `RelationshipType` represents mutually exclusive
+//!   relationship categories.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, DomainError, RelationshipId};

@@ -1,6 +1,16 @@
 //! Campbell's character archetypes from "The Hero with a Thousand Faces"
 //!
 //! Re-exports shared types from the types module.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 2: Validated Enum** - `CampbellArchetype` (re-exported from types module)
+//!   represents mutually exclusive character archetypes.
+//! - **Tier 3a: Composite VO (Simple Data)** - `ArchetypeChange` is a simple data
+//!   struct with public fields (no invariants).
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use serde::{Deserialize, Serialize};
 

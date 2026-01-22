@@ -8,6 +8,14 @@
 //!
 //! - **DispositionLevel**: How an NPC emotionally feels about a specific PC (per NPC-PC pair)
 //! - **RelationshipLevel**: Social distance/familiarity (per NPC-PC pair)
+//!
+//! # Tier Classification
+//!
+//! - **Tier 2: Validated Enums** - All enums in this module represent mutually
+//!   exclusive states (mood, disposition, relationship levels, interaction outcomes, etc.).
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 //! - **NpcDispositionState**: Complete disposition/relationship state for an NPC toward a specific PC
 //!
 //! ## Disposition vs Relationship

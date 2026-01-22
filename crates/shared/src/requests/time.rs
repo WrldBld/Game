@@ -12,9 +12,9 @@ pub enum TimeRequest {
         world_id: String,
         hours: u32,
     },
-    AdvanceGameTimeMinutes {
+    AdvanceGameTimeSeconds {
         world_id: String,
-        minutes: u32,
+        seconds: u32,
         reason: Option<String>,
     },
     SetGameTime {

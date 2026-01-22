@@ -1,6 +1,14 @@
 //! Staging context - Data passed to LLM for staging decisions
 //!
 //! This captures the story context needed for intelligent NPC presence decisions.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - Most types in this module are
+//!   simple data structs with public fields for LLM context.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use std::collections::HashMap;
 

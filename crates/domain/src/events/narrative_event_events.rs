@@ -1,5 +1,6 @@
 //! NarrativeEvent mutation outcomes.
 
+use crate::aggregates::narrative_event::{EventActivation, FavoriteStatus};
 use crate::entities::{EventOutcome, NarrativeTrigger};
 use crate::value_objects::NarrativeEventName;
 
@@ -27,16 +28,16 @@ pub enum NarrativeEventUpdate {
         to: Vec<EventOutcome>,
     },
     ActivationChanged {
-        from: bool,
-        to: bool,
+        from: EventActivation,
+        to: EventActivation,
     },
     PriorityChanged {
         from: i32,
         to: i32,
     },
     FavoriteChanged {
-        from: bool,
-        to: bool,
+        from: FavoriteStatus,
+        to: FavoriteStatus,
     },
     Triggered {
         outcome: Option<String>,

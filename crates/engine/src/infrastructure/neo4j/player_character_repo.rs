@@ -184,7 +184,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
     async fn get_by_user(
         &self,
         world_id: WorldId,
-        user_id: &str,
+        user_id: &UserId,
     ) -> Result<Option<PlayerCharacter>, RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {user_id: $user_id})-[:IN_WORLD]->(w:World {id: $world_id})
@@ -192,7 +192,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             ORDER BY pc.last_active_at DESC
             LIMIT 1",
         )
-        .param("user_id", user_id)
+        .param("user_id", user_id.as_str())
         .param("world_id", world_id.to_string());
 
         let mut result = self

@@ -12,6 +12,17 @@ pub(super) async fn handle_character_request(
     conn_info: &ConnectionInfo,
     request: CharacterRequest,
 ) -> Result<ResponseResult, ServerMessage> {
+    // Log correlation context for request tracing
+    let correlation_id = conn_info.correlation_id;
+    tracing::debug!(
+        request_id,
+        connection_id = %conn_info.connection_id,
+        correlation_id = %correlation_id,
+        correlation_id_short = %correlation_id.short(),
+        request_type = ?request,
+        "Handling character request"
+    );
+
     match request {
         CharacterRequest::ListCharacters { world_id, limit, offset } => {
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
@@ -59,10 +70,19 @@ pub(super) async fn handle_character_request(
                         .collect();
                     Ok(ResponseResult::success(data))
                 }
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    sanitize_repo_error(&e, "list characters"),
-                )),
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        operation = "list characters",
+                        correlation_id = %correlation_id,
+                        correlation_id_short = %correlation_id.short(),
+                        "Repository error"
+                    );
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "list characters"),
+                    ))
+                }
             }
         }
 

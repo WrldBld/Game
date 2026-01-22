@@ -531,6 +531,7 @@ pub(crate) fn build_test_app_with_ports(
             flag_repo.clone(),
             world_repo.clone(),
             suggest_time.clone(),
+            clock_port.clone(),
         )),
         Arc::new(crate::use_cases::movement::ExitLocation::new(
             player_character_repo.clone(),
@@ -544,6 +545,7 @@ pub(crate) fn build_test_app_with_ports(
             flag_repo.clone(),
             world_repo.clone(),
             suggest_time.clone(),
+            clock_port.clone(),
         )),
     );
 

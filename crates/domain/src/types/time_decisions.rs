@@ -7,17 +7,17 @@ use serde::{Deserialize, Serialize};
 
 /// DM's decision on a time suggestion.
 ///
-/// This is the domain version without the Unknown variant - the protocol
+/// This is a domain version without unknown variant - protocol
 /// layer handles unknown decisions at the boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "decision")]
 pub enum TimeSuggestionDecision {
-    /// Accept the suggested time cost
+    /// Accept's suggested time cost
     Approve,
-    /// Modify the time cost to a different value
+    /// Modify's time cost to a different value
     Modify {
-        /// The new time cost in minutes
-        minutes: u32,
+        /// The new time cost in seconds
+        seconds: u32,
     },
     /// Skip this time suggestion (no time advancement)
     Skip,
@@ -25,13 +25,13 @@ pub enum TimeSuggestionDecision {
 
 impl TimeSuggestionDecision {
     /// Create an Approve decision.
-    pub fn approve() -> Self {
+    pub fn approve_suggestion() -> Self {
         Self::Approve
     }
 
-    /// Create a Modify decision with the specified minutes.
-    pub fn modify(minutes: u32) -> Self {
-        Self::Modify { minutes }
+    /// Create a Modify decision with a specified seconds.
+    pub fn modify_seconds(seconds: u32) -> Self {
+        Self::Modify { seconds }
     }
 
     /// Create a Skip decision.
@@ -39,15 +39,15 @@ impl TimeSuggestionDecision {
         Self::Skip
     }
 
-    /// Returns the minutes to advance, if any.
+    /// Returns seconds to advance, if any.
     ///
-    /// - `Approve` returns `None` (use suggested minutes)
-    /// - `Modify { minutes }` returns `Some(minutes)`
+    /// - `Approve` returns `None` (use suggested seconds)
+    /// - `Modify { seconds }` returns `Some(seconds)`
     /// - `Skip` returns `Some(0)`
-    pub fn resolved_minutes(&self, suggested: u32) -> u32 {
+    pub fn resolved_seconds(&self, suggested: u32) -> u32 {
         match self {
             Self::Approve => suggested,
-            Self::Modify { minutes } => *minutes,
+            Self::Modify { seconds } => *seconds,
             Self::Skip => 0,
         }
     }
@@ -58,21 +58,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn approve_resolves_to_suggested_minutes() {
-        let decision = TimeSuggestionDecision::approve();
-        assert_eq!(decision.resolved_minutes(30), 30);
+    fn approve_suggestion_resolves_to_suggested_seconds() {
+        let decision = TimeSuggestionDecision::approve_suggestion();
+        assert_eq!(decision.resolved_seconds(30), 30);
     }
 
     #[test]
-    fn modify_resolves_to_specified_minutes() {
-        let decision = TimeSuggestionDecision::modify(15);
-        assert_eq!(decision.resolved_minutes(30), 15);
+    fn modify_suggestion_resolves_to_specified_seconds() {
+        let decision = TimeSuggestionDecision::modify_seconds(15);
+        assert_eq!(decision.resolved_seconds(30), 15);
     }
 
     #[test]
-    fn skip_resolves_to_zero() {
+    fn skip_suggestion_resolves_to_zero() {
         let decision = TimeSuggestionDecision::skip();
-        assert_eq!(decision.resolved_minutes(30), 0);
+        assert_eq!(decision.resolved_seconds(30), 0);
     }
 
     #[test]
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn decision_equality_modify() {
-        let decision = TimeSuggestionDecision::Modify { minutes: 45 };
+        let decision = TimeSuggestionDecision::Modify { seconds: 45 };
         let other = decision.clone();
         assert_eq!(decision, other);
     }

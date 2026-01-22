@@ -19,6 +19,38 @@ use wrldbldr_domain::{
 // Re-export from entities for now (TimeAdvanceResult)
 pub use crate::entities::TimeAdvanceResult;
 
+// =============================================================================
+// Domain Events
+// =============================================================================
+
+/// Events emitted when a World aggregate is mutated
+///
+/// These events capture both old and new values, allowing systems to track
+/// what changed and respond appropriately (e.g., log changes, trigger reactions).
+#[derive(Debug, Clone, PartialEq)]
+pub enum WorldUpdate {
+    /// The world's name was changed
+    NameChanged {
+        old_name: WorldName,
+        new_name: WorldName,
+    },
+    /// The world's description was changed
+    DescriptionChanged {
+        old_description: Description,
+        new_description: Description,
+    },
+    /// The time mode (manual/suggested) was changed
+    TimeModeChanged {
+        old_mode: TimeMode,
+        new_mode: TimeMode,
+    },
+    /// The time cost configuration was changed
+    TimeCostsChanged {
+        old_costs: TimeCostConfig,
+        new_costs: TimeCostConfig,
+    },
+}
+
 /// A complete campaign world
 ///
 /// # Invariants
@@ -221,27 +253,55 @@ impl World {
     // =========================================================================
 
     /// Update the world's name.
-    pub fn set_name(&mut self, name: WorldName, now: DateTime<Utc>) {
-        self.name = name;
+    ///
+    /// Returns a `WorldUpdate` event capturing the old and new names.
+    pub fn set_name(&mut self, name: WorldName, now: DateTime<Utc>) -> WorldUpdate {
+        let old_name = self.name.clone();
+        self.name = name.clone();
         self.updated_at = now;
+        WorldUpdate::NameChanged {
+            old_name,
+            new_name: name,
+        }
     }
 
     /// Update the world's description.
-    pub fn set_description(&mut self, description: Description, now: DateTime<Utc>) {
-        self.description = description;
+    ///
+    /// Returns a `WorldUpdate` event capturing the old and new descriptions.
+    pub fn set_description(&mut self, description: Description, now: DateTime<Utc>) -> WorldUpdate {
+        let old_description = self.description.clone();
+        self.description = description.clone();
         self.updated_at = now;
+        WorldUpdate::DescriptionChanged {
+            old_description,
+            new_description: description,
+        }
     }
 
-    /// Set the time mode (manual, suggested, auto).
-    pub fn set_time_mode(&mut self, mode: TimeMode, now: DateTime<Utc>) {
+    /// Set the time mode (manual, suggested).
+    ///
+    /// Returns a `WorldUpdate` event capturing the old and new time modes.
+    pub fn set_time_mode(&mut self, mode: TimeMode, now: DateTime<Utc>) -> WorldUpdate {
+        let old_mode = self.time_config.mode();
         self.time_config.set_mode(mode);
         self.updated_at = now;
+        WorldUpdate::TimeModeChanged {
+            old_mode,
+            new_mode: mode,
+        }
     }
 
     /// Set the time cost configuration.
-    pub fn set_time_costs(&mut self, costs: TimeCostConfig, now: DateTime<Utc>) {
-        self.time_config.set_time_costs(costs);
+    ///
+    /// Returns a `WorldUpdate` event capturing the old and new time cost configs.
+    pub fn set_time_costs(&mut self, costs: TimeCostConfig, now: DateTime<Utc>) -> WorldUpdate {
+        let old_costs = self.time_config.time_costs().clone();
+        self.time_config.set_time_costs(costs.clone());
         self.updated_at = now;
+        WorldUpdate::TimeCostsChanged {
+            old_costs,
+            new_costs: costs,
+        }
     }
 
     /// Get the time cost for a given action type.
@@ -253,18 +313,18 @@ impl World {
     // Time Advancement
     // =========================================================================
 
-    /// Advance game time by a number of minutes.
+    /// Advance game time by a number of seconds.
     /// Returns information about the time change for broadcasting.
     pub fn advance_time(
         &mut self,
-        minutes: u32,
+        seconds: u32,
         _reason: TimeAdvanceReason,
         now: DateTime<Utc>,
     ) -> TimeAdvanceResult {
         let previous_time = self.game_time.clone();
         let previous_period = self.game_time.time_of_day();
 
-        self.game_time.advance_minutes(minutes);
+        self.game_time.advance_seconds(seconds);
         self.updated_at = now;
 
         let new_period = self.game_time.time_of_day();
@@ -272,14 +332,14 @@ impl World {
         TimeAdvanceResult {
             previous_time,
             new_time: self.game_time.clone(),
-            minutes_advanced: minutes,
+            seconds_advanced: seconds,
             period_changed: previous_period != new_period,
         }
     }
 
     /// Advance game time by a number of hours.
     pub fn advance_hours(&mut self, hours: u32, now: DateTime<Utc>) -> TimeAdvanceResult {
-        self.advance_time(hours * 60, TimeAdvanceReason::DmManual { hours }, now)
+        self.advance_time(hours * 3600, TimeAdvanceReason::DmManual { hours }, now)
     }
 }
 
@@ -410,37 +470,129 @@ mod tests {
         use super::*;
 
         #[test]
-        fn set_name_updates_name_and_timestamp() {
+        fn set_name_returns_name_changed_event() {
             let mut world = create_test_world();
             let original_updated = world.updated_at();
+            let original_name = world.name().clone();
 
             let new_name = WorldName::new("Updated World").unwrap();
-            world.set_name(new_name, original_updated + chrono::Duration::seconds(1));
+            let event = world.set_name(
+                new_name.clone(),
+                original_updated + chrono::Duration::seconds(1),
+            );
+
+            assert!(matches!(
+                event,
+                WorldUpdate::NameChanged { ref old_name, ref new_name } if old_name.as_str() == "Test World" && new_name.as_str() == "Updated World"
+            ));
+
+            if let WorldUpdate::NameChanged { old_name, new_name } = event {
+                assert_eq!(old_name.as_str(), "Test World");
+                assert_eq!(new_name.as_str(), "Updated World");
+                assert_eq!(&old_name, &original_name);
+            }
 
             assert_eq!(world.name().as_str(), "Updated World");
             assert!(world.updated_at() > original_updated);
         }
 
         #[test]
-        fn set_description_updates_description_and_timestamp() {
+        fn set_description_returns_description_changed_event() {
             let mut world = create_test_world();
             let original_updated = world.updated_at();
+            let original_desc = world.description().clone();
 
             let desc = Description::new("A new description").unwrap();
-            world.set_description(desc, original_updated + chrono::Duration::seconds(1));
+            let event = world.set_description(
+                desc.clone(),
+                original_updated + chrono::Duration::seconds(1),
+            );
+
+            assert!(matches!(
+                event,
+                WorldUpdate::DescriptionChanged { ref old_description, ref new_description } if old_description.is_empty() && new_description.as_str() == "A new description"
+            ));
+
+            if let WorldUpdate::DescriptionChanged {
+                old_description,
+                new_description,
+            } = event
+            {
+                assert!(old_description.is_empty());
+                assert_eq!(new_description.as_str(), "A new description");
+                assert_eq!(&old_description, &original_desc);
+            }
 
             assert_eq!(world.description().as_str(), "A new description");
             assert!(world.updated_at() > original_updated);
         }
 
         #[test]
-        fn set_time_mode_works() {
+        fn set_time_mode_returns_time_mode_changed_event() {
             let mut world = create_test_world();
-            world.set_time_mode(
-                TimeMode::Manual,
+
+            let new_mode = TimeMode::Manual;
+            let event =
+                world.set_time_mode(new_mode, world.updated_at() + chrono::Duration::seconds(1));
+
+            assert!(matches!(
+                event,
+                WorldUpdate::TimeModeChanged {
+                    old_mode: TimeMode::Suggested,
+                    new_mode: TimeMode::Manual
+                }
+            ));
+
+            if let WorldUpdate::TimeModeChanged {
+                old_mode: om,
+                new_mode: nm,
+            } = event
+            {
+                assert_eq!(om, TimeMode::Suggested);
+                assert_eq!(nm, TimeMode::Manual);
+            }
+
+            assert!(matches!(world.time_config().mode(), TimeMode::Manual));
+        }
+
+        #[test]
+        fn set_time_costs_returns_time_costs_changed_event() {
+            let mut world = create_test_world();
+            let old_costs = world.time_config().time_costs().clone();
+
+            let new_costs = TimeCostConfig {
+                travel_location: 30,
+                travel_region: 5,
+                rest_short: 30,
+                rest_long: 240,
+                conversation: 1,
+                challenge: 5,
+                scene_transition: 1,
+            };
+
+            let event = world.set_time_costs(
+                new_costs.clone(),
                 world.updated_at() + chrono::Duration::seconds(1),
             );
-            assert!(matches!(world.time_config().mode(), TimeMode::Manual));
+
+            assert!(matches!(
+                event,
+                WorldUpdate::TimeCostsChanged {
+                    old_costs: _,
+                    new_costs: _
+                }
+            ));
+
+            if let WorldUpdate::TimeCostsChanged {
+                old_costs: oc,
+                new_costs: nc,
+            } = event
+            {
+                assert_eq!(oc, old_costs);
+                assert_eq!(nc, new_costs);
+            }
+
+            assert_eq!(world.time_config().time_costs(), &new_costs);
         }
     }
 
@@ -451,12 +603,12 @@ mod tests {
         fn advance_time_returns_result() {
             let mut world = create_test_world();
             let result = world.advance_time(
-                60,
+                3600, // 1 hour = 3600 seconds
                 TimeAdvanceReason::DmManual { hours: 1 },
                 world.updated_at() + chrono::Duration::seconds(1),
             );
 
-            assert_eq!(result.minutes_advanced, 60);
+            assert_eq!(result.seconds_advanced, 3600);
         }
 
         #[test]
@@ -464,7 +616,7 @@ mod tests {
             let mut world = create_test_world();
             let result = world.advance_hours(2, world.updated_at() + chrono::Duration::seconds(1));
 
-            assert_eq!(result.minutes_advanced, 120);
+            assert_eq!(result.seconds_advanced, 7200); // 2 * 3600
         }
     }
 }

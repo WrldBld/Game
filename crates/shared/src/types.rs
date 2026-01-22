@@ -212,31 +212,33 @@ pub struct NarrativeEventSuggestionInfo {
 
 /// Game time representation for wire transfer
 ///
-/// Uses `total_minutes` as the canonical time representation, with additional
+/// Uses `total_seconds` as the canonical time representation, with additional
 /// computed fields for easy client display. Conversion from domain GameTime
 /// happens in the adapter layer.
 ///
-/// ## Backward Compatibility
-/// - `day`, `hour`, `minute` are still provided for existing clients
-/// - New fields (`total_minutes`, `formatted_date`, etc.) use `#[serde(default)]`
-///   so older messages without them will deserialize correctly
+/// ## Fields
+/// - `total_seconds` is canonical time representation (source of truth)
+/// - `day`, `hour`, `minute`, `second` are computed for easy client display
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameTime {
-    /// The canonical game time in total minutes since epoch.
-    /// This is the source of truth for time calculations.
-    #[serde(default)]
-    pub total_minutes: i64,
+    /// The canonical game time in total seconds since epoch.
+    /// This is source of truth for time calculations.
+    pub total_seconds: i64,
 
-    /// Day number (computed from total_minutes for backward compatibility)
-    /// For calendar-aware worlds, this is the day of the current month.
-    /// For simple worlds, this is the ordinal day (1-based).
+    /// Day number (computed from total_seconds)
+    /// For calendar-aware worlds, this is day of the current month.
+    /// For simple worlds, this is ordinal day (1-based).
     pub day: u32,
 
-    /// Hour (0-23, computed from total_minutes)
+    /// Hour (0-23, computed from total_seconds)
     pub hour: u8,
 
-    /// Minute (0-59, computed from total_minutes)
+    /// Minute (0-59, computed from total_seconds)
     pub minute: u8,
+
+    /// Second (0-59, computed from total_seconds)
+    #[serde(default)]
+    pub second: u8,
 
     /// Whether time is paused
     pub is_paused: bool,
@@ -264,10 +266,11 @@ fn default_period() -> String {
 impl Default for GameTime {
     fn default() -> Self {
         Self {
-            total_minutes: 8 * 60, // Day 1, 8:00 AM
+            total_seconds: 8 * 3600, // Day 1, 8:00 AM
             day: 1,
             hour: 8,
             minute: 0,
+            second: 0,
             is_paused: true,
             formatted_date: None,
             formatted_time: Some("8:00 AM".to_string()),
@@ -277,15 +280,17 @@ impl Default for GameTime {
 }
 
 impl GameTime {
-    /// Create a new game time (simple constructor for backward compatibility)
+    /// Create a new game time (simple constructor)
     pub fn new(day: u32, hour: u8, minute: u8, is_paused: bool) -> Self {
-        let total_minutes = (day as i64 - 1) * 24 * 60 + (hour as i64) * 60 + (minute as i64);
+        let total_seconds =
+            (day as i64 - 1) * 24 * 3600 + (hour as i64) * 3600 + (minute as i64) * 60;
         let period = Self::compute_period(hour);
         Self {
-            total_minutes,
+            total_seconds,
             day,
             hour,
             minute,
+            second: 0,
             is_paused,
             formatted_date: None,
             formatted_time: None,
@@ -295,20 +300,22 @@ impl GameTime {
 
     /// Create a new game time with all fields (for server-side construction)
     pub fn new_full(
-        total_minutes: i64,
+        total_seconds: i64,
         day: u32,
         hour: u8,
         minute: u8,
+        second: u8,
         is_paused: bool,
         formatted_date: Option<String>,
         formatted_time: Option<String>,
         period: String,
     ) -> Self {
         Self {
-            total_minutes,
+            total_seconds,
             day,
             hour,
             minute,
+            second,
             is_paused,
             formatted_date,
             formatted_time,
@@ -316,22 +323,25 @@ impl GameTime {
         }
     }
 
-    /// Create from total minutes (canonical constructor)
-    pub fn from_total_minutes(total_minutes: i64, is_paused: bool) -> Self {
-        // Calculate day/hour/minute from total_minutes
-        // Assumes 24-hour days, 60-minute hours
-        let minutes_per_day = 24 * 60;
-        let day = (total_minutes / minutes_per_day) as u32 + 1; // 1-based days
-        let remaining = total_minutes % minutes_per_day;
-        let hour = (remaining / 60) as u8;
-        let minute = (remaining % 60) as u8;
+    /// Create from total seconds (canonical constructor)
+    pub fn from_total_seconds(total_seconds: i64, is_paused: bool) -> Self {
+        // Calculate day/hour/minute/second from total_seconds
+        // Assumes 24-hour days, 60-minute hours, 60-second minutes
+        let seconds_per_day = 24 * 60 * 60;
+        let day = (total_seconds / seconds_per_day) as u32 + 1; // 1-based days
+        let remaining = total_seconds % seconds_per_day;
+        let hour = (remaining / 3600) as u8;
+        let remaining_of_hour = remaining % 3600;
+        let minute = (remaining_of_hour / 60) as u8;
+        let second = (remaining_of_hour % 60) as u8;
         let period = Self::compute_period(hour);
 
         Self {
-            total_minutes,
+            total_seconds,
             day,
             hour,
             minute,
+            second,
             is_paused,
             formatted_date: None,
             formatted_time: None,
@@ -350,7 +360,7 @@ impl GameTime {
         .to_string()
     }
 
-    /// Get the time of day period (for backward compatibility)
+    /// Get the time of day period
     pub fn time_of_day(&self) -> &str {
         &self.period
     }
@@ -382,6 +392,43 @@ impl GameTime {
 }
 
 // =============================================================================
+// Time Cost Configuration
+// =============================================================================
+
+/// Time costs for various actions (wire format)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimeCostConfig {
+    /// Seconds for travel between locations
+    pub travel_location: u32,
+    /// Seconds for travel between regions
+    pub travel_region: u32,
+    /// Seconds for short rest
+    pub rest_short: u32,
+    /// Seconds for long rest
+    pub rest_long: u32,
+    /// Seconds per conversation exchange
+    pub conversation: u32,
+    /// Seconds per challenge attempt
+    pub challenge: u32,
+    /// Seconds for scene transitions
+    pub scene_transition: u32,
+}
+
+impl Default for TimeCostConfig {
+    fn default() -> Self {
+        Self {
+            travel_location: 3600,
+            travel_region: 600,
+            rest_short: 3600,
+            rest_long: 28800,
+            conversation: 0,
+            challenge: 600,
+            scene_transition: 0,
+        }
+    }
+}
+
+// =============================================================================
 // Time Mode
 // =============================================================================
 
@@ -393,43 +440,6 @@ pub enum TimeMode {
     /// System suggests, DM approves (default)
     #[default]
     Suggested,
-}
-
-// =============================================================================
-// Time Cost Configuration
-// =============================================================================
-
-/// Time costs for various actions (wire format)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TimeCostConfig {
-    /// Minutes for travel between locations
-    pub travel_location: u32,
-    /// Minutes for travel between regions
-    pub travel_region: u32,
-    /// Minutes for short rest
-    pub rest_short: u32,
-    /// Minutes for long rest
-    pub rest_long: u32,
-    /// Minutes per conversation exchange
-    pub conversation: u32,
-    /// Minutes per challenge attempt
-    pub challenge: u32,
-    /// Minutes for scene transitions
-    pub scene_transition: u32,
-}
-
-impl Default for TimeCostConfig {
-    fn default() -> Self {
-        Self {
-            travel_location: 60,
-            travel_region: 10,
-            rest_short: 60,
-            rest_long: 480,
-            conversation: 0,
-            challenge: 10,
-            scene_transition: 0,
-        }
-    }
 }
 
 // =============================================================================
@@ -468,7 +478,7 @@ pub struct GameTimeConfig {
     /// If None, uses simple day counting without calendar formatting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub calendar_id: Option<String>,
-    /// Year at epoch (minute 0)
+    /// Year at epoch (second 0)
     /// For Forgotten Realms, this might be 1492 (Dale Reckoning).
     /// If None, year display is omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -505,8 +515,8 @@ pub struct TimeSuggestionData {
     pub action_type: String,
     /// Human-readable description
     pub action_description: String,
-    /// Suggested time cost in minutes
-    pub suggested_minutes: u32,
+    /// Suggested time cost in seconds
+    pub suggested_seconds: u32,
     /// Current time before advancement
     pub current_time: GameTime,
     /// Time after advancement if approved
@@ -527,8 +537,8 @@ pub struct TimeAdvanceData {
     pub previous_time: GameTime,
     /// Time after advancement
     pub new_time: GameTime,
-    /// Minutes that were advanced
-    pub minutes_advanced: u32,
+    /// Seconds that were advanced
+    pub seconds_advanced: u32,
     /// Human-readable reason
     pub reason: String,
     /// Whether the time period changed
@@ -546,10 +556,10 @@ pub struct TimeAdvanceData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "decision")]
 pub enum TimeSuggestionDecision {
-    /// Accept the suggested time cost
+    /// Accept's suggested time cost
     Approve,
-    /// Modify the time cost
-    Modify { minutes: u32 },
+    /// Modify's time cost
+    Modify { seconds: u32 },
     /// Skip this time suggestion (no advancement)
     Skip,
     /// Unknown decision type for forward compatibility
@@ -561,8 +571,8 @@ impl From<wrldbldr_domain::TimeSuggestionDecision> for TimeSuggestionDecision {
     fn from(decision: wrldbldr_domain::TimeSuggestionDecision) -> Self {
         match decision {
             wrldbldr_domain::TimeSuggestionDecision::Approve => TimeSuggestionDecision::Approve,
-            wrldbldr_domain::TimeSuggestionDecision::Modify { minutes } => {
-                TimeSuggestionDecision::Modify { minutes }
+            wrldbldr_domain::TimeSuggestionDecision::Modify { seconds } => {
+                TimeSuggestionDecision::Modify { seconds }
             }
             wrldbldr_domain::TimeSuggestionDecision::Skip => TimeSuggestionDecision::Skip,
         }
@@ -580,8 +590,8 @@ impl TryFrom<TimeSuggestionDecision> for wrldbldr_domain::TimeSuggestionDecision
     fn try_from(decision: TimeSuggestionDecision) -> Result<Self, Self::Error> {
         match decision {
             TimeSuggestionDecision::Approve => Ok(wrldbldr_domain::TimeSuggestionDecision::Approve),
-            TimeSuggestionDecision::Modify { minutes } => {
-                Ok(wrldbldr_domain::TimeSuggestionDecision::Modify { minutes })
+            TimeSuggestionDecision::Modify { seconds } => {
+                Ok(wrldbldr_domain::TimeSuggestionDecision::Modify { seconds })
             }
             TimeSuggestionDecision::Skip => Ok(wrldbldr_domain::TimeSuggestionDecision::Skip),
             TimeSuggestionDecision::Unknown => Err(UnknownTimeSuggestionDecisionError),

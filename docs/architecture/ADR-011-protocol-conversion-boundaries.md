@@ -183,3 +183,7 @@ When reviewing code that uses `wrldbldr_shared` types in use cases:
 
 - [ADR-008: Tiered Encapsulation](ADR-008-tiered-encapsulation.md) - When to use public vs private fields
 - [ADR-009: Repository Layer Elimination](ADR-009-repository-layer-elimination.md) - Avoiding unnecessary abstraction layers
+
+## Updates
+
+**January 21, 2026:** Added distinction between protocol types and contract types. See [ADR-011 Addendum: Protocol vs. Contracts Distinction](ADR-011-protocol-contracts-distinction.md) for details.

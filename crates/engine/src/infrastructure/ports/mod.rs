@@ -17,8 +17,60 @@ mod repos;
 mod testing;
 mod types;
 
-pub use error::*;
-pub use external::*;
-pub use repos::*;
-pub use testing::*;
-pub use types::*;
+// =============================================================================
+// Error Types
+// =============================================================================
+pub use error::{
+    ImageGenError, JoinWorldError, LlmError, QueueError, RepoError, SessionError,
+};
+
+// =============================================================================
+// External Service Ports
+// =============================================================================
+pub use external::{
+    ChatMessage, FinishReason, ImageData, ImageGenPort, ImageRequest, ImageResult,
+    LlmPort, LlmRequest, LlmResponse, MessageRole, QueueItem, QueueItemData,
+    QueueItemId, QueueItemStatus, QueuePort, TokenUsage,
+};
+
+// =============================================================================
+// Repository Ports
+// =============================================================================
+pub use repos::{
+    ActRepo, AssetRepo, ChallengeRepo, CharacterRepo, ContentRepo,
+    FlagRepo, GoalRepo, InteractionRepo, ItemRepo, LocationRepo, LocationStateRepo,
+    LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RegionStateRepo,
+    SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
+};
+
+// =============================================================================
+// Test-Only Mock Repositories (only available during test builds)
+// =============================================================================
+#[cfg(test)]
+pub use repos::{
+    MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo,
+    MockContentRepo, MockFlagRepo, MockGoalRepo, MockInteractionRepo,
+    MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo,
+    MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
+    MockRegionStateRepo, MockSceneRepo, MockSettingsRepo, MockStagingRepo,
+    MockWorldRepo,
+};
+
+#[cfg(test)]
+pub use testing::MockClockPort;
+
+// =============================================================================
+// Testing Ports
+// =============================================================================
+pub use testing::{ClockPort, RandomPort};
+
+// =============================================================================
+// Port Types
+// =============================================================================
+pub use types::{
+    ActantialViewRecord, ConnectedUserInfo, ConnectionInfo, ConversationTurnRecord,
+    DirectorialContext, GoalDetails, NpcDispositionInfo, NpcMotivation,
+    NpcRegionRelationType, NpcRegionRelationship, NpcWithRegionInfo,
+    PendingStagingRequest, TimeSuggestion, UserJoinedInfo, WantDetails, WantTargetRef,
+    WorldRole,
+};

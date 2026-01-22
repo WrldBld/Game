@@ -3,13 +3,12 @@
 //! Handles player character movement to a different location entirely.
 //! Determines the arrival region and coordinates with staging/narrative/scene/time systems.
 
-use chrono::Utc;
 use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 use crate::infrastructure::ports::{
-    FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
-    StagingRepo, WorldRepo,
+    ClockPort, FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError,
+    SceneRepo, StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
 use crate::use_cases::observation::RecordVisit;
@@ -34,6 +33,7 @@ pub struct ExitLocation {
     flag: Arc<dyn FlagRepo>,
     world: Arc<dyn WorldRepo>,
     suggest_time: Arc<SuggestTime>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ExitLocation {
@@ -49,6 +49,7 @@ impl ExitLocation {
         flag: Arc<dyn FlagRepo>,
         world: Arc<dyn WorldRepo>,
         suggest_time: Arc<SuggestTime>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             player_character,
@@ -62,6 +63,7 @@ impl ExitLocation {
             flag,
             world,
             suggest_time,
+            clock,
         }
     }
 
@@ -131,8 +133,8 @@ impl ExitLocation {
             .get(world_id)
             .await?
             .ok_or(ExitLocationError::WorldNotFound(world_id))?;
-        let current_game_time_minutes = world_data.game_time().total_minutes();
-        let real_timestamp = Utc::now();
+        let current_game_time_seconds = world_data.game_time().total_seconds();
+        let real_timestamp = self.clock.now();
 
         // 8. Check for valid staging (with TTL check using game time)
         let (npcs, staging_status) = resolve_staging_for_region(
@@ -140,7 +142,7 @@ impl ExitLocation {
             region_id,
             region.location_id(),
             pc.world_id(),
-            current_game_time_minutes,
+            current_game_time_seconds,
             real_timestamp,
         )
         .await?;
@@ -149,7 +151,7 @@ impl ExitLocation {
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
             self.record_visit
-                .execute(pc_id, region_id, &npcs, current_game_time_minutes)
+                .execute(pc_id, region_id, &npcs, current_game_time_seconds)
                 .await?;
         }
 
@@ -269,7 +271,7 @@ pub enum ExitLocationError {
 mod tests {
     use std::sync::Arc;
 
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
     use wrldbldr_domain::{
         value_objects::{CharacterName, LocationName, RegionName},
         Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, UserId,
@@ -284,10 +286,14 @@ mod tests {
     use crate::use_cases::scene::ResolveScene;
     use crate::use_cases::NarrativeOps;
 
-    struct FixedClock(chrono::DateTime<chrono::Utc>);
+    fn fixed_time() -> chrono::DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
+
+    struct FixedClock(chrono::DateTime<Utc>);
 
     impl ClockPort for FixedClock {
-        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        fn now(&self) -> chrono::DateTime<Utc> {
             self.0
         }
     }
@@ -336,7 +342,7 @@ mod tests {
         ));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
             world_repo.clone(),
-            clock_port,
+            clock_port.clone(),
         ));
 
         super::ExitLocation::new(
@@ -351,6 +357,7 @@ mod tests {
             flag_repo,
             world_repo,
             suggest_time,
+            clock_port,
         )
     }
 
@@ -358,6 +365,7 @@ mod tests {
     async fn when_pc_missing_then_returns_player_character_not_found() {
         let pc_id = PlayerCharacterId::new();
         let location_id = LocationId::new();
+        let now = fixed_time();
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         pc_repo
@@ -369,7 +377,7 @@ mod tests {
             pc_repo,
             MockLocationRepo::new(),
             MockWorldRepo::new(),
-            Arc::new(FixedClock(Utc::now())),
+            Arc::new(FixedClock(now)),
         );
 
         let err = use_case
@@ -384,11 +392,11 @@ mod tests {
 
     #[tokio::test]
     async fn when_location_missing_then_returns_location_not_found() {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let pc_location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
+        let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             UserId::new("user").unwrap(),
@@ -429,12 +437,12 @@ mod tests {
     #[tokio::test]
     async fn when_specified_arrival_region_is_not_in_location_then_returns_region_location_mismatch(
     ) {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let pc_location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
         let other_location_id = LocationId::new();
+        let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             UserId::new("user").unwrap(),
@@ -503,11 +511,11 @@ mod tests {
 
     #[tokio::test]
     async fn when_no_arrival_region_possible_then_returns_no_arrival_region() {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let pc_location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
+        let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             UserId::new("user").unwrap(),
@@ -567,10 +575,10 @@ mod tests {
 
     #[tokio::test]
     async fn when_world_missing_then_returns_world_not_found() {
-        let now = Utc::now();
         let world_id = WorldId::new();
         let pc_location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
+        let now = fixed_time();
 
         let target_location_id = LocationId::new();
         let location_name = LocationName::new("Target").unwrap();

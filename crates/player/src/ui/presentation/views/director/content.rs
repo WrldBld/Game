@@ -100,23 +100,16 @@ pub fn DirectorModeContent() -> Element {
     // Check if we're in view-as-character mode
     let view_mode = game_state.view_mode.read().clone();
 
-    // If viewing as a character, show the read-only perspective view
-    if let ViewMode::ViewingAsCharacter {
-        character_id,
-        character_name,
-    } = view_mode
-    {
-        return rsx! {
+    // Use conditional rendering instead of early return to avoid hook ordering issues
+    rsx! {
+        if let ViewMode::ViewingAsCharacter { character_id, character_name } = view_mode {
             ViewAsCharacterMode {
                 character_id: character_id,
                 character_name: character_name,
                 game_state: game_state.clone(),
                 session_state: session_state.clone(),
             }
-        };
-    }
-
-    rsx! {
+        } else {
         div {
             class: "h-full grid grid-cols-[1fr_350px] gap-4 p-4",
 
@@ -690,6 +683,7 @@ pub fn DirectorModeContent() -> Element {
                 }
             }
         }
+        } // end else block for ViewMode::ViewingAsCharacter
     }
 }
 

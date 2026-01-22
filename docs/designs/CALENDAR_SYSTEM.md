@@ -8,11 +8,11 @@ This document describes the design for WrldBldr's calendar system, enabling DMs 
 
 ## Goals
 
-1. **Abstract Time Tracking**: Internal time uses minutes since epoch (not real-world `DateTime`)
+1. **Abstract Time Tracking**: Internal time uses seconds since epoch (not real-world `DateTime`)
 2. **Custom Calendars**: DMs can define fantasy calendars (Forgotten Realms, Eberron, homebrew)
 3. **Default Gregorian**: Out-of-box experience uses familiar Gregorian calendar
 4. **Historical Events**: Support negative time for "before campaign start" events
-5. **Named Epoch**: DMs configure what "minute 0" represents (e.g., "1380 DR, Hammer 1")
+5. **Named Epoch**: DMs configure what "second 0" represents (e.g., "1380 DR, Hammer 1")
 6. **Per-World Calendars**: Each world can have its own calendar configuration
 7. **Deterministic Tests**: Tests can create time at "Day 1, 9:00 AM" without real clock
 
@@ -31,23 +31,24 @@ This document describes the design for WrldBldr's calendar system, enabling DMs 
 
 ### Game Time (Internal)
 
-Game time is tracked as **total minutes since epoch**:
+Game time is tracked as **total seconds since epoch**:
 
 ```rust
 pub struct GameTime {
-    /// Total minutes since the campaign epoch (minute 0).
+    /// Total seconds since the campaign epoch (second 0).
     /// Negative values represent time before the campaign start.
-    total_minutes: i64,
-    
+    total_seconds: i64,
+
     /// Whether time progression is paused.
     is_paused: bool,
 }
 ```
 
-**Why minutes?**
-- Granular enough for gameplay (conversations, short actions)
+**Why seconds?**
+- Granular enough for gameplay (conversations, short actions, spells)
 - Large enough range: `i64` supports ±17.5 billion years of game time
 - Integer math is simple and deterministic
+- Eliminates fractional time calculations
 
 **Why not `DateTime<Utc>`?**
 - Gregorian-centric (assumes 12 months, 365/366 days)
@@ -56,7 +57,7 @@ pub struct GameTime {
 
 ### Calendar Definition
 
-A calendar defines how to convert raw minutes into named dates:
+A calendar defines how to convert raw seconds into named dates:
 
 ```rust
 pub struct CalendarDefinition {
@@ -118,24 +119,30 @@ pub struct EraDefinition {
 
 ### Epoch Configuration
 
-Each world configures what "minute 0" represents:
+Each world configures what "second 0" represents:
 
 ```rust
 pub struct EpochConfig {
     /// The calendar to use for this world
     pub calendar_id: CalendarId,
-    
-    /// What year minute 0 falls in (e.g., 1492 for 1492 DR)
+
+    /// What year second 0 falls in (e.g., 1492 for 1492 DR)
     pub epoch_year: i32,
-    
-    /// What month minute 0 falls in (1-indexed, e.g., 1 for Hammer)
+
+    /// What month second 0 falls in (1-indexed, e.g., 1 for Hammer)
     pub epoch_month: u8,
-    
-    /// What day minute 0 falls in (1-indexed)
+
+    /// What day second 0 falls in (1-indexed)
     pub epoch_day: u8,
-    
-    /// What hour minute 0 falls in (0-23)
+
+    /// What hour second 0 falls in (0-23)
     pub epoch_hour: u8,
+
+    /// What minute second 0 falls in (0-59) - usually 0
+    pub epoch_minute: u8,
+
+    /// What second second 0 falls in (0-59) - usually 0
+    pub epoch_second: u8,
 }
 ```
 
@@ -148,13 +155,15 @@ EpochConfig {
     epoch_month: 1,  // Hammer
     epoch_day: 1,
     epoch_hour: 0,
+    epoch_minute: 0,
+    epoch_second: 0,
 }
 ```
 
 With this config:
-- `total_minutes = 0` → "1st of Hammer, 1492 DR, 00:00"
-- `total_minutes = -525600` (1 year before) → "1st of Hammer, 1491 DR, 00:00"
-- `total_minutes = 540` (9 hours later) → "1st of Hammer, 1492 DR, 09:00"
+- `total_seconds = 0` → "1st of Hammer, 1492 DR, 00:00"
+- `total_seconds = -31_536_000` (1 year before) → "1st of Hammer, 1491 DR, 00:00"
+- `total_seconds = 32400` (9 hours later) → "1st of Hammer, 1492 DR, 09:00"
 
 ---
 
@@ -256,7 +265,7 @@ The Galifar Calendar:
 
 ```
 crates/domain/src/
-  game_time.rs          # GameTime struct (refactored to use i64 minutes)
+  game_time.rs          # GameTime struct (refactored to use i64 seconds)
   value_objects/
     calendar.rs         # CalendarDefinition, CalendarDate, EpochConfig
     calendar_id.rs      # CalendarId newtype
@@ -280,10 +289,10 @@ pub struct GameTimeConfig {
 ### Neo4j Storage
 
 ```cypher
-// World node - time as minutes
+// World node - time as seconds
 (:World {
     id: "uuid",
-    game_time_minutes: 540,           // Total minutes since epoch (was: datetime string)
+    game_time_seconds: 32400,        // Total seconds since epoch (was: datetime string)
     game_time_paused: true,
     time_config: "{...}"              // JSON with calendar_id, epoch_config
 })
@@ -299,7 +308,7 @@ pub struct GameTimeConfig {
 (:GameTime {
     id: "uuid",
     world_id: "uuid",
-    total_minutes: 540,               // Raw minutes
+    total_seconds: 32400,            // Raw seconds
     // Denormalized for queries:
     year: 1492,
     month: 1,
@@ -316,12 +325,12 @@ pub struct GameTimeConfig {
 
 /// Wire format for game time
 pub struct GameTime {
-    /// Total minutes since epoch
-    pub total_minutes: i64,
-    
+    /// Total seconds since epoch
+    pub total_seconds: i64,
+
     /// Paused state
     pub is_paused: bool,
-    
+
     /// Pre-formatted display values (computed by server)
     pub display: GameTimeDisplay,
 }
@@ -329,19 +338,22 @@ pub struct GameTime {
 pub struct GameTimeDisplay {
     /// Day number (ordinal-style for simple display)
     pub day: u32,
-    
+
     /// Hour (0-23)
     pub hour: u8,
-    
+
     /// Minute (0-59)
     pub minute: u8,
-    
+
+    /// Second (0-59) - not displayed but available for precision
+    pub second: u8,
+
     /// Period name ("Morning", "Afternoon", etc.)
     pub period: String,
-    
+
     /// Full formatted date (e.g., "15th of Hammer, 1492 DR")
     pub formatted_date: String,
-    
+
     /// Formatted time (e.g., "9:00 AM")
     pub formatted_time: String,
 }
@@ -354,14 +366,14 @@ pub struct GameTimeDisplay {
 ### Creating Time
 
 ```rust
-// At campaign start (minute 0)
+// At campaign start (second 0)
 let time = GameTime::at_epoch();
 
 // At a specific offset from epoch
-let time = GameTime::from_minutes(540);  // 9 hours after epoch
+let time = GameTime::from_seconds(32400);  // 9 hours after epoch
 
 // Historical event (100 years before campaign)
-let time = GameTime::from_minutes(-52_560_000);  // Negative minutes
+let time = GameTime::from_seconds(-3_155_760_000);  // Negative seconds
 ```
 
 ### Converting to Calendar Date
@@ -395,10 +407,10 @@ time.set_to_date(1492, 1, 15, 9, 0, &calendar, &epoch);
 ## Migration Strategy
 
 ### Phase 1: Internal Refactor (Non-Breaking)
-1. Change `GameTime` internal storage from `DateTime<Utc>` to `i64` minutes
-2. Keep existing API surface (`day()`, `hour()`, `minute()`)
+1. Change `GameTime` internal storage from `DateTime<Utc>` to `i64` seconds
+2. Keep existing API surface (`day()`, `hour()`, `minute()`, `second()`)
 3. Use Gregorian calendar implicitly for formatting
-4. Update Neo4j storage from RFC3339 strings to integer minutes
+4. Update Neo4j storage from RFC3339 strings to integer seconds
 
 ### Phase 2: Calendar Support (Additive)
 1. Add `CalendarDefinition` value object
@@ -421,12 +433,12 @@ time.set_to_date(1492, 1, 15, 9, 0, &calendar, &epoch);
 #[test]
 fn epoch_is_day_one() {
     let time = GameTime::at_epoch();
-    assert_eq!(time.total_minutes(), 0);
-    
+    assert_eq!(time.total_seconds(), 0);
+
     let calendar = CalendarDefinition::gregorian();
     let epoch = EpochConfig::default();  // Jan 1, Year 1
     let date = time.to_calendar_date(&calendar, &epoch);
-    
+
     assert_eq!(date.day, 1);
     assert_eq!(date.month, 1);
     assert_eq!(date.hour, 0);
@@ -434,10 +446,10 @@ fn epoch_is_day_one() {
 
 #[test]
 fn negative_time_represents_past() {
-    let time = GameTime::from_minutes(-1440);  // 1 day before epoch
+    let time = GameTime::from_seconds(-86400);  // 1 day before epoch
     let calendar = CalendarDefinition::gregorian();
-    let epoch = EpochConfig::new(2024, 1, 2, 0);  // Epoch is Jan 2
-    
+    let epoch = EpochConfig::new(2024, 1, 2, 0, 0, 0);  // Epoch is Jan 2
+
     let date = time.to_calendar_date(&calendar, &epoch);
     assert_eq!(date.month, 1);
     assert_eq!(date.day, 1);  // Day before Jan 2 = Jan 1
@@ -447,11 +459,11 @@ fn negative_time_represents_past() {
 fn harptos_intercalary_days() {
     let calendar = CalendarDefinition::harptos();
     let epoch = EpochConfig::harptos_default();  // 1492 DR, Hammer 1
-    
+
     // 31st day of year (after Hammer's 30 days + Midwinter)
-    let time = GameTime::from_minutes(30 * 24 * 60);  // 30 days after epoch
+    let time = GameTime::from_seconds(30 * 24 * 3600);  // 30 days after epoch
     let date = time.to_calendar_date(&calendar, &epoch);
-    
+
     assert_eq!(date.intercalary_day, Some("Midwinter".to_string()));
 }
 ```
@@ -460,15 +472,15 @@ fn harptos_intercalary_days() {
 
 ```rust
 #[tokio::test]
-async fn time_persists_as_minutes() {
+async fn time_persists_as_seconds() {
     let world = create_test_world().await;
-    let time = GameTime::from_minutes(540);
-    
-    world.advance_time(540);
+    let time = GameTime::from_seconds(32400);
+
+    world.advance_time(32400);
     save_world(&world).await;
-    
+
     let loaded = load_world(world.id()).await;
-    assert_eq!(loaded.game_time().total_minutes(), 540);
+    assert_eq!(loaded.game_time().total_seconds(), 32400);
 }
 ```
 
@@ -497,9 +509,9 @@ let world = World::new(
     },
 });
 
-// 2. Time starts at epoch (minute 0)
+// 2. Time starts at epoch (second 0)
 let time = world.game_time();
-assert_eq!(time.total_minutes(), 0);
+assert_eq!(time.total_seconds(), 0);
 
 // 3. Display shows calendar date
 let calendar = calendars.get(&world.calendar_id())?;
@@ -528,7 +540,7 @@ println!("{}", date.display_full());
    - **Decision**: v1 supports intercalary days with frequency; full leap year rules are v2
 
 4. **Calendar Migration**: What happens if DM changes calendar mid-campaign?
-   - **Decision**: Total minutes stays the same; display changes
+   - **Decision**: Total seconds stays the same; display changes
 
 ---
 
@@ -536,4 +548,5 @@ println!("{}", date.display_full());
 
 | Date       | Change                           |
 |------------|----------------------------------|
+| 2026-01-21 | Updated all references to use seconds-based game time (total_seconds, game_time_seconds) |
 | 2026-01-18 | Initial design document          |

@@ -107,13 +107,13 @@ impl StartConversation {
             .get(world_id)
             .await?
             .ok_or(ConversationError::WorldNotFound(world_id))?;
-        let current_game_time_minutes = world_data.game_time().total_minutes();
+        let current_game_time_seconds = world_data.game_time().total_seconds();
 
         // Check if NPC is staged in this region (with TTL check)
         // Get active staging and filter to visible NPCs
         let active_staging = self
             .staging
-            .get_active_staging(pc_region_id, current_game_time_minutes)
+            .get_active_staging(pc_region_id, current_game_time_seconds)
             .await?;
         let staged_npcs = active_staging
             .map(|s| {
@@ -502,12 +502,12 @@ mod tests {
 
         let mut staged_npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
         staged_npc.mood = MoodState::Calm;
-        let game_time_minutes = current_game_time.total_minutes();
+        let game_time_seconds = current_game_time.total_seconds();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            game_time_minutes,
+            game_time_seconds,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -519,7 +519,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
+            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));

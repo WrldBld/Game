@@ -103,7 +103,7 @@ async fn test_staging_npc_in_region() {
             .expect("Failed to stage NPC");
 
         // Verify staging was created
-        let game_time_minutes = ctx
+        let game_time_seconds = ctx
             .app
             .repositories
             .world
@@ -112,13 +112,13 @@ async fn test_staging_npc_in_region() {
             .expect("World query failed")
             .expect("World not found")
             .game_time()
-            .total_minutes();
+            .total_seconds();
 
         let staging = ctx
             .app
             .repositories
             .staging
-            .get_active_staging(common_room, game_time_minutes)
+            .get_active_staging(common_room, game_time_seconds)
             .await
             .expect("Staging query failed");
 

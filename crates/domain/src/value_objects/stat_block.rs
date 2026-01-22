@@ -2,6 +2,15 @@
 //!
 //! This module contains value objects for managing character stats with support
 //! for base values and temporary modifiers.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3b: Composite Value Objects** - `StatBlock` combines multiple `StatModifier`
+//!   values with cross-field invariants (e.g., total value calculation).
+//! - **Tier 1: Primitive Wrapper** - `StatValue` wraps validated integers.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

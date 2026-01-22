@@ -99,10 +99,11 @@ impl UserId {
     /// Create a new UserId from a string, validating that it's not empty.
     pub fn new(id: impl Into<String>) -> Result<Self, DomainError> {
         let id = id.into();
-        if id.is_empty() {
+        let trimmed = id.trim();
+        if trimmed.is_empty() {
             return Err(DomainError::validation("UserId cannot be empty"));
         }
-        Ok(Self(id))
+        Ok(Self(trimmed.to_string()))
     }
 
     /// Create from trusted source (DB) without validation.
@@ -134,6 +135,13 @@ impl UserId {
 impl TryFrom<String> for UserId {
     type Error = DomainError;
     fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::new(s)
+    }
+}
+
+impl TryFrom<&str> for UserId {
+    type Error = DomainError;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         Self::new(s)
     }
 }
@@ -191,5 +199,61 @@ define_id!(TimeSuggestionId);
 impl From<QueueItemId> for ActionId {
     fn from(value: QueueItemId) -> Self {
         Self(value.to_uuid())
+    }
+}
+
+// ============================================================================
+// Tests for UserId validation
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_user_id_validation() {
+        // Valid user IDs
+        assert!(UserId::new("user123").is_ok());
+        assert!(UserId::new("alice@example.com").is_ok());
+        assert!(UserId::new("user-with-dashes").is_ok());
+
+        // Invalid: empty string
+        assert!(UserId::new("").is_err());
+        assert!(matches!(UserId::new(""), Err(DomainError::Validation(_))));
+
+        // Invalid: whitespace only
+        assert!(UserId::new("   ").is_err());
+    }
+
+    #[test]
+    fn test_user_id_from_trusted() {
+        // from_trusted should not validate
+        let empty_user_id = UserId::from_trusted("".to_string());
+        assert!(empty_user_id.is_empty());
+
+        let valid_user_id = UserId::from_trusted("user123".to_string());
+        assert!(!valid_user_id.is_empty());
+        assert_eq!(valid_user_id.as_str(), "user123");
+    }
+
+    #[test]
+    fn test_user_id_display() {
+        let user_id = UserId::new("test_user").unwrap();
+        assert_eq!(user_id.to_string(), "test_user");
+        assert_eq!(format!("{}", user_id), "test_user");
+    }
+
+    #[test]
+    fn test_user_id_conversions() {
+        let user_id = UserId::new("alice").unwrap();
+
+        // Convert to String
+        let s: String = user_id.clone().into();
+        assert_eq!(s, "alice");
+
+        // Convert from String
+        let user_id2: Result<UserId, _> = "bob".try_into();
+        assert!(user_id2.is_ok());
+        assert_eq!(user_id2.unwrap().as_str(), "bob");
     }
 }

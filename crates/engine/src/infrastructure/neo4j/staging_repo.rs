@@ -100,7 +100,6 @@ impl StagingRepo for Neo4jStagingRepo {
 
             // Create new staging and link it
             // Get world_id via Region -> Location (location_id property) -> Location.world_id
-            // Note: game_time_minutes defaults to 0 for manually staged NPCs (should be set properly in use case)
             let create_q = query(
                 "MATCH (r:Region {id: $region_id})
                 MATCH (c:Character {id: $character_id})
@@ -111,7 +110,7 @@ impl StagingRepo for Neo4jStagingRepo {
                     region_id: $region_id,
                     location_id: location_id,
                     world_id: world_id,
-                    game_time_minutes: $game_time_minutes,
+                    game_time_seconds: $game_time_seconds,
                     approved_at: $approved_at,
                     ttl_hours: 24,
                     approved_by: 'system',
@@ -125,7 +124,7 @@ impl StagingRepo for Neo4jStagingRepo {
             .param("region_id", region_id.to_string())
             .param("character_id", character_id.to_string())
             .param("staging_id", staging_id.to_string())
-            .param("game_time_minutes", 0i64) // Default to epoch for manual staging
+            .param("game_time_seconds", 0i64) // Default to epoch for manual staging
             .param("approved_at", now.to_rfc3339());
 
             self.graph
@@ -244,7 +243,7 @@ impl StagingRepo for Neo4jStagingRepo {
                 region_id: $region_id,
                 location_id: $location_id,
                 world_id: $world_id,
-                game_time_minutes: $game_time_minutes,
+                game_time_seconds: $game_time_seconds,
                 approved_at: $approved_at,
                 ttl_hours: $ttl_hours,
                 approved_by: $approved_by,
@@ -268,7 +267,7 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("region_id", staging.region_id().to_string())
         .param("location_id", staging.location_id().to_string())
         .param("world_id", staging.world_id().to_string())
-        .param("game_time_minutes", staging.game_time_minutes())
+        .param("game_time_seconds", staging.game_time_seconds())
         .param("approved_at", staging.approved_at().to_rfc3339())
         .param("ttl_hours", staging.ttl_hours() as i64)
         .param("approved_by", staging.approved_by().to_string())
@@ -348,7 +347,7 @@ impl StagingRepo for Neo4jStagingRepo {
                 region_id: $region_id,
                 location_id: $location_id,
                 world_id: $world_id,
-                game_time_minutes: $game_time_minutes,
+                game_time_seconds: $game_time_seconds,
                 approved_at: $approved_at,
                 ttl_hours: $ttl_hours,
                 approved_by: $approved_by,
@@ -372,7 +371,7 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("region_id", staging.region_id().to_string())
         .param("location_id", staging.location_id().to_string())
         .param("world_id", staging.world_id().to_string())
-        .param("game_time_minutes", staging.game_time_minutes())
+        .param("game_time_seconds", staging.game_time_seconds())
         .param("approved_at", staging.approved_at().to_rfc3339())
         .param("ttl_hours", staging.ttl_hours() as i64)
         .param("approved_by", staging.approved_by().to_string())
@@ -417,7 +416,7 @@ impl StagingRepo for Neo4jStagingRepo {
     async fn get_active_staging(
         &self,
         region_id: RegionId,
-        current_game_time_minutes: i64,
+        current_game_time_seconds: i64,
     ) -> Result<Option<Staging>, RepoError> {
         let q = query(
             "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)
@@ -452,7 +451,7 @@ impl StagingRepo for Neo4jStagingRepo {
             let staging = row_to_staging_with_npcs(row, self.clock.now())?;
 
             // Check if staging is expired
-            if staging.is_expired(current_game_time_minutes) {
+            if staging.is_expired(current_game_time_seconds) {
                 return Ok(None);
             }
 
@@ -878,7 +877,7 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
             "query",
             format!("Failed to get 'source' for Staging {}: {}", id, e),
         )
-    })?;
+    }    )?;
     let is_active: bool = node.get("is_active").map_err(|e| {
         RepoError::database(
             "query",
@@ -886,8 +885,13 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
         )
     })?;
 
-    // Load game time as minutes (new format) or default to 0 for backwards compatibility
-    let game_time_minutes = node.get_i64_or("game_time_minutes", 0);
+    // Load game time as seconds (new format)
+    let game_time_seconds: i64 = node.get("game_time_seconds").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'game_time_seconds' for Staging {}: {}", id, e),
+        )
+    })?;
     let approved_at = node.get_datetime_or("approved_at", fallback);
     let source: StagingSource = source_str.parse().map_err(|e| {
         RepoError::database(
@@ -900,7 +904,7 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
     })?;
     let dm_guidance = node.get_optional_string("dm_guidance");
 
-    // Parse collected NPCs from the row
+    // Parse collected NPCs from row
     let npcs = parse_collected_npcs(&row)?;
 
     Ok(Staging::from_stored(
@@ -909,7 +913,7 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
         location_id,
         world_id,
         npcs,
-        game_time_minutes,
+        game_time_seconds,
         approved_at,
         ttl_hours as i32,
         approved_by,
@@ -1059,8 +1063,13 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
         )
     })?;
 
-    // Load game time as minutes (new format) or default to 0 for backwards compatibility
-    let game_time_minutes = node.get_i64_or("game_time_minutes", 0);
+    // Load game time as seconds (new format)
+    let game_time_seconds: i64 = node.get("game_time_seconds").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'game_time_seconds' for Staging {}: {}", id, e),
+        )
+    })?;
     let approved_at = node.get_datetime_or("approved_at", fallback);
     let source: StagingSource = source_str.parse().map_err(|e| {
         RepoError::database(
@@ -1079,7 +1088,7 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
         location_id,
         world_id,
         Vec::new(), // NPCs loaded separately
-        game_time_minutes,
+        game_time_seconds,
         approved_at,
         ttl_hours as i32,
         approved_by,

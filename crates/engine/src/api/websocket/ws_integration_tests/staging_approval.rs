@@ -20,7 +20,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let mut world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
-    world.set_time_mode(TimeMode::Manual, now);
+    let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures.
     let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
@@ -72,8 +72,12 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let world_for_get = world.clone();
     world_repo
         .expect_get()
+        .times(0..) // Allow multiple calls
         .returning(move |_| Ok(Some(world_for_get.clone())));
-    world_repo.expect_save().returning(|_world| Ok(()));
+    world_repo
+        .expect_save()
+        .times(0..) // Allow multiple calls
+        .returning(|_world| Ok(()));
 
     let mut repos = TestAppRepos::new(world_repo);
 
@@ -82,130 +86,148 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     repos
         .player_character_repo
         .expect_get()
+        .times(0..)
         .returning(move |_| Ok(Some(pc_for_get.clone())));
 
     repos
         .player_character_repo
         .expect_get_inventory()
+        .times(0..)
         .returning(|_| Ok(vec![]));
 
     repos
         .player_character_repo
         .expect_update_position()
+        .times(0..)
         .returning(|_, _, _| Ok(()));
 
     let region_for_get = region.clone();
     repos
         .location_repo
         .expect_get_region()
+        .times(0..)
         .returning(move |_| Ok(Some(region_for_get.clone())));
 
     let location_for_get = location.clone();
     repos
         .location_repo
         .expect_get_location()
+        .times(0..)
         .returning(move |_| Ok(Some(location_for_get.clone())));
 
     repos
         .location_repo
         .expect_get_connections()
+        .times(0..)
         .returning(|_, _| Ok(vec![]));
 
     repos
         .location_repo
         .expect_get_location_exits()
+        .times(0..)
         .returning(|_, _| Ok(vec![]));
 
     // Unstaged region -> pending.
     repos
         .staging_repo
         .expect_get_active_staging()
+        .times(0..)
         .returning(|_, _| Ok(None));
 
     repos
         .staging_repo
         .expect_get_staged_npcs()
+        .times(0..)
         .returning(|_| Ok(vec![]));
 
     // Narrative triggers: keep empty so we don't need deeper narrative deps.
     repos
         .narrative_repo
         .expect_get_triggers_for_region()
+        .times(0..)
         .returning(|_, _| Ok(vec![]));
 
     // Scene resolution: no scenes.
     repos
         .scene_repo
         .expect_get_completed_scenes()
+        .times(0..)
         .returning(|_| Ok(vec![]));
     repos
         .scene_repo
         .expect_list_for_region()
+        .times(0..)
         .returning(|_| Ok(vec![]));
 
     // Observations + flags: empty.
     repos
         .observation_repo
         .expect_get_observations()
+        .times(0..)
         .returning(|_| Ok(vec![]));
 
     repos
         .observation_repo
         .expect_has_observed()
+        .times(0..)
         .returning(|_, _| Ok(false));
 
     repos
         .observation_repo
         .expect_save_observation()
-        .returning(|_| Ok(()));
-
-    repos
-        .observation_repo
-        .expect_has_observed()
-        .returning(|_, _| Ok(false));
-    repos
-        .observation_repo
-        .expect_save_observation()
+        .times(0..)
         .returning(|_| Ok(()));
     repos
         .flag_repo
         .expect_get_world_flags()
+        .times(0..)
         .returning(|_| Box::pin(async { Ok(vec![]) }));
     repos
         .flag_repo
         .expect_get_pc_flags()
+        .times(0..)
         .returning(|_| Box::pin(async { Ok(vec![]) }));
 
     // Visual state resolution: no states.
     repos
         .location_state_repo
         .expect_list_for_location()
+        .times(0..)
         .returning(|_| Ok(vec![]));
     repos
         .region_state_repo
         .expect_list_for_region()
+        .times(0..)
         .returning(|_| Ok(vec![]));
+    // get_active is called during movement (enter_region) AND during approval
     repos
         .location_state_repo
         .expect_get_active()
+        .times(0..)
         .returning(|_| Ok(None));
     repos
         .region_state_repo
         .expect_get_active()
+        .times(0..)
         .returning(|_| Ok(None));
 
     // Items in region: empty.
     repos
         .item_repo
         .expect_list_in_region()
+        .times(0..)
         .returning(|_| Ok(vec![]));
 
     // Settings: return defaults (default_presence_cache_ttl_hours = 3)
-    repos.settings_repo.expect_get_for_world().returning(|_| {
-        Ok(Some(
-            crate::infrastructure::app_settings::AppSettings::default(),
-        ))
-    });
+    repos
+        .settings_repo
+        .expect_get_for_world()
+        .times(0..)
+        .returning(|_| {
+            Ok(Some(
+                crate::infrastructure::app_settings::AppSettings::default(),
+            ))
+        });
 
     // Staging approval persists full per-NPC info (including hidden flags).
     let region_id_for_staging = region_id;
@@ -215,8 +237,8 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let hidden_npc_id_for_staging = hidden_npc_id;
     repos
         .staging_repo
-        .expect_save_pending_staging()
-        .withf(move |s| {
+        .expect_save_and_activate_pending_staging()
+        .withf(move |s, r| {
             s.region_id() == region_id_for_staging
                 && s.location_id() == location_id_for_staging
                 && s.world_id() == world_id_for_staging
@@ -231,31 +253,31 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
                         && n.is_present()
                         && n.is_hidden_from_players()
                 })
+                && *r == region_id_for_staging
         })
-        .returning(|_| Ok(()));
-
-    repos
-        .staging_repo
-        .expect_activate_staging()
-        .withf(move |_staging_id, r| *r == region_id)
         .returning(|_, _| Ok(()));
 
     // Character details for StagingReady payload.
     let visible_npc_for_get = visible_npc.clone();
     let hidden_npc_for_get = hidden_npc.clone();
-    repos.character_repo.expect_get().returning(move |id| {
-        if id == visible_npc_for_get.id() {
-            Ok(Some(visible_npc_for_get.clone()))
-        } else if id == hidden_npc_for_get.id() {
-            Ok(Some(hidden_npc_for_get.clone()))
-        } else {
-            Ok(None)
+    repos
+        .character_repo
+        .expect_get()
+        .times(0..) // Allow any number of calls
+        .returning(move |id| {
+            if id == visible_npc_for_get.id() {
+                Ok(Some(visible_npc_for_get.clone()))
+            } else if id == hidden_npc_for_get.id() {
+                Ok(Some(hidden_npc_for_get.clone()))
+            } else {
+                Ok(None)
         }
     });
 
     repos
         .character_repo
         .expect_get_npcs_for_region()
+        .times(0..)
         .returning(|_| Ok(vec![]));
 
     let app = build_test_app(repos, now);
@@ -412,7 +434,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let mut world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
-    world.set_time_mode(TimeMode::Manual, now);
+    let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
     let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
@@ -480,25 +502,21 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         .expect_get_staged_npcs()
         .returning(|_| Ok(vec![]));
 
-    // Verify that save_pending_staging is called with TTL from settings (7 hours)
+    // Verify that save_and_activate_pending_staging is called with TTL from settings (7 hours)
     let region_id_for_staging = region_id;
     let location_id_for_staging = location_id;
     let world_id_for_staging = world_id;
     repos
         .staging_repo
-        .expect_save_pending_staging()
-        .withf(move |s| {
+        .expect_save_and_activate_pending_staging()
+        .withf(move |s, r| {
             s.region_id() == region_id_for_staging
                 && s.location_id() == location_id_for_staging
                 && s.world_id() == world_id_for_staging
                 && s.ttl_hours() == 7 // Custom TTL from settings (not default 3)
                 && s.source() == wrldbldr_domain::StagingSource::AutoApproved
+                && *r == region_id_for_staging
         })
-        .returning(|_| Ok(()));
-
-    repos
-        .staging_repo
-        .expect_activate_staging()
         .returning(|_, _| Ok(()));
 
     // Character repo: no NPCs for rule-based suggestions
@@ -560,7 +578,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let mut world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
-    world.set_time_mode(TimeMode::Manual, now);
+    let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
     let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
@@ -624,26 +642,22 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         .expect_get_staged_npcs()
         .returning(|_| Ok(vec![]));
 
-    // Verify that save_pending_staging is called with DEFAULT TTL (3 hours)
+    // Verify that save_and_activate_pending_staging is called with DEFAULT TTL (3 hours)
     // since settings fetch failed and we fall back to AppSettings::default()
     let region_id_for_staging = region_id;
     let location_id_for_staging = location_id;
     let world_id_for_staging = world_id;
     repos
         .staging_repo
-        .expect_save_pending_staging()
-        .withf(move |s| {
+        .expect_save_and_activate_pending_staging()
+        .withf(move |s, r| {
             s.region_id() == region_id_for_staging
                 && s.location_id() == location_id_for_staging
                 && s.world_id() == world_id_for_staging
                 && s.ttl_hours() == 3 // Default TTL (settings fetch failed)
                 && s.source() == wrldbldr_domain::StagingSource::AutoApproved
+                && *r == region_id_for_staging
         })
-        .returning(|_| Ok(()));
-
-    repos
-        .staging_repo
-        .expect_activate_staging()
         .returning(|_, _| Ok(()));
 
     // Character repo: no NPCs

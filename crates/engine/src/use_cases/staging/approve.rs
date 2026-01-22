@@ -92,7 +92,7 @@ impl ApproveStagingRequest {
             }
         };
 
-        let current_game_time_minutes = world.game_time().total_minutes();
+        let current_game_time_seconds = world.game_time().total_seconds();
         let approved_at = self.clock.now();
 
         let staged_npcs = self.build_staged_npcs(&input.approved_npcs).await?;
@@ -101,7 +101,7 @@ impl ApproveStagingRequest {
             input.region_id,
             location_id,
             input.world_id,
-            current_game_time_minutes,
+            current_game_time_seconds,
             input.approved_by.clone(),
             input.source,
             input.ttl_hours,

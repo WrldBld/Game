@@ -504,7 +504,7 @@ mod tests {
             wrldbldr_domain::WorldName::new("Test World").unwrap(),
             now,
         );
-        world.set_description(wrldbldr_domain::Description::new("Desc").unwrap(), now);
+        let _ = world.set_description(wrldbldr_domain::Description::new("Desc").unwrap(), now);
         let export = crate::use_cases::world::WorldExport {
             world: world.clone(),
             locations: Vec::new(),

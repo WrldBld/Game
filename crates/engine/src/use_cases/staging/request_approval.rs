@@ -191,6 +191,7 @@ impl RequestStagingApproval {
                     day: game_time.day(),
                     hour: game_time.hour(),
                     minute: game_time.minute(),
+                    second: game_time.second(),
                     is_paused: game_time.is_paused(),
                 },
                 previous_staging,

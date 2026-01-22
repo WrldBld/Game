@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, GoalName, Want, WantId,
-    WantTarget, WantVisibility, WorldId,
+    ActantialContext, ActantialRole, ActantialTarget, CharacterId, DomainError, GoalId, GoalName,
+    Want, WantId, WantTarget, WantVisibility, WorldId,
 };
 
 use crate::infrastructure::ports::{
@@ -32,14 +32,12 @@ pub enum ActantialError {
     },
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+    #[error("Domain error: {0}")]
+    Domain(#[from] DomainError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-}
-
-impl From<ValidationError> for ActantialError {
-    fn from(err: ValidationError) -> Self {
-        ActantialError::InvalidInput(err.to_string())
-    }
+    #[error("Validation error: {0}")]
+    Validation(#[from] ValidationError),
 }
 
 /// Container for actantial use cases.
@@ -86,8 +84,7 @@ impl GoalOps {
         name: String,
         description: Option<String>,
     ) -> Result<GoalDetails, ActantialError> {
-        let goal_name =
-            GoalName::new(&name).map_err(|e| ActantialError::InvalidInput(e.to_string()))?;
+        let goal_name = GoalName::new(&name).map_err(ActantialError::Domain)?;
 
         let mut goal = wrldbldr_domain::Goal::new(world_id, goal_name);
         if let Some(description) = description {
@@ -129,7 +126,7 @@ impl GoalOps {
 
         // Rebuild the goal with updated values using from_parts
         let new_name = if let Some(name) = name {
-            GoalName::new(&name).map_err(|e| ActantialError::InvalidInput(e.to_string()))?
+            GoalName::new(&name).map_err(ActantialError::Domain)?
         } else {
             details.goal.name().clone()
         };
@@ -551,7 +548,7 @@ mod tests {
                 )
                 .await;
 
-            assert!(matches!(result, Err(ActantialError::InvalidInput(_))));
+            assert!(matches!(result, Err(ActantialError::Validation(_))));
         }
     }
 
@@ -593,6 +590,56 @@ mod tests {
             let result = ops.get_context(character_id).await;
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
+        }
+    }
+
+    mod error_handling {
+        use super::*;
+
+        #[test]
+        fn test_domain_error_preserved() {
+            let domain_err = DomainError::validation("Goal name cannot be empty");
+
+            // Test that mapping DomainError via From trait preserves the error
+            let use_case_err: ActantialError = ActantialError::Domain(domain_err);
+
+            // Verify the source DomainError is accessible
+            assert!(matches!(use_case_err, ActantialError::Domain(_)));
+
+            let error_msg = use_case_err.to_string();
+            assert!(error_msg.contains("Goal name cannot be empty"));
+        }
+
+        #[test]
+        fn test_validation_error_preserves_chain() {
+            let validation_err = ValidationError::Empty {
+                field_name: "Goal name",
+            };
+
+            // Test that ValidationError converts to ActantialError via From trait
+            let use_case_err: ActantialError = validation_err.into();
+
+            // Verify it's a Validation variant and the source ValidationError is accessible
+            assert!(matches!(use_case_err, ActantialError::Validation(_)));
+
+            let error_msg = use_case_err.to_string();
+            assert!(error_msg.contains("Goal name"));
+            assert!(error_msg.contains("cannot be empty"));
+        }
+
+        #[test]
+        fn test_validation_error_message_preserved() {
+            let validation_err = ValidationError::TooLong {
+                field_name: "Description",
+                max: 500,
+            };
+
+            let use_case_err: ActantialError = validation_err.into();
+
+            // Verify the original error message is accessible
+            let error_msg = use_case_err.to_string();
+            assert!(error_msg.contains("Description"));
+            assert!(error_msg.contains("500"));
         }
     }
 }

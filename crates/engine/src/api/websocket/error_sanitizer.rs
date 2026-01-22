@@ -5,6 +5,7 @@
 //!
 //! Prevents leaking internal details (paths, DB errors, stack traces) to clients.
 
+use crate::infrastructure::correlation::CorrelationId;
 use tracing;
 
 /// Sanitize an error for client consumption.
@@ -28,6 +29,25 @@ pub fn sanitize_repo_error<E: std::fmt::Display>(error: &E, operation: &str) -> 
         error = %error,
         operation = operation,
         "Repository error"
+    );
+
+    format!("Failed to {} - please try again", operation)
+}
+
+/// Sanitize a repository error with correlation ID.
+///
+/// Logs the full error with correlation context server-side, returns generic message for client.
+pub fn sanitize_repo_error_with_cid<E: std::fmt::Display>(
+    error: &E,
+    operation: &str,
+    correlation_id: &CorrelationId,
+) -> String {
+    tracing::error!(
+        error = %error,
+        operation = operation,
+        correlation_id = %correlation_id,
+        correlation_id_short = %correlation_id.short(),
+        "Repository error with correlation"
     );
 
     format!("Failed to {} - please try again", operation)

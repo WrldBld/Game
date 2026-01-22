@@ -3,6 +3,7 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::api::websocket::apply_pagination_limits;
+use wrldbldr_domain::UserId;
 use wrldbldr_shared::character_sheet::CharacterSheetValues;
 use wrldbldr_shared::{ObservationRequest, PlayerCharacterRequest, RelationshipRequest};
 
@@ -83,8 +84,22 @@ pub(super) async fn handle_player_character_request(
                 Err(e) => return Err(e),
             };
 
+            // Parse user_id from request (validated type)
+            let user_id = match UserId::new(user_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid user ID",
+                        ),
+                    })
+                }
+            };
+
             // Verify user_id matches connection's user_id (no spoofing)
-            if user_id != conn_info.user_id.as_str() {
+            if user_id != conn_info.user_id {
                 return Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(

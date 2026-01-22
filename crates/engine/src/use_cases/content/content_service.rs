@@ -6,7 +6,7 @@
 //! Provides unified access to game content (spells, feats, classes, races, etc.)
 //! through the CompendiumProvider trait system.
 
-use crate::infrastructure::importers::{Dnd5eContentProvider, FiveToolsImporter, ImportError};
+use crate::infrastructure::content_sources::{Dnd5eContentProvider, FiveToolsImporter, ImportError};
 use dashmap::DashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -405,7 +405,7 @@ mod tests {
     // Run with: cargo test --package wrldbldr-engine content_service::tests::integration -- --ignored --nocapture
     mod integration {
         use super::*;
-        use crate::infrastructure::importers::Dnd5eContentProvider;
+        use crate::infrastructure::content_sources::Dnd5eContentProvider;
 
         const FIVETOOLS_PATH: &str = "/Users/otto/repos/WrldBldr/5etools/5etools-src";
 

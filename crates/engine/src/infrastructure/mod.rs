@@ -7,6 +7,8 @@ pub mod cache;
 pub mod circuit_breaker;
 pub mod clock;
 pub mod comfyui;
+pub mod content_sources;
+pub mod correlation;
 pub mod error;
 pub mod importers;
 pub mod neo4j;

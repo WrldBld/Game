@@ -18,7 +18,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let mut world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
-    world.set_time_mode(TimeMode::Manual, now);
+    let _ = world.set_time_mode(TimeMode::Manual, now);
 
     let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
     let location = wrldbldr_domain::Location::new(
@@ -181,30 +181,19 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     // Stage activation should influence subsequent get_active_staging.
     #[derive(Default)]
     struct SharedStaging {
-        pending: Option<wrldbldr_domain::Staging>,
-        activated: bool,
+        active: Option<wrldbldr_domain::Staging>,
     }
 
     let shared = Arc::new(Mutex::new(SharedStaging::default()));
 
-    let shared_for_save = shared.clone();
+    let shared_for_save_and_activate = shared.clone();
     repos
         .staging_repo
-        .expect_save_pending_staging()
-        .returning(move |s| {
-            let mut guard = shared_for_save.lock().unwrap();
-            guard.pending = Some(s.clone());
-            Ok(())
-        });
-
-    let shared_for_activate = shared.clone();
-    repos
-        .staging_repo
-        .expect_activate_staging()
-        .withf(move |_id, r| *r == region_id)
-        .returning(move |_id, _region| {
-            let mut guard = shared_for_activate.lock().unwrap();
-            guard.activated = true;
+        .expect_save_and_activate_pending_staging()
+        .withf(move |_s, r| *r == region_id)
+        .returning(move |s, _region| {
+            let mut guard = shared_for_save_and_activate.lock().unwrap();
+            guard.active = Some(s.clone());
             Ok(())
         });
 
@@ -214,17 +203,20 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .expect_get_active_staging()
         .returning(move |rid, _now| {
             let guard = shared_for_get_active.lock().unwrap();
-            if guard.activated {
-                Ok(guard.pending.clone().filter(|s| s.region_id() == rid))
-            } else {
-                Ok(None)
-            }
+            Ok(guard.active.clone().filter(|s| s.region_id() == rid))
         });
 
     repos
         .staging_repo
         .expect_get_staged_npcs()
         .returning(|_| Ok(vec![]));
+
+    // Settings: return defaults
+    repos.settings_repo.expect_get_for_world().returning(|_| {
+        Ok(Some(
+            crate::infrastructure::app_settings::AppSettings::default(),
+        ))
+    });
 
     repos
         .character_repo

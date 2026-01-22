@@ -6,7 +6,8 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use wrldbldr_domain::{
-    self as domain, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger, WorldId,
+    self as domain, aggregates::narrative_event::{EventActivation, FavoriteStatus}, DomainError,
+    NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger, WorldId,
 };
 
 use crate::infrastructure::ports::ClockPort;
@@ -102,8 +103,7 @@ impl NarrativeEventOps {
         outcomes: Option<Vec<domain::EventOutcome>>,
     ) -> Result<NarrativeEventSummary, NarrativeEventError> {
         let now = self.clock.now();
-        let name = NarrativeEventName::new(name)
-            .map_err(|e| NarrativeEventError::InvalidInput(e.to_string()))?;
+        let name = NarrativeEventName::new(name).map_err(NarrativeEventError::Domain)?;
         let mut event = NarrativeEvent::new(world_id, name, now);
 
         if let Some(description) = description {
@@ -142,8 +142,7 @@ impl NarrativeEventOps {
         }
 
         if let Some(name) = name {
-            let name = NarrativeEventName::new(name)
-                .map_err(|e| NarrativeEventError::InvalidInput(e.to_string()))?;
+            let name = NarrativeEventName::new(name).map_err(NarrativeEventError::Domain)?;
             event.set_name(name, now);
         }
         if let Some(description) = description {
@@ -197,7 +196,12 @@ impl NarrativeEventOps {
             return Err(NarrativeEventError::WorldMismatch);
         }
 
-        event.set_active(active, self.clock.now());
+        let activation = if active {
+            EventActivation::Active
+        } else {
+            EventActivation::Inactive
+        };
+        event.set_active(activation, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
     }
@@ -219,7 +223,12 @@ impl NarrativeEventOps {
             return Err(NarrativeEventError::WorldMismatch);
         }
 
-        event.set_favorite(favorite, self.clock.now());
+        let favorite_status = if favorite {
+            FavoriteStatus::Favorite
+        } else {
+            FavoriteStatus::Normal
+        };
+        event.set_favorite(favorite_status, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
     }
@@ -325,6 +334,8 @@ pub enum NarrativeEventError {
     WorldMismatch,
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+    #[error("Domain error: {0}")]
+    Domain(#[from] DomainError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

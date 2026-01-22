@@ -198,7 +198,7 @@ pub trait PlayerCharacterRepo: Send + Sync {
     async fn get_by_user(
         &self,
         world_id: WorldId,
-        user_id: &str,
+        user_id: &UserId,
     ) -> Result<Option<PlayerCharacter>, RepoError>;
     async fn update_position(
         &self,
@@ -576,11 +576,11 @@ pub trait StagingRepo: Send + Sync {
     ///
     /// # Arguments
     /// * `region_id` - The region to get staging for
-    /// * `current_game_time_minutes` - Current game time in total minutes since epoch
+    /// * `current_game_time_seconds` - Current game time in total seconds since epoch
     async fn get_active_staging(
         &self,
         region_id: RegionId,
-        current_game_time_minutes: i64,
+        current_game_time_seconds: i64,
     ) -> Result<Option<Staging>, RepoError>;
 
     /// Activate a staging (after DM approval), replacing any existing current staging.

@@ -2,6 +2,14 @@
 //!
 //! Provides structured guidance for the LLM on how to handle
 //! NPC responses and scene interactions.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - `DirectorialNotes`, `ToneGuidance`,
+//!   `PacingGuidance`, `NpcMotivation` are simple data structs with public fields.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use std::collections::HashMap;
 

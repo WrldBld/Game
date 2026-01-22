@@ -24,6 +24,49 @@ use crate::infrastructure::ports::{
 };
 
 // =============================================================================
+// Safe Fragments for Cypher Queries
+// =============================================================================
+
+// Safe relationship type fragments for Cypher queries.
+//
+// SAFETY: These are allowlisted static strings, validated by enum.
+// Cypher cannot parameterize relationship types or structural query fragments,
+// so we must use string interpolation. This module ensures only
+// predefined, safe values are interpolated.
+
+mod safe_fragments {
+    use super::*;
+
+    /// Convert WantTargetRef enum to safe Cypher MATCH fragment.
+    ///
+    /// Returns the complete MATCH clause fragment for the target type.
+    /// All returned strings are static and safe for interpolation.
+    pub fn want_target_match(target: &WantTargetRef) -> &'static str {
+        match target {
+            WantTargetRef::Character(_) => {
+                "MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)"
+            }
+            WantTargetRef::Item(_) => "MATCH (target:Item {id: $target_id})",
+            WantTargetRef::Goal(_) => "MATCH (target:Goal {id: $target_id})",
+        }
+    }
+
+    /// Convert ActantialRole enum to safe Cypher relationship type fragment.
+    ///
+    /// Returns the relationship type string for actantial views.
+    /// All returned strings are static and safe for interpolation.
+    pub fn actantial_role_relationship(role: &ActantialRole) -> &'static str {
+        match role {
+            ActantialRole::Helper => "VIEWS_AS_HELPER",
+            ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
+            ActantialRole::Sender => "VIEWS_AS_SENDER",
+            ActantialRole::Receiver => "VIEWS_AS_RECEIVER",
+            ActantialRole::Unknown => "VIEWS_AS_HELPER",
+        }
+    }
+}
+
+// =============================================================================
 // Stored Types for JSON serialization
 // =============================================================================
 
@@ -998,22 +1041,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
         want_id: WantId,
         target: WantTargetRef,
     ) -> Result<WantTarget, RepoError> {
-        // SAFETY: target_match comes from a match on WantTargetRef enum and produces
-        // only static query fragments. Cypher does not support parameterized query
-        // structure, so format!() is required here for the MATCH clause.
-        let (target_match, target_id) = match target {
-            WantTargetRef::Character(id) => (
-                "MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)",
-                id.to_string(),
-            ),
-            WantTargetRef::Item(id) => (
-                "MATCH (target:Item {id: $target_id})",
-                id.to_string(),
-            ),
-            WantTargetRef::Goal(id) => (
-                "MATCH (target:Goal {id: $target_id})",
-                id.to_string(),
-            ),
+        // Use safe_fragments to get static MATCH fragment
+        let target_match = safe_fragments::want_target_match(&target);
+        let target_id = match &target {
+            WantTargetRef::Character(id) => id.to_string(),
+            WantTargetRef::Item(id) => id.to_string(),
+            WantTargetRef::Goal(id) => id.to_string(),
         };
 
         let q = query(&format!(
@@ -1026,7 +1059,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             RETURN target, labels(target) as target_labels"
         ))
         .param("want_id", want_id.to_string())
-        .param("target_id", target_id.clone());
+        .param("target_id", target_id.as_str());
 
         let mut result = self
             .graph
@@ -1490,10 +1523,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
         role: ActantialRole,
         reason: String,
     ) -> Result<ActantialViewRecord, RepoError> {
-        // SAFETY: relationship_type comes from actantial_role_to_relationship() which
-        // returns only static strings from an enum match. Cypher does not support
-        // parameterized relationship types, so format!() is required here.
-        let relationship_type = actantial_role_to_relationship(role);
+        // Use safe_fragments to get static relationship type
+        let relationship_type = safe_fragments::actantial_role_relationship(&role);
         let target_id = target.id_string();
 
         let q = query(&format!(
@@ -1561,10 +1592,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
         target: ActantialTarget,
         role: ActantialRole,
     ) -> Result<(), RepoError> {
-        // SAFETY: relationship_type comes from actantial_role_to_relationship() which
-        // returns only static strings from an enum match. Cypher does not support
-        // parameterized relationship types, so format!() is required here.
-        let relationship_type = actantial_role_to_relationship(role);
+        // Use safe_fragments to get static relationship type
+        let relationship_type = safe_fragments::actantial_role_relationship(&role);
 
         let q = query(&format!(
             "MATCH (c:Character {{id: $character_id}})-[r:{relationship_type}]->(target)
@@ -2042,12 +2071,114 @@ fn parse_want_target_from_row(row: &Row) -> Result<Option<WantTarget>, RepoError
     }
 }
 
-fn actantial_role_to_relationship(role: ActantialRole) -> &'static str {
-    match role {
-        ActantialRole::Helper => "VIEWS_AS_HELPER",
-        ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
-        ActantialRole::Sender => "VIEWS_AS_SENDER",
-        ActantialRole::Receiver => "VIEWS_AS_RECEIVER",
-        ActantialRole::Unknown => "VIEWS_AS_HELPER",
+// =============================================================================
+// Tests for safe_fragments module
+// =============================================================================
+
+#[cfg(test)]
+mod safe_fragments_tests {
+    use super::safe_fragments::*;
+    use super::*;
+
+    #[test]
+    fn test_want_target_match_fragments_are_static() {
+        // Verify all WantTargetRef variants return static strings
+        let char_id = CharacterId::new();
+        let item_id = ItemId::new();
+        let goal_id = GoalId::new();
+
+        let char_ref = WantTargetRef::Character(char_id);
+        let item_ref = WantTargetRef::Item(item_id);
+        let goal_ref = WantTargetRef::Goal(goal_id);
+
+        assert_eq!(
+            want_target_match(&char_ref),
+            "MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)"
+        );
+        assert_eq!(want_target_match(&item_ref), "MATCH (target:Item {id: $target_id})");
+        assert_eq!(want_target_match(&goal_ref), "MATCH (target:Goal {id: $target_id})");
+    }
+
+    #[test]
+    fn test_actantial_role_relationship_fragments_are_static() {
+        // Verify all ActantialRole variants return static strings
+        assert_eq!(
+            actantial_role_relationship(&ActantialRole::Helper),
+            "VIEWS_AS_HELPER"
+        );
+        assert_eq!(
+            actantial_role_relationship(&ActantialRole::Opponent),
+            "VIEWS_AS_OPPONENT"
+        );
+        assert_eq!(
+            actantial_role_relationship(&ActantialRole::Sender),
+            "VIEWS_AS_SENDER"
+        );
+        assert_eq!(
+            actantial_role_relationship(&ActantialRole::Receiver),
+            "VIEWS_AS_RECEIVER"
+        );
+        // Unknown defaults to VIEWS_AS_HELPER
+        assert_eq!(
+            actantial_role_relationship(&ActantialRole::Unknown),
+            "VIEWS_AS_HELPER"
+        );
+    }
+
+    #[test]
+    fn test_all_want_target_variants_covered() {
+        // Ensure safe_fragments::want_target_match handles all WantTargetRef enum variants
+        let char_id = CharacterId::new();
+        let item_id = ItemId::new();
+        let goal_id = GoalId::new();
+
+        // Test that each variant returns a non-empty string
+        assert!(!want_target_match(&WantTargetRef::Character(char_id)).is_empty());
+        assert!(!want_target_match(&WantTargetRef::Item(item_id)).is_empty());
+        assert!(!want_target_match(&WantTargetRef::Goal(goal_id)).is_empty());
+    }
+
+    #[test]
+    fn test_all_actantial_role_variants_covered() {
+        // Ensure safe_fragments::actantial_role_relationship handles all ActantialRole enum variants
+        // This test ensures we don't forget to handle a variant in the match
+
+        // All variants should return non-empty strings
+        assert!(!actantial_role_relationship(&ActantialRole::Helper).is_empty());
+        assert!(!actantial_role_relationship(&ActantialRole::Opponent).is_empty());
+        assert!(!actantial_role_relationship(&ActantialRole::Sender).is_empty());
+        assert!(!actantial_role_relationship(&ActantialRole::Receiver).is_empty());
+        assert!(!actantial_role_relationship(&ActantialRole::Unknown).is_empty());
+
+        // Verify all returned strings are safe (no quotes, no semicolons, etc.)
+        for role in [
+            ActantialRole::Helper,
+            ActantialRole::Opponent,
+            ActantialRole::Sender,
+            ActantialRole::Receiver,
+            ActantialRole::Unknown,
+        ] {
+            let fragment = actantial_role_relationship(&role);
+            // Safe fragments should be uppercase alphanumeric + underscores only
+            assert!(
+                fragment.chars().all(|c| c.is_ascii_uppercase() || c == '_'),
+                "Fragment '{}' contains unsafe characters",
+                fragment
+            );
+        }
+    }
+
+    #[test]
+    fn test_safe_fragments_return_static_lifetimes() {
+        // Verify that safe_fragments functions return &'static str
+        // This ensures they are compile-time constants, not dynamically allocated
+
+        let char_id = CharacterId::new();
+        let role = ActantialRole::Helper;
+
+        // The following should compile because they return &'static str
+        let _static_str1: &'static str = want_target_match(&WantTargetRef::Character(char_id));
+        let _static_str2: &'static str = actantial_role_relationship(&role);
     }
 }
+

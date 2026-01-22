@@ -36,8 +36,7 @@ impl WorldManagement {
         description: Option<String>,
         setting: Option<String>,
     ) -> Result<wrldbldr_domain::World, ManagementError> {
-        let world_name = WorldName::new(name)
-            .map_err(|e| ManagementError::InvalidInput(format!("Invalid world name: {}", e)))?;
+        let world_name = WorldName::new(name).map_err(ManagementError::Domain)?;
 
         let now = self.clock.now();
         let mut world = wrldbldr_domain::World::new(world_name, now);
@@ -48,7 +47,7 @@ impl WorldManagement {
             let desc = Description::new(&desc_str).map_err(|e| {
                 ManagementError::InvalidInput(format!("Invalid description: {}", e))
             })?;
-            world.set_description(desc, now);
+            let _ = world.set_description(desc, now);
         }
 
         self.world.save(&world).await?;
@@ -74,20 +73,15 @@ impl WorldManagement {
         let now = self.clock.now();
 
         if let Some(name) = name {
-            let world_name = WorldName::new(name)
-                .map_err(|e| ManagementError::InvalidInput(format!("Invalid world name: {}", e)))?;
-            world.set_name(world_name, now);
+            let world_name = WorldName::new(name).map_err(ManagementError::Domain)?;
+            let _ = world.set_name(world_name, now);
         }
         if let Some(description) = description {
-            let desc = Description::new(&description).map_err(|e| {
-                ManagementError::InvalidInput(format!("Invalid description: {}", e))
-            })?;
-            world.set_description(desc, now);
+            let desc = Description::new(&description).map_err(ManagementError::Domain)?;
+            let _ = world.set_description(desc, now);
         } else if let Some(setting) = setting {
-            let desc = Description::new(&setting).map_err(|e| {
-                ManagementError::InvalidInput(format!("Invalid description: {}", e))
-            })?;
-            world.set_description(desc, now);
+            let desc = Description::new(&setting).map_err(ManagementError::Domain)?;
+            let _ = world.set_description(desc, now);
         }
 
         self.world.save(&world).await?;

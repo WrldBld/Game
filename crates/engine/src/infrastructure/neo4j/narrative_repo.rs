@@ -815,8 +815,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             let minute = gt.minute() as i64;
             let period = gt.time_of_day().display_name().to_string();
             let label = format!("Day {}, {} ({:02}:{:02})", day, period, hour, minute);
-            // Store total_minutes for time reference (not DateTime anymore)
-            turn_game_time = gt.total_minutes().to_string();
+            // Store total_seconds for time reference (not DateTime anymore)
+            turn_game_time = gt.total_seconds().to_string();
 
             let q = query(
                 "MERGE (t:GameTime {world_id: $world_id, day: $day, hour: $hour, minute: $minute})

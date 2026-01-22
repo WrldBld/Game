@@ -301,47 +301,38 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
         }
     };
 
-    // Loading state
-    if *schema_loading.read() {
-        return rsx! {
+    let world_id = props.world_id.clone();
+
+    // Use conditional rendering instead of early returns to avoid hook ordering issues
+    rsx! {
+        if *schema_loading.read() {
+            // Loading state
             div { class: "flex items-center justify-center p-8",
                 div { class: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" }
                 span { class: "ml-3 text-gray-400", "Loading trigger schema..." }
             }
-        };
-    }
-
-    // Error state
-    if let Some(err) = schema_error.read().as_ref() {
-        return rsx! {
+        } else if let Some(err) = schema_error.read().as_ref() {
+            // Error state
             div { class: "p-4 bg-red-900/20 border border-red-500 rounded-lg",
                 p { class: "text-red-400", "{err}" }
             }
-        };
-    }
+        } else if let Some(schema_data) = schema.read().as_ref() {
+            // Main content - schema is available
+            {
+                // Group trigger types by category
+                let categories: Vec<String> = {
+                    let mut cats: Vec<String> = schema_data
+                        .trigger_types
+                        .iter()
+                        .map(|t| t.category.clone())
+                        .collect::<std::collections::HashSet<_>>()
+                        .into_iter()
+                        .collect();
+                    cats.sort();
+                    cats
+                };
 
-    // Get schema
-    let schema_data = match schema.read().as_ref() {
-        Some(s) => s.clone(),
-        None => return rsx! { div { "No schema available" } },
-    };
-
-    // Group trigger types by category
-    let categories: Vec<String> = {
-        let mut cats: Vec<String> = schema_data
-            .trigger_types
-            .iter()
-            .map(|t| t.category.clone())
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect();
-        cats.sort();
-        cats
-    };
-
-    let world_id = props.world_id.clone();
-
-    rsx! {
+                rsx! {
         div { class: "space-y-4",
             // Logic selector
             div { class: "flex items-center gap-4 p-4 bg-gray-800 rounded-lg",
@@ -494,6 +485,12 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     p { class: "text-sm mt-1", "Click \"Add Condition\" to create trigger rules." }
                 }
             }
+        }
+                }
+            }
+        } else {
+            // No schema available
+            div { "No schema available" }
         }
     }
 }

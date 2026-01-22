@@ -101,7 +101,7 @@ async fn test_staging_auto_approves_after_timeout() {
     );
 
     // Verify we can now get the active staging for this region
-    let game_time_minutes = ctx
+    let game_time_seconds = ctx
         .app
         .repositories
         .world
@@ -110,12 +110,12 @@ async fn test_staging_auto_approves_after_timeout() {
         .expect("World query failed")
         .expect("World not found")
         .game_time()
-        .total_minutes();
+        .total_seconds();
     let active_staging = ctx
         .app
         .repositories
         .staging
-        .get_active_staging(private_booth, game_time_minutes)
+        .get_active_staging(private_booth, game_time_seconds)
         .await
         .expect("Should get active staging");
 
@@ -179,7 +179,7 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
     let _payload = result.unwrap();
 
     // Verify active staging has correct source
-    let game_time_minutes = ctx
+    let game_time_seconds = ctx
         .app
         .repositories
         .world
@@ -188,12 +188,12 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
         .expect("World query failed")
         .expect("World not found")
         .game_time()
-        .total_minutes();
+        .total_seconds();
     let active_staging = ctx
         .app
         .repositories
         .staging
-        .get_active_staging(common_room, game_time_minutes)
+        .get_active_staging(common_room, game_time_seconds)
         .await
         .expect("Should get active staging");
 
@@ -312,7 +312,7 @@ async fn test_player_can_interact_after_auto_staging() {
         );
 
         // Verify staging was activated
-        let game_time_minutes = ctx
+        let game_time_seconds = ctx
             .app
             .repositories
             .world
@@ -321,12 +321,12 @@ async fn test_player_can_interact_after_auto_staging() {
             .expect("World query failed")
             .expect("World not found")
             .game_time()
-            .total_minutes();
+            .total_seconds();
         let active_staging = ctx
             .app
             .repositories
             .staging
-            .get_active_staging(common_room, game_time_minutes)
+            .get_active_staging(common_room, game_time_seconds)
             .await
             .expect("Should get active staging");
 
@@ -458,7 +458,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
     );
 
     // Verify initial auto-approved staging
-    let game_time_minutes = ctx
+    let game_time_seconds = ctx
         .app
         .repositories
         .world
@@ -467,12 +467,12 @@ async fn test_dm_can_still_modify_after_auto_approve() {
         .expect("World query failed")
         .expect("World not found")
         .game_time()
-        .total_minutes();
+        .total_seconds();
     let initial_staging = ctx
         .app
         .repositories
         .staging
-        .get_active_staging(common_room, game_time_minutes)
+        .get_active_staging(common_room, game_time_seconds)
         .await
         .expect("Should get active staging")
         .expect("Should have active staging after auto-approve");
@@ -546,7 +546,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
         .app
         .repositories
         .staging
-        .get_active_staging(common_room, game_time_minutes)
+        .get_active_staging(common_room, game_time_seconds)
         .await
         .expect("Should get active staging")
         .expect("Should have active staging after DM approval");
@@ -621,11 +621,11 @@ async fn test_time_suggestion_expires_after_timeout() {
     let short_ttl_store: TtlCache<Uuid, TimeSuggestion> = TtlCache::new(ttl);
 
     // Create a time suggestion
-    // Note: TimeSuggestion uses domain GameTime with abstract minutes-based time
+    // Note: TimeSuggestion uses domain GameTime with abstract seconds-based time
     let suggestion_id = Uuid::new_v4();
     let current_game_time = wrldbldr_domain::GameTime::at_epoch();
     let mut resulting_game_time = current_game_time.clone();
-    resulting_game_time.advance_minutes(15);
+    resulting_game_time.advance_seconds(900);
 
     let suggestion = TimeSuggestion {
         id: suggestion_id.into(),
@@ -634,7 +634,7 @@ async fn test_time_suggestion_expires_after_timeout() {
         pc_name: "Time Tester".to_string(),
         action_type: "travel_region".to_string(),
         action_description: "Moving to another region".to_string(),
-        suggested_minutes: 15,
+        suggested_seconds: 900,
         current_time: current_game_time,
         resulting_time: resulting_game_time,
         period_change: None,

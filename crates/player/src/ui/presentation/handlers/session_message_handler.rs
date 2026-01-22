@@ -711,7 +711,7 @@ pub fn handle_server_message(
             pc_name,
             action_type,
             action_description,
-            suggested_minutes,
+            suggested_seconds,
             current_time,
             resulting_time,
             period_change,
@@ -722,12 +722,12 @@ pub fn handle_server_message(
                 crate::presentation::game_time_format::display_date(&resulting_time);
 
             tracing::info!(
-                "Time suggestion: {} - {} ({} -> {}, +{} min)",
+                "Time suggestion: {} - {} ({} -> {}, +{} sec)",
                 suggestion_id,
                 action_description,
                 current_display,
                 resulting_display,
-                suggested_minutes
+                suggested_seconds
             );
 
             // Add to DM time suggestions queue
@@ -735,9 +735,9 @@ pub fn handle_server_message(
                 suggestion_id: suggestion_id.clone(),
                 pc_id,
                 pc_name: pc_name.clone(),
-                action_type,
+                action_type: action_type.clone(),
                 action_description: action_description.clone(),
-                suggested_minutes,
+                suggested_seconds,
                 current_time,
                 resulting_time,
                 period_change,
@@ -746,10 +746,10 @@ pub fn handle_server_message(
             session_state.add_log_entry(
                 "Time".to_string(),
                 format!(
-                    "{}: {} suggests +{} min ({} -> {})",
+                    "{}: {} suggests +{} sec ({} -> {})",
                     pc_name,
                     action_description,
-                    suggested_minutes,
+                    suggested_seconds,
                     current_display,
                     resulting_display
                 ),
@@ -1725,7 +1725,7 @@ mod tests {
                 PlayerEvent::GameTimeAdvanced {
                     previous_time,
                     new_time: new_time.clone(),
-                    minutes_advanced: 60,
+                    seconds_advanced: 60,
                     reason: "Travel".to_string(),
                     period_changed: false,
                     new_period: None,
@@ -1769,7 +1769,7 @@ mod tests {
                     pc_name: "Alice".to_string(),
                     action_type: "conversation".to_string(),
                     action_description: "Talk".to_string(),
-                    suggested_minutes: 10,
+                    suggested_seconds: 10,
                     current_time: current_time.clone(),
                     resulting_time: resulting_time.clone(),
                     period_change: None,
@@ -1786,7 +1786,7 @@ mod tests {
             assert_eq!(suggestions.len(), 1);
             assert_eq!(suggestions[0].suggestion_id, "sug-1");
             assert_eq!(suggestions[0].pc_name, "Alice");
-            assert_eq!(suggestions[0].suggested_minutes, 10);
+            assert_eq!(suggestions[0].suggested_seconds, 10);
             assert_eq!(suggestions[0].current_time, current_time);
             assert_eq!(suggestions[0].resulting_time, resulting_time);
 

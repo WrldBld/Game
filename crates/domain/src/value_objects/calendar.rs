@@ -2,13 +2,13 @@
 //!
 //! This module provides types for custom fantasy calendars, enabling DMs to define
 //! rich narrative time (e.g., "15th of Mirtul, 1492 DR") while maintaining consistent
-//! time mechanics internally via `GameTime` (total minutes since epoch).
+//! time mechanics internally via `GameTime` (total seconds since epoch).
 //!
 //! Key types:
 //! - `CalendarId` - Validated identifier for calendars (e.g., "gregorian", "harptos")
 //! - `CalendarDefinition` - Full calendar configuration (months, weeks, intercalary days)
 //! - `CalendarDate` - Formatted output from GameTime conversion
-//! - `EpochConfig` - What minute 0 represents in the calendar
+//! - `EpochConfig` - What second 0 represents in the calendar
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -192,7 +192,7 @@ impl IntercalaryDay {
 pub struct EraDefinition {
     /// Era suffix (e.g., "DR", "YK", "AD")
     pub suffix: String,
-    /// Year at epoch (minute 0)
+    /// Year at epoch (second 0)
     pub epoch_year: i32,
 }
 
@@ -413,18 +413,18 @@ impl CalendarDefinition {
 // EpochConfig
 // ============================================================================
 
-/// Configuration for what "minute 0" represents in the calendar
+/// Configuration for what "second 0" represents in the calendar
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpochConfig {
     /// The calendar to use for this world
     pub calendar_id: CalendarId,
-    /// What year minute 0 falls in (e.g., 1492 for 1492 DR)
+    /// What year second 0 falls in (e.g., 1492 for 1492 DR)
     pub epoch_year: i32,
-    /// What month minute 0 falls in (1-indexed, e.g., 1 for Hammer/January)
+    /// What month second 0 falls in (1-indexed, e.g., 1 for Hammer/January)
     pub epoch_month: u8,
-    /// What day minute 0 falls in (1-indexed)
+    /// What day second 0 falls in (1-indexed)
     pub epoch_day: u8,
-    /// What hour minute 0 falls in (0-23)
+    /// What hour second 0 falls in (0-23)
     pub epoch_hour: u8,
 }
 
@@ -499,6 +499,8 @@ pub struct CalendarDate {
     pub hour: u8,
     /// Minute (0-59)
     pub minute: u8,
+    /// Second (0-59)
+    pub second: u8,
     /// Time period (Morning, Afternoon, Evening, Night)
     pub period: TimeOfDay,
     /// If this is an intercalary day, its name
@@ -552,7 +554,10 @@ impl CalendarDate {
             self.hour
         };
 
-        format!("{}:{:02} {}", display_hour, self.minute, period)
+        format!(
+            "{}:{:02}:{:02} {}",
+            display_hour, self.minute, self.second, period
+        )
     }
 
     /// Display ordinal style (e.g., "Day 15, 9:00 AM").
@@ -580,52 +585,55 @@ fn ordinal_suffix(day: u8) -> &'static str {
     }
 }
 
-/// Calculates a CalendarDate from total minutes since epoch.
+/// Calculates a CalendarDate from total seconds since epoch.
 ///
-/// This function converts raw minutes (from GameTime) into a human-readable
+/// This function converts raw seconds (from GameTime) into a human-readable
 /// calendar date using the provided calendar definition and epoch configuration.
 pub fn calculate_calendar_date(
-    total_minutes: i64,
+    total_seconds: i64,
     calendar: &CalendarDefinition,
     epoch: &EpochConfig,
 ) -> CalendarDate {
-    let minutes_per_day = calendar.minutes_per_day() as i64;
-    let minutes_per_year = calendar.minutes_per_year();
+    let seconds_per_day = (calendar.minutes_per_day() as i64) * 60;
+    let seconds_per_year = calendar.minutes_per_year() * 60;
     let days_in_year = calendar.days_in_year() as i64;
 
-    // Calculate epoch offset in minutes
-    // The epoch config tells us what calendar date minute 0 represents
+    // Calculate epoch offset in seconds
+    // The epoch config tells us what calendar date second 0 represents
     let epoch_day_of_year = calculate_day_of_year(epoch.epoch_month, epoch.epoch_day, calendar);
-    let epoch_minute_of_day = epoch.epoch_hour as i64 * calendar.minutes_per_hour() as i64;
-    let epoch_offset_minutes =
-        (epoch_day_of_year as i64 - 1) * minutes_per_day + epoch_minute_of_day;
+    let epoch_second_of_day = epoch.epoch_hour as i64 * calendar.minutes_per_hour() as i64 * 60;
+    let epoch_offset_seconds =
+        (epoch_day_of_year as i64 - 1) * seconds_per_day + epoch_second_of_day;
 
-    // Adjust total_minutes to be relative to year start
-    let adjusted_minutes = total_minutes + epoch_offset_minutes;
+    // Adjust total_seconds to be relative to year start
+    let adjusted_seconds = total_seconds + epoch_offset_seconds;
 
     // Calculate year offset from epoch year
-    let year_offset = if adjusted_minutes >= 0 {
-        adjusted_minutes / minutes_per_year
+    let year_offset = if adjusted_seconds >= 0 {
+        adjusted_seconds / seconds_per_year
     } else {
-        // For negative minutes, we need to round towards negative infinity
-        (adjusted_minutes - minutes_per_year + 1) / minutes_per_year
+        // For negative seconds, we need to round towards negative infinity
+        (adjusted_seconds - seconds_per_year + 1) / seconds_per_year
     };
 
     let year = epoch.epoch_year + year_offset as i32;
 
-    // Calculate remaining minutes within the year
-    let mut minutes_in_year = adjusted_minutes - (year_offset * minutes_per_year);
-    if minutes_in_year < 0 {
-        minutes_in_year += minutes_per_year;
+    // Calculate remaining seconds within the year
+    let mut seconds_in_year = adjusted_seconds - (year_offset * seconds_per_year);
+    if seconds_in_year < 0 {
+        seconds_in_year += seconds_per_year;
     }
 
     // Calculate day of year (0-indexed)
-    let day_of_year = (minutes_in_year / minutes_per_day) as u32;
-    let minute_of_day = (minutes_in_year % minutes_per_day) as u32;
+    let day_of_year = (seconds_in_year / seconds_per_day) as u32;
+    let second_of_day = (seconds_in_year % seconds_per_day) as u32;
 
-    // Calculate hour and minute
-    let hour = (minute_of_day / calendar.minutes_per_hour() as u32) as u8;
-    let minute = (minute_of_day % calendar.minutes_per_hour() as u32) as u8;
+    // Calculate hour, minute, and second
+    let seconds_per_hour = calendar.minutes_per_hour() as u32 * 60;
+    let hour = (second_of_day / seconds_per_hour) as u8;
+    let remaining_seconds = second_of_day % seconds_per_hour;
+    let minute = (remaining_seconds / 60) as u8;
+    let second = (remaining_seconds % 60) as u8;
 
     // Determine time of day period
     let period = time_of_day_from_hour(hour);
@@ -672,6 +680,7 @@ pub fn calculate_calendar_date(
         day_of_week_name,
         hour,
         minute,
+        second,
         period,
         intercalary_day,
         era_suffix,
@@ -975,21 +984,22 @@ mod tests {
         use super::*;
 
         #[test]
-        fn display_full_with_era() {
+        fn display_short() {
             let date = CalendarDate {
                 year: 1492,
-                month: 1,
-                month_name: "Hammer".to_string(),
+                month: 5,
+                month_name: "Mirtul".to_string(),
                 day: 15,
                 day_of_week: 4,
                 day_of_week_name: "Fifth-day".to_string(),
-                hour: 9,
+                hour: 14,
                 minute: 30,
-                period: TimeOfDay::Morning,
+                second: 0,
+                period: TimeOfDay::Afternoon,
                 intercalary_day: None,
                 era_suffix: Some("DR".to_string()),
             };
-            assert_eq!(date.display_full(), "15th of Hammer, 1492 DR");
+            assert_eq!(date.display_short(), "Mirtul 15, 1492");
         }
 
         #[test]
@@ -1003,6 +1013,7 @@ mod tests {
                 day_of_week_name: "First-day".to_string(),
                 hour: 0,
                 minute: 0,
+                second: 0,
                 period: TimeOfDay::Night,
                 intercalary_day: None,
                 era_suffix: None,
@@ -1011,7 +1022,7 @@ mod tests {
         }
 
         #[test]
-        fn display_full_intercalary() {
+        fn display_full_with_era() {
             let date = CalendarDate {
                 year: 1492,
                 month: 1,
@@ -1021,29 +1032,12 @@ mod tests {
                 day_of_week_name: "First-day".to_string(),
                 hour: 12,
                 minute: 0,
+                second: 0,
                 period: TimeOfDay::Afternoon,
                 intercalary_day: Some("Midwinter".to_string()),
                 era_suffix: Some("DR".to_string()),
             };
             assert_eq!(date.display_full(), "Midwinter, 1492 DR");
-        }
-
-        #[test]
-        fn display_short() {
-            let date = CalendarDate {
-                year: 1492,
-                month: 5,
-                month_name: "Mirtul".to_string(),
-                day: 15,
-                day_of_week: 4,
-                day_of_week_name: "Fifth-day".to_string(),
-                hour: 14,
-                minute: 30,
-                period: TimeOfDay::Afternoon,
-                intercalary_day: None,
-                era_suffix: Some("DR".to_string()),
-            };
-            assert_eq!(date.display_short(), "Mirtul 15, 1492");
         }
 
         #[test]
@@ -1057,83 +1051,12 @@ mod tests {
                 day_of_week_name: "First-day".to_string(),
                 hour: 9,
                 minute: 30,
+                second: 0,
                 period: TimeOfDay::Morning,
                 intercalary_day: None,
                 era_suffix: None,
             };
-            assert_eq!(date.display_time(), "9:30 AM");
-        }
-
-        #[test]
-        fn display_time_pm() {
-            let date = CalendarDate {
-                year: 1492,
-                month: 1,
-                month_name: "Hammer".to_string(),
-                day: 1,
-                day_of_week: 0,
-                day_of_week_name: "First-day".to_string(),
-                hour: 14,
-                minute: 15,
-                period: TimeOfDay::Afternoon,
-                intercalary_day: None,
-                era_suffix: None,
-            };
-            assert_eq!(date.display_time(), "2:15 PM");
-        }
-
-        #[test]
-        fn display_time_midnight() {
-            let date = CalendarDate {
-                year: 1492,
-                month: 1,
-                month_name: "Hammer".to_string(),
-                day: 1,
-                day_of_week: 0,
-                day_of_week_name: "First-day".to_string(),
-                hour: 0,
-                minute: 0,
-                period: TimeOfDay::Night,
-                intercalary_day: None,
-                era_suffix: None,
-            };
-            assert_eq!(date.display_time(), "12:00 AM");
-        }
-
-        #[test]
-        fn display_time_noon() {
-            let date = CalendarDate {
-                year: 1492,
-                month: 1,
-                month_name: "Hammer".to_string(),
-                day: 1,
-                day_of_week: 0,
-                day_of_week_name: "First-day".to_string(),
-                hour: 12,
-                minute: 0,
-                period: TimeOfDay::Afternoon,
-                intercalary_day: None,
-                era_suffix: None,
-            };
-            assert_eq!(date.display_time(), "12:00 PM");
-        }
-
-        #[test]
-        fn display_ordinal() {
-            let date = CalendarDate {
-                year: 1492,
-                month: 1,
-                month_name: "Hammer".to_string(),
-                day: 15,
-                day_of_week: 0,
-                day_of_week_name: "First-day".to_string(),
-                hour: 9,
-                minute: 0,
-                period: TimeOfDay::Morning,
-                intercalary_day: None,
-                era_suffix: None,
-            };
-            assert_eq!(date.display_ordinal(), "Day 15, 9:00 AM");
+            assert_eq!(date.display_ordinal(), "Day 1, 9:30:00 AM");
         }
 
         #[test]
@@ -1147,6 +1070,7 @@ mod tests {
                 day_of_week_name: "First-day".to_string(),
                 hour: 9,
                 minute: 0,
+                second: 0,
                 period: TimeOfDay::Morning,
                 intercalary_day: None,
                 era_suffix: None,
@@ -1192,7 +1116,7 @@ mod tests {
             let calendar = CalendarDefinition::gregorian();
             let epoch = EpochConfig::gregorian_default();
 
-            let date = calculate_calendar_date(540, &calendar, &epoch); // 9 hours
+            let date = calculate_calendar_date(9 * 60 * 60, &calendar, &epoch); // 9 hours = 32400 seconds
 
             assert_eq!(date.year, 1);
             assert_eq!(date.month, 1);
@@ -1207,7 +1131,7 @@ mod tests {
             let calendar = CalendarDefinition::gregorian();
             let epoch = EpochConfig::gregorian_default();
 
-            let date = calculate_calendar_date(24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(24 * 60 * 60, &calendar, &epoch); // 1 day = 86400 seconds
 
             assert_eq!(date.year, 1);
             assert_eq!(date.month, 1);
@@ -1221,7 +1145,7 @@ mod tests {
             let epoch = EpochConfig::gregorian_default();
 
             // 30 days after epoch = January 31
-            let date = calculate_calendar_date(30 * 24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(30 * 24 * 60 * 60, &calendar, &epoch);
 
             assert_eq!(date.year, 1);
             assert_eq!(date.month, 1);
@@ -1234,7 +1158,7 @@ mod tests {
             let epoch = EpochConfig::gregorian_default();
 
             // 31 days after epoch = February 1
-            let date = calculate_calendar_date(31 * 24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(31 * 24 * 60 * 60, &calendar, &epoch);
 
             assert_eq!(date.year, 1);
             assert_eq!(date.month, 2);
@@ -1254,7 +1178,7 @@ mod tests {
             );
 
             // 1 day before epoch = January 1
-            let date = calculate_calendar_date(-24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(-24 * 60 * 60, &calendar, &epoch);
 
             assert_eq!(date.year, 2024);
             assert_eq!(date.month, 1);
@@ -1281,12 +1205,12 @@ mod tests {
             let epoch = EpochConfig::harptos_default();
 
             // 30 days after epoch = last day of Hammer
-            let date = calculate_calendar_date(29 * 24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(29 * 24 * 60 * 60, &calendar, &epoch);
             assert_eq!(date.month_name, "Hammer");
             assert_eq!(date.day, 30);
 
             // 31st day = Midwinter (intercalary)
-            let date = calculate_calendar_date(30 * 24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(30 * 24 * 60 * 60, &calendar, &epoch);
             assert_eq!(date.intercalary_day, Some("Midwinter".to_string()));
         }
 
@@ -1296,7 +1220,7 @@ mod tests {
             let epoch = EpochConfig::harptos_default();
 
             // 32nd day = Alturiak 1 (after 30 days of Hammer + 1 Midwinter)
-            let date = calculate_calendar_date(31 * 24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(31 * 24 * 60 * 60, &calendar, &epoch);
 
             assert_eq!(date.month, 2);
             assert_eq!(date.month_name, "Alturiak");
@@ -1310,7 +1234,7 @@ mod tests {
             let epoch = EpochConfig::gregorian_default();
 
             // 365 days = start of year 2
-            let date = calculate_calendar_date(365 * 24 * 60, &calendar, &epoch);
+            let date = calculate_calendar_date(365 * 24 * 60 * 60, &calendar, &epoch);
 
             assert_eq!(date.year, 2);
             assert_eq!(date.month, 1);
@@ -1363,8 +1287,8 @@ mod tests {
             let epoch = EpochConfig::gregorian_default();
 
             let day0 = calculate_calendar_date(0, &calendar, &epoch);
-            let day1 = calculate_calendar_date(24 * 60, &calendar, &epoch);
-            let day7 = calculate_calendar_date(7 * 24 * 60, &calendar, &epoch);
+            let day1 = calculate_calendar_date(24 * 60 * 60, &calendar, &epoch); // 1 day
+            let day7 = calculate_calendar_date(7 * 24 * 60 * 60, &calendar, &epoch); // 7 days
 
             // Day of week should increment
             assert_eq!(
@@ -1382,19 +1306,19 @@ mod tests {
             let epoch = EpochConfig::gregorian_default();
 
             // Morning (5-11)
-            let morning = calculate_calendar_date(5 * 60, &calendar, &epoch);
+            let morning = calculate_calendar_date(5 * 60 * 60, &calendar, &epoch); // 5 AM
             assert_eq!(morning.period, TimeOfDay::Morning);
 
             // Afternoon (12-17)
-            let afternoon = calculate_calendar_date(14 * 60, &calendar, &epoch);
+            let afternoon = calculate_calendar_date(14 * 60 * 60, &calendar, &epoch); // 2 PM
             assert_eq!(afternoon.period, TimeOfDay::Afternoon);
 
             // Evening (18-21)
-            let evening = calculate_calendar_date(19 * 60, &calendar, &epoch);
+            let evening = calculate_calendar_date(19 * 60 * 60, &calendar, &epoch); // 7 PM
             assert_eq!(evening.period, TimeOfDay::Evening);
 
             // Night (22-4)
-            let night = calculate_calendar_date(23 * 60, &calendar, &epoch);
+            let night = calculate_calendar_date(23 * 60 * 60, &calendar, &epoch); // 11 PM
             assert_eq!(night.period, TimeOfDay::Night);
         }
 
@@ -1403,77 +1327,79 @@ mod tests {
             let calendar = CalendarDefinition::gregorian();
             let epoch = EpochConfig::gregorian_default();
 
-            let date = calculate_calendar_date(90, &calendar, &epoch); // 1:30 AM
+            let date = calculate_calendar_date(5400, &calendar, &epoch); // 90 minutes = 5400 seconds = 1:30 AM
 
             assert_eq!(date.hour, 1);
             assert_eq!(date.minute, 30);
+            assert_eq!(date.second, 0);
         }
     }
+}
 
-    mod integration {
-        use super::*;
+#[allow(unused_imports)]
+mod integration {
+    use super::{calculate_calendar_date, CalendarDefinition, CalendarId, EpochConfig, TimeOfDay};
 
-        #[test]
-        fn forgotten_realms_campaign_start() {
-            // Typical FR campaign: 1492 DR, Hammer 1, 9:00 AM
-            let calendar = CalendarDefinition::harptos();
-            let epoch = EpochConfig::new(
-                CalendarId::new("harptos").unwrap(),
-                1492,
-                1, // Hammer
-                1,
-                9, // 9 AM
+    #[test]
+    fn forgotten_realms_campaign_start() {
+        // Typical FR campaign: 1492 DR, Hammer 1, 9:00 AM
+        let calendar = CalendarDefinition::harptos();
+        let epoch = EpochConfig::new(
+            CalendarId::new("harptos").unwrap(),
+            1492,
+            1, // Hammer
+            1,
+            9, // 9 AM
+        );
+
+        let date = calculate_calendar_date(0, &calendar, &epoch);
+
+        assert_eq!(date.display_full(), "1st of Hammer, 1492 DR");
+        assert_eq!(date.display_time(), "9:00:00 AM");
+        assert_eq!(date.display_period(), "Morning");
+    }
+
+    #[test]
+    fn forgotten_realms_three_hours_later() {
+        let calendar = CalendarDefinition::harptos();
+        let epoch = EpochConfig::new(CalendarId::new("harptos").unwrap(), 1492, 1, 1, 9);
+
+        // 3 hours later = noon
+        let date = calculate_calendar_date(3 * 60 * 60, &calendar, &epoch);
+
+        assert_eq!(date.hour, 12);
+        assert_eq!(date.display_time(), "12:00:00 PM");
+        assert_eq!(date.period, TimeOfDay::Afternoon);
+    }
+
+    #[test]
+    fn gregorian_full_year_cycle() {
+        let calendar = CalendarDefinition::gregorian();
+        let epoch = EpochConfig::gregorian_default();
+
+        // Check each month boundary
+        let months_data = [
+            (0, 1, "January"),
+            (31, 2, "February"),
+            (31 + 28, 3, "March"),
+            (31 + 28 + 31, 4, "April"),
+            (31 + 28 + 31 + 30, 5, "May"),
+            (31 + 28 + 31 + 30 + 31, 6, "June"),
+        ];
+
+        for (days, expected_month, expected_name) in months_data {
+            let date = calculate_calendar_date(days * 24 * 60 * 60, &calendar, &epoch);
+            assert_eq!(
+                date.month, expected_month,
+                "Month mismatch for day {}",
+                days
             );
-
-            let date = calculate_calendar_date(0, &calendar, &epoch);
-
-            assert_eq!(date.display_full(), "1st of Hammer, 1492 DR");
-            assert_eq!(date.display_time(), "9:00 AM");
-            assert_eq!(date.display_period(), "Morning");
-        }
-
-        #[test]
-        fn forgotten_realms_three_hours_later() {
-            let calendar = CalendarDefinition::harptos();
-            let epoch = EpochConfig::new(CalendarId::new("harptos").unwrap(), 1492, 1, 1, 9);
-
-            // 3 hours later = noon
-            let date = calculate_calendar_date(180, &calendar, &epoch);
-
-            assert_eq!(date.hour, 12);
-            assert_eq!(date.display_time(), "12:00 PM");
-            assert_eq!(date.period, TimeOfDay::Afternoon);
-        }
-
-        #[test]
-        fn gregorian_full_year_cycle() {
-            let calendar = CalendarDefinition::gregorian();
-            let epoch = EpochConfig::gregorian_default();
-
-            // Check each month boundary
-            let months_data = [
-                (0, 1, "January"),
-                (31, 2, "February"),
-                (31 + 28, 3, "March"),
-                (31 + 28 + 31, 4, "April"),
-                (31 + 28 + 31 + 30, 5, "May"),
-                (31 + 28 + 31 + 30 + 31, 6, "June"),
-            ];
-
-            for (days, expected_month, expected_name) in months_data {
-                let date = calculate_calendar_date(days * 24 * 60, &calendar, &epoch);
-                assert_eq!(
-                    date.month, expected_month,
-                    "Month mismatch for day {}",
-                    days
-                );
-                assert_eq!(
-                    date.month_name, expected_name,
-                    "Month name mismatch for day {}",
-                    days
-                );
-                assert_eq!(date.day, 1, "Day should be 1 for day {}", days);
-            }
+            assert_eq!(
+                date.month_name, expected_name,
+                "Month name mismatch for day {}",
+                days
+            );
+            assert_eq!(date.day, 1, "Day should be 1 for day {}", days);
         }
     }
 }

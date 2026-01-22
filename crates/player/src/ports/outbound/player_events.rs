@@ -759,7 +759,7 @@ pub enum PlayerEvent {
     GameTimeAdvanced {
         previous_time: GameTime,
         new_time: GameTime,
-        minutes_advanced: u32,
+        seconds_advanced: u32,
         reason: String,
         period_changed: bool,
         new_period: Option<String>,
@@ -772,7 +772,7 @@ pub enum PlayerEvent {
         pc_name: String,
         action_type: String,
         action_description: String,
-        suggested_minutes: u32,
+        suggested_seconds: u32,
         current_time: GameTime,
         resulting_time: GameTime,
         period_change: Option<(String, String)>,

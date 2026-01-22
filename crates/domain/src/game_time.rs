@@ -8,14 +8,14 @@ use crate::value_objects::{
 // Time Constants
 // =============================================================================
 
-/// Minutes per hour (standard)
-pub const MINUTES_PER_HOUR: i64 = 60;
+/// Seconds per minute (standard)
+pub const SECONDS_PER_MINUTE: i64 = 60;
 
-/// Hours per day (standard)
-pub const HOURS_PER_DAY: i64 = 24;
+/// Seconds per hour (standard: 60 * 60 = 3600)
+pub const SECONDS_PER_HOUR: i64 = 60 * 60;
 
-/// Minutes per day (standard: 24 * 60 = 1440)
-pub const MINUTES_PER_DAY: i64 = MINUTES_PER_HOUR * HOURS_PER_DAY;
+/// Seconds per day (standard: 24 * 60 * 60 = 86400)
+pub const SECONDS_PER_DAY: i64 = SECONDS_PER_HOUR * 24;
 
 // =============================================================================
 // Time of Day
@@ -144,35 +144,35 @@ pub enum TimeFormat {
 // Time Cost Configuration
 // =============================================================================
 
-/// Default time costs for various actions, in minutes.
+/// Default time costs for various actions, in seconds.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimeCostConfig {
-    /// Minutes for travel between locations (default: 60)
+    /// Seconds for travel between locations (default: 3600 = 60 minutes)
     pub travel_location: u32,
-    /// Minutes for travel between regions within a location (default: 10)
+    /// Seconds for travel between regions within a location (default: 600 = 10 minutes)
     pub travel_region: u32,
-    /// Minutes for short rest (default: 60)
+    /// Seconds for short rest (default: 3600 = 60 minutes)
     pub rest_short: u32,
-    /// Minutes for long rest / sleep (default: 480 = 8 hours)
+    /// Seconds for long rest / sleep (default: 28800 = 8 hours = 480 minutes)
     pub rest_long: u32,
-    /// Minutes per conversation exchange (default: 0 = no time cost)
+    /// Seconds per conversation exchange (default: 0 = no time cost)
     pub conversation: u32,
-    /// Minutes per challenge attempt (default: 10)
+    /// Seconds per challenge attempt (default: 600 = 10 minutes)
     pub challenge: u32,
-    /// Minutes for scene transitions (default: 0)
+    /// Seconds for scene transitions (default: 0)
     pub scene_transition: u32,
 }
 
 impl Default for TimeCostConfig {
     fn default() -> Self {
         Self {
-            travel_location: 60,
-            travel_region: 10,
-            rest_short: 60,
-            rest_long: 480,
+            travel_location: 3600, // 60 minutes
+            travel_region: 600,    // 10 minutes
+            rest_short: 3600,      // 60 minutes
+            rest_long: 28800,      // 8 hours = 480 minutes
             conversation: 0,
-            challenge: 10,
+            challenge: 600, // 10 minutes
             scene_transition: 0,
         }
     }
@@ -391,7 +391,7 @@ impl TimeAdvanceReason {
 // Game Time
 // =============================================================================
 
-/// Game time represented as total minutes since the campaign epoch (minute 0).
+/// Game time represented as total seconds since the campaign epoch (second 0).
 ///
 /// This struct provides a simple, integer-based time representation that is
 /// independent of any calendar system. Use `to_calendar_date()` to convert
@@ -400,43 +400,43 @@ impl TimeAdvanceReason {
 /// # Examples
 ///
 /// ```
-/// use wrldbldr_domain::game_time::{GameTime, MINUTES_PER_DAY};
+/// use wrldbldr_domain::game_time::{GameTime, SECONDS_PER_DAY};
 ///
-/// // Create time at epoch (minute 0)
+/// // Create time at epoch (second 0)
 /// let mut time = GameTime::at_epoch();
-/// assert_eq!(time.total_minutes(), 0);
+/// assert_eq!(time.total_seconds(), 0);
 /// assert_eq!(time.day(), 1);
 ///
 /// // Advance by one day
 /// time.advance_days(1);
-/// assert_eq!(time.total_minutes(), MINUTES_PER_DAY);
+/// assert_eq!(time.total_seconds(), SECONDS_PER_DAY);
 /// assert_eq!(time.day(), 2);
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameTime {
-    /// Total minutes since the campaign epoch (minute 0).
+    /// Total seconds since the campaign epoch (second 0).
     /// Negative values represent time before the campaign start.
-    total_minutes: i64,
+    total_seconds: i64,
     is_paused: bool,
 }
 
 impl GameTime {
-    /// Creates a new GameTime at the epoch (minute 0), paused.
+    /// Creates a new GameTime at the epoch (second 0), paused.
     ///
     /// This is the preferred constructor for new games.
     pub fn at_epoch() -> Self {
         Self {
-            total_minutes: 0,
+            total_seconds: 0,
             is_paused: true,
         }
     }
 
-    /// Creates a new GameTime from total minutes since epoch.
+    /// Creates a new GameTime from total seconds since epoch.
     ///
     /// Negative values represent time before the campaign start.
-    pub fn from_minutes(minutes: i64) -> Self {
+    pub fn from_seconds(seconds: i64) -> Self {
         Self {
-            total_minutes: minutes,
+            total_seconds: seconds,
             is_paused: true,
         }
     }
@@ -445,42 +445,47 @@ impl GameTime {
     // Accessors
     // =========================================================================
 
-    /// Returns the total minutes since the campaign epoch.
+    /// Returns the total seconds since the campaign epoch.
     ///
     /// Negative values represent time before the campaign start.
-    pub fn total_minutes(&self) -> i64 {
-        self.total_minutes
+    pub fn total_seconds(&self) -> i64 {
+        self.total_seconds
     }
 
     /// Returns the day number (1-based).
     ///
-    /// Day 1 is the first day of the campaign (minutes 0-1439).
-    /// For negative minutes, this still returns a positive day number
+    /// Day 1 is the first day of the campaign (seconds 0-86399).
+    /// For negative seconds, this still returns a positive day number
     /// representing days before the campaign start.
     pub fn day(&self) -> u32 {
         // For both positive and negative values, we want:
-        // - minutes 0..1439 -> day 1
-        // - minutes 1440..2879 -> day 2
-        // - minutes -1440..-1 -> day 1 (before epoch, same "day" concept)
-        // - minutes -2880..-1441 -> day 2 (before epoch)
-        if self.total_minutes >= 0 {
-            (self.total_minutes / MINUTES_PER_DAY) as u32 + 1
+        // - seconds 0..86399 -> day 1
+        // - seconds 86400..172799 -> day 2
+        // - seconds -86400..-1 -> day 1 (before epoch, same "day" concept)
+        // - seconds -172800..-86401 -> day 2 (before epoch)
+        if self.total_seconds >= 0 {
+            (self.total_seconds / SECONDS_PER_DAY) as u32 + 1
         } else {
-            // For negative minutes, calculate how many full days back
-            ((-self.total_minutes - 1) / MINUTES_PER_DAY) as u32 + 1
+            // For negative seconds, calculate how many full days back
+            ((-self.total_seconds - 1) / SECONDS_PER_DAY) as u32 + 1
         }
     }
 
     /// Returns the hour of day (0-23).
     pub fn hour(&self) -> u8 {
-        let minute_of_day = self.total_minutes.rem_euclid(MINUTES_PER_DAY);
-        (minute_of_day / MINUTES_PER_HOUR) as u8
+        let second_of_day = self.total_seconds.rem_euclid(SECONDS_PER_DAY);
+        (second_of_day / SECONDS_PER_HOUR) as u8
     }
 
     /// Returns the minute of hour (0-59).
     pub fn minute(&self) -> u8 {
-        let minute_of_hour = self.total_minutes.rem_euclid(MINUTES_PER_HOUR);
-        minute_of_hour as u8
+        let second_of_hour = self.total_seconds.rem_euclid(SECONDS_PER_HOUR);
+        (second_of_hour / SECONDS_PER_MINUTE) as u8
+    }
+
+    /// Returns the second of minute (0-59).
+    pub fn second(&self) -> u8 {
+        (self.total_seconds.rem_euclid(SECONDS_PER_MINUTE)) as u8
     }
 
     /// Returns the current time of day period.
@@ -515,34 +520,34 @@ impl GameTime {
         self.is_paused = paused;
     }
 
-    /// Sets the total minutes directly.
-    pub fn set_total_minutes(&mut self, minutes: i64) {
-        self.total_minutes = minutes;
+    /// Sets the total seconds directly.
+    pub fn set_total_seconds(&mut self, seconds: i64) {
+        self.total_seconds = seconds;
     }
 
-    /// Advances time by the specified number of minutes.
-    pub fn advance_minutes(&mut self, minutes: u32) {
-        self.total_minutes += minutes as i64;
+    /// Advances time by the specified number of seconds.
+    pub fn advance_seconds(&mut self, seconds: u32) {
+        self.total_seconds += seconds as i64;
     }
 
     /// Advances time by the specified number of hours.
     pub fn advance_hours(&mut self, hours: u32) {
-        self.total_minutes += hours as i64 * MINUTES_PER_HOUR;
+        self.total_seconds += hours as i64 * SECONDS_PER_HOUR;
     }
 
     /// Advances time by the specified number of days.
     pub fn advance_days(&mut self, days: u32) {
-        self.total_minutes += days as i64 * MINUTES_PER_DAY;
+        self.total_seconds += days as i64 * SECONDS_PER_DAY;
     }
 
     /// Sets the time to a specific day and hour.
     ///
     /// Day is 1-based (day 1 = first day). Hour is 0-23.
-    /// Minutes are reset to 0.
+    /// Minutes and seconds are reset to 0.
     pub fn set_day_and_hour(&mut self, day: u32, hour: u32) {
         let day = day.max(1); // Ensure day is at least 1
         let hour = hour.min(23); // Clamp hour to valid range
-        self.total_minutes = ((day as i64 - 1) * HOURS_PER_DAY + hour as i64) * MINUTES_PER_HOUR;
+        self.total_seconds = ((day as i64 - 1) * 24 + hour as i64) * SECONDS_PER_HOUR;
     }
 
     /// Skip to the next occurrence of a time period.
@@ -556,27 +561,27 @@ impl GameTime {
         if current_period == target_period {
             // Already in this period - skip to tomorrow's occurrence
             self.advance_days(1);
-            // Set to target hour, zero minutes
-            let day_start = (self.total_minutes / MINUTES_PER_DAY) * MINUTES_PER_DAY;
-            self.total_minutes = day_start + target_hour as i64 * MINUTES_PER_HOUR;
+            // Set to target hour, zero minutes and seconds
+            let day_start = (self.total_seconds / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+            self.total_seconds = day_start + target_hour as i64 * SECONDS_PER_HOUR;
         } else if target_hour > current_hour {
             // Target is later today - advance to target hour
-            let current_minute_of_day = self.total_minutes.rem_euclid(MINUTES_PER_DAY);
-            let target_minute_of_day = target_hour as i64 * MINUTES_PER_HOUR;
-            self.total_minutes += target_minute_of_day - current_minute_of_day;
+            let current_second_of_day = self.total_seconds.rem_euclid(SECONDS_PER_DAY);
+            let target_second_of_day = target_hour as i64 * SECONDS_PER_HOUR;
+            self.total_seconds += target_second_of_day - current_second_of_day;
         } else {
             // Target is tomorrow (earlier hour than current)
             self.advance_days(1);
-            let day_start = (self.total_minutes / MINUTES_PER_DAY) * MINUTES_PER_DAY;
-            self.total_minutes = day_start + target_hour as i64 * MINUTES_PER_HOUR;
+            let day_start = (self.total_seconds / SECONDS_PER_DAY) * SECONDS_PER_DAY;
+            self.total_seconds = day_start + target_hour as i64 * SECONDS_PER_HOUR;
         }
     }
 
-    /// Calculate minutes until the start of a target period.
+    /// Calculate seconds until the start of a target period.
     ///
     /// If currently in that period, returns 0.
     /// If target is tomorrow, includes overnight hours.
-    pub fn minutes_until_period(&self, target_period: TimeOfDay) -> u32 {
+    pub fn seconds_until_period(&self, target_period: TimeOfDay) -> u32 {
         let current_period = self.time_of_day();
         if current_period == target_period {
             return 0;
@@ -584,6 +589,7 @@ impl GameTime {
 
         let current_hour = self.hour() as u32;
         let current_minute = self.minute() as u32;
+        let current_second = self.second() as u32;
         let target_hour = target_period.start_hour() as u32;
 
         let hours_until = if target_hour > current_hour {
@@ -593,9 +599,10 @@ impl GameTime {
             24 - current_hour + target_hour
         };
 
-        // Subtract current minutes (we're partway through this hour)
-        let total_minutes = hours_until * 60;
-        total_minutes.saturating_sub(current_minute)
+        // Convert to seconds and subtract current seconds in the hour
+        let total_seconds = hours_until * 3600;
+        let current_seconds_in_hour = current_minute * 60 + current_second;
+        total_seconds.saturating_sub(current_seconds_in_hour)
     }
 
     // =========================================================================
@@ -611,7 +618,7 @@ impl GameTime {
         calendar: &CalendarDefinition,
         epoch: &EpochConfig,
     ) -> CalendarDate {
-        calculate_calendar_date(self.total_minutes, calendar, epoch)
+        calculate_calendar_date(self.total_seconds, calendar, epoch)
     }
 
     // =========================================================================
@@ -621,7 +628,7 @@ impl GameTime {
     /// Convert to a DateTime for compatibility with systems that still require DateTime.
     ///
     /// This creates a synthetic DateTime using a fixed epoch (2000-01-01 00:00:00 UTC)
-    /// plus the total_minutes. This is useful for:
+    /// plus the total_seconds. This is useful for:
     /// - Storing observations with a timestamp
     /// - Comparing game times using chrono's comparison operators
     /// - Legacy code that hasn't been migrated yet
@@ -632,7 +639,7 @@ impl GameTime {
         use chrono::{Duration, TimeZone, Utc};
         // Use a fixed epoch: 2000-01-01 00:00:00 UTC
         let epoch = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-        epoch + Duration::minutes(self.total_minutes)
+        epoch + Duration::seconds(self.total_seconds)
     }
 
     // =========================================================================
@@ -675,23 +682,23 @@ mod tests {
         use super::*;
 
         #[test]
-        fn at_epoch_creates_minute_zero() {
+        fn at_epoch_creates_second_zero() {
             let gt = GameTime::at_epoch();
-            assert_eq!(gt.total_minutes(), 0);
+            assert_eq!(gt.total_seconds(), 0);
             assert!(gt.is_paused());
         }
 
         #[test]
-        fn from_minutes_positive() {
-            let gt = GameTime::from_minutes(1440);
-            assert_eq!(gt.total_minutes(), 1440);
+        fn from_seconds_positive() {
+            let gt = GameTime::from_seconds(86400);
+            assert_eq!(gt.total_seconds(), 86400);
             assert!(gt.is_paused());
         }
 
         #[test]
-        fn from_minutes_negative() {
-            let gt = GameTime::from_minutes(-720);
-            assert_eq!(gt.total_minutes(), -720);
+        fn from_seconds_negative() {
+            let gt = GameTime::from_seconds(-43200);
+            assert_eq!(gt.total_seconds(), -43200);
         }
     }
 
@@ -705,26 +712,26 @@ mod tests {
         }
 
         #[test]
-        fn day_at_minute_1439_is_one() {
-            let gt = GameTime::from_minutes(1439);
+        fn day_at_second_86399_is_one() {
+            let gt = GameTime::from_seconds(86399);
             assert_eq!(gt.day(), 1);
         }
 
         #[test]
-        fn day_at_minute_1440_is_two() {
-            let gt = GameTime::from_minutes(1440);
+        fn day_at_second_86400_is_two() {
+            let gt = GameTime::from_seconds(86400);
             assert_eq!(gt.day(), 2);
         }
 
         #[test]
-        fn day_at_minute_2880_is_three() {
-            let gt = GameTime::from_minutes(2880);
+        fn day_at_second_172800_is_three() {
+            let gt = GameTime::from_seconds(172800);
             assert_eq!(gt.day(), 3);
         }
 
         #[test]
         fn day_ordinal_equals_day() {
-            let gt = GameTime::from_minutes(5000);
+            let gt = GameTime::from_seconds(300000);
             assert_eq!(gt.day_ordinal(), gt.day());
         }
     }
@@ -733,35 +740,36 @@ mod tests {
         use super::*;
 
         #[test]
-        fn negative_one_minute_is_day_one() {
-            let gt = GameTime::from_minutes(-1);
+        fn negative_one_second_is_day_one() {
+            let gt = GameTime::from_seconds(-1);
             assert_eq!(gt.day(), 1);
         }
 
         #[test]
-        fn negative_1440_minutes_is_day_one() {
-            let gt = GameTime::from_minutes(-1440);
+        fn negative_86400_seconds_is_day_one() {
+            let gt = GameTime::from_seconds(-86400);
             assert_eq!(gt.day(), 1);
         }
 
         #[test]
-        fn negative_1441_minutes_is_day_two() {
-            let gt = GameTime::from_minutes(-1441);
+        fn negative_86401_seconds_is_day_two() {
+            let gt = GameTime::from_seconds(-86401);
             assert_eq!(gt.day(), 2);
         }
 
         #[test]
         fn negative_time_hour_wraps() {
-            // -60 minutes = 23:00 of the previous day
-            let gt = GameTime::from_minutes(-60);
+            // -3600 seconds = 23:00 of the previous day
+            let gt = GameTime::from_seconds(-3600);
             assert_eq!(gt.hour(), 23);
         }
 
         #[test]
         fn negative_time_minute_wraps() {
-            // -30 minutes = XX:30 of the previous hour
-            let gt = GameTime::from_minutes(-30);
-            assert_eq!(gt.minute(), 30);
+            // -30 seconds = 23:59:30 of the previous day (one minute before midnight)
+            let gt = GameTime::from_seconds(-30);
+            assert_eq!(gt.minute(), 59);
+            assert_eq!(gt.second(), 30);
         }
     }
 
@@ -781,21 +789,34 @@ mod tests {
         }
 
         #[test]
-        fn hour_at_540_minutes_is_nine() {
-            let gt = GameTime::from_minutes(540); // 9 hours
+        fn second_at_epoch_is_zero() {
+            let gt = GameTime::at_epoch();
+            assert_eq!(gt.second(), 0);
+        }
+
+        #[test]
+        fn hour_at_32400_seconds_is_nine() {
+            let gt = GameTime::from_seconds(32400); // 9 hours
             assert_eq!(gt.hour(), 9);
         }
 
         #[test]
-        fn minute_at_90_is_thirty() {
-            let gt = GameTime::from_minutes(90); // 1 hour 30 minutes
+        fn minute_at_5400_is_thirty() {
+            let gt = GameTime::from_seconds(5400); // 1 hour 30 minutes
             assert_eq!(gt.hour(), 1);
             assert_eq!(gt.minute(), 30);
         }
 
         #[test]
+        fn second_at_90_is_thirty() {
+            let gt = GameTime::from_seconds(90); // 1 minute 30 seconds
+            assert_eq!(gt.minute(), 1);
+            assert_eq!(gt.second(), 30);
+        }
+
+        #[test]
         fn hour_wraps_at_24() {
-            let gt = GameTime::from_minutes(25 * 60); // 25 hours = 1 hour next day
+            let gt = GameTime::from_seconds(25 * 3600); // 25 hours = 1 hour next day
             assert_eq!(gt.hour(), 1);
         }
     }
@@ -805,49 +826,49 @@ mod tests {
 
         #[test]
         fn morning_at_5am() {
-            let gt = GameTime::from_minutes(5 * 60);
+            let gt = GameTime::from_seconds(5 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Morning);
         }
 
         #[test]
         fn morning_at_11am() {
-            let gt = GameTime::from_minutes(11 * 60);
+            let gt = GameTime::from_seconds(11 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Morning);
         }
 
         #[test]
         fn afternoon_at_noon() {
-            let gt = GameTime::from_minutes(12 * 60);
+            let gt = GameTime::from_seconds(12 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Afternoon);
         }
 
         #[test]
         fn afternoon_at_5pm() {
-            let gt = GameTime::from_minutes(17 * 60);
+            let gt = GameTime::from_seconds(17 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Afternoon);
         }
 
         #[test]
         fn evening_at_6pm() {
-            let gt = GameTime::from_minutes(18 * 60);
+            let gt = GameTime::from_seconds(18 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Evening);
         }
 
         #[test]
         fn evening_at_9pm() {
-            let gt = GameTime::from_minutes(21 * 60);
+            let gt = GameTime::from_seconds(21 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Evening);
         }
 
         #[test]
         fn night_at_10pm() {
-            let gt = GameTime::from_minutes(22 * 60);
+            let gt = GameTime::from_seconds(22 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Night);
         }
 
         #[test]
         fn night_at_3am() {
-            let gt = GameTime::from_minutes(3 * 60);
+            let gt = GameTime::from_seconds(3 * 3600);
             assert_eq!(gt.time_of_day(), TimeOfDay::Night);
         }
 
@@ -862,38 +883,38 @@ mod tests {
         use super::*;
 
         #[test]
-        fn advance_minutes() {
+        fn advance_seconds() {
             let mut gt = GameTime::at_epoch();
-            gt.advance_minutes(90);
-            assert_eq!(gt.total_minutes(), 90);
+            gt.advance_seconds(90);
+            assert_eq!(gt.total_seconds(), 90);
         }
 
         #[test]
         fn advance_hours() {
             let mut gt = GameTime::at_epoch();
             gt.advance_hours(3);
-            assert_eq!(gt.total_minutes(), 180);
+            assert_eq!(gt.total_seconds(), 10800); // 3 * 3600
         }
 
         #[test]
         fn advance_days() {
             let mut gt = GameTime::at_epoch();
             gt.advance_days(2);
-            assert_eq!(gt.total_minutes(), 2880);
+            assert_eq!(gt.total_seconds(), 172800); // 2 * 86400
         }
 
         #[test]
-        fn set_total_minutes() {
+        fn set_total_seconds() {
             let mut gt = GameTime::at_epoch();
-            gt.set_total_minutes(5000);
-            assert_eq!(gt.total_minutes(), 5000);
+            gt.set_total_seconds(5000);
+            assert_eq!(gt.total_seconds(), 5000);
         }
 
         #[test]
-        fn set_total_minutes_negative() {
+        fn set_total_seconds_negative() {
             let mut gt = GameTime::at_epoch();
-            gt.set_total_minutes(-1000);
-            assert_eq!(gt.total_minutes(), -1000);
+            gt.set_total_seconds(-1000);
+            assert_eq!(gt.total_seconds(), -1000);
         }
     }
 
@@ -902,11 +923,12 @@ mod tests {
 
         #[test]
         fn set_day_1_hour_9() {
-            let mut gt = GameTime::from_minutes(5000);
+            let mut gt = GameTime::from_seconds(300000);
             gt.set_day_and_hour(1, 9);
             assert_eq!(gt.day(), 1);
             assert_eq!(gt.hour(), 9);
             assert_eq!(gt.minute(), 0);
+            assert_eq!(gt.second(), 0);
         }
 
         #[test]
@@ -915,8 +937,8 @@ mod tests {
             gt.set_day_and_hour(3, 14);
             assert_eq!(gt.day(), 3);
             assert_eq!(gt.hour(), 14);
-            // (3-1) * 24 * 60 + 14 * 60 = 2880 + 840 = 3720
-            assert_eq!(gt.total_minutes(), 3720);
+            // (3-1) * 24 * 3600 + 14 * 3600 = 172800 + 50400 = 223200
+            assert_eq!(gt.total_seconds(), 223200);
         }
 
         #[test]
@@ -939,16 +961,17 @@ mod tests {
 
         #[test]
         fn skip_from_morning_to_afternoon() {
-            let mut gt = GameTime::from_minutes(9 * 60); // 9 AM
+            let mut gt = GameTime::from_seconds(9 * 3600); // 9 AM
             gt.skip_to_period(TimeOfDay::Afternoon);
             assert_eq!(gt.hour(), 12);
             assert_eq!(gt.minute(), 0);
+            assert_eq!(gt.second(), 0);
             assert_eq!(gt.time_of_day(), TimeOfDay::Afternoon);
         }
 
         #[test]
         fn skip_from_morning_to_morning_advances_day() {
-            let mut gt = GameTime::from_minutes(9 * 60); // 9 AM day 1
+            let mut gt = GameTime::from_seconds(9 * 3600); // 9 AM day 1
             gt.skip_to_period(TimeOfDay::Morning);
             assert_eq!(gt.hour(), 5);
             assert_eq!(gt.day(), 2);
@@ -956,7 +979,7 @@ mod tests {
 
         #[test]
         fn skip_from_evening_to_morning_advances_day() {
-            let mut gt = GameTime::from_minutes(19 * 60); // 7 PM
+            let mut gt = GameTime::from_seconds(19 * 3600); // 7 PM
             gt.skip_to_period(TimeOfDay::Morning);
             assert_eq!(gt.hour(), 5);
             assert_eq!(gt.day(), 2);
@@ -964,41 +987,41 @@ mod tests {
 
         #[test]
         fn skip_from_night_to_morning_same_day() {
-            let mut gt = GameTime::from_minutes(3 * 60); // 3 AM day 1
+            let mut gt = GameTime::from_seconds(3 * 3600); // 3 AM day 1
             gt.skip_to_period(TimeOfDay::Morning);
             assert_eq!(gt.hour(), 5);
             assert_eq!(gt.day(), 1);
         }
     }
 
-    mod minutes_until_period {
+    mod seconds_until_period {
         use super::*;
 
         #[test]
         fn same_period_returns_zero() {
-            let gt = GameTime::from_minutes(9 * 60); // 9 AM = Morning
-            assert_eq!(gt.minutes_until_period(TimeOfDay::Morning), 0);
+            let gt = GameTime::from_seconds(9 * 3600); // 9 AM = Morning
+            assert_eq!(gt.seconds_until_period(TimeOfDay::Morning), 0);
         }
 
         #[test]
         fn morning_to_afternoon() {
-            let gt = GameTime::from_minutes(9 * 60); // 9 AM
-                                                     // Until noon = 3 hours = 180 minutes
-            assert_eq!(gt.minutes_until_period(TimeOfDay::Afternoon), 180);
+            let gt = GameTime::from_seconds(9 * 3600); // 9 AM
+                                                       // Until noon = 3 hours = 10800 seconds
+            assert_eq!(gt.seconds_until_period(TimeOfDay::Afternoon), 10800);
         }
 
         #[test]
         fn evening_to_morning_wraps() {
-            let gt = GameTime::from_minutes(19 * 60); // 7 PM
-                                                      // Until 5 AM = 10 hours = 600 minutes
-            assert_eq!(gt.minutes_until_period(TimeOfDay::Morning), 600);
+            let gt = GameTime::from_seconds(19 * 3600); // 7 PM
+                                                        // Until 5 AM = 10 hours = 36000 seconds
+            assert_eq!(gt.seconds_until_period(TimeOfDay::Morning), 36000);
         }
 
         #[test]
         fn partial_hour_subtracted() {
-            let gt = GameTime::from_minutes(9 * 60 + 30); // 9:30 AM
-                                                          // Until noon = 2.5 hours = 150 minutes
-            assert_eq!(gt.minutes_until_period(TimeOfDay::Afternoon), 150);
+            let gt = GameTime::from_seconds(9 * 3600 + 1800); // 9:30 AM
+                                                              // Until noon = 2.5 hours = 9000 seconds
+            assert_eq!(gt.seconds_until_period(TimeOfDay::Afternoon), 9000);
         }
     }
 
@@ -1007,13 +1030,13 @@ mod tests {
 
         #[test]
         fn display_time_morning() {
-            let gt = GameTime::from_minutes(9 * 60 + 30); // 9:30 AM
+            let gt = GameTime::from_seconds(9 * 3600 + 1800); // 9:30 AM
             assert_eq!(gt.display_time(), "9:30 AM");
         }
 
         #[test]
         fn display_time_afternoon() {
-            let gt = GameTime::from_minutes(14 * 60 + 15); // 2:15 PM
+            let gt = GameTime::from_seconds(14 * 3600 + 900); // 2:15 PM
             assert_eq!(gt.display_time(), "2:15 PM");
         }
 
@@ -1025,19 +1048,19 @@ mod tests {
 
         #[test]
         fn display_time_noon() {
-            let gt = GameTime::from_minutes(12 * 60);
+            let gt = GameTime::from_seconds(12 * 3600);
             assert_eq!(gt.display_time(), "12:00 PM");
         }
 
         #[test]
         fn display_date() {
-            let gt = GameTime::from_minutes(MINUTES_PER_DAY * 2 + 9 * 60); // Day 3, 9 AM
+            let gt = GameTime::from_seconds(SECONDS_PER_DAY * 2 + 9 * 3600); // Day 3, 9 AM
             assert_eq!(gt.display_date(), "Day 3, 9:00 AM");
         }
 
         #[test]
         fn display_period() {
-            let gt = GameTime::from_minutes(9 * 60);
+            let gt = GameTime::from_seconds(9 * 3600);
             assert_eq!(gt.display_period(), "Morning");
         }
     }
@@ -1088,7 +1111,7 @@ mod tests {
 
         #[test]
         fn to_calendar_date_one_day_later() {
-            let gt = GameTime::from_minutes(MINUTES_PER_DAY);
+            let gt = GameTime::from_seconds(SECONDS_PER_DAY);
             let calendar = CalendarDefinition::gregorian();
             let epoch = EpochConfig::gregorian_default();
 
@@ -1116,7 +1139,7 @@ mod tests {
 
         #[test]
         fn round_trip_json() {
-            let gt = GameTime::from_minutes(12345);
+            let gt = GameTime::from_seconds(12345);
             let json = serde_json::to_string(&gt).unwrap();
             let restored: GameTime = serde_json::from_str(&json).unwrap();
             assert_eq!(gt, restored);
@@ -1124,7 +1147,7 @@ mod tests {
 
         #[test]
         fn round_trip_negative_time() {
-            let gt = GameTime::from_minutes(-5000);
+            let gt = GameTime::from_seconds(-5000);
             let json = serde_json::to_string(&gt).unwrap();
             let restored: GameTime = serde_json::from_str(&json).unwrap();
             assert_eq!(gt, restored);

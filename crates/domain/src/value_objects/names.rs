@@ -4,6 +4,13 @@
 //! - Non-empty (except Description)
 //! - Within length limits
 //! - Trimmed of leading/trailing whitespace
+//!
+//! # Tier Classification
+//!
+//! **Tier 1: Primitive Wrappers** - These are simple wrappers around `String`
+//! with basic validation rules. They provide type safety and guarantee validity
+//! by construction. See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for the complete tier classification system.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

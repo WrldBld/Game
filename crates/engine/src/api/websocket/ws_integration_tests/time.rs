@@ -84,7 +84,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
 
     let current_time = world.game_time().clone();
     let mut resulting_time = current_time.clone();
-    resulting_time.advance_minutes(15);
+    resulting_time.advance_seconds(900);
 
     let suggestion = crate::use_cases::time::TimeSuggestion {
         id: suggestion_id.into(),
@@ -93,7 +93,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         pc_name: "PC".to_string(),
         action_type: "travel_region".to_string(),
         action_description: "to somewhere".to_string(),
-        suggested_minutes: 15,
+        suggested_seconds: 900,
         current_time: current_time.clone(),
         resulting_time: resulting_time.clone(),
         period_change: None,

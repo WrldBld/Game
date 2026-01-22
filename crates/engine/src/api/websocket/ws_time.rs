@@ -59,7 +59,7 @@ pub(super) async fn handle_set_game_time(
         let domain_data = crate::use_cases::time::build_time_advance_data(
             &outcome.previous_time,
             &outcome.new_time,
-            outcome.minutes_advanced,
+            outcome.seconds_advanced,
             &reason,
         );
         let advance_data = time_advance_data_to_protocol(&domain_data);
@@ -135,7 +135,7 @@ pub(super) async fn handle_skip_to_period(
     let domain_data = crate::use_cases::time::build_time_advance_data(
         &outcome.previous_time,
         &outcome.new_time,
-        outcome.minutes_advanced,
+        outcome.seconds_advanced,
         &reason,
     );
     let advance_data = time_advance_data_to_protocol(&domain_data);
@@ -549,9 +549,9 @@ pub(super) async fn handle_time_request(
             })))
         }
 
-        TimeRequest::AdvanceGameTimeMinutes {
+        TimeRequest::AdvanceGameTimeSeconds {
             world_id,
-            minutes,
+            seconds,
             reason: _reason,
         } => {
             require_dm_for_request(conn_info, request_id)?;
@@ -563,14 +563,14 @@ pub(super) async fn handle_time_request(
                 };
 
             let advance_reason = wrldbldr_domain::TimeAdvanceReason::DmManual {
-                hours: minutes / 60,
+                hours: seconds / 3600,
             };
             let outcome = match state
                 .app
                 .use_cases
                 .time
                 .control
-                .advance_minutes(world_id_typed, minutes, advance_reason.clone())
+                .advance_seconds(world_id_typed, seconds, advance_reason.clone())
                 .await
             {
                 Ok(result) => result,
@@ -594,7 +594,7 @@ pub(super) async fn handle_time_request(
             let domain_data = crate::use_cases::time::build_time_advance_data(
                 &outcome.previous_time,
                 &outcome.new_time,
-                minutes,
+                seconds,
                 &advance_reason,
             );
             let advance_data = time_advance_data_to_protocol(&domain_data);
@@ -606,14 +606,14 @@ pub(super) async fn handle_time_request(
 
             tracing::info!(
                 world_id = %world_id_typed,
-                minutes_advanced = minutes,
-                "Game time advanced (minutes)"
+                seconds_advanced = seconds,
+                "Game time advanced (seconds)"
             );
 
             let protocol_game_time = game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
                 "game_time": protocol_game_time,
-                "minutes_advanced": minutes,
+                "seconds_advanced": seconds,
             })))
         }
 
@@ -743,7 +743,7 @@ pub(super) async fn handle_time_request(
             let domain_data = crate::use_cases::time::build_time_advance_data(
                 &outcome.previous_time,
                 &outcome.new_time,
-                outcome.minutes_advanced,
+                outcome.seconds_advanced,
                 &reason,
             );
             let advance_data = time_advance_data_to_protocol(&domain_data);
@@ -900,10 +900,11 @@ pub(super) fn game_time_to_protocol(gt: &GameTime) -> protocol::GameTime {
     let formatted_time = Some(format!("{}:{:02} {}", display_hour, gt.minute(), am_pm));
 
     protocol::GameTime {
-        total_minutes: gt.total_minutes(),
+        total_seconds: gt.total_seconds(),
         day: gt.day(),
         hour,
         minute: gt.minute(),
+        second: gt.second(),
         is_paused: gt.is_paused(),
         formatted_date: None, // Calendar formatting handled elsewhere
         formatted_time,
@@ -918,7 +919,7 @@ pub(super) fn time_advance_data_to_protocol(
     protocol::TimeAdvanceData {
         previous_time: game_time_to_protocol(&data.previous_time),
         new_time: game_time_to_protocol(&data.new_time),
-        minutes_advanced: data.minutes_advanced,
+        seconds_advanced: data.seconds_advanced,
         reason: data.reason.clone(),
         period_changed: data.period_changed,
         new_period: data.new_period.clone(),
@@ -1002,7 +1003,7 @@ pub(super) fn time_suggestion_to_protocol(
         pc_name: suggestion.pc_name.clone(),
         action_type: suggestion.action_type.clone(),
         action_description: suggestion.action_description.clone(),
-        suggested_minutes: suggestion.suggested_minutes,
+        suggested_seconds: suggestion.suggested_seconds,
         current_time: game_time_to_protocol(&suggestion.current_time),
         resulting_time: game_time_to_protocol(&suggestion.resulting_time),
         period_change: suggestion.period_change.as_ref().map(|(from, to)| {

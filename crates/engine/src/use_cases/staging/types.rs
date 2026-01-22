@@ -130,6 +130,7 @@ pub struct GameTimeData {
     pub day: u32,
     pub hour: u8,
     pub minute: u8,
+    pub second: u8,
     pub is_paused: bool,
 }
 
@@ -155,15 +156,18 @@ impl GameTimeData {
         };
         let formatted_time = Some(format!("{}:{:02} {}", display_hour, self.minute, am_pm));
 
-        // Calculate total_minutes from day/hour/minute
-        let total_minutes =
-            (self.day as i64 - 1) * 24 * 60 + (self.hour as i64) * 60 + (self.minute as i64);
+        // Calculate total_seconds from day/hour/minute/second
+        let total_seconds = (self.day as i64 - 1) * 24 * 60 * 60
+            + (self.hour as i64) * 60 * 60
+            + (self.minute as i64) * 60
+            + (self.second as i64);
 
         wrldbldr_shared::types::GameTime {
-            total_minutes,
+            total_seconds,
             day: self.day,
             hour: self.hour,
             minute: self.minute,
+            second: self.second,
             is_paused: self.is_paused,
             formatted_date: None, // Calendar formatting handled elsewhere
             formatted_time,

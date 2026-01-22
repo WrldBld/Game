@@ -45,10 +45,10 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 
 #### Calendar-Agnostic Time Tracking
 
-- **Internal representation**: All time is stored as `total_minutes: i64` since epoch
-- **Epoch (minute 0)**: Configured per-world to represent any starting point in the campaign
-- **Negative time support**: Historical events before the campaign start can use negative minute values
-- **Conversion on display**: Minutes are converted to calendar dates only at display time
+- **Internal representation**: All time is stored as `total_seconds: i64` since epoch
+- **Epoch (second 0)**: Configured per-world to represent any starting point in the campaign
+- **Negative time support**: Historical events before the campaign start can use negative second values
+- **Conversion on display**: Seconds are converted to calendar dates only at display time
 
 #### Built-in Calendars
 
@@ -63,7 +63,7 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 
 #### Epoch Configuration
 
-DMs configure what "minute 0" represents when setting up or importing a world:
+DMs configure what "second 0" represents when setting up or importing a world:
 
 - **Purpose**: Anchors abstract time to meaningful campaign dates
 - **Example**: For a Forgotten Realms campaign starting in 1492 DR, configure epoch as "1st of Hammer, 1492 DR, 00:00"
@@ -71,7 +71,7 @@ DMs configure what "minute 0" represents when setting up or importing a world:
 
 #### Calendar Display
 
-`GameTime.to_calendar_date(calendar, epoch_config)` converts internal minutes to named dates:
+`GameTime.to_calendar_date(calendar, epoch_config)` converts internal seconds to named dates:
 
 | Format | Example (Gregorian) | Example (Harptos) |
 |--------|---------------------|-------------------|
@@ -181,15 +181,15 @@ DMs configure what "minute 0" represents when setting up or importing a world:
 
 ### Default Time Costs
 
-| Action Type        | Default Cost          | Configurable |
-| ------------------ | --------------------- | ------------ |
-| `travel_location`  | 60 minutes            | Yes          |
-| `travel_region`    | 10 minutes            | Yes          |
-| `rest_short`       | 60 minutes            | Yes          |
-| `rest_long`        | 480 minutes (8 hours) | Yes          |
-| `conversation`     | 0 minutes             | Yes          |
-| `challenge`        | 10 minutes            | Yes          |
-| `scene_transition` | 0 minutes             | Yes          |
+| Action Type        | Default Cost                    | Configurable |
+| ------------------ | ------------------------------- | ------------ |
+| `travel_location`  | 3600 seconds (60 minutes)       | Yes          |
+| `travel_region`    | 600 seconds (10 minutes)        | Yes          |
+| `rest_short`       | 3600 seconds (60 minutes)       | Yes          |
+| `rest_long`        | 28800 seconds (8 hours)        | Yes          |
+| `conversation`     | 0 seconds                       | Yes          |
+| `challenge`        | 600 seconds (10 minutes)        | Yes          |
+| `scene_transition` | 0 seconds                       | Yes          |
 
 ---
 
@@ -289,13 +289,13 @@ DMs configure what "minute 0" represents when setting up or importing a world:
 
 ### Neo4j Nodes (GameTime)
 
-`GameTime` now stores time as total minutes since epoch, enabling calendar-agnostic time tracking:
+`GameTime` now stores time as total seconds since epoch, enabling calendar-agnostic time tracking:
 
 ```cypher
 (:GameTime {
     id: "uuid",
-    total_minutes: 4179,          -- Minutes since epoch (replaces day/hour)
-    period: "Evening",            -- Derived from total_minutes
+    total_seconds: 250740,        -- Seconds since epoch (replaces day/hour)
+    period: "Evening",            -- Derived from total_seconds
     label: "Day 3, Evening (19:00)"  -- Cached display string
 })
 ```
@@ -311,13 +311,13 @@ DMs configure what "minute 0" represents when setting up or importing a world:
 ### Domain Types
 
 ```rust
-// crates/domain/src/game_time.rs (existing, to be extended)
+// crates/domain/src/game_time.rs
 
-/// Game time - stored as total minutes since epoch
+/// Game time - stored as total seconds since epoch
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameTime {
-    /// Total minutes since epoch (can be negative for historical events)
-    total_minutes: i64,
+    /// Total seconds since epoch (can be negative for historical events)
+    total_seconds: i64,
 }
 
 impl GameTime {
@@ -330,7 +330,7 @@ impl GameTime {
 pub struct GameTimeConfig {
     /// How time suggestions are handled
     pub mode: TimeMode,
-    /// Default time costs per action type (minutes)
+    /// Default time costs per action type (seconds)
     pub time_costs: TimeCostConfig,
     /// Whether to show time to players
     pub show_time_to_players: bool,
@@ -338,7 +338,7 @@ pub struct GameTimeConfig {
     pub time_format: TimeFormat,
     /// Calendar system to use for display
     pub calendar_id: CalendarId,
-    /// What minute 0 represents in the campaign
+    /// What second 0 represents in the campaign
     pub epoch_config: EpochConfig,
 }
 
@@ -350,7 +350,7 @@ pub enum CalendarId {
     Harptos,
 }
 
-/// Configuration for what "minute 0" represents
+/// Configuration for what "second 0" represents
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EpochConfig {
     /// Description shown to DM (e.g., "1st of Hammer, 1492 DR")
@@ -363,8 +363,10 @@ pub struct EpochConfig {
     pub epoch_day: u8,
     /// Hour (0-23)
     pub epoch_hour: u8,
-    /// Minute (0-59)
+    /// Minute (0-59) - usually 0, but supported for precision
     pub epoch_minute: u8,
+    /// Second (0-59) - usually 0, but supported for precision
+    pub epoch_second: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
@@ -378,19 +380,19 @@ pub enum TimeMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeCostConfig {
-    /// Minutes for travel between locations
+    /// Seconds for travel between locations
     pub travel_location: u32,
-    /// Minutes for travel between regions within a location
+    /// Seconds for travel between regions within a location
     pub travel_region: u32,
-    /// Minutes for short rest
+    /// Seconds for short rest
     pub rest_short: u32,
-    /// Minutes for long rest (typically overnight)
+    /// Seconds for long rest (typically overnight)
     pub rest_long: u32,
-    /// Minutes per conversation exchange (0 = no cost)
+    /// Seconds per conversation exchange (0 = no cost)
     pub conversation: u32,
-    /// Minutes per challenge attempt
+    /// Seconds per challenge attempt
     pub challenge: u32,
-    /// Minutes for scene transitions
+    /// Seconds for scene transitions
     pub scene_transition: u32,
 }
 
@@ -448,7 +450,7 @@ pub enum TimeAdvanceReason {
     pc_id: "uuid",               // Which PC's action triggered this
     action_type: "string",       // "travel_location", "rest_short", etc.
     action_description: "string", // Human-readable description
-    suggested_minutes: 32,       // Suggested time cost
+    suggested_seconds: 1920,     // Suggested time cost (32 minutes = 1920 seconds)
     current_time_json: "{...}",  // GameTime at suggestion creation
     created_at: datetime(),
     status: "pending" | "approved" | "modified" | "skipped"
@@ -468,7 +470,7 @@ pub struct TimeSuggestionData {
     pub pc_name: String,
     pub action_type: String,
     pub action_description: String,
-    pub suggested_minutes: u32,
+    pub suggested_seconds: u32,
     pub current_time: GameTime,
     pub resulting_time: GameTime,
     pub period_change: Option<(String, String)>, // ("Morning", "Afternoon") if period changes
@@ -479,7 +481,7 @@ pub struct TimeSuggestionData {
 pub struct TimeAdvanceData {
     pub previous_time: GameTime,
     pub new_time: GameTime,
-    pub minutes_advanced: u32,
+    pub seconds_advanced: u32,
     pub reason: String,
     pub period_changed: bool,
     pub new_period: Option<String>,
@@ -556,7 +558,7 @@ pub struct TimeAdvanceData {
 
 | Component                 | Status | Notes                           |
 | ------------------------- | ------ | ------------------------------- |
-| `GameTime` struct         | ✅     | Uses total_minutes internally   |
+| `GameTime` struct         | ✅     | Uses total_seconds internally   |
 | `TimeOfDay` enum          | ✅     | Exists in domain                |
 | Calendar system           | ✅     | Gregorian + Harptos calendars   |
 | `World.game_time`         | ✅     | Persisted                       |
@@ -564,13 +566,13 @@ pub struct TimeAdvanceData {
 | `GameTimeUpdated`         | ✅     | Broadcast exists                |
 | `GameTimeConfig`          | ✅     | Config persisted on World       |
 | `TimeMode` enum           | ✅     | Manual/Suggested modes          |
-| `TimeCostConfig`          | ✅     | Default cost map                |
+| `TimeCostConfig`          | ✅     | Default cost map (seconds)      |
 | `TimeSuggestion` flow     | ✅     | Suggest/approve/advance         |
 | `SetGameTime`             | ✅     | Set day/hour                    |
 | `SkipToPeriod`            | ✅     | Skip to time-of-day period      |
 | Time suggestion UI        | ✅     | DM approval flow in UI          |
 | Time control panel        | ✅     | DM controls in UI               |
-| Integration: Staging      | ✅     | TTL uses game time              |
+| Integration: Staging      | ✅     | TTL uses game time (seconds)    |
 | Integration: Observations | ✅     | Observations record game time   |
 | Integration: Movement     | ✅     | Movement generates suggestions  |
 
@@ -620,7 +622,7 @@ None - all changes are additive. Existing `GameTime` and `AdvanceGameTime` conti
 When `time_config` is missing from a World:
 
 - `mode`: `Suggested` (safest default - DM sees suggestions)
-- `time_costs`: Use sensible defaults (60/10/60/480/0/10/0 minutes)
+- `time_costs`: Use sensible defaults (3600/600/3600/28800/0/600/0 seconds)
 - `show_time_to_players`: `true`
 - `time_format`: `TwelveHour`
 
@@ -661,5 +663,6 @@ No migration needed - new fields have defaults. Old worlds will use default conf
 
 | Date       | Change                  |
 | ---------- | ----------------------- |
-| 2026-01-18 | Added Calendar System section (Gregorian + Harptos), updated GameTime to use total_minutes, added EpochConfig |
+| 2026-01-21 | Updated all references to use seconds-based game time (total_seconds, game_time_seconds, suggested_seconds, seconds_advanced) |
+| 2026-01-18 | Added Calendar System section (Gregorian + Harptos), updated GameTime to use total_seconds, added EpochConfig |
 | 2026-01-04 | Initial design document |

@@ -33,16 +33,16 @@ impl RecordVisit {
     /// # Arguments
     /// * `pc_id` - The player character who visited
     /// * `region_id` - The region that was visited
-    /// * `npcs` - NPCs present in the region
-    /// * `game_time_minutes` - Current game time in total minutes since epoch
+    /// * `npcs` - NPCs present in region
+    /// * `game_time_seconds` - Current game time in total seconds since epoch
     pub async fn execute(
         &self,
         pc_id: PlayerCharacterId,
         region_id: RegionId,
         npcs: &[StagedNpc],
-        game_time_minutes: i64,
+        game_time_seconds: i64,
     ) -> Result<(), RepoError> {
-        // Get the region to find its location_id
+        // Get's region to find its location_id
         let region = self
             .location_repo
             .get_region(region_id)
@@ -52,9 +52,9 @@ impl RecordVisit {
 
         let now = self.clock.now(); // Real time for created_at
 
-        // Convert game time minutes to DateTime for observation storage
+        // Convert game time seconds to DateTime for observation storage
         // (observations still use DateTime for compatibility)
-        let game_time = wrldbldr_domain::GameTime::from_minutes(game_time_minutes).to_datetime();
+        let game_time = wrldbldr_domain::GameTime::from_seconds(game_time_seconds).to_datetime();
 
         // Create observations for each present, visible NPC
         for npc in npcs
@@ -115,7 +115,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time_minutes: i64 = 720; // 12 hours = 720 minutes from epoch
+        let game_time_seconds: i64 = 43200; // 12 hours = 43200 seconds from epoch
         let real_time = Utc.with_ymd_and_hms(2025, 6, 15, 10, 30, 0).unwrap();
 
         location_repo
@@ -142,7 +142,7 @@ mod tests {
 
         let npcs = vec![test_staged_npc(npc_id, true, false)];
         let result = use_case
-            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .execute(pc_id, region_id, &npcs, game_time_seconds)
             .await;
 
         assert!(result.is_ok());
@@ -161,7 +161,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time_minutes: i64 = 720;
+        let game_time_seconds: i64 = 43200;
         let real_time = Utc.with_ymd_and_hms(2025, 6, 15, 10, 30, 0).unwrap();
 
         location_repo
@@ -181,7 +181,7 @@ mod tests {
 
         let npcs = vec![test_staged_npc(npc_id, true, true)]; // hidden
         let result = use_case
-            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .execute(pc_id, region_id, &npcs, game_time_seconds)
             .await;
 
         assert!(result.is_ok());
@@ -200,7 +200,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time_minutes: i64 = 720;
+        let game_time_seconds: i64 = 43200;
         let real_time = Utc.with_ymd_and_hms(2025, 6, 15, 10, 30, 0).unwrap();
 
         location_repo
@@ -225,7 +225,7 @@ mod tests {
 
         let npcs = vec![test_staged_npc(npc_id, true, false)];
         let result = use_case
-            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .execute(pc_id, region_id, &npcs, game_time_seconds)
             .await;
 
         assert!(result.is_ok());
@@ -242,7 +242,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time_minutes: i64 = 720;
+        let game_time_seconds: i64 = 43200;
 
         location_repo
             .expect_get_region()
@@ -257,7 +257,7 @@ mod tests {
 
         let npcs = vec![test_staged_npc(npc_id, true, false)];
         let result = use_case
-            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .execute(pc_id, region_id, &npcs, game_time_seconds)
             .await;
 
         assert!(result.is_err());

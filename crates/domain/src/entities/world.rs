@@ -16,8 +16,8 @@ pub struct TimeAdvanceResult {
     pub previous_time: GameTime,
     /// The new game time
     pub new_time: GameTime,
-    /// Minutes that were advanced
-    pub minutes_advanced: u32,
+    /// Seconds that were advanced
+    pub seconds_advanced: u32,
     /// Whether the time period changed
     pub period_changed: bool,
 }

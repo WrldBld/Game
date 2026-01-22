@@ -165,6 +165,7 @@ When auditing encapsulation decisions, don't just count getters—analyze the fu
 **Common false positive:** Counting getters in `entities/` files and assuming they're over-encapsulated. Many entities have business logic methods beyond accessors (e.g., `Challenge.evaluate_roll()`, `EventChain.current_position` tracking).
 
 See [ADR-008](docs/architecture/ADR-008-tiered-encapsulation.md) for rationale.
+See [docs/architecture/tier-levels.md](docs/architecture/tier-levels.md) for the complete tier classification system (Tiers 1-5).
 
 ### Crate Structure (4 crates)
 
@@ -438,6 +439,14 @@ These are legitimate because they manage runtime state, not database access.
 ### Protocol Conversion Patterns (ADR-011)
 
 The following patterns are **CORRECT** and should NOT be flagged as violations:
+
+**Important distinction:** `wrldbldr_shared` contains two categories per [ADR-011 addendum](docs/architecture/ADR-011-protocol-contracts-distinction.md):
+- **Protocol modules** (`messages`, `requests`, `responses`): Wire format - DISALLOWED in use cases
+- **Contract modules** (`settings`, `game_systems`, `character_sheet`): Stable shared types - ALLOWED
+
+When reviewing code that uses `wrldbldr_shared` types, classify the import:
+- Protocol module import → Architecture violation (use domain types instead)
+- Contract module import → ALLOWED (shared vocabulary is intentional)
 
 **1. `to_protocol()` helper methods on use case types:**
 ```rust

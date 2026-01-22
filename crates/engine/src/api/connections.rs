@@ -17,6 +17,7 @@ const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 use wrldbldr_domain::{ConnectionId, PlayerCharacterId, UserId, WorldId, WorldRole};
 use wrldbldr_shared::ServerMessage;
 
+use crate::infrastructure::correlation::CorrelationId;
 use crate::infrastructure::ports::{
     ConnectionInfo as PortConnectionInfo, DirectorialContext, SessionError,
 };
@@ -26,6 +27,8 @@ use crate::infrastructure::ports::{
 pub struct ConnectionInfo {
     /// Unique ID for this connection
     pub connection_id: ConnectionId,
+    /// Correlation ID for request tracing
+    pub correlation_id: CorrelationId,
     /// User identifier (typed wrapper for validation)
     pub user_id: UserId,
     /// The world this connection is associated with (if joined)
@@ -69,8 +72,10 @@ impl ConnectionManager {
         user_id: UserId,
         sender: mpsc::Sender<ServerMessage>,
     ) {
+        let correlation_id = CorrelationId::new();
         let info = ConnectionInfo {
             connection_id,
+            correlation_id,
             user_id,
             world_id: None,
             role: WorldRole::Spectator,
@@ -79,7 +84,12 @@ impl ConnectionManager {
         };
         let mut connections = self.connections.write().await;
         connections.insert(connection_id, (info, sender));
-        tracing::debug!(connection_id = %connection_id, "Connection registered");
+        tracing::debug!(
+            connection_id = %connection_id,
+            correlation_id = %correlation_id,
+            correlation_id_short = %correlation_id.short(),
+            "Connection registered"
+        );
     }
 
     /// Unregister a connection.
@@ -478,6 +488,18 @@ impl From<&ConnectionInfo> for PortConnectionInfo {
         PortConnectionInfo {
             connection_id: info.connection_id,
             user_id: info.user_id.clone(),
+            world_id: info.world_id,
+            role: info.role,
+            pc_id: info.pc_id,
+        }
+    }
+}
+
+impl From<ConnectionInfo> for PortConnectionInfo {
+    fn from(info: ConnectionInfo) -> Self {
+        PortConnectionInfo {
+            connection_id: info.connection_id,
+            user_id: info.user_id,
             world_id: info.world_id,
             role: info.role,
             pc_id: info.pc_id,

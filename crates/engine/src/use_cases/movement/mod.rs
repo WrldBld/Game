@@ -46,9 +46,9 @@ impl MovementUseCases {
 /// # Arguments
 /// * `staging` - The staging repository
 /// * `region_id` - The region to resolve staging for
-/// * `location_id` - The location containing the region
-/// * `world_id` - The world containing the location
-/// * `current_game_time_minutes` - Current game time in total minutes since epoch
+/// * `location_id` - The location containing of region
+/// * `world_id` - The world containing of location
+/// * `current_game_time_seconds` - Current game time in total seconds since epoch
 /// * `real_timestamp` - Real-world timestamp for audit purposes
 ///
 /// # Returns
@@ -58,11 +58,11 @@ pub async fn resolve_staging_for_region(
     region_id: RegionId,
     location_id: LocationId,
     world_id: WorldId,
-    current_game_time_minutes: i64,
+    current_game_time_seconds: i64,
     real_timestamp: DateTime<Utc>,
 ) -> Result<(Vec<StagedNpc>, StagingStatus), RepoError> {
     let active_staging = staging
-        .get_active_staging(region_id, current_game_time_minutes)
+        .get_active_staging(region_id, current_game_time_seconds)
         .await?;
 
     match active_staging {
@@ -79,24 +79,31 @@ pub async fn resolve_staging_for_region(
         None => {
             // No valid staging - DM approval required
             // Try to get any existing staging for reference (may be expired)
-            let previous = staging
-                .get_staged_npcs(region_id)
-                .await
-                .ok()
-                .map(|npcs| {
-                    Staging::new(
-                        region_id,
-                        location_id,
-                        world_id,
-                        current_game_time_minutes,
-                        "expired",
-                        StagingSource::RuleBased,
-                        0,
-                        real_timestamp,
-                    )
-                    .with_npcs(npcs)
-                })
-                .filter(|s| !s.npcs().is_empty());
+            let previous = match staging.get_staged_npcs(region_id).await {
+                Ok(npcs) => Some(npcs),
+                Err(e) => {
+                    tracing::warn!(
+                        region_id = %region_id,
+                        error = %e,
+                        "Failed to get existing staging for reference - continuing without previous staging"
+                    );
+                    None
+                }
+            }
+            .map(|npcs| {
+                Staging::new(
+                    region_id,
+                    location_id,
+                    world_id,
+                    current_game_time_seconds,
+                    "expired",
+                    StagingSource::RuleBased,
+                    0,
+                    real_timestamp,
+                )
+                .with_npcs(npcs)
+            })
+            .filter(|s| !s.npcs().is_empty());
 
             Ok((
                 vec![],

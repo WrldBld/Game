@@ -2,8 +2,15 @@
 //!
 //! Replaces the previous `is_alive: bool` and `is_active: bool` fields,
 //! ensuring mutually exclusive states are properly modeled.
+//!
+//! # Tier Classification
+//!
+//! **Tier 2: Validated Enum** - Represents mutually exclusive character states.
+//! No invalid states can be constructed (e.g., `is_alive=false && is_active=true` is impossible).
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// Character lifecycle state
 ///
@@ -32,7 +39,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// assert!(!dead.is_alive());
 /// assert!(dead.is_dead());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum CharacterState {
     /// Character is alive and actively participating in the world
     #[default]
@@ -108,27 +115,37 @@ impl CharacterState {
         matches!(self, Self::Inactive)
     }
 
-    /// Convert from legacy boolean flags (is_alive, is_active) to CharacterState
+    /// Convert legacy boolean fields to CharacterState.
     ///
-    /// # Mapping
+    /// This is used for backward compatibility with existing data that uses
+    /// `is_alive` and `is_active` boolean fields.
     ///
-    /// | is_alive | is_active | Result |
-    /// |----------|-----------|--------|
-    /// | true     | true      | Active |
-    /// | true     | false     | Inactive |
-    /// | false    | *         | Dead |
+    /// # Arguments
+    ///
+    /// * `is_alive` - Legacy "is alive" flag
+    /// * `is_active` - Legacy "is active" flag
+    ///
+    /// # Returns
+    ///
+    /// * `Active` if `is_alive` is true and `is_active` is true
+    /// * `Inactive` if `is_alive` is true and `is_active` is false
+    /// * `Dead` if `is_alive` is false (regardless of `is_active`)
     ///
     /// # Examples
     ///
     /// ```
     /// use wrldbldr_domain::value_objects::CharacterState;
     ///
+    /// // Alive and active
     /// assert_eq!(CharacterState::from_legacy(true, true), CharacterState::Active);
+    ///
+    /// // Alive but not active
     /// assert_eq!(CharacterState::from_legacy(true, false), CharacterState::Inactive);
+    ///
+    /// // Dead (regardless of active state)
     /// assert_eq!(CharacterState::from_legacy(false, true), CharacterState::Dead);
     /// assert_eq!(CharacterState::from_legacy(false, false), CharacterState::Dead);
     /// ```
-    #[inline]
     pub fn from_legacy(is_alive: bool, is_active: bool) -> Self {
         if !is_alive {
             Self::Dead
@@ -147,78 +164,6 @@ impl std::fmt::Display for CharacterState {
             Self::Inactive => write!(f, "inactive"),
             Self::Dead => write!(f, "dead"),
         }
-    }
-}
-
-// Custom deserializer that handles both the new enum format and legacy boolean format
-impl<'de> Deserialize<'de> for CharacterState {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use serde::de::{self, MapAccess, Visitor};
-
-        struct CharacterStateVisitor;
-
-        impl<'de> Visitor<'de> for CharacterStateVisitor {
-            type Value = CharacterState;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str(
-                    "a string (\"active\", \"inactive\", \"dead\") or \
-                     an object with is_alive and is_active boolean fields",
-                )
-            }
-
-            // Handle string format: "active", "inactive", "dead"
-            fn visit_str<E>(self, value: &str) -> Result<CharacterState, E>
-            where
-                E: de::Error,
-            {
-                match value.to_lowercase().as_str() {
-                    "active" => Ok(CharacterState::Active),
-                    "inactive" => Ok(CharacterState::Inactive),
-                    "dead" => Ok(CharacterState::Dead),
-                    _ => Err(de::Error::unknown_variant(
-                        value,
-                        &["active", "inactive", "dead"],
-                    )),
-                }
-            }
-
-            // Handle legacy object format: { "is_alive": true, "is_active": false }
-            fn visit_map<M>(self, mut map: M) -> Result<CharacterState, M::Error>
-            where
-                M: MapAccess<'de>,
-            {
-                let mut is_alive: Option<bool> = None;
-                let mut is_active: Option<bool> = None;
-
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "is_alive" | "isAlive" => {
-                            is_alive = Some(map.next_value()?);
-                        }
-                        "is_active" | "isActive" => {
-                            is_active = Some(map.next_value()?);
-                        }
-                        _ => {
-                            // Skip unknown fields
-                            let _: serde::de::IgnoredAny = map.next_value()?;
-                        }
-                    }
-                }
-
-                let is_alive =
-                    is_alive.ok_or_else(|| de::Error::missing_field("is_alive or isAlive"))?;
-                let is_active =
-                    is_active.ok_or_else(|| de::Error::missing_field("is_active or isActive"))?;
-
-                Ok(CharacterState::from_legacy(is_alive, is_active))
-            }
-        }
-
-        deserializer.deserialize_any(CharacterStateVisitor)
     }
 }
 

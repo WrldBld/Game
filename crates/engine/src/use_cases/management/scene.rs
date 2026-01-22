@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{ActId, LocationId, SceneId, SceneName};
+use wrldbldr_domain::{ActId, DomainError, LocationId, SceneId, SceneName};
 
 use crate::infrastructure::ports::SceneRepo;
 
@@ -40,17 +40,16 @@ impl SceneManagement {
         description: Option<String>,
         location_id: Option<LocationId>,
     ) -> Result<wrldbldr_domain::Scene, ManagementError> {
-        let name =
-            SceneName::new(name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+        let name = SceneName::new(name)?;
 
         let location_id = location_id.ok_or_else(|| {
-            ManagementError::InvalidInput("Scene location_id is required".to_string())
+            ManagementError::Domain(DomainError::validation("Scene location_id is required"))
         })?;
 
         let mut scene = wrldbldr_domain::Scene::new(act_id, name);
         if let Some(description) = description {
             let notes = wrldbldr_domain::Description::new(description)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+                .map_err(ManagementError::Domain)?;
             scene = scene.with_directorial_notes(notes);
         }
 
@@ -80,13 +79,11 @@ impl SceneManagement {
             })?;
 
         if let Some(name) = name {
-            let name =
-                SceneName::new(name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            let name = SceneName::new(name)?;
             scene.set_name(name);
         }
         if let Some(description) = description {
-            let notes = wrldbldr_domain::Description::new(description)
-                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            let notes = wrldbldr_domain::Description::new(description)?;
             scene.set_directorial_notes(notes);
         }
 

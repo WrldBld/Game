@@ -10,9 +10,17 @@
 //! - Deterministic testing with fixed/mock RNG
 //! - Clean separation from I/O (RNG accesses system entropy)
 //! - Dependency injection at the call site
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - `DiceFormula`, `DiceRollResult` are
+//!   simple data structs with public fields.
+//! - **Tier 2: Validated Enum** - `DiceParseError` represents parsing outcomes.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use thiserror::Error;
 
 use super::DiceSystem;
