@@ -13,31 +13,6 @@ impl CorrelationId {
         Self(Uuid::new_v4())
     }
 
-    /// Create a correlation ID from a UUID.
-    pub fn from_uuid(uuid: Uuid) -> Self {
-        Self(uuid)
-    }
-
-    /// Get the underlying UUID.
-    pub fn as_uuid(&self) -> &Uuid {
-        &self.0
-    }
-
-    /// Convert to bytes.
-    pub fn to_bytes(&self) -> [u8; 16] {
-        self.0.as_bytes().to_owned()
-    }
-
-    /// Create from bytes.
-    pub fn from_bytes(bytes: [u8; 16]) -> Self {
-        Self(Uuid::from_bytes(bytes))
-    }
-
-    /// Convert to string (full UUID).
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-
     /// Short format (first 8 characters) for logging.
     pub fn short(&self) -> String {
         self.0.to_string()[..8].to_string()
@@ -83,14 +58,6 @@ mod tests {
         let id1 = CorrelationId::new();
         let id2 = CorrelationId::new();
         assert_ne!(id1, id2);
-    }
-
-    #[test]
-    fn test_from_bytes_roundtrip() {
-        let id1 = CorrelationId::new();
-        let bytes = id1.to_bytes();
-        let id2 = CorrelationId::from_bytes(bytes);
-        assert_eq!(id1, id2);
     }
 
     #[test]

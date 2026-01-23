@@ -5,7 +5,7 @@ use crate::infrastructure::ports::{
     UserJoinedInfo, WorldRole,
 };
 use crate::stores::SessionStore as WorldSession;
-use wrldbldr_domain::{ConnectionId, PlayerCharacterId, SceneId, UserId, WorldId};
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, UserId, WorldId};
 
 use super::types::{PlayerCharacterSummary, WorldSnapshot};
 use super::{JoinWorld, JoinWorldError};

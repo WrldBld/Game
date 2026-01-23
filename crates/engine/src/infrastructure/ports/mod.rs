@@ -28,9 +28,9 @@ pub use error::{
 // External Service Ports
 // =============================================================================
 pub use external::{
-    ChatMessage, FinishReason, ImageData, ImageGenPort, ImageRequest, ImageResult,
+    ChatMessage, FinishReason, ImageGenPort, ImageRequest, ImageResult,
     LlmPort, LlmRequest, LlmResponse, MessageRole, QueueItem, QueueItemData,
-    QueueItemId, QueueItemStatus, QueuePort, TokenUsage,
+    QueueItemStatus, QueuePort, TokenUsage,
 };
 
 // =============================================================================

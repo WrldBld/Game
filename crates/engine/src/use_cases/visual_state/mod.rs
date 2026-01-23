@@ -12,7 +12,7 @@ mod resolve_state;
 #[cfg(test)]
 mod llm_condition_tests;
 
-pub use catalog::{CatalogData, CatalogError, GeneratedVisualState, VisualStateCatalog, VisualStateDetails};
+pub use catalog::{CatalogError, VisualStateCatalog, VisualStateDetails};
 pub use resolve_state::{ResolveVisualState, StateResolutionContext};
 
 use std::sync::Arc;

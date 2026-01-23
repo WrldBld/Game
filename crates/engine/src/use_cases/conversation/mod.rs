@@ -22,7 +22,7 @@ mod start;
 mod llm_context_tests;
 
 pub use continue_conversation::ContinueConversation;
-pub use end::{ConversationEnded, EndConversation, EndConversationError};
+pub use end::{EndConversation, EndConversationError};
 pub use start::{ConversationError, StartConversation};
 
 /// Container for conversation use cases.

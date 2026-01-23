@@ -113,7 +113,7 @@ pub fn PCView() -> Element {
     let mut show_region_items_panel = use_signal(|| false);
 
     // End conversation confirmation modal state
-    let mut show_end_conversation_modal = use_signal(|| false);
+    let show_end_conversation_modal = use_signal(|| false);
 
     // Error feedback state for user actions
     let mut action_error: Signal<Option<String>> = use_signal(|| None);

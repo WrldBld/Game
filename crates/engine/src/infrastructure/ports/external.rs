@@ -6,7 +6,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 pub use wrldbldr_domain::QueueItemId;
 use wrldbldr_domain::WorldId;
 

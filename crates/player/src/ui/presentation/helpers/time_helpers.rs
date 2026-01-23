@@ -3,8 +3,7 @@
 //! This module provides pure helper functions for time-related UI logic
 //! that can be tested independently of Dioxus components.
 
-use uuid::Uuid;
-use wrldbldr_shared::types::{GameTime, TimeSuggestionData, TimeSuggestionDecision};
+use wrldbldr_shared::types::TimeSuggestionDecision;
 
 /// Converts hours to seconds for manual time advancement
 ///

@@ -32,7 +32,6 @@ use crate::prompt_templates::{
         DIALOGUE_RESPONSE_FORMAT,
     },
     get_default,
-    key_to_env_var,
 };
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 

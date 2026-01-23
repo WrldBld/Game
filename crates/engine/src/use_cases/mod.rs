@@ -55,11 +55,9 @@ pub use narrative::NarrativeUseCases;
 pub use narrative_operations::NarrativeOps;
 pub use npc::NpcUseCases;
 pub use player_action::PlayerActionUseCases;
-pub use prompt_templates::PromptTemplateOps;
 pub use queues::QueueUseCases;
 
 pub use session::SessionUseCases;
-pub use settings::SettingsOps;
 pub use staging::StagingUseCases;
 pub use story_events::StoryEventUseCases;
 pub use time::TimeUseCases;

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::infrastructure::ports::{
     CharacterRepo, LocationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
-use wrldbldr_domain::{LocationId, PlayerCharacterId, SceneId, WorldId, WorldRole};
+use wrldbldr_domain::{PlayerCharacterId, SceneId, WorldId, WorldRole};
 
 use super::types::{
     CharacterSummary, LocationSummary, PlayerCharacterSummary, SceneSummary, WorldSnapshot,

@@ -18,10 +18,6 @@ use crate::use_cases::prompt_templates::PromptTemplateError;
 use crate::use_cases::settings::SettingsError;
 use crate::use_cases::world::WorldError;
 
-/// Maximum HTTP request body size (10MB).
-/// This should be enforced by middleware in production. For now, individual endpoints should validate their payloads.
-const MAX_HTTP_BODY_SIZE: usize = 10 * 1024 * 1024;
-
 // =============================================================================
 // Prompt Template DTOs (wire format)
 // =============================================================================

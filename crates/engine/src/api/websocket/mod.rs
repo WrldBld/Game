@@ -56,7 +56,7 @@ pub mod error_sanitizer;
 
 use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, EventChainId, GoalId, InteractionId, ItemId, LocationId,
-    MoodState, NarrativeEventId, PlayerCharacterId, RegionId, SceneId, SkillId, StagingSource,
+    NarrativeEventId, PlayerCharacterId, RegionId, SceneId, SkillId, StagingSource,
     UserId, WantId, WorldId,
 };
 use wrldbldr_shared::{

@@ -60,7 +60,7 @@ pub(super) async fn handle_generation_request(
     request: GenerationRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        GenerationRequest::GetGenerationQueue { world_id, user_id } => {
+        GenerationRequest::GetGenerationQueue { world_id, user_id: _ } => {
             let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => WorldId::from_uuid(u),
                 Err(_) => {
