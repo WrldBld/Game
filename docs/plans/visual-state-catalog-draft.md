@@ -69,14 +69,25 @@ Staging approval UI:
 
 ---
 
-## Next Steps (to expand)
+## Implementation Status
 
+### Completed
 - [x] Define user stories and acceptance criteria
 - [x] Plan UI/UX mockups for DM flows - See: [Visual State Catalog UI Design](../designs/visual-state-catalog-ui.md)
-- [ ] Identify existing asset generation workflows to reuse
-- [ ] Propose concrete data structures + protocol contracts
-- [ ] Define REST endpoints for catalog operations
-- [ ] Define WebSocket messages for real-time updates
+- [x] **Asset workflow reuse** - `generate_visual_state()` queues asset generation via `QueuePort` (crates/engine/src/use_cases/visual_state/catalog.rs:468)
+- [x] **Protocol contracts** - Full request/response types in `shared/src/requests/visual_state.rs`
+- [x] **WebSocket messages** - All handlers implemented in `crates/engine/src/api/websocket/ws_visual_state.rs`
+  - GetCatalog, GetDetails, Create, Update, Delete, SetActive, Generate
+
+### Not Yet Implemented
+- [ ] REST endpoints for catalog operations (WebSocket-only currently)
+- [ ] Map asset generation in workflow (generate_map flag reserved for future)
+
+### Key Implementation Files
+- Protocol: `crates/shared/src/requests/visual_state.rs`
+- Use case: `crates/engine/src/use_cases/visual_state/catalog.rs`
+- WebSocket handler: `crates/engine/src/api/websocket/ws_visual_state.rs`
+- Resolution logic: `crates/engine/src/use_cases/visual_state/resolve_state.rs`
 
 Specs in progress:
 - `docs/plans/visual-state-catalog-spec.md`

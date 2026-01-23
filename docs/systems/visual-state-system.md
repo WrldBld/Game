@@ -127,6 +127,50 @@ Location (City)
   - *Error Handling*: Reject multiple defaults for the same scope; error when no default exists and no match
   - *Cross-Refs*: [Staging System](./staging-system.md), [Scene System](./scene-system.md)
 
+- [x] **US-VS-012**: As a DM, I can browse cataloged visual states for a location/region so that I can select a scene look before staging
+  - *Acceptance Criteria*:
+    - Catalog queries return all LocationState/RegionState entries for the requested scope
+    - Results include metadata needed for previews (name, priority, asset overrides)
+  - *Implementation Notes*: Visual state catalog queries live in `crates/engine/src/use_cases/visual_state/catalog.rs` with WebSocket handlers in `crates/engine/src/api/websocket/ws_visual_state.rs`
+  - *Required Data Fields*: `location_states`, `region_states`, `name`, `priority`, `backdrop_override`, `atmosphere_override`, `ambient_sound`
+  - *UI States*: Catalog dropdown + preview components exist but are not yet wired into pre-stage/approval flows
+  - *Files*: `crates/shared/src/requests/visual_state.rs`, `crates/player/src/ui/presentation/components/dm_panel/visual_state_dropdown.rs`, `crates/player/src/ui/presentation/components/dm_panel/visual_state_preview.rs`
+
+- [x] **US-VS-013**: As a DM, I can generate a new visual state from pre-stage or approval so that I can create a fitting scene on demand
+  - *Acceptance Criteria*:
+    - Generation requests create a new catalog entry and queue asset generation
+    - Responses return the new state ID and generation batch ID
+  - *Implementation Notes*: Generation is handled by `generate_visual_state` in `crates/engine/src/use_cases/visual_state/catalog.rs` and queued via `AssetGenerationData`
+  - *Required Data Fields*: `prompt`, `workflow`, `generation_batch_id`, `generate_backdrop`, `state_type`
+  - *UI States*: Generation modal exists but API wiring is pending for pre-stage/approval
+  - *Files*: `crates/engine/src/api/websocket/ws_visual_state.rs`, `crates/shared/src/requests/visual_state.rs`, `crates/player/src/ui/presentation/components/dm_panel/visual_state_generation_modal.rs`
+
+- [x] **US-VS-015**: As a DM, I can view visual state details so that I understand assets, rules, and metadata
+  - *Acceptance Criteria*:
+    - Details request returns the full state record for the selected ID
+    - Details UI can show assets, priority, and metadata
+  - *Implementation Notes*: Details lookup is in `crates/engine/src/use_cases/visual_state/catalog.rs` with WebSocket response shaping in `crates/engine/src/api/websocket/ws_visual_state.rs`
+  - *Required Data Fields*: `description`, `backdrop_override`, `atmosphere_override`, `ambient_sound`, `priority`, `is_default`, `generation_prompt`, `workflow_id`
+  - *UI States*: Details modal exists; wiring to catalog selection pending
+  - *Files*: `crates/shared/src/requests/visual_state.rs`, `crates/player/src/ui/presentation/components/dm_panel/visual_state_details_modal.rs`
+
+- [x] **US-VS-016**: As a DM, I can override resolved visual states during approval using catalog IDs so that I can direct the scene
+  - *Acceptance Criteria*:
+    - Staging approval accepts optional location/region state IDs
+    - Overrides persist on staging and set visual state source to `DmOverride`
+  - *Implementation Notes*: Overrides are resolved in `crates/engine/src/use_cases/staging/approve.rs` and stored on `Staging`
+  - *Required Data Fields*: `location_state_id`, `region_state_id`, `visual_state_source`
+  - *UI States*: Staging approval result includes override IDs; selection UI still pending
+  - *Files*: `crates/engine/src/use_cases/staging/approve.rs`, `crates/shared/src/messages.rs`, `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`
+
+- [x] **US-VS-017**: As the system, I can auto-resolve visual states from catalog rules so that staging has a default visual configuration
+  - *Acceptance Criteria*:
+    - Resolution evaluates catalog rules against game context and returns the highest-priority match
+    - Resolved states include match reasons for DM visibility
+  - *Implementation Notes*: Rule evaluation lives in `crates/engine/src/use_cases/visual_state/resolve_state.rs` and is invoked from `crates/engine/src/use_cases/staging/request_approval.rs`
+  - *Required Data Fields*: `activation_rules`, `activation_logic`, `priority`, `match_reason`
+  - *Files*: `crates/engine/src/use_cases/visual_state/resolve_state.rs`, `crates/engine/src/use_cases/staging/request_approval.rs`
+
 ### UI Pending
 
 - [ ] **US-VS-004**: As a DM, I can define soft activation rules so that AI can evaluate nuanced conditions
@@ -194,6 +238,13 @@ Location (City)
   - *UI States*: Preview loading, empty state when no assets, error state for missing assets
   - *Error Handling*: Preview failures do not affect live staging; show errors inline
   - *Cross-Refs*: [Asset System](./asset-system.md), [Scene System](./scene-system.md)
+
+### Pending
+
+- [ ] **US-VS-014**: As a system, I can generate deterministic visual state IDs so that identical prompts reuse catalog entries
+  - *Design*: Derive IDs from a stable hash of prompt + workflow; use `LocationState::new_with_id` and `RegionState::new_with_id`
+  - *Blocked by*: Deterministic ID hashing utility + migration strategy for existing UUIDs
+  - *Priority*: Medium
 
 ---
 
@@ -593,12 +644,17 @@ When staging is requested, states are resolved as follows:
 | LocationStateRepository | ✅ | - | `crates/engine/src/repositories/location_state.rs` |
 | RegionStateRepository | ✅ | - | `crates/engine/src/repositories/region_state.rs` |
 | StateResolutionService | ✅ | - | `crates/engine/src/use_cases/visual_state/resolve_state.rs` |
-| Extended Staging Entity | Pending | - | Add visual state fields |
-| Extended Staging Messages | Pending | Pending | Visual state in approval |
+| VisualStateCatalog Use Case | ✅ | - | `crates/engine/src/use_cases/visual_state/catalog.rs` |
+| VisualState WebSocket API | ✅ | - | `crates/engine/src/api/websocket/ws_visual_state.rs` |
+| Extended Staging Entity | ✅ | - | `crates/domain/src/entities/staging.rs` |
+| Extended Staging Messages | ✅ | ✅ | `crates/shared/src/messages.rs` |
 | Location State Editor UI | - | Pending | Creator mode |
 | Region State Editor UI | - | Pending | Creator mode |
 | Extended Staging Approval UI | - | Pending | State selection |
 | State Preview | - | Pending | Timeline view |
+| Catalog Dropdown + Preview | - | Pending | `crates/player/src/ui/presentation/components/dm_panel/visual_state_dropdown.rs` |
+| Generation Modal | - | Pending | `crates/player/src/ui/presentation/components/dm_panel/visual_state_generation_modal.rs` |
+| Details Modal | - | Pending | `crates/player/src/ui/presentation/components/dm_panel/visual_state_details_modal.rs` |
 
 ---
 
@@ -616,6 +672,9 @@ When staging is requested, states are resolved as follows:
 | Repository | `crates/engine/src/repositories/location_state.rs` | LocationState persistence |
 | Repository | `crates/engine/src/repositories/region_state.rs` | RegionState persistence |
 | Use Case | `crates/engine/src/use_cases/visual_state/resolve_state.rs` | State resolution |
+| Use Case | `crates/engine/src/use_cases/visual_state/catalog.rs` | Catalog listing + generation |
+| API | `crates/engine/src/api/websocket/ws_visual_state.rs` | Visual state catalog requests |
+| Protocol | `crates/shared/src/requests/visual_state.rs` | Visual state request/response DTOs |
 
 ### Player
 
@@ -623,6 +682,10 @@ When staging is requested, states are resolved as follows:
 |-------|------|---------|
 | UI | Planned (TBD) | Location state editor |
 | UI | `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs` | Extended approval UI |
+| UI | `crates/player/src/ui/presentation/components/dm_panel/visual_state_dropdown.rs` | Catalog dropdown UI |
+| UI | `crates/player/src/ui/presentation/components/dm_panel/visual_state_preview.rs` | Visual state preview card |
+| UI | `crates/player/src/ui/presentation/components/dm_panel/visual_state_generation_modal.rs` | Generation modal |
+| UI | `crates/player/src/ui/presentation/components/dm_panel/visual_state_details_modal.rs` | Details modal |
 
 ---
 
@@ -650,5 +713,6 @@ See: [Visual State Catalog UI Design](../designs/visual-state-catalog-ui.md)
 
 | Date | Change |
 |------|--------|
+| 2026-01-23 | Documented visual state catalog + generation stories (US-VS-012..017) |
 | 2026-01-22 | Added UI design documentation link |
 | 2026-01-05 | Initial version - Phase 1 domain design |

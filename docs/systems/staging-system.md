@@ -570,6 +570,16 @@ pub visual_state_source: VisualStateSource,
 pub visual_state_reasoning: Option<String>,
 ```
 
+Staging approval payloads now include catalog options for DM selection, and the approval response can send overrides:
+
+```
+pub resolved_visual_state: Option<ResolvedVisualStateData>,
+pub available_location_states: Vec<StateOptionData>,
+pub available_region_states: Vec<StateOptionData>,
+pub location_state_id: Option<LocationStateId>,
+pub region_state_id: Option<RegionStateId>,
+```
+
 See [Visual State System](./visual-state-system.md) for full details.
 
 ---
@@ -629,6 +639,7 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 
 | Date | Change |
 |------|--------|
+| 2026-01-23 | Documented visual state catalog options in staging approval |
 | 2026-01-10 | Added US-STG-014 (auto-approve timeout), US-STG-015/016 pending stories |
 | 2026-01-05 | Added Visual State Integration section (LocationState, RegionState) |
 | 2025-12-26 | Marked US-STG-013 (hidden NPCs) as complete |
