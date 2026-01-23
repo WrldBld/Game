@@ -49,6 +49,11 @@ pub struct LocationState {
     /// If true, use when no other state matches
     is_default: bool,
 
+    /// Generation prompt used when creating this state (for reference)
+    generation_prompt: Option<String>,
+    /// ComfyUI workflow ID used for generation (for reference)
+    workflow_id: Option<String>,
+
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -74,6 +79,8 @@ impl LocationState {
             activation_logic: ActivationLogic::All,
             priority: 0,
             is_default: false,
+            generation_prompt: None,
+            workflow_id: None,
             created_at: now,
             updated_at: now,
         }
@@ -89,6 +96,8 @@ impl LocationState {
         Self {
             is_default: true,
             activation_rules: vec![ActivationRule::Always],
+            generation_prompt: None,
+            workflow_id: None,
             ..Self::new(location_id, world_id, name, now)
         }
     }
@@ -109,6 +118,8 @@ impl LocationState {
         activation_logic: ActivationLogic,
         priority: i32,
         is_default: bool,
+        generation_prompt: Option<String>,
+        workflow_id: Option<String>,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Self {
@@ -126,6 +137,8 @@ impl LocationState {
             activation_logic,
             priority,
             is_default,
+            generation_prompt,
+            workflow_id,
             created_at,
             updated_at,
         }
@@ -193,6 +206,14 @@ impl LocationState {
         self.updated_at
     }
 
+    pub fn generation_prompt(&self) -> Option<&str> {
+        self.generation_prompt.as_deref()
+    }
+
+    pub fn workflow_id(&self) -> Option<&str> {
+        self.workflow_id.as_deref()
+    }
+
     // Builder-style methods
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
@@ -241,6 +262,45 @@ impl LocationState {
         self
     }
 
+    pub fn with_generation_prompt(mut self, prompt: String) -> Self {
+        self.generation_prompt = Some(prompt);
+        self
+    }
+
+    pub fn with_workflow_id(mut self, workflow_id: String) -> Self {
+        self.workflow_id = Some(workflow_id);
+        self
+    }
+
+    /// Create with a specific ID (for deterministic ID generation)
+    pub fn new_with_id(
+        id: LocationStateId,
+        location_id: LocationId,
+        world_id: WorldId,
+        name: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id,
+            location_id,
+            world_id,
+            name: StateName::new(name).unwrap_or_default(),
+            description: Description::default(),
+            backdrop_override: None,
+            atmosphere_override: None,
+            ambient_sound: None,
+            map_overlay: None,
+            activation_rules: Vec::new(),
+            activation_logic: ActivationLogic::All,
+            priority: 0,
+            is_default: false,
+            generation_prompt: None,
+            workflow_id: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
     /// Check if this state has any soft rules requiring LLM evaluation
     pub fn has_soft_rules(&self) -> bool {
         self.activation_rules.iter().any(|r| r.is_soft_rule())
@@ -272,6 +332,8 @@ impl LocationState {
             ambient_sound: self.ambient_sound.as_ref().map(|p| p.to_string()),
             priority: self.priority,
             is_default: self.is_default,
+            generation_prompt: self.generation_prompt.clone(),
+            workflow_id: self.workflow_id.clone(),
         }
     }
 }
@@ -286,6 +348,8 @@ pub struct LocationStateSummary {
     pub ambient_sound: Option<String>,
     pub priority: i32,
     pub is_default: bool,
+    pub generation_prompt: Option<String>,
+    pub workflow_id: Option<String>,
 }
 
 #[cfg(test)]
@@ -349,5 +413,39 @@ mod tests {
         assert!(state.has_soft_rules());
         assert_eq!(state.hard_rules().len(), 1);
         assert_eq!(state.soft_rules().len(), 1);
+    }
+
+    #[test]
+    fn test_generation_metadata() {
+        let now = fixed_time();
+        let state = LocationState::new(LocationId::new(), WorldId::new(), "Test", now)
+            .with_generation_prompt("A serene forest path".to_string())
+            .with_workflow_id("backdrop_v2".to_string());
+
+        assert_eq!(state.generation_prompt(), Some("A serene forest path"));
+        assert_eq!(state.workflow_id(), Some("backdrop_v2"));
+
+        let summary = state.summary();
+        assert_eq!(
+            summary.generation_prompt,
+            Some("A serene forest path".to_string())
+        );
+        assert_eq!(summary.workflow_id, Some("backdrop_v2".to_string()));
+    }
+
+    #[test]
+    fn test_new_with_id() {
+        let now = fixed_time();
+        let specific_id = LocationStateId::new();
+        let state = LocationState::new_with_id(
+            specific_id,
+            LocationId::new(),
+            WorldId::new(),
+            "Deterministic State",
+            now,
+        );
+
+        assert_eq!(state.id(), specific_id);
+        assert_eq!(state.name(), "Deterministic State");
     }
 }

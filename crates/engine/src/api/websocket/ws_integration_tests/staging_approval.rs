@@ -83,6 +83,8 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );
@@ -102,6 +104,8 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );
@@ -518,8 +522,8 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
-    .with_id(location_id);
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(location_id);
 
     // Visual state fixtures: minimal states to satisfy fail-fast validation
     let location_state_id = wrldbldr_domain::LocationStateId::new();
@@ -537,6 +541,8 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );
@@ -556,6 +562,8 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );
@@ -723,7 +731,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let mut world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
-    let _ = world.set_time_mode(TimeMode::Manual, now);
+     let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
     let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
@@ -751,6 +759,8 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );
@@ -770,6 +780,8 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );

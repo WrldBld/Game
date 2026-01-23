@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_shared::types::{ResolvedStateInfoData, VisualStateSourceData};
+use wrldbldr_shared::types::VisualStateSourceData;
 
 /// Visual state details data (full)
 #[derive(Clone, PartialEq, Debug)]
@@ -90,9 +90,9 @@ pub fn VisualStateDetailsModal(props: VisualStateDetailsModalProps) -> Element {
                         div {
                             class: "bg-black/50 rounded-lg overflow-hidden",
                             img {
-                                src: backdrop,
+                                src: "{backdrop}",
                                 class: "w-full h-auto",
-                                alt: &props.state.name
+                                alt: "{props.state.name}"
                             }
                         }
                     }
@@ -155,7 +155,7 @@ pub fn VisualStateDetailsModal(props: VisualStateDetailsModalProps) -> Element {
                                     span { class: "text-gray-400", "Backdrop:" }
                                     code {
                                         class: "text-purple-300 font-mono text-sm ml-2",
-                                        backdrop
+                                        "{backdrop}"
                                     }
                                 }
                             }
@@ -165,7 +165,7 @@ pub fn VisualStateDetailsModal(props: VisualStateDetailsModalProps) -> Element {
                                     span { class: "text-gray-400", "Ambient Sound:" }
                                     code {
                                         class: "text-purple-300 font-mono text-sm ml-2",
-                                        sound
+                                        "{sound}"
                                     }
                                 }
                             }
@@ -198,14 +198,14 @@ pub fn VisualStateDetailsModal(props: VisualStateDetailsModalProps) -> Element {
                                 div {
                                     class: "flex justify-between",
                                     span { class: "text-gray-400", "Created:" }
-                                    span { class: "text-gray-300", created }
+                                    span { class: "text-gray-300", "{created}" }
                                 }
                             }
                             if let Some(ref updated) = props.state.updated_at {
                                 div {
                                     class: "flex justify-between",
                                     span { class: "text-gray-400", "Updated:" }
-                                    span { class: "text-gray-300", updated }
+                                    span { class: "text-gray-300", "{updated}" }
                                 }
                             }
                             if let Some(ref count) = props.state.usage_count {
@@ -225,7 +225,7 @@ pub fn VisualStateDetailsModal(props: VisualStateDetailsModalProps) -> Element {
                 // Footer
                 div {
                     class: "p-6 border-t border-white/10 flex justify-end",
-                    if let Some(ref on_edit) = props.on_edit {
+                    if let Some(on_edit) = props.on_edit {
                         if props.show_edit {
                             button {
                                 onclick: move |_| on_edit.call(()),

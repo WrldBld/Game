@@ -17,6 +17,7 @@
 
 pub mod image_mocks;
 pub mod llm_integration;
+pub mod queue_mocks;
 pub mod world_seeder;
 
 use std::collections::{BTreeMap, HashMap};

@@ -74,6 +74,8 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );
@@ -93,6 +95,8 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         wrldbldr_domain::ActivationLogic::All,
         0, // priority
         true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );

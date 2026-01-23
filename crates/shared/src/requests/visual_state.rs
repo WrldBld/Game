@@ -143,6 +143,12 @@ pub struct UpdateVisualStateRequest {
     /// New is_default flag
     #[serde(default)]
     pub is_default: Option<bool>,
+    /// New generation prompt
+    #[serde(default)]
+    pub generation_prompt: Option<String>,
+    /// New workflow ID
+    #[serde(default)]
+    pub workflow_id: Option<String>,
 }
 
 /// Request to delete a visual state
@@ -266,6 +272,12 @@ pub struct LocationStateData {
     /// Activation logic
     #[serde(default)]
     pub activation_logic: Option<String>,
+    /// Generation prompt (for reference)
+    #[serde(default)]
+    pub generation_prompt: Option<String>,
+    /// ComfyUI workflow ID (for reference)
+    #[serde(default)]
+    pub workflow_id: Option<String>,
     /// Created at timestamp
     pub created_at: String,
     /// Updated at timestamp
@@ -308,6 +320,12 @@ pub struct RegionStateData {
     /// Activation logic
     #[serde(default)]
     pub activation_logic: Option<String>,
+    /// Generation prompt (for reference)
+    #[serde(default)]
+    pub generation_prompt: Option<String>,
+    /// ComfyUI workflow ID (for reference)
+    #[serde(default)]
+    pub workflow_id: Option<String>,
     /// Created at timestamp
     pub created_at: String,
     /// Updated at timestamp

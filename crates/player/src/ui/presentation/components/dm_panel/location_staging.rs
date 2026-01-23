@@ -203,7 +203,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                                                 move |_| {
                                                     tracing::info!("Clearing staging for region {}", region_id_for_clear);
                                                     // Clear staging by pre-staging with empty NPC list
-                                                    let msg = ClientMessageBuilder::pre_stage_region(&region_id_for_clear, vec![], 1);
+                                                    let msg = ClientMessageBuilder::pre_stage_region(&region_id_for_clear, vec![], 1, None, None);
                                                     if let Err(e) = command_bus.send(msg) {
                                                         tracing::error!("Failed to clear staging: {}", e);
                                                     }
@@ -247,7 +247,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                                     })
                                     .collect();
 
-                                let msg = ClientMessageBuilder::pre_stage_region(&region_id, npcs, data.ttl_hours);
+                                let msg = ClientMessageBuilder::pre_stage_region(&region_id, npcs, data.ttl_hours, None, None);
                                 if let Err(e) = command_bus.send(msg) {
                                     tracing::error!("Failed to pre-stage region: {}", e);
                                 }

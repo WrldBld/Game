@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_shared::types::{ResolvedStateInfoData, ResolvedVisualStateData};
+use wrldbldr_shared::types::ResolvedVisualStateData;
 
 /// Props for VisualStatePreview
 #[derive(Props, Clone, PartialEq)]
@@ -43,13 +43,13 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                 // Location backdrop
                                 if let Some(ref backdrop) = loc_state.backdrop_override {
                                     img {
-                                        src: backdrop,
+                                        src: "{backdrop}",
                                         class: "w-full h-full object-cover opacity-50",
                                         alt: "Location backdrop"
                                     }
                                 }
                                 // Region state indicator
-                                if let Some(ref backdrop) = reg_state.backdrop_override {
+                                if reg_state.backdrop_override.is_some() {
                                     div {
                                         class: "absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-end p-4",
                                         div {
@@ -63,9 +63,9 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                             // Location state only
                             if let Some(ref backdrop) = loc_state.backdrop_override {
                                 img {
-                                    src: backdrop,
+                                    src: "{backdrop}",
                                     class: "w-full h-full object-cover",
-                                    alt: &loc_state.name
+                                    alt: "{loc_state.name}"
                                 }
                             } else {
                                 div {
@@ -77,9 +77,9 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                             // Region state only
                             if let Some(ref backdrop) = reg_state.backdrop_override {
                                 img {
-                                    src: backdrop,
+                                    src: "{backdrop}",
                                     class: "w-full h-full object-cover",
-                                    alt: &reg_state.name
+                                    alt: "{reg_state.name}"
                                 }
                             } else {
                                 div {
@@ -124,22 +124,22 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                 span { "Location Backdrop:" }
                                 span {
                                     class: "text-gray-300 font-mono truncate ml-2",
-                                    loc_state.backdrop_override.as_deref().unwrap_or("(none)")
+                                    "{loc_state.backdrop_override.as_deref().unwrap_or(\"(none)\")}"
                                 }
                             }
                             div { class: "flex justify-between",
                                 span { "Region Backdrop:" }
                                 span {
                                     class: "text-gray-300 font-mono truncate ml-2",
-                                    reg_state.backdrop_override.as_deref().unwrap_or("(none)")
+                                    "{reg_state.backdrop_override.as_deref().unwrap_or(\"(none)\")}"
                                 }
                             }
-                            if let Some(ref sound) = loc_state.ambient_sound.or(reg_state.ambient_sound.as_ref()) {
+                            if let Some(ref sound) = loc_state.ambient_sound.as_ref().or(reg_state.ambient_sound.as_ref()) {
                                 div { class: "flex justify-between",
                                     span { "Ambient Sound:" }
                                     span {
                                         class: "text-gray-300 font-mono truncate ml-2",
-                                        sound
+                                        "{sound}"
                                     }
                                 }
                             }
@@ -151,7 +151,7 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                     span { "Backdrop:" }
                                     span {
                                         class: "text-gray-300 font-mono truncate ml-2",
-                                        backdrop
+                                        "{backdrop}"
                                     }
                                 }
                             }
@@ -160,7 +160,7 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                     span { "Atmosphere:" }
                                     span {
                                         class: "text-gray-300 font-mono truncate ml-2",
-                                        atmosphere
+                                        "{atmosphere}"
                                     }
                                 }
                             }
@@ -169,7 +169,7 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                     span { "Ambient Sound:" }
                                     span {
                                         class: "text-gray-300 font-mono truncate ml-2",
-                                        sound
+                                        "{sound}"
                                     }
                                 }
                             }

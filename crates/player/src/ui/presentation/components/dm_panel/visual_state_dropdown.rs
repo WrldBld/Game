@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_shared::types::{StateOptionData, VisualStateSourceData};
+use wrldbldr_shared::types::StateOptionData;
 
 /// Visual state type
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -63,7 +63,7 @@ pub fn VisualStateDropdown(props: VisualStateDropdownProps) -> Element {
                 // State dropdown
                 select {
                     class: "flex-1 p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
-                    value: current_value.as_deref().unwrap_or(""),
+                    value: current_value.map(|s| s.clone()).unwrap_or_default(),
                     onchange: move |e| {
                         let value = e.value();
                         if value == "default" {
@@ -76,7 +76,7 @@ pub fn VisualStateDropdown(props: VisualStateDropdownProps) -> Element {
                     // Default (auto-resolved) option
                     if props.resolved_id.is_some() {
                         option {
-                            value: props.resolved_id.as_deref().unwrap_or("default"),
+                            value: props.resolved_id.clone().unwrap_or_else(|| "default".to_string()),
                             class: if props.selected_id.is_none() {
                                 "text-amber-400 font-medium"
                             } else {
@@ -89,7 +89,7 @@ pub fn VisualStateDropdown(props: VisualStateDropdownProps) -> Element {
                     // Available catalog states
                     for state in props.available_states.iter() {
                         option {
-                            value: &state.id,
+                            value: state.id.clone(),
                             class: if props.selected_id.as_ref().map(|id| id == &state.id).unwrap_or(false) {
                                 "text-amber-400 font-medium"
                             } else {

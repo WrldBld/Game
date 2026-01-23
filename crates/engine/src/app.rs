@@ -430,11 +430,11 @@ impl App {
 
         let visual_state_catalog = Arc::new(use_cases::visual_state::VisualStateCatalog::new(
             repos.location.clone(),
-            repos.region.clone(),
             repos.location_state.clone(),
             repos.region_state.clone(),
             image_gen.clone(),
             repos.asset.clone(),
+            queue_port.clone(),
             clock_port.clone(),
             random_port.clone(),
         ));

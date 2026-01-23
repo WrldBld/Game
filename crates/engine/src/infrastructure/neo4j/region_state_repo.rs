@@ -148,6 +148,8 @@ impl Neo4jRegionStateRepo {
 
         let priority: i32 = node.get_i64_or("priority", 0) as i32;
         let is_default: bool = node.get_bool_or("is_default", false);
+        let generation_prompt: Option<String> = node.get_optional_string("generation_prompt");
+        let workflow_id: Option<String> = node.get_optional_string("workflow_id");
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
@@ -165,6 +167,8 @@ impl Neo4jRegionStateRepo {
             activation_logic,
             priority,
             is_default,
+            generation_prompt,
+            workflow_id,
             created_at,
             updated_at,
         ))
@@ -213,6 +217,8 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
                 s.activation_logic = $activation_logic,
                 s.priority = $priority,
                 s.is_default = $is_default,
+                s.generation_prompt = $generation_prompt,
+                s.workflow_id = $workflow_id,
                 s.created_at = $created_at,
                 s.updated_at = $updated_at
             WITH s
@@ -251,6 +257,11 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
         .param("activation_logic", activation_logic_json)
         .param("priority", state.priority() as i64)
         .param("is_default", state.is_default())
+        .param(
+            "generation_prompt",
+            state.generation_prompt().unwrap_or_default().to_string(),
+        )
+        .param("workflow_id", state.workflow_id().unwrap_or_default().to_string())
         .param("created_at", state.created_at().to_rfc3339())
         .param("updated_at", state.updated_at().to_rfc3339());
 

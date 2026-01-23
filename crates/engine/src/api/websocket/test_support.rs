@@ -18,6 +18,7 @@ use crate::infrastructure::ports::{
     ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem, QueueItemId,
     QueueItemStatus, QueuePort, RandomPort,
 };
+use crate::test_fixtures::queue_mocks::MockQueueForTesting;
 use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
     MockFlagRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
@@ -511,6 +512,7 @@ pub(crate) fn build_test_app_with_ports(
         lore: lore_repo.clone(),
         narrative_repo: narrative_repo.clone(),
         prompt_templates: prompt_templates_repo.clone(),
+        asset: asset_repo.clone(),
         // Wrapper types
         narrative: narrative.clone(),
     };
@@ -630,7 +632,7 @@ pub(crate) fn build_test_app_with_ports(
             challenge_repo.clone(),
             player_character_repo.clone(),
             queue_port.clone(),
-            random_port,
+            random_port.clone(),
             clock_port.clone(),
         )),
         resolve_outcome,
@@ -769,12 +771,34 @@ pub(crate) fn build_test_app_with_ports(
     ));
     let time_uc = crate::use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
 
-    let visual_state_uc = crate::use_cases::VisualStateUseCases::new(Arc::new(
+    let visual_state_resolve = Arc::new(
         crate::use_cases::visual_state::ResolveVisualState::new(
             location_state_repo.clone(),
             region_state_repo.clone(),
         ),
-    ));
+    );
+
+    let image_gen = Arc::new(crate::test_fixtures::image_mocks::PlaceholderImageGen::new());
+
+    let queue = Arc::new(crate::test_fixtures::queue_mocks::MockQueueForTesting::new());
+
+    let visual_state_catalog = Arc::new(
+        crate::use_cases::visual_state::VisualStateCatalog::new(
+            location_repo.clone(),
+            location_state_repo.clone(),
+            region_state_repo.clone(),
+            image_gen.clone(),
+            asset_repo.clone(),
+            queue.clone(),
+            clock_port.clone(),
+            random_port.clone(),
+        ),
+    );
+
+    let visual_state_uc = crate::use_cases::VisualStateUseCases::new(
+        visual_state_resolve.clone(),
+        visual_state_catalog.clone(),
+    );
 
     let staging_uc = crate::use_cases::StagingUseCases::new(
         Arc::new(crate::use_cases::staging::RequestStagingApproval::new(

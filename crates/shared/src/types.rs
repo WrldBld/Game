@@ -809,6 +809,10 @@ pub struct LocationStateData {
     pub activation_logic: ActivationLogicData,
     pub priority: i32,
     pub is_default: bool,
+    #[serde(default)]
+    pub generation_prompt: Option<String>,
+    #[serde(default)]
+    pub workflow_id: Option<String>,
 }
 
 /// Region state for wire transfer
@@ -830,6 +834,10 @@ pub struct RegionStateData {
     pub activation_logic: ActivationLogicData,
     pub priority: i32,
     pub is_default: bool,
+    #[serde(default)]
+    pub generation_prompt: Option<String>,
+    #[serde(default)]
+    pub workflow_id: Option<String>,
 }
 
 /// Resolved state info for staging (lightweight)

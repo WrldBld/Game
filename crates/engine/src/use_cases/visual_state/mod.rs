@@ -12,6 +12,7 @@ mod resolve_state;
 #[cfg(test)]
 mod llm_condition_tests;
 
+pub use catalog::{CatalogData, CatalogError, GeneratedVisualState, VisualStateCatalog, VisualStateDetails};
 pub use resolve_state::{ResolveVisualState, StateResolutionContext};
 
 use std::sync::Arc;
@@ -21,13 +22,6 @@ pub struct VisualStateUseCases {
     pub resolve: Arc<ResolveVisualState>,
     pub catalog: Arc<VisualStateCatalog>,
 }
-
-impl VisualStateUseCases {
-    pub fn new(resolve: Arc<ResolveVisualState>, catalog: Arc<VisualStateCatalog>) -> Self {
-        Self { resolve, catalog }
-    }
-}
-
 
 impl VisualStateUseCases {
     pub fn new(resolve: Arc<ResolveVisualState>, catalog: Arc<VisualStateCatalog>) -> Self {

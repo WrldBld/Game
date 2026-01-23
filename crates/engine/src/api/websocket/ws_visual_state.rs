@@ -2,8 +2,13 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
-use crate::use_cases::visual_state::{VisualStateCatalog, VisualStateDetails};
-use wrldbldr_shared::{VisualStateRequest, ErrorCode, ResponseResult};
+use crate::use_cases::visual_state::VisualStateDetails;
+use wrldbldr_shared::{
+    requests::visual_state::{
+        LocationStateData, RegionStateData, VisualStateCatalogData,
+    },
+    ErrorCode, ResponseResult, ServerMessage, VisualStateRequest,
+};
 
 /// Maximum string lengths for visual state fields.
 const MAX_STATE_NAME: usize = 200;
@@ -20,28 +25,50 @@ pub(super) async fn handle_visual_state_request(
     request_id: &str,
     conn_info: &ConnectionInfo,
     request: VisualStateRequest,
-) -> Option<ServerMessage> {
-    match request {
+) -> Result<ResponseResult, ServerMessage> {
+    let msg = match request {
         VisualStateRequest::GetCatalog { request } => {
-            Some(handle_get_catalog(state, request_id, conn_info, request).await)
+            handle_get_catalog(state, request_id, conn_info, request).await
         }
         VisualStateRequest::GetDetails { request } => {
-            Some(handle_get_details(state, request_id, conn_info, request).await)
+            handle_get_details(state, request_id, conn_info, request).await
         }
         VisualStateRequest::Create { request } => {
-            Some(handle_create_visual_state(state, request_id, conn_info, request).await)
+            handle_create_visual_state(state, request_id, conn_info, request).await
         }
         VisualStateRequest::Update { request } => {
-            Some(handle_update_visual_state(state, request_id, conn_info, request).await)
+            handle_update_visual_state(state, request_id, conn_info, request).await
         }
         VisualStateRequest::Delete { request } => {
-            Some(handle_delete_visual_state(state, request_id, conn_info, request).await)
+            handle_delete_visual_state(state, request_id, conn_info, request).await
         }
         VisualStateRequest::SetActive { request } => {
-            Some(handle_set_active_visual_state(state, request_id, conn_info, request).await)
+            handle_set_active_visual_state(state, request_id, conn_info, request).await
         }
         VisualStateRequest::Generate { request } => {
-            Some(handle_generate_visual_state(state, request_id, conn_info, request).await)
+            handle_generate_visual_state(state, request_id, conn_info, request).await
+        }
+    };
+
+    // Extract the result from ServerMessage::Response
+    match msg {
+        ServerMessage::Response { result, .. } => Ok(result),
+        ServerMessage::Error { code, message, .. } => {
+            Err(ServerMessage::Error { code, message })
+        }
+        _ => {
+            // Serialize ErrorCode to snake_case string
+            let code_str = serde_json::to_string(&ErrorCode::InternalError)
+                .unwrap_or_else(|e| {
+                    tracing::warn!("Failed to serialize error code: {}", e);
+                    "\"internal_error\"".to_string()
+                })
+                .trim_matches('"')
+                .to_string();
+            Err(ServerMessage::Error {
+                code: code_str,
+                message: "Unexpected response type".to_string(),
+            })
         }
     }
 }
@@ -62,25 +89,26 @@ async fn handle_get_catalog(
 
     match state
         .app
-        .visual_states
+        .use_cases
+        .visual_state
         .catalog
         .get_catalog(location_id, region_id)
         .await
     {
         Ok(catalog) => {
             // Convert domain types to protocol types
-            let location_states: Vec<wrldbldr_shared::LocationStateData> = catalog
+            let location_states: Vec<LocationStateData> = catalog
                 .location_states
                 .into_iter()
                 .map(|ls| domain_to_location_state_data(ls))
                 .collect();
-            let region_states: Vec<wrldbldr_shared::RegionStateData> = catalog
+            let region_states: Vec<RegionStateData> = catalog
                 .region_states
                 .into_iter()
                 .map(|rs| domain_to_region_state_data(rs))
                 .collect();
 
-            let data = wrldbldr_shared::VisualStateCatalogData {
+            let data = VisualStateCatalogData {
                 location_states,
                 region_states,
             };
@@ -115,7 +143,8 @@ async fn handle_get_details(
 
     match state
         .app
-        .visual_states
+        .use_cases
+        .visual_state
         .catalog
         .get_details(location_state_id, region_state_id)
         .await
@@ -149,7 +178,9 @@ async fn handle_create_visual_state(
     conn_info: &ConnectionInfo,
     request: wrldbldr_shared::CreateVisualStateRequest,
 ) -> ServerMessage {
-    require_dm_for_request(conn_info, request_id)?;
+    if let Err(err) = require_dm_for_request(conn_info, request_id) {
+        return err;
+    }
 
     // Validate name length
     if request.name.len() > MAX_STATE_NAME {
@@ -222,19 +253,23 @@ async fn handle_create_visual_state(
 
     match request.state_type {
         wrldbldr_shared::VisualStateType::Location => {
-            let loc_id = location_id.ok_or_else(|| {
-                ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(
-                        ErrorCode::ValidationError,
-                        "location_id required for Location state type".to_string(),
-                    ),
+            let loc_id = match location_id {
+                Some(id) => id,
+                None => {
+                    return ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::ValidationError,
+                            "location_id required for Location state type".to_string(),
+                        ),
+                    }
                 }
-            })?;
+            };
 
             match state
                 .app
-                .visual_states
+                .use_cases
+                .visual_state
                 .catalog
                 .create_location_state(
                     loc_id,
@@ -265,19 +300,23 @@ async fn handle_create_visual_state(
             }
         }
         wrldbldr_shared::VisualStateType::Region => {
-            let reg_id = region_id.ok_or_else(|| {
-                ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(
-                        ErrorCode::ValidationError,
-                        "region_id required for Region state type".to_string(),
-                    ),
+            let reg_id = match region_id {
+                Some(id) => id,
+                None => {
+                    return ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::ValidationError,
+                            "region_id required for Region state type".to_string(),
+                        ),
+                    }
                 }
-            })?;
+            };
 
             match state
                 .app
-                .visual_states
+                .use_cases
+                .visual_state
                 .catalog
                 .create_region_state(
                     reg_id,
@@ -320,11 +359,9 @@ async fn handle_create_visual_state(
 async fn handle_update_visual_state(
     state: &WsState,
     request_id: &str,
-    conn_info: &ConnectionInfo,
+    _conn_info: &ConnectionInfo,
     request: wrldbldr_shared::UpdateVisualStateRequest,
 ) -> ServerMessage {
-    require_dm_for_request(conn_info, request_id)?;
-
     // Validate lengths
     if let Some(name) = &request.name {
         if name.len() > MAX_STATE_NAME {
@@ -350,6 +387,43 @@ async fn handle_update_visual_state(
         }
     }
 
+    // Validate asset paths
+    if let Some(asset) = &request.backdrop_asset {
+        if asset.len() > MAX_ASSET_PATH_LENGTH {
+            return ServerMessage::Response {
+                request_id: request_id.to_string(),
+                result: ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    format!("Backdrop asset path too long (max {} chars)", MAX_ASSET_PATH_LENGTH),
+                ),
+            };
+        }
+    }
+
+    if let Some(asset) = &request.ambient_sound {
+        if asset.len() > MAX_ASSET_PATH_LENGTH {
+            return ServerMessage::Response {
+                request_id: request_id.to_string(),
+                result: ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    format!("Ambient sound path too long (max {} chars)", MAX_ASSET_PATH_LENGTH),
+                ),
+            };
+        }
+    }
+
+    if let Some(asset) = &request.map_overlay {
+        if asset.len() > MAX_ASSET_PATH_LENGTH {
+            return ServerMessage::Response {
+                request_id: request_id.to_string(),
+                result: ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    format!("Map overlay path too long (max {} chars)", MAX_ASSET_PATH_LENGTH),
+                ),
+            };
+        }
+    }
+
     // Determine state type
     let location_state_id = request
         .location_state_id
@@ -361,7 +435,8 @@ async fn handle_update_visual_state(
     if let Some(ls_id) = location_state_id {
         match state
             .app
-            .visual_states
+            .use_cases
+            .visual_state
             .catalog
             .update_location_state(
                 ls_id,
@@ -375,6 +450,8 @@ async fn handle_update_visual_state(
                 request.activation_logic,
                 request.priority,
                 request.is_default,
+                request.generation_prompt,
+                request.workflow_id,
             )
             .await
         {
@@ -393,7 +470,8 @@ async fn handle_update_visual_state(
     } else if let Some(rs_id) = region_state_id {
         match state
             .app
-            .visual_states
+            .use_cases
+            .visual_state
             .catalog
             .update_region_state(
                 rs_id,
@@ -406,6 +484,8 @@ async fn handle_update_visual_state(
                 request.activation_logic,
                 request.priority,
                 request.is_default,
+                request.generation_prompt,
+                request.workflow_id,
             )
             .await
         {
@@ -439,7 +519,9 @@ async fn handle_delete_visual_state(
     conn_info: &ConnectionInfo,
     request: wrldbldr_shared::DeleteVisualStateRequest,
 ) -> ServerMessage {
-    require_dm_for_request(conn_info, request_id)?;
+    if let Err(err) = require_dm_for_request(conn_info, request_id) {
+        return err;
+    }
 
     let location_state_id = request
         .location_state_id
@@ -450,7 +532,8 @@ async fn handle_delete_visual_state(
 
     match state
         .app
-        .visual_states
+        .use_cases
+        .visual_state
         .catalog
         .delete(location_state_id, region_state_id)
         .await
@@ -476,7 +559,9 @@ async fn handle_set_active_visual_state(
     conn_info: &ConnectionInfo,
     request: wrldbldr_shared::SetActiveVisualStateRequest,
 ) -> ServerMessage {
-    require_dm_for_request(conn_info, request_id)?;
+    if let Err(err) = require_dm_for_request(conn_info, request_id) {
+        return err;
+    }
 
     let location_id = request
         .location_id
@@ -493,7 +578,8 @@ async fn handle_set_active_visual_state(
 
     match state
         .app
-        .visual_states
+        .use_cases
+        .visual_state
         .catalog
         .set_active(location_id, location_state_id, region_id, region_state_id)
         .await
@@ -519,7 +605,9 @@ async fn handle_generate_visual_state(
     conn_info: &ConnectionInfo,
     request: wrldbldr_shared::GenerateVisualStateRequest,
 ) -> ServerMessage {
-    require_dm_for_request(conn_info, request_id)?;
+    if let Err(err) = require_dm_for_request(conn_info, request_id) {
+        return err;
+    }
 
     // Validate lengths
     if request.name.len() > MAX_STATE_NAME {
@@ -606,47 +694,130 @@ async fn handle_generate_visual_state(
         .region_id
         .map(wrldbldr_domain::RegionId::from_uuid);
 
-    match state
-        .app
-        .visual_states
-        .catalog
-        .generate(
-            location_id,
-            region_id,
-            request.name,
-            request.description,
-            request.prompt,
-            request.workflow,
-            request.negative_prompt,
-            request.tags,
-            request.generate_backdrop,
-            request.generate_map,
-            request.activation_rules,
-            request.activation_logic,
-            request.priority,
-            request.is_default,
-        )
-        .await
-    {
-        Ok(result) => {
-            let data = wrldbldr_shared::GeneratedVisualStateData {
-                location_state: result
-                    .location_state
-                    .map(domain_to_location_state_data),
-                region_state: result.region_state.map(domain_to_region_state_data),
-                generation_batch_id: result.generation_batch_id,
-                is_complete: result.is_complete,
+    match request.state_type {
+        wrldbldr_shared::VisualStateType::Location => {
+            let loc_id = match location_id {
+                Some(id) => id,
+                None => {
+                    return ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::ValidationError,
+                            "location_id required for Location state type".to_string(),
+                        ),
+                    }
+                }
             };
-            ServerMessage::Response {
-                request_id: request_id.to_string(),
-                result: ResponseResult::success(data),
+
+            match state
+                .app
+                .use_cases
+                .visual_state
+                .catalog
+                .generate_visual_state(
+                    Some(loc_id),
+                    None,
+                    request.name,
+                    request.description,
+                    request.prompt,
+                    request.workflow,
+                    request.tags,
+                    request.generate_backdrop,
+                    request.generate_map,
+                    request.activation_rules,
+                    request.activation_logic,
+                    request.priority,
+                    request.is_default,
+                )
+                .await
+            {
+                Ok(result) => {
+                    let data = wrldbldr_shared::GeneratedVisualStateData {
+                        location_state: result
+                            .location_state
+                            .map(domain_to_location_state_data),
+                        region_state: result.region_state.map(domain_to_region_state_data),
+                        generation_batch_id: result.generation_batch_id,
+                        is_complete: result.is_complete,
+                    };
+                    ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::success(data),
+                    }
+                }
+                Err(e) => ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        map_catalog_error_to_code(&e),
+                        sanitize_repo_error(&e, "generate location visual state"),
+                    ),
+                },
             }
         }
-        Err(e) => ServerMessage::Response {
+        wrldbldr_shared::VisualStateType::Region => {
+            let reg_id = match region_id {
+                Some(id) => id,
+                None => {
+                    return ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::ValidationError,
+                            "region_id required for Region state type".to_string(),
+                        ),
+                    }
+                }
+            };
+
+            match state
+                .app
+                .use_cases
+                .visual_state
+                .catalog
+                .generate_visual_state(
+                    None,
+                    Some(reg_id),
+                    request.name,
+                    request.description,
+                    request.prompt,
+                    request.workflow,
+                    request.tags,
+                    request.generate_backdrop,
+                    request.generate_map,
+                    request.activation_rules,
+                    request.activation_logic,
+                    request.priority,
+                    request.is_default,
+                )
+                .await
+            {
+                Ok(result) => {
+                    let data = wrldbldr_shared::GeneratedVisualStateData {
+                        location_state: result
+                            .location_state
+                            .map(domain_to_location_state_data),
+                        region_state: result.region_state.map(domain_to_region_state_data),
+                        generation_batch_id: result.generation_batch_id,
+                        is_complete: result.is_complete,
+                    };
+                    ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::success(data),
+                    }
+                }
+                Err(e) => ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        map_catalog_error_to_code(&e),
+                        sanitize_repo_error(&e, "generate region visual state"),
+                    ),
+                },
+            }
+        }
+        wrldbldr_shared::VisualStateType::Unknown => ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(
-                map_catalog_error_to_code(&e),
-                sanitize_repo_error(&e, "generate visual state"),
+                ErrorCode::ValidationError,
+                "Unknown visual state type".to_string(),
             ),
         },
     }
@@ -669,8 +840,8 @@ fn map_catalog_error_to_code(error: &crate::use_cases::visual_state::CatalogErro
 /// Convert domain LocationState to protocol LocationStateData
 fn domain_to_location_state_data(
     state: wrldbldr_domain::LocationState,
-) -> wrldbldr_shared::LocationStateData {
-    wrldbldr_shared::LocationStateData {
+) -> LocationStateData {
+    LocationStateData {
         id: state.id().to_uuid(),
         location_id: state.location_id().to_uuid(),
         name: state.name().to_string(),
@@ -686,14 +857,16 @@ fn domain_to_location_state_data(
         activation_logic: Some(format!("{:?}", state.activation_logic())),
         created_at: state.created_at().to_rfc3339(),
         updated_at: state.updated_at().to_rfc3339(),
+        generation_prompt: state.generation_prompt().map(|s| s.to_string()),
+        workflow_id: state.workflow_id().map(|s| s.to_string()),
     }
 }
 
 /// Convert domain RegionState to protocol RegionStateData
 fn domain_to_region_state_data(
     state: wrldbldr_domain::RegionState,
-) -> wrldbldr_shared::RegionStateData {
-    wrldbldr_shared::RegionStateData {
+) -> RegionStateData {
+    RegionStateData {
         id: state.id().to_uuid(),
         region_id: state.region_id().to_uuid(),
         location_id: state.location_id().to_uuid(),
@@ -709,6 +882,8 @@ fn domain_to_region_state_data(
         activation_logic: Some(format!("{:?}", state.activation_logic())),
         created_at: state.created_at().to_rfc3339(),
         updated_at: state.updated_at().to_rfc3339(),
+        generation_prompt: state.generation_prompt().map(|s| s.to_string()),
+        workflow_id: state.workflow_id().map(|s| s.to_string()),
     }
 }
 

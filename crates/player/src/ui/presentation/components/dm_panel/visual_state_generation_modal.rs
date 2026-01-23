@@ -7,10 +7,8 @@ use dioxus::prelude::*;
 
 use crate::infrastructure::spawn_task;
 use crate::presentation::services::{use_command_bus, use_generation_service};
-use crate::infrastructure::websocket::ClientMessageBuilder;
 
 use wrldbldr_shared::requests::visual_state::{GenerateVisualStateRequest, VisualStateType};
-use wrldbldr_shared::types::RegionStateData;
 
 /// Quick preset options for generation
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -96,17 +94,26 @@ pub struct VisualStateGenerationModalProps {
 /// Visual state generation modal
 #[component]
 pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Element {
+    // Clone props for use in closures
+    let scope = props.scope;
+    let location_id_for_closure = props.location_id.clone();
+    let region_id_for_closure = props.region_id.clone();
+    // Keep references for use in rsx
+    let location_id = props.location_id.as_ref();
+    let region_id = props.region_id.as_ref();
+
     // ═══════════════════════════════════════════════════════════════
     // SECTION 1: ALL HOOKS - Always at top, never conditional
     // ═══════════════════════════════════════════════════════════════
     let command_bus = use_command_bus();
-    let generation_service = use_generation_service();
+    let _generation_service = use_generation_service();
 
     // Form fields
     let mut name = use_signal(|| "New State".to_string());
     let mut description = use_signal(String::new);
     let mut atmosphere_guidance = use_signal(String::new);
     let mut tags: Signal<Vec<String>> = use_signal(Vec::new);
+    let mut tag_input = use_signal(String::new);
     let mut asset_style = use_signal(|| AssetStyle::default());
     let mut generate_backdrop = use_signal(|| true);
     let mut generate_sound = use_signal(|| true);
@@ -117,7 +124,7 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
     let mut generated_result: Signal<Option<GeneratedStateResult>> = use_signal(|| None);
 
     // Quick presets
-    let handle_apply_preset = move |preset: QuickPreset| {
+    let mut handle_apply_preset = move |preset: QuickPreset| {
         description.set(preset.description().to_string());
         atmosphere_guidance.set(String::new());
         tags.set(preset.tags());
@@ -126,23 +133,23 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
     // ═══════════════════════════════════════════════════════════════
     // SECTION 2: EVENT HANDLERS
     // ═══════════════════════════════════════════════════════════════
-    let handle_tag_input = move |e: Event<KeyboardEvent>| {
-        if e.key() == "Enter" {
-            let input = e.data().unchecked_target::<web_sys::HtmlInputElement>();
-            if let Some(tag) = input.value().trim() {
-                if !tag.is_empty() {
-                    let mut current = tags.read().clone();
-                    if !current.contains(&tag.to_string()) {
-                        current.push(tag.to_string());
-                        tags.set(current);
-                    }
-                }
-                input.set_value("");
+    let handle_add_tag = move |_| {
+        let input_value = tag_input.read().trim().to_string();
+        if !input_value.is_empty() {
+            let mut current = tags.read().clone();
+            if !current.contains(&input_value) {
+                current.push(input_value);
+                tags.set(current);
             }
+            tag_input.set(String::new());
         }
     };
 
-    let handle_remove_tag = move |idx: usize| {
+    let handle_tag_input_change = move |e: Event<FormData>| {
+        tag_input.set(e.value());
+    };
+
+    let mut handle_remove_tag = move |idx: usize| {
         let mut current = tags.read().clone();
         if idx < current.len() {
             current.remove(idx);
@@ -165,11 +172,16 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
 
         is_generating.set(true);
 
+        // Clone for use in closure
+        let scope_clone = scope;
+        let location_id_clone = location_id_for_closure.clone();
+        let region_id_clone = region_id_for_closure.clone();
+
         // Build generation request
-        let request = GenerateVisualStateRequest {
-            state_type: props.scope,
-            location_id: props.location_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
-            region_id: props.region_id.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
+        let _request = GenerateVisualStateRequest {
+            state_type: scope_clone,
+            location_id: location_id_clone.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
+            region_id: region_id_clone.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
             name: name.read().clone(),
             description: desc.clone(),
             prompt: format!("{} - {}", desc, atmosphere_guidance.read()),
@@ -184,14 +196,13 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
             is_default: false,
         };
 
-        let command_bus = command_bus.clone();
+        let _command_bus = command_bus.clone();
         let mut is_gen = is_generating.clone();
-        let mut gen_err = generation_error.clone();
 
         spawn_task(async move {
             // For now, we'll create a simplified state without actual generation
             // In production, this would call the generation endpoint
-            let request_id = uuid::Uuid::new_v4().to_string();
+            let _request_id = uuid::Uuid::new_v4().to_string();
 
             // TODO: Use generation_service to trigger actual generation workflow
             // For this implementation, we simulate success after a delay
@@ -244,20 +255,23 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                                 }
                                 p {
                                     class: "text-gray-400 text-sm m-0",
-                                    match props.scope {
+                                    match scope {
                                         VisualStateType::Location => {
-                                            if let Some(ref lid) = props.location_id {
-                                                "Location ID: {lid}"
+                                            if let Some(lid) = location_id {
+                                                format!("Location ID: {lid}")
                                             } else {
-                                                "Location (new state)"
+                                                "Location (new state)".to_string()
                                             }
                                         }
                                         VisualStateType::Region => {
-                                            if let Some(ref rid) = props.region_id {
-                                                "Region ID: {rid}"
+                                            if let Some(rid) = region_id {
+                                                format!("Region ID: {rid}")
                                             } else {
-                                                "Region (new state)"
+                                                "Region (new state)".to_string()
                                             }
+                                        }
+                                        VisualStateType::Unknown => {
+                                            "Unknown visual state type".to_string()
                                         }
                                     }
                                 }
@@ -310,7 +324,6 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                             value: "{description}",
                             oninput: move |e| description.set(e.value()),
                             placeholder: "Describe how this location should look...",
-                            onkeydown: handle_tag_input,
                         }
                         div {
                             class: "text-right text-xs text-gray-500 mt-1",
@@ -370,7 +383,22 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                         class: "mb-4",
                         label {
                             class: "block text-gray-400 text-sm mb-2",
-                            "Tags (press Enter to add)"
+                            "Tags"
+                        }
+                        div {
+                            class: "flex gap-2 mb-2",
+                            input {
+                                r#type: "text",
+                                class: "flex-1 p-2 bg-dark-bg border border-gray-700 rounded-lg text-white text-sm",
+                                value: "{tag_input}",
+                                oninput: handle_tag_input_change,
+                                placeholder: "Enter tag..."
+                            }
+                            button {
+                                onclick: handle_add_tag,
+                                class: "px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors",
+                                "Add"
+                            }
                         }
                         div {
                             class: "flex flex-wrap gap-2",
@@ -442,19 +470,19 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                                 },
                                 option {
                                     value: "FantasyRealistic",
-                                    AssetStyle::FantasyRealistic.name()
+                                    "{AssetStyle::FantasyRealistic.name()}"
                                 }
                                 option {
                                     value: "AnimeVisualNovel",
-                                    AssetStyle::AnimeVisualNovel.name()
+                                    "{AssetStyle::AnimeVisualNovel.name()}"
                                 }
                                 option {
                                     value: "PixelArt",
-                                    AssetStyle::PixelArt.name()
+                                    "{AssetStyle::PixelArt.name()}"
                                 }
                                 option {
                                     value: "DarkNoir",
-                                    AssetStyle::DarkNoir.name()
+                                    "{AssetStyle::DarkNoir.name()}"
                                 }
                             }
                         }
