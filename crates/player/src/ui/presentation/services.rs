@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use crate::application::services::{
     ActantialService, AssetService, ChallengeService, CharacterService, CharacterSheetService,
-    EventChainService, GenerationService, LocationService, NarrativeEventService,
-    ObservationService, PlayerCharacterService, SettingsService, SkillService, StoryEventService,
-    SuggestionService, WorkflowService, WorldService,
+    ConversationService, EventChainService, GenerationService, LocationService,
+    NarrativeEventService, ObservationService, PlayerCharacterService, SettingsService,
+    SkillService, StoryEventService, SuggestionService, WorkflowService, WorldService,
 };
 use crate::infrastructure::messaging::{CommandBus, ConnectionKeepAlive};
 use crate::infrastructure::websocket::Connection;
@@ -63,6 +63,7 @@ pub struct Services<A: ApiPort> {
     pub skill: Arc<SkillService>,
     pub generation: Arc<GenerationService>,
     pub suggestion: Arc<SuggestionService>,
+    pub conversation: Arc<ConversationService>,
     pub character_sheet: Arc<CharacterSheetService>,
     // REST-based services (generic over ApiPort) - file uploads, large payloads, admin config
     pub workflow: Arc<WorkflowService<A>>,
@@ -102,7 +103,8 @@ impl<A: ApiPort + Clone> Services<A> {
             skill: Arc::new(SkillService::new(command_bus.clone())),
             generation: Arc::new(GenerationService::new(command_bus.clone())),
             suggestion: Arc::new(SuggestionService::new(command_bus.clone())),
-            character_sheet: Arc::new(CharacterSheetService::new(command_bus)),
+            conversation: Arc::new(ConversationService::new(command_bus.clone())),
+            character_sheet: Arc::new(CharacterSheetService::new(command_bus.clone())),
             // REST-based services - file uploads, large payloads, admin config
             workflow: Arc::new(WorkflowService::new(api.clone())),
             asset: Arc::new(AssetService::new(api.clone())),
@@ -229,6 +231,12 @@ pub fn use_actantial_service() -> Arc<ActantialService> {
 pub fn use_character_sheet_service() -> Arc<CharacterSheetService> {
     let services = use_context::<UiServices>();
     services.character_sheet.clone()
+}
+
+/// Hook to access ConversationService from context
+pub fn use_conversation_service() -> Arc<ConversationService> {
+    let services = use_context::<UiServices>();
+    services.conversation.clone()
 }
 
 use crate::ports::outbound::PlatformPort;

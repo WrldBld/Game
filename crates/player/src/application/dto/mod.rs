@@ -130,7 +130,6 @@ pub use player_events::{
     WaitingPcInfo,
     // Actantial model (from player_events for UI)
     WantData as PlayerEventWantData,
-    WantTargetData,
     WorldRole,
 };
 
@@ -140,9 +139,14 @@ pub use player_events::{
 // for all 9 types would require 18+ From impls with no benefit. The protocol types
 // are stable and serialization-ready.
 // See: docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md Appendix B
-pub use wrldbldr_shared::{
-    ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
-    SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
+//
+// NOTE: WantData and WantTargetData are defined in ports/outbound/player_events.rs
+// as PlayerEvent types with String fields for enums. The enum types themselves
+// are re-exported from shared/messages for use in service request/response types.
+pub use wrldbldr_shared::messages::{
+    ActantialActorData, ActantialRoleData, ActorTypeData, DiceInputType, GoalData,
+    NpcActantialContextData, SocialRelationData, WantData, WantTargetData, WantTargetTypeData,
+    WantVisibilityData,
 };
 
 // Re-export Lore types from protocol (same facade pattern)

@@ -10,6 +10,7 @@ pub mod asset_service;
 pub mod challenge_service;
 pub mod character_service;
 pub mod character_sheet_service;
+pub mod conversation_service;
 pub mod event_chain_service;
 pub mod generation_service;
 pub mod location_service;
@@ -115,3 +116,6 @@ pub use character_sheet_service::{
     CharacterSheetService, CompleteCreationResponse, GameSystemInfo, GetSheetResponse,
     StartCreationResponse, UpdateFieldResponse,
 };
+
+// Re-export conversation service types
+pub use conversation_service::ConversationService;

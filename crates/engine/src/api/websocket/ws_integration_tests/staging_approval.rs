@@ -480,7 +480,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         ServerMessage::StagingReady {
             region_id: got_region_id,
             npcs_present,
-            ..
+            visual_state: staging_visual_state,
         } => {
             assert_eq!(got_region_id, region_id.to_string());
             assert!(npcs_present
@@ -489,8 +489,28 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
             assert!(!npcs_present
                 .iter()
                 .any(|n| n.character_id == hidden_npc_id.to_string()));
+            // Visual state should be None since no state IDs were provided in approval
+            assert!(staging_visual_state.is_none());
         }
         other => panic!("expected StagingReady, got: {:?}", other),
+    }
+
+    // Player receives VisualStateChanged broadcast after staging approval
+    let visual_state_changed = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::VisualStateChanged { .. })
+    })
+    .await;
+
+    match visual_state_changed {
+        ServerMessage::VisualStateChanged {
+            region_id: got_region_id,
+            visual_state,
+        } => {
+            assert_eq!(got_region_id, region_id.to_string());
+            // Visual state should be None since no state IDs were provided in approval
+            assert!(visual_state.is_none());
+        }
+        other => panic!("expected VisualStateChanged, got: {:?}", other),
     }
 
     server.abort();
@@ -927,3 +947,260 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         "Auto-approval should succeed with default settings fallback"
     );
 }
+
+/// Tests that staging approval with visual state IDs broadcasts VisualStateChanged
+/// with resolved visual state data in the payload
+#[tokio::test]
+async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_resolved_state()
+{
+    use wrldbldr_domain::TimeMode;
+
+    let now = chrono::Utc::now();
+
+    let world_id = WorldId::new();
+    let location_id = LocationId::new();
+    let region_id = RegionId::new();
+    let pc_id = PlayerCharacterId::new();
+
+    // World (manual time)
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
+    let _ = world.set_time_mode(TimeMode::Manual, now);
+
+    // Domain fixtures
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let _location = wrldbldr_domain::Location::new(
+        world_id,
+        location_name,
+        wrldbldr_domain::LocationType::Exterior,
+    )
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
+
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
+
+    let _pc = wrldbldr_domain::PlayerCharacter::new(
+        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        world_id,
+        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        location_id,
+        now,
+    )
+    .with_id(pc_id);
+
+    // Visual state fixtures with overrides
+    let location_state_id = wrldbldr_domain::LocationStateId::new();
+    let backdrop_override_path = wrldbldr_domain::AssetPath::new("/backdrop_night.jpg").ok();
+    let backdrop_override = backdrop_override_path.as_ref().map(|s| s.to_string());
+    let atmosphere_override_atm = wrldbldr_domain::Atmosphere::new("Atmosphere: Nighttime fog").ok();
+    let atmosphere_override = atmosphere_override_atm.as_ref().map(|s| s.to_string());
+    let _location_state = wrldbldr_domain::LocationState::from_parts(
+        location_state_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Night State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        backdrop_override_path.clone(),
+        atmosphere_override_atm.clone(),
+        None, // ambient_sound
+        None, // map_overlay
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0,
+        true, // is_default
+        None,
+        None,
+        now,
+        now,
+    );
+
+    let region_state_id = wrldbldr_domain::RegionStateId::new();
+    let region_state = wrldbldr_domain::RegionState::from_parts(
+        region_state_id,
+        region_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Battle Damaged").unwrap(),
+        wrldbldr_domain::Description::default(),
+        backdrop_override_path.clone(),
+        atmosphere_override_atm.clone(),
+        None,
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0,
+        true, // is_default
+        None,
+        None,
+        now,
+        now,
+    );
+
+    // Clone world for use in multiple closures
+    let world_for_mock = world.clone();
+    let world_for_repos = world.clone();
+
+    let mut world_repo_for_mock = MockWorldRepo::new();
+    world_repo_for_mock.expect_get().returning(move |_| Ok(Some(world_for_mock.clone())));
+    world_repo_for_mock.expect_save().returning(|_world| Ok(()));
+    let mut repos = TestAppRepos::new(world_repo_for_mock);
+
+    // Setup mocks
+    repos.world_repo.expect_get().returning(move |_| Ok(Some(world_for_repos.clone())));
+    repos.location_repo.expect_get_region().returning(move |_| Ok(Some(region.clone())));
+    repos
+        .character_repo
+        .expect_get()
+        .times(0..)
+        .returning(|_| Ok(None)); // No NPCs for this test
+
+    // Mock repos for state resolution and saving
+    let region_state_for_mock = region_state.clone();
+
+    repos
+        .region_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == region_state_id {
+                Ok(Some(region_state_for_mock.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+
+    let app = build_test_app(repos, now);
+    let connections = Arc::new(ConnectionManager::new());
+
+    let ws_state = Arc::new(WsState {
+        app,
+        connections,
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
+    });
+
+    let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+    let mut dm_ws = ws_connect(addr).await;
+    let mut player_ws = ws_connect(addr).await;
+
+    // DM joins
+    ws_send_client(
+        &mut dm_ws,
+        &ClientMessage::JoinWorld {
+            world_id: *world_id.as_uuid(),
+            role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
+            pc_id: None,
+            spectate_pc_id: None,
+        },
+    )
+    .await;
+    let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::WorldJoined { .. })
+    })
+    .await;
+
+    // Player joins with PC
+    ws_send_client(
+        &mut player_ws,
+        &ClientMessage::JoinWorld {
+            world_id: *world_id.as_uuid(),
+            role: ProtoWorldRole::Player,
+            user_id: "player-user".to_string(),
+            pc_id: Some(*pc_id.as_uuid()),
+            spectate_pc_id: None,
+        },
+    )
+    .await;
+    let _ = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::WorldJoined { .. })
+    })
+    .await;
+
+    // DM pre-stages region with visual state IDs
+    ws_send_client(
+        &mut dm_ws,
+        &        ClientMessage::PreStageRegion {
+            region_id: region_id.to_string(),
+            npcs: vec![],
+            ttl_hours: 6,
+            location_state_id: Some(location_state_id.to_string()),
+            region_state_id: Some(region_state_id.to_string()),
+        },
+    )
+    .await;
+
+    // Player should receive StagingReady with visual state data
+    let staging_ready = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::StagingReady { .. })
+    })
+    .await;
+
+    match staging_ready {
+        ServerMessage::StagingReady {
+            region_id: got_region_id,
+            npcs_present,
+            visual_state,
+        } => {
+            assert_eq!(got_region_id, region_id.to_string());
+            assert!(npcs_present.is_empty());
+            // Verify visual state data is present and correct
+            assert!(visual_state.is_some());
+            let vs = visual_state.as_ref().unwrap();
+            assert!(vs.location_state.is_some());
+            assert!(vs.region_state.is_some());
+            let loc_state = vs.location_state.as_ref().unwrap();
+            assert_eq!(loc_state.id, location_state_id.to_string());
+            assert_eq!(loc_state.name, "Night State");
+            assert_eq!(loc_state.backdrop_override, backdrop_override);
+            assert_eq!(loc_state.atmosphere_override, atmosphere_override);
+            let reg_state = vs.region_state.as_ref().unwrap();
+            assert_eq!(reg_state.id, region_state_id.to_string());
+            assert_eq!(reg_state.name, "Battle Damaged");
+            assert_eq!(reg_state.backdrop_override, backdrop_override);
+            assert_eq!(reg_state.atmosphere_override, atmosphere_override);
+        }
+        other => panic!("expected StagingReady, got: {:?}", other),
+    }
+
+    // Player should receive VisualStateChanged with same visual state data
+    let visual_state_changed = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::VisualStateChanged { .. })
+    })
+    .await;
+
+    match visual_state_changed {
+        ServerMessage::VisualStateChanged {
+            region_id: got_region_id,
+            visual_state,
+        } => {
+            assert_eq!(got_region_id, region_id.to_string());
+            // Visual state data should match StagingReady
+            assert!(visual_state.is_some());
+            let vs = visual_state.as_ref().unwrap();
+            assert!(vs.location_state.is_some());
+            assert!(vs.region_state.is_some());
+            let loc_state = vs.location_state.as_ref().unwrap();
+            assert_eq!(loc_state.id, location_state_id.to_string());
+            assert_eq!(loc_state.backdrop_override, backdrop_override);
+            let reg_state = vs.region_state.as_ref().unwrap();
+            assert_eq!(reg_state.id, region_state_id.to_string());
+        }
+        other => panic!("expected VisualStateChanged, got: {:?}", other),
+    }
+
+    server.abort();
+}
+

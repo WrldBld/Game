@@ -405,6 +405,65 @@ pub(super) async fn handle_challenge_roll_input(
         }
     };
 
+    // Get challenge to find the skill/check_stat for modifier lookup
+    let challenge = match state.app.repositories.challenge.get(challenge_uuid).await {
+        Ok(Some(c)) => c,
+        Ok(None) => return Some(error_response(ErrorCode::NotFound, "Challenge not found")),
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "get challenge"),
+            ))
+        }
+    };
+
+    // Validate challenge belongs to this world and is active
+    if challenge.world_id() != world_id {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            "Challenge does not belong to this world",
+        ));
+    }
+
+    if !challenge.active() {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            "Challenge is not currently active",
+        ));
+    }
+
+    // Calculate skill modifier from character stats if check_stat is specified
+    // Uses get_numeric_value() which handles all field types:
+    // - Number: direct modifier
+    // - SkillEntry: bonus value
+    // - DicePool: dice count (for Blades)
+    // - Percentile: skill value (for CoC 7e)
+    // - LadderRating: ladder position (for FATE)
+    // - Resource: current value
+    let skill_modifier = if let Some(stat) = challenge.check_stat() {
+        // Get the PC's sheet_data to look up stats
+        match state.app.repositories.player_character.get(pc_id).await {
+            Ok(Some(pc)) => {
+                // Look up the stat value from sheet_data using unified numeric extraction
+                if let Some(sheet_data) = pc.sheet_data() {
+                    sheet_data.get_numeric_value(stat.as_str()).unwrap_or(0)
+                } else {
+                    0
+                }
+            }
+            _ => 0,
+        }
+    } else {
+        0
+    };
+
+    tracing::debug!(
+        challenge_id = %challenge_id,
+        check_stat = ?challenge.check_stat(),
+        skill_modifier = skill_modifier,
+        "Challenge roll with modifier"
+    );
+
     let input = match input_type {
         wrldbldr_shared::DiceInputType::Formula(formula) => DiceRollInput::Formula(formula),
         wrldbldr_shared::DiceInputType::Manual(value) => DiceRollInput::ManualResult(value),
@@ -421,7 +480,7 @@ pub(super) async fn handle_challenge_roll_input(
         .use_cases
         .challenge
         .roll
-        .execute_with_input(world_id, challenge_uuid, pc_id, input)
+        .execute_with_input(world_id, challenge_uuid, pc_id, input, skill_modifier)
         .await
     {
         Ok(result) => {
@@ -546,7 +605,7 @@ pub(super) async fn handle_trigger_challenge(
         .use_cases
         .challenge
         .trigger_prompt
-        .execute(challenge_uuid)
+        .execute(challenge_uuid, Some(target_uuid))
         .await
     {
         Ok(prompt) => {

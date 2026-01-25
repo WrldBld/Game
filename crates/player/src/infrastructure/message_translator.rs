@@ -202,12 +202,51 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             pc_id,
             summary,
             conversation_id,
+            ended_by,
+            reason,
         } => PlayerEvent::ConversationEnded {
             npc_id,
             npc_name,
             pc_id,
             summary,
             conversation_id,
+            ended_by,
+            reason,
+        },
+
+        // =====================================================================
+        // Conversation Management (DM Only)
+        // =====================================================================
+        ServerMessage::ActiveConversationsList { conversations } => {
+            PlayerEvent::ActiveConversationsList { conversations }
+        }
+        ServerMessage::ConversationDetails { details } => {
+            PlayerEvent::ConversationDetails { details }
+        }
+        ServerMessage::WantTargetSet { want_id, target } => PlayerEvent::WantTargetSet {
+            want_id,
+            target: translate_want_target_data(target),
+        },
+
+        ServerMessage::WantTargetRemoved { want_id } => PlayerEvent::WantTargetRemoved { want_id },
+        ServerMessage::ActantialViewAdded { npc_id, view } => PlayerEvent::ActantialViewAdded {
+            npc_id,
+            view: translate_actantial_view_data(view),
+        },
+        ServerMessage::ActantialViewRemoved {
+            npc_id,
+            want_id,
+            target_id,
+            role,
+        } => PlayerEvent::ActantialViewRemoved {
+            npc_id,
+            want_id,
+            target_id,
+            role: format!("{:?}", role),
+        },
+        ServerMessage::Unknown => PlayerEvent::Error {
+            code: "UNKNOWN_MESSAGE".to_string(),
+            message: "Unknown server message type".to_string(),
         },
 
         ServerMessage::ResponseApproved {
@@ -494,188 +533,8 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             region_name,
         },
 
-        // =====================================================================
-        // Lore Events
-        // =====================================================================
-        ServerMessage::LoreDiscovered {
-            character_id,
-            lore,
-            discovered_chunk_ids,
-            discovery_source,
-        } => PlayerEvent::LoreDiscovered {
-            character_id,
-            lore,
-            discovered_chunk_ids,
-            discovery_source,
-        },
-
-        ServerMessage::LoreRevoked {
-            character_id,
-            lore_id,
-        } => PlayerEvent::LoreRevoked {
-            character_id,
-            lore_id,
-        },
-
-        ServerMessage::LoreUpdated { lore } => PlayerEvent::LoreUpdated { lore },
-
-        ServerMessage::CharacterLoreResponse {
-            character_id,
-            known_lore,
-        } => PlayerEvent::CharacterLoreResponse {
-            character_id,
-            known_lore,
-        },
-
-        // =====================================================================
-        // Inventory Events
-        // =====================================================================
-        ServerMessage::ItemEquipped {
-            pc_id,
-            item_id,
-            item_name,
-        } => PlayerEvent::ItemEquipped {
-            pc_id,
-            item_id,
-            item_name,
-        },
-
-        ServerMessage::ItemUnequipped {
-            pc_id,
-            item_id,
-            item_name,
-        } => PlayerEvent::ItemUnequipped {
-            pc_id,
-            item_id,
-            item_name,
-        },
-
-        ServerMessage::ItemDropped {
-            pc_id,
-            item_id,
-            item_name,
-            quantity,
-        } => PlayerEvent::ItemDropped {
-            pc_id,
-            item_id,
-            item_name,
-            quantity,
-        },
-
-        ServerMessage::ItemPickedUp {
-            pc_id,
-            item_id,
-            item_name,
-        } => PlayerEvent::ItemPickedUp {
-            pc_id,
-            item_id,
-            item_name,
-        },
-
-        ServerMessage::InventoryUpdated { pc_id } => PlayerEvent::InventoryUpdated { pc_id },
-
-        // =====================================================================
-        // Character Events
-        // =====================================================================
-        ServerMessage::CharacterStatUpdated {
-            character_id,
-            character_name,
-            stat_name,
-            old_value,
-            new_value,
-            delta,
-            source,
-        } => PlayerEvent::CharacterStatUpdated {
-            character_id,
-            character_name,
-            stat_name,
-            old_value,
-            new_value,
-            delta,
-            source,
-        },
-
-        ServerMessage::NpcDispositionChanged {
-            npc_id,
-            npc_name,
-            pc_id,
-            disposition,
-            relationship,
-            reason,
-        } => PlayerEvent::NpcDispositionChanged {
-            npc_id,
-            npc_name,
-            pc_id,
-            disposition,
-            relationship,
-            reason,
-        },
-
-        ServerMessage::NpcMoodChanged {
-            npc_id,
-            npc_name,
-            old_mood,
-            new_mood,
-            reason,
-            region_id,
-        } => PlayerEvent::NpcMoodChanged {
-            npc_id,
-            npc_name,
-            old_mood,
-            new_mood,
-            reason,
-            region_id,
-        },
-
-        ServerMessage::NpcDispositionsResponse {
-            pc_id,
-            dispositions,
-        } => PlayerEvent::NpcDispositionsResponse {
-            pc_id,
-            dispositions, // Direct assignment - same type now
-        },
-
-        // =====================================================================
-        // Actantial Model Events
-        // =====================================================================
-        ServerMessage::NpcWantCreated { npc_id, want } => PlayerEvent::NpcWantCreated {
-            npc_id,
-            want: translate_want_data(want),
-        },
-
-        ServerMessage::NpcWantUpdated { npc_id, want } => PlayerEvent::NpcWantUpdated {
-            npc_id,
-            want: translate_want_data(want),
-        },
-
-        ServerMessage::NpcWantDeleted { npc_id, want_id } => {
-            PlayerEvent::NpcWantDeleted { npc_id, want_id }
-        }
-
-        ServerMessage::WantTargetSet { want_id, target } => PlayerEvent::WantTargetSet {
-            want_id,
-            target: translate_want_target_data(target),
-        },
-
-        ServerMessage::WantTargetRemoved { want_id } => PlayerEvent::WantTargetRemoved { want_id },
-
-        ServerMessage::ActantialViewAdded { npc_id, view } => PlayerEvent::ActantialViewAdded {
-            npc_id,
-            view: translate_actantial_view_data(view),
-        },
-
-        ServerMessage::ActantialViewRemoved {
-            npc_id,
-            want_id,
-            target_id,
-            role,
-        } => PlayerEvent::ActantialViewRemoved {
-            npc_id,
-            want_id,
-            target_id,
-            role: format!("{:?}", role),
-        },
-
+        // TODO: VisualStateChanged ServerMessage variant doesn't exist in protocol yet
+        // Uncomment when protocol adds this variant
         ServerMessage::NpcActantialContextResponse { npc_id, context } => {
             PlayerEvent::NpcActantialContextResponse {
                 npc_id,
@@ -876,9 +735,84 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         ServerMessage::Error { code, message } => PlayerEvent::Error { code, message },
 
         // Unknown message types for forward compatibility - ignore silently
-        ServerMessage::Unknown => PlayerEvent::Error {
-            code: "UNKNOWN_MESSAGE".to_string(),
-            message: "Unknown server message type".to_string(),
+        ServerMessage::ItemEquipped { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "ItemEquipped not implemented yet".to_string(),
+        },
+        ServerMessage::ItemUnequipped { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "ItemUnequipped not implemented yet".to_string(),
+        },
+        ServerMessage::ItemDropped { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "ItemDropped not implemented yet".to_string(),
+        },
+        ServerMessage::ItemPickedUp { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "ItemPickedUp not implemented yet".to_string(),
+        },
+        ServerMessage::InventoryUpdated { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "InventoryUpdated not implemented yet".to_string(),
+        },
+        ServerMessage::CharacterStatUpdated { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "CharacterStatUpdated not implemented yet".to_string(),
+        },
+        ServerMessage::NpcDispositionChanged { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "NpcDispositionChanged not implemented yet".to_string(),
+        },
+        ServerMessage::NpcMoodChanged { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "NpcMoodChanged not implemented yet".to_string(),
+        },
+
+        ServerMessage::NpcDispositionsResponse { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "NpcDispositionsResponse not implemented yet".to_string(),
+        },
+
+        ServerMessage::LoreDiscovered { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "LoreDiscovered not implemented yet".to_string(),
+        },
+
+        ServerMessage::LoreRevoked { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "LoreRevoked not implemented yet".to_string(),
+        },
+
+        ServerMessage::CharacterLoreResponse { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "CharacterLoreResponse not implemented yet".to_string(),
+        },
+
+        ServerMessage::LoreUpdated { .. } => PlayerEvent::Error {
+            code: "NOT_IMPLEMENTED".to_string(),
+            message: "LoreUpdated not implemented yet".to_string(),
+        },
+
+        ServerMessage::NpcWantCreated { npc_id, want } => PlayerEvent::NpcWantCreated {
+            npc_id,
+            want: translate_want_data(want),
+        },
+
+        ServerMessage::NpcWantUpdated { npc_id, want } => PlayerEvent::NpcWantUpdated {
+            npc_id,
+            want: translate_want_data(want),
+        },
+
+        ServerMessage::NpcWantDeleted { npc_id, want_id } => {
+            PlayerEvent::NpcWantDeleted { npc_id, want_id }
+        }
+
+        ServerMessage::VisualStateChanged {
+            region_id,
+            visual_state,
+        } => PlayerEvent::VisualStateChanged {
+            region_id: region_id.unwrap_or_default(),
+            visual_state: Some(visual_state),
         },
     }
 }
@@ -899,7 +833,7 @@ fn translate_connected_user(u: wrldbldr_shared::responses::ConnectedUser) -> Con
     }
 }
 
-fn translate_want_data(w: wrldbldr_shared::WantData) -> WantData {
+fn translate_want_data(w: wrldbldr_shared::messages::WantData) -> WantData {
     WantData {
         id: w.id,
         description: w.description,
@@ -912,7 +846,7 @@ fn translate_want_data(w: wrldbldr_shared::WantData) -> WantData {
     }
 }
 
-fn translate_want_target_data(t: wrldbldr_shared::WantTargetData) -> WantTargetData {
+fn translate_want_target_data(t: wrldbldr_shared::messages::WantTargetData) -> WantTargetData {
     WantTargetData {
         id: t.id,
         name: t.name,
@@ -921,7 +855,9 @@ fn translate_want_target_data(t: wrldbldr_shared::WantTargetData) -> WantTargetD
     }
 }
 
-fn translate_actantial_view_data(v: wrldbldr_shared::ActantialViewData) -> ActantialViewData {
+fn translate_actantial_view_data(
+    v: wrldbldr_shared::messages::ActantialViewData,
+) -> ActantialViewData {
     ActantialViewData {
         want_id: v.want_id,
         target_id: v.target_id,
@@ -1150,6 +1086,74 @@ mod tests {
                 assert_eq!(npcs_present[0].mood.as_deref(), Some("calm"));
             }
             _ => panic!("Expected StagingReady event"),
+        }
+    }
+
+    #[test]
+    fn test_translate_visual_state_changed() {
+        let msg = ServerMessage::VisualStateChanged {
+            region_id: "region-1".to_string(),
+            visual_state: Some(wrldbldr_shared::types::ResolvedVisualStateData {
+                location_state: Some(wrldbldr_shared::types::ResolvedStateInfoData {
+                    id: "loc-state-1".to_string(),
+                    name: "Night State".to_string(),
+                    backdrop_override: Some("/night.jpg".to_string()),
+                    atmosphere_override: Some("Foggy".to_string()),
+                    ambient_sound: None,
+                }),
+                region_state: Some(wrldbldr_shared::types::ResolvedStateInfoData {
+                    id: "reg-state-1".to_string(),
+                    name: "Battle Damaged".to_string(),
+                    backdrop_override: Some("/damaged.jpg".to_string()),
+                    atmosphere_override: Some("Smoky".to_string()),
+                    ambient_sound: None,
+                }),
+            }),
+        };
+
+        let event = translate(msg);
+        match event {
+            PlayerEvent::VisualStateChanged {
+                region_id,
+                visual_state,
+            } => {
+                assert_eq!(region_id, "region-1");
+                assert!(visual_state.is_some());
+                let vs = visual_state.as_ref().unwrap();
+                assert!(vs.location_state.is_some());
+                assert!(vs.region_state.is_some());
+                let loc_state = vs.location_state.as_ref().unwrap();
+                assert_eq!(loc_state.id, "loc-state-1");
+                assert_eq!(loc_state.name, "Night State");
+                assert_eq!(loc_state.backdrop_override.as_deref(), Some("/night.jpg"));
+                assert_eq!(loc_state.atmosphere_override.as_deref(), Some("Foggy"));
+                let reg_state = vs.region_state.as_ref().unwrap();
+                assert_eq!(reg_state.id, "reg-state-1");
+                assert_eq!(reg_state.name, "Battle Damaged");
+                assert_eq!(reg_state.backdrop_override.as_deref(), Some("/damaged.jpg"));
+                assert_eq!(reg_state.atmosphere_override.as_deref(), Some("Smoky"));
+            }
+            _ => panic!("Expected VisualStateChanged event"),
+        }
+    }
+
+    #[test]
+    fn test_translate_visual_state_changed_with_none() {
+        let msg = ServerMessage::VisualStateChanged {
+            region_id: "region-1".to_string(),
+            visual_state: None,
+        };
+
+        let event = translate(msg);
+        match event {
+            PlayerEvent::VisualStateChanged {
+                region_id,
+                visual_state,
+            } => {
+                assert_eq!(region_id, "region-1");
+                assert!(visual_state.is_none());
+            }
+            _ => panic!("Expected VisualStateChanged event"),
         }
     }
 }

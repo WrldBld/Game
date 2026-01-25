@@ -25,6 +25,7 @@ pub use execute_effects::{EffectExecutionContext, EffectExecutionSummary, Execut
 use std::sync::Arc;
 
 /// Container for narrative-related use cases.
+#[derive(Clone)]
 pub struct NarrativeUseCases {
     pub execute_effects: Arc<ExecuteEffects>,
     pub events: Arc<NarrativeEventOps>,

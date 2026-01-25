@@ -354,6 +354,33 @@ pub enum ClientMessage {
         pc_id: Uuid,
     },
 
+    // =========================================================================
+    // Conversation Management (DM Only)
+    // =========================================================================
+    /// DM requests list of all active conversations
+    ListActiveConversations {
+        /// World ID to list conversations for
+        world_id: Uuid,
+        /// Whether to include ended conversations
+        #[serde(default)]
+        include_ended: bool,
+    },
+
+    /// DM requests details for a specific conversation
+    GetConversationDetails {
+        /// Conversation ID to get details for
+        conversation_id: Uuid,
+    },
+
+    /// DM ends a specific conversation by ID
+    EndConversationById {
+        /// Conversation ID to end
+        conversation_id: Uuid,
+        /// Optional reason for ending
+        #[serde(default)]
+        reason: Option<String>,
+    },
+
     /// Unknown message type for forward compatibility
     ///
     /// When deserializing an unknown variant, this variant is used instead of
@@ -416,6 +443,12 @@ pub enum ServerMessage {
         /// Conversation ID for tracking
         #[serde(default, skip_serializing_if = "Option::is_none")]
         conversation_id: Option<String>,
+        /// Who ended the conversation (optional - DM's character ID if applicable)
+        #[serde(default)]
+        ended_by: Option<String>,
+        /// Reason for ending (optional)
+        #[serde(default)]
+        reason: Option<String>,
     },
     /// LLM is processing (shown to DM)
     LLMProcessing { action_id: String },
@@ -1002,6 +1035,26 @@ pub enum ServerMessage {
         pc_id: Uuid,
         /// PC's name
         pc_name: String,
+    },
+
+    // =========================================================================
+    // Conversation Management (DM Only)
+    // =========================================================================
+    /// List of active conversations (response to ListActiveConversations)
+    ActiveConversationsList {
+        conversations: Vec<ConversationInfo>,
+    },
+
+    /// Full conversation details (response to GetConversationDetails)
+    ConversationDetails { details: ConversationFullDetails },
+
+    /// Visual state has changed (after staging approval or auto-approve)
+    VisualStateChanged {
+        /// Region ID for the visual state change
+        #[serde(default)]
+        region_id: Option<String>,
+        /// Current visual state for scene display
+        visual_state: crate::types::ResolvedVisualStateData,
     },
 
     /// Unknown message type for forward compatibility
@@ -1755,4 +1808,107 @@ pub struct SocialRelationData {
     pub name: String,
     pub actor_type: ActorTypeData,
     pub reasons: Vec<String>,
+}
+
+// =============================================================================
+// Conversation Management (DM Only)
+// =============================================================================
+
+/// Information about a conversation for DM monitoring
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConversationInfo {
+    pub conversation_id: String,
+    /// Optional topic hint (derived from recent dialogue or summary)
+    #[serde(default)]
+    pub topic_hint: Option<String>,
+    /// When conversation started (ISO 8601 string)
+    pub started_at: String,
+    /// Last time conversation was updated (ISO 8601 string)
+    pub last_updated_at: String,
+    /// Whether conversation is still active
+    pub is_active: bool,
+    /// Participants in this conversation
+    pub participants: Vec<ConversationParticipant>,
+    /// Location context (if available)
+    #[serde(default)]
+    pub location: Option<LocationContext>,
+    /// Scene context (if available)
+    #[serde(default)]
+    pub scene: Option<SceneContext>,
+    /// Number of dialogue turns
+    pub turn_count: u32,
+    /// Whether there's pending DM approval for this conversation
+    pub pending_approval: bool,
+}
+
+/// A participant in a conversation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConversationParticipant {
+    pub id: String,
+    pub name: String,
+    /// "PC" or "NPC"
+    pub participant_type: ParticipantType,
+    /// Number of turns this character has spoken
+    pub turn_count: u32,
+    /// Last time this character spoke (ISO 8601 string)
+    #[serde(default)]
+    pub last_spoke_at: Option<String>,
+    /// NPC's want (for NPCs only)
+    #[serde(default)]
+    pub want: Option<String>,
+    /// Relationship to other participant (for NPCs only)
+    #[serde(default)]
+    pub relationship: Option<String>,
+}
+
+/// Type of participant (PC or NPC).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ParticipantType {
+    #[serde(rename = "PC")]
+    Pc,
+    #[serde(rename = "NPC")]
+    Npc,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
+/// Location context for a conversation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocationContext {
+    pub location_id: String,
+    pub location_name: String,
+    pub region_name: String,
+}
+
+/// Scene context for a conversation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SceneContext {
+    pub scene_id: String,
+    pub scene_name: String,
+}
+
+/// Full conversation details for DM view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConversationFullDetails {
+    pub conversation_id: String,
+    pub topic_hint: Option<String>,
+    pub started_at: String,
+    pub last_updated_at: String,
+    pub is_active: bool,
+    pub participants: Vec<ConversationParticipant>,
+    pub location: Option<LocationContext>,
+    pub scene: Option<SceneContext>,
+    pub turn_count: u32,
+    pub pending_approval: bool,
+    pub recent_turns: Vec<DialogueTurn>,
+}
+
+/// Dialogue turn for conversation history.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DialogueTurn {
+    pub speaker_name: String,
+    pub text: String,
+    pub timestamp: String,
+    pub is_dm_override: bool,
 }

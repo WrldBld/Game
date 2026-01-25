@@ -15,13 +15,38 @@ mod error;
 mod external;
 mod repos;
 mod testing;
-mod types;
+pub mod types; // Make types module public
 
 // =============================================================================
-// Error Types
+// Repository Ports
 // =============================================================================
-pub use error::{
-    ImageGenError, JoinWorldError, LlmError, QueueError, RepoError, SessionError,
+pub use repos::*;
+
+// =============================================================================
+// Types from types module (re-export for visibility)
+// =============================================================================
+pub use types::{
+    // Session/Connection Types
+    ConnectionInfo, DirectorialContext, NpcMotivation,
+    // Session Result Types
+    ConnectedUserInfo, UserJoinedInfo,
+    // NPC disposition
+    NpcDispositionInfo,
+    // Infrastructure Types
+    NpcRegionRelationship, NpcRegionRelationType, NpcWithRegionInfo,
+    // Actantial Model Types
+    WantDetails, GoalDetails, WantTargetRef, ActantialViewRecord,
+    // Dialogue/Conversation Types
+    ConversationTurnRecord,
+    // Staging Storage Data Types
+    PendingStagingRequest,
+    // Time Suggestion Data Types
+    TimeSuggestion,
+    // Conversation Management Types (for DM monitoring)
+    ActiveConversationRecord, ConversationLocationContext, ConversationSceneContext,
+    ConversationDetails, ConversationParticipantDetail, DialogueTurnDetail, ParticipantType,
+    // WorldRole is re-exported from wrldbldr_domain via types module
+    WorldRole,
 };
 
 // =============================================================================
@@ -34,16 +59,6 @@ pub use external::{
 };
 
 // =============================================================================
-// Repository Ports
-// =============================================================================
-pub use repos::{
-    ActRepo, AssetRepo, ChallengeRepo, CharacterRepo, ContentRepo,
-    FlagRepo, GoalRepo, InteractionRepo, ItemRepo, LocationRepo, LocationStateRepo,
-    LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo,
-    RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
-};
-
-// =============================================================================
 // Test-Only Mock Repositories (only available during test builds)
 // =============================================================================
 #[cfg(test)]
@@ -52,8 +67,8 @@ pub use repos::{
     MockContentRepo, MockFlagRepo, MockGoalRepo, MockInteractionRepo,
     MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo,
     MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
-    MockPromptTemplateRepo, MockRegionStateRepo, MockSceneRepo, MockSettingsRepo,
-    MockStagingRepo, MockWorldRepo,
+    MockPromptTemplateRepo, MockRegionStateRepo, MockSceneRepo,
+    MockSettingsRepo, MockStagingRepo, MockWorldRepo,
 };
 
 #[cfg(test)]
@@ -65,12 +80,8 @@ pub use testing::MockClockPort;
 pub use testing::{ClockPort, RandomPort};
 
 // =============================================================================
-// Port Types
+// Error Types
 // =============================================================================
-pub use types::{
-    ActantialViewRecord, ConnectedUserInfo, ConnectionInfo, ConversationTurnRecord,
-    DirectorialContext, GoalDetails, NpcDispositionInfo, NpcMotivation,
-    NpcRegionRelationType, NpcRegionRelationship, NpcWithRegionInfo,
-    PendingStagingRequest, TimeSuggestion, UserJoinedInfo, WantDetails, WantTargetRef,
-    WorldRole,
+pub use error::{
+    ImageGenError, JoinWorldError, LlmError, QueueError, RepoError, SessionError,
 };

@@ -246,3 +246,82 @@ pub struct TimeSuggestion {
 
 // Note: TimeSuggestionStore trait was removed.
 // The concrete implementation is TimeSuggestionStoreImpl in api/websocket/mod.rs.
+
+// =============================================================================
+// Conversation Management Types (for DM monitoring)
+// =============================================================================
+
+/// Active conversation record from database.
+///
+/// Used for listing active conversations in DM panel.
+#[derive(Debug, Clone)]
+pub struct ActiveConversationRecord {
+    pub id: ConversationId,
+    pub pc_id: PlayerCharacterId,
+    pub npc_id: CharacterId,
+    pub pc_name: String,
+    pub npc_name: String,
+    /// Optional topic hint (from recent dialogue or summary)
+    pub topic_hint: Option<String>,
+    pub started_at: DateTime<Utc>,
+    pub last_updated_at: DateTime<Utc>,
+    pub is_active: bool,
+    pub turn_count: u32,
+    pub pending_approval: bool,
+    pub location: Option<ConversationLocationContext>,
+    pub scene: Option<ConversationSceneContext>,
+}
+
+/// Location context for a conversation.
+#[derive(Debug, Clone)]
+pub struct ConversationLocationContext {
+    pub location_id: LocationId,
+    pub location_name: String,
+    pub region_name: String,
+}
+
+/// Scene context for a conversation.
+#[derive(Debug, Clone)]
+pub struct ConversationSceneContext {
+    pub scene_id: SceneId,
+    pub scene_name: String,
+}
+
+/// Full conversation details for DM view.
+#[derive(Debug, Clone)]
+pub struct ConversationDetails {
+    pub conversation: ActiveConversationRecord,
+    pub participants: Vec<ConversationParticipantDetail>,
+    pub recent_turns: Vec<DialogueTurnDetail>,
+}
+
+/// Detailed participant info for conversation view.
+#[derive(Debug, Clone)]
+pub struct ConversationParticipantDetail {
+    pub character_id: CharacterId,
+    pub name: String,
+    pub participant_type: ParticipantType,
+    pub turn_count: u32,
+    pub last_spoke_at: Option<DateTime<Utc>>,
+    pub last_spoke: Option<String>,
+    /// NPC's want (for NPCs only)
+    pub want: Option<String>,
+    /// Relationship to other participant (for NPCs only)
+    pub relationship: Option<String>,
+}
+
+/// Type of participant (PC or NPC).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParticipantType {
+    Pc,
+    Npc,
+}
+
+/// Dialogue turn detail for conversation history.
+#[derive(Debug, Clone)]
+pub struct DialogueTurnDetail {
+    pub speaker_name: String,
+    pub text: String,
+    pub timestamp: DateTime<Utc>,
+    pub is_dm_override: bool,
+}

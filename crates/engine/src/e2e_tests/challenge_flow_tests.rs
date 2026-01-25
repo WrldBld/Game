@@ -44,16 +44,16 @@ async fn test_predefined_challenge_success_flow() {
         // Get a challenge from the seeded world
         let challenge_id = ctx
             .world
-            .challenge("Convince Grom to Share His Past")
+             .challenge("Convince Grom to Share His Past")
             .expect("Challenge not found");
 
-        // Trigger the challenge prompt
+        // Trigger challenge prompt
         let prompt = ctx
             .app
             .use_cases
             .challenge
             .trigger_prompt
-            .execute(challenge_id)
+            .execute(challenge_id, Some(pc_id))
             .await
             .expect("Failed to trigger challenge prompt");
 

@@ -9,11 +9,10 @@ use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
     ports::{
-        ActRepo, AssetRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, FlagRepo,
-        GoalRepo, ImageGenPort, InteractionRepo, ItemRepo, LlmPort, LocationRepo,
-        LocationStateRepo, LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo,
-        PromptTemplateRepo, QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo,
-        StagingRepo, WorldRepo,
+        ActRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, FlagRepo, GoalRepo,
+        ImageGenPort, InteractionRepo, ItemRepo, LlmPort, LocationRepo, LocationStateRepo,
+        LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo,
+        QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
     },
 };
 use crate::use_cases;
@@ -57,11 +56,9 @@ pub struct Repositories {
     pub flag: Arc<dyn FlagRepo>,
     pub lore: Arc<dyn LoreRepo>,
     pub narrative_repo: Arc<dyn NarrativeRepo>,
-    pub prompt_templates: Arc<dyn PromptTemplateRepo>,
-    pub asset: Arc<dyn AssetRepo>,
 
     // Wrapper types that add business logic beyond delegation
-    pub narrative: Arc<use_cases::NarrativeOps>,
+    pub narrative: Arc<use_cases::NarrativeUseCases>,
 }
 
 /// Container for all use cases.
@@ -117,21 +114,17 @@ impl App {
         let location_repo: Arc<dyn LocationRepo> = repos.location.clone();
         let scene_repo: Arc<dyn SceneRepo> = repos.scene.clone();
         let act_repo: Arc<dyn ActRepo> = repos.act.clone();
-        let content_repo: Arc<dyn ContentRepo> = repos.content.clone();
-        let interaction_repo: Arc<dyn InteractionRepo> = repos.interaction.clone();
-        let challenge_repo: Arc<dyn ChallengeRepo> = repos.challenge.clone();
-        let observation_repo: Arc<dyn ObservationRepo> = repos.observation.clone();
-        let item_repo: Arc<dyn ItemRepo> = repos.item.clone();
-        let goal_repo: Arc<dyn GoalRepo> = repos.goal.clone();
-        let location_state_repo: Arc<dyn LocationStateRepo> = repos.location_state.clone();
-        let region_state_repo: Arc<dyn RegionStateRepo> = repos.region_state.clone();
-
-        // Port traits for remaining repositories (now injected directly per ADR-009)
-        let staging_repo: Arc<dyn StagingRepo> = repos.staging.clone();
-        let world_repo: Arc<dyn WorldRepo> = repos.world.clone();
-        let flag_repo: Arc<dyn FlagRepo> = repos.flag.clone();
-        let lore_repo: Arc<dyn LoreRepo> = repos.lore.clone();
-        let narrative_repo: Arc<dyn NarrativeRepo> = repos.narrative.clone();
+        let _interaction_repo: Arc<dyn InteractionRepo> = repos.interaction.clone();
+        let _challenge_repo: Arc<dyn ChallengeRepo> = repos.challenge.clone();
+        let _observation_repo: Arc<dyn ObservationRepo> = repos.observation.clone();
+        let _item_repo: Arc<dyn ItemRepo> = repos.item.clone();
+        let _goal_repo: Arc<dyn GoalRepo> = repos.goal.clone();
+        let _region_state: Arc<dyn RegionStateRepo> = repos.region_state.clone();
+        let _staging_repo: Arc<dyn StagingRepo> = repos.staging.clone();
+        let _world_repo: Arc<dyn WorldRepo> = repos.world.clone();
+        let _flag_repo: Arc<dyn FlagRepo> = repos.flag.clone();
+        let _lore_repo: Arc<dyn LoreRepo> = repos.lore.clone();
+        let _narrative_repo: Arc<dyn NarrativeRepo> = repos.narrative.clone();
 
         // Wrapper types that add business logic beyond delegation
         let record_visit = Arc::new(use_cases::observation::RecordVisit::new(
@@ -151,32 +144,6 @@ impl App {
             repos.scene.clone(),
             clock_port.clone(),
         ));
-
-        let repositories_container = Repositories {
-            // Port traits injected directly
-            character: character_repo.clone(),
-            player_character: player_character_repo.clone(),
-            location: location_repo.clone(),
-            scene: scene_repo.clone(),
-            act: act_repo.clone(),
-            content: content_repo.clone(),
-            interaction: interaction_repo.clone(),
-            challenge: challenge_repo.clone(),
-            observation: observation_repo.clone(),
-            item: item_repo.clone(),
-            goal: goal_repo.clone(),
-            location_state: location_state_repo.clone(),
-            region_state: region_state_repo.clone(),
-            staging: staging_repo.clone(),
-            world: world_repo.clone(),
-            flag: flag_repo.clone(),
-            lore: lore_repo.clone(),
-            narrative_repo: narrative_repo.clone(),
-            prompt_templates: prompt_templates_repo.clone(),
-            asset: repos.asset.clone(),
-            // Wrapper types
-            narrative: narrative.clone(),
-        };
 
         // Create time use case first (needed by movement)
         let suggest_time = Arc::new(use_cases::time::SuggestTime::new(
@@ -250,10 +217,29 @@ impl App {
             repos.player_character.clone(),
             narrative.clone(),
         ));
+        let conversation_end_by_id = Arc::new(use_cases::conversation::EndConversationById::new(
+            repos.character.clone(),
+            repos.player_character.clone(),
+            repos.narrative.clone(),
+        ));
+        let conversation_list_active =
+            Arc::new(use_cases::conversation::ListActiveConversations::new(
+                repos.character.clone(),
+                repos.player_character.clone(),
+                repos.narrative.clone(),
+            ));
+        let conversation_get_details =
+            Arc::new(use_cases::conversation::GetConversationDetails::new(
+                repos.narrative.clone(),
+                repos.character.clone(),
+            ));
         let conversation = use_cases::ConversationUseCases::new(
             conversation_start.clone(),
             conversation_continue,
             conversation_end,
+            conversation_end_by_id,
+            conversation_list_active,
+            conversation_get_details,
         );
 
         let player_action = use_cases::PlayerActionUseCases::new(Arc::new(
@@ -299,6 +285,7 @@ impl App {
             resolve_outcome,
             Arc::new(use_cases::challenge::TriggerChallengePrompt::new(
                 repos.challenge.clone(),
+                repos.player_character.clone(),
             )),
             outcome_decision,
             Arc::new(use_cases::challenge::ChallengeOps::new(
@@ -414,6 +401,31 @@ impl App {
             narrative_chains,
             narrative_decision,
         );
+
+        // Create repositories container now that narrative_uc is available
+        let narrative_uc_arc = Arc::new(narrative_uc.clone());
+        let repositories_container = Repositories {
+            // Port traits injected directly
+            character: character_repo.clone(),
+            player_character: player_character_repo.clone(),
+            location: location_repo.clone(),
+            scene: scene_repo.clone(),
+            act: act_repo.clone(),
+            content: repos.content.clone(),
+            interaction: repos.interaction.clone(),
+            challenge: repos.challenge.clone(),
+            narrative_repo: repos.narrative.clone(),
+            observation: repos.observation.clone(),
+            item: repos.item.clone(),
+            goal: repos.goal.clone(),
+            location_state: repos.location_state.clone(),
+            region_state: repos.region_state.clone(),
+            staging: repos.staging.clone(),
+            world: repos.world.clone(),
+            flag: repos.flag.clone(),
+            lore: repos.lore.clone(),
+            narrative: narrative_uc_arc,
+        };
 
         let time_control = Arc::new(use_cases::time::TimeControl::new(
             repos.world.clone(),

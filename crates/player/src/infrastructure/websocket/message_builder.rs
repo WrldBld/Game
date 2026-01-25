@@ -6,9 +6,10 @@
 
 use uuid::Uuid;
 use wrldbldr_domain::DispositionLevel;
+use wrldbldr_shared::messages::DiceInputType;
 use wrldbldr_shared::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
-    DiceInputType, DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
+    DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
 };
 
 /// Builder for ClientMessage variants
@@ -285,6 +286,30 @@ impl ClientMessageBuilder {
         ClientMessage::EndConversation {
             npc_id: npc_id.to_string(),
             summary: summary.map(|s| s.to_string()),
+        }
+    }
+
+    /// Create a ListActiveConversations message
+    pub fn list_active_conversations(world_id: uuid::Uuid, include_ended: bool) -> ClientMessage {
+        ClientMessage::ListActiveConversations {
+            world_id,
+            include_ended,
+        }
+    }
+
+    /// Create a GetConversationDetails message
+    pub fn get_conversation_details(conversation_id: uuid::Uuid) -> ClientMessage {
+        ClientMessage::GetConversationDetails { conversation_id }
+    }
+
+    /// Create an EndConversationById message
+    pub fn end_conversation_by_id(
+        conversation_id: uuid::Uuid,
+        reason: Option<&str>,
+    ) -> ClientMessage {
+        ClientMessage::EndConversationById {
+            conversation_id,
+            reason: reason.map(|s| s.to_string()),
         }
     }
 

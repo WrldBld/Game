@@ -410,23 +410,41 @@ async fn main() -> anyhow::Result<()> {
                                     .map(|n| n.to_protocol())
                                     .collect();
 
+                            let region_id_str = payload.region_id.to_string();
+                            let visual_state_proto = payload.visual_state.as_ref().map(|vs| vs.to_protocol());
+
                             // Broadcast StagingReady to all players in world
                             staging_ws_state
                                 .connections
                                 .broadcast_to_world(
                                     world_id,
                                     wrldbldr_shared::ServerMessage::StagingReady {
-                                        region_id: payload.region_id.to_string(),
+                                        region_id: region_id_str.clone(),
                                         npcs_present: npcs_present_proto,
-                                        visual_state: payload.visual_state.map(|vs| vs.to_protocol()),
+                                        visual_state: visual_state_proto.clone(),
                                     },
                                 )
                                 .await;
+
+                             // Broadcast VisualStateChanged after auto-approval
+                             // This ensures players already in region get the updated visual state
+                             // without requiring a scene change
+                             staging_ws_state
+                                 .connections
+                                 .broadcast_to_world(
+                                     world_id,
+                                     wrldbldr_shared::ServerMessage::VisualStateChanged {
+                                         region_id: Some(region_id_str),
+                                         visual_state: visual_state_proto.unwrap_or_default(),
+                                     },
+                                 )
+                                 .await;
+
                             tracing::info!(
                                 request_id = %request_id,
                                 world_id = %world_id,
                                 timeout_seconds = %timeout_seconds,
-                                "Auto-approved staging on timeout, broadcast StagingReady"
+                                "Auto-approved staging on timeout, broadcast StagingReady and VisualStateChanged"
                             );
                         }
                         Err(e) => {

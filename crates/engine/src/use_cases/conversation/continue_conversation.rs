@@ -229,8 +229,9 @@ mod tests {
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
-        MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueueItemId, QueuePort,
+        MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
+    use wrldbldr_domain::QueueItemId;
     use crate::use_cases::NarrativeOps;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);

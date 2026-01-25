@@ -323,6 +323,20 @@ pub enum PlayerEvent {
         pc_id: String,
         summary: Option<String>,
         conversation_id: Option<String>,
+        /// Who ended the conversation (optional - DM's character ID if applicable)
+        ended_by: Option<String>,
+        /// Reason for ending (optional)
+        reason: Option<String>,
+    },
+
+    /// Active conversations list (response to ListActiveConversations)
+    ActiveConversationsList {
+        conversations: Vec<wrldbldr_shared::ConversationInfo>,
+    },
+
+    /// Conversation details (response to GetConversationDetails)
+    ConversationDetails {
+        details: wrldbldr_shared::ConversationFullDetails,
     },
 
     /// Response was approved and executed
@@ -514,6 +528,13 @@ pub enum PlayerEvent {
     StagingTimedOut {
         region_id: String,
         region_name: String,
+    },
+
+    /// Visual state changed for a region (broadcast to all)
+    /// Sent when staging approval changes visual state without scene change
+    VisualStateChanged {
+        region_id: String,
+        visual_state: Option<ResolvedVisualStateData>,
     },
 
     // =========================================================================
@@ -848,6 +869,8 @@ impl PlayerEvent {
             Self::ConversationStarted { .. } => "ConversationStarted",
             Self::DialogueResponse { .. } => "DialogueResponse",
             Self::ConversationEnded { .. } => "ConversationEnded",
+            Self::ActiveConversationsList { .. } => "ActiveConversationsList",
+            Self::ConversationDetails { .. } => "ConversationDetails",
             Self::ResponseApproved { .. } => "ResponseApproved",
             Self::ApprovalRequired { .. } => "ApprovalRequired",
             Self::ChallengePrompt { .. } => "ChallengePrompt",
@@ -868,6 +891,7 @@ impl PlayerEvent {
             Self::StagingReady { .. } => "StagingReady",
             Self::StagingRegenerated { .. } => "StagingRegenerated",
             Self::StagingTimedOut { .. } => "StagingTimedOut",
+            Self::VisualStateChanged { .. } => "VisualStateChanged",
             Self::LoreDiscovered { .. } => "LoreDiscovered",
             Self::LoreRevoked { .. } => "LoreRevoked",
             Self::LoreUpdated { .. } => "LoreUpdated",

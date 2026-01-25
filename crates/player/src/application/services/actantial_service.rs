@@ -11,8 +11,11 @@ use crate::infrastructure::messaging::CommandBus;
 // as shared value objects. These are essentially protocol primitives used in DTOs.
 // This is a documented exception in the hexagonal architecture.
 use wrldbldr_shared::{
-    ActantialRequest, ActantialRoleData, ActorTypeData, GoalRequest, NpcActantialContextData,
-    RequestPayload, WantRequest, WantTargetData, WantTargetTypeData, WantVisibilityData,
+    ActantialRequest, GoalRequest, RequestPayload, WantRequest,
+};
+use wrldbldr_shared::messages::{
+    ActantialRoleData, ActorTypeData, NpcActantialContextData, WantTargetData, WantTargetTypeData,
+    WantVisibilityData,
 };
 
 /// Request to create a new want

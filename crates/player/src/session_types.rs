@@ -10,11 +10,12 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+use wrldbldr_shared::messages::DiceInputType as ProtoDiceInputType;
 use wrldbldr_shared::{
     AdHocOutcomes as ProtoAdHocOutcomes, ApprovedNpcInfo as ProtoApprovedNpcInfo,
     ChallengeOutcomeDecisionData as ProtoChallengeOutcomeDecisionData,
-    DiceInputType as ProtoDiceInputType, DirectorialContext as ProtoDirectorialContext,
-    NpcMotivationData as ProtoNpcMotivationData, ParticipantRole as ProtoParticipantRole,
+    DirectorialContext as ProtoDirectorialContext, NpcMotivationData as ProtoNpcMotivationData,
+    ParticipantRole as ProtoParticipantRole,
 };
 
 // ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]

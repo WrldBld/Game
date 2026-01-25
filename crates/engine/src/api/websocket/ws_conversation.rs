@@ -1,7 +1,9 @@
 use super::*;
+
 use chrono::Utc;
+use uuid::Uuid;
 use wrldbldr_domain::{
-    ConnectionId, ConversationId, InteractionTarget, InteractionType, QueueItemId,
+    ConnectionId, ConversationId, InteractionTarget, InteractionType, QueueItemId, WorldId,
 };
 
 use crate::queue_types::PlayerActionData;
@@ -207,12 +209,15 @@ pub(super) async fn handle_end_conversation(
     );
 
     // Broadcast ConversationEnded to all participants and DMs
+    // For player-initiated ends, ended_by and reason are None
     let broadcast_msg = ServerMessage::ConversationEnded {
         npc_id: npc_id.clone(),
         npc_name: result.npc_name.clone(),
         pc_id: pc_id.to_string(),
         summary: result.summary.clone(),
         conversation_id: result.conversation_id.map(|id| id.to_string()),
+        ended_by: None,
+        reason: None,
     };
 
     state
@@ -227,6 +232,8 @@ pub(super) async fn handle_end_conversation(
         pc_id: pc_id.to_string(),
         summary: result.summary,
         conversation_id: result.conversation_id.map(|id| id.to_string()),
+        ended_by: None,
+        reason: None,
     })
 }
 
@@ -569,4 +576,255 @@ async fn broadcast_action_queued(
         .connections
         .broadcast_to_dms(world_id, queue_msg)
         .await;
+}
+
+/// Handle ListActiveConversations request (DM only).
+///
+/// DM requests list of all active conversations in the current world.
+/// Returns ActiveConversationsList response with conversation info.
+pub(super) async fn handle_list_active_conversations(
+    state: &WsState,
+    connection_id: ConnectionId,
+    world_id: Uuid,
+    _include_ended: bool,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
+    };
+
+    // DM only
+    if !conn_info.is_dm() {
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Only DMs can list active conversations",
+        ));
+    }
+
+    // Authorization: Use conn_info.world_id to prevent cross-world access
+    let world_uuid = match conn_info.world_id {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
+    };
+
+    // Verify the client-provided world_id matches the connection's world_id
+    if world_uuid != wrldbldr_domain::WorldId::from(world_id) {
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Cannot access other worlds",
+        ));
+    }
+
+    // Call use case to get active conversations
+    let result = match state
+        .app
+        .use_cases
+        .conversation
+        .list_active
+        .execute(world_uuid)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::conversation::ListActiveConversationsError::WorldNotFound(_)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                "World not found",
+            ))
+        }
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "list active conversations"),
+            ))
+        }
+    };
+
+    // Convert domain types to protocol
+    let conversations = result
+        .conversations
+        .into_iter()
+        .map(|c| c.to_protocol())
+        .collect();
+
+    Some(ServerMessage::ActiveConversationsList { conversations })
+}
+
+/// Handle EndConversationById request (DM only).
+///
+/// DM ends a specific conversation by conversation ID.
+/// Broadcasts ConversationEnded to all participants.
+pub(super) async fn handle_end_conversation_by_id(
+    state: &WsState,
+    connection_id: ConnectionId,
+    conversation_id: Uuid,
+    reason: Option<String>,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
+    };
+
+    // DM only
+    if !conn_info.is_dm() {
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Only DMs can end conversations by ID",
+        ));
+    }
+
+    let world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
+    };
+
+    let conversation_uuid = wrldbldr_domain::ConversationId::from(conversation_id);
+
+    // Track who ended it (optional - could be DM's character ID if DM has a PC)
+    let ended_by = None; // For now, DM actions don't track which character
+
+    // Call use case to end conversation by ID
+    let result = match state
+        .app
+        .use_cases
+        .conversation
+        .end_by_id
+        .execute(conversation_uuid, ended_by, reason)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::conversation::EndConversationByIdError::ConversationNotFound(_)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                "Conversation not found",
+            ))
+        }
+        Err(crate::use_cases::conversation::EndConversationByIdError::ConversationAlreadyEnded(_)) => {
+            return Some(error_response(
+                ErrorCode::Conflict,
+                "Conversation already ended",
+            ))
+        }
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "end conversation by ID"),
+            ))
+        }
+    };
+
+    tracing::info!(
+        conversation_id = %result.conversation_id,
+        ended_by = ?result.ended_by,
+        reason = ?result.reason,
+        pc_id = %result.pc_id,
+        npc_id = %result.npc_id,
+        "Conversation ended by ID"
+    );
+
+    // Broadcast ConversationEnded to all in world
+    let broadcast_msg = ServerMessage::ConversationEnded {
+        npc_id: result.npc_id.to_string(),
+        npc_name: result.npc_name.clone(),
+        pc_id: result.pc_id.to_string(),
+        summary: result.summary.clone(),
+        conversation_id: Some(result.conversation_id.to_string()),
+        ended_by: result.ended_by.map(|id| id.to_string()),
+        reason: result.reason.clone(),
+    };
+
+    state
+        .connections
+        .broadcast_to_world(world_id, broadcast_msg)
+        .await;
+
+    // Also return to caller for confirmation
+    Some(ServerMessage::ConversationEnded {
+        npc_id: result.npc_id.to_string(),
+        npc_name: result.npc_name,
+        pc_id: result.pc_id.to_string(),
+        summary: result.summary,
+        conversation_id: Some(result.conversation_id.to_string()),
+        ended_by: result.ended_by.map(|id| id.to_string()),
+        reason: result.reason,
+    })
+}
+
+/// Handle GetConversationDetails request (DM only).
+///
+/// DM requests full details for a specific conversation.
+/// Returns ConversationDetails response with participants and recent turns.
+pub(super) async fn handle_get_conversation_details(
+    state: &WsState,
+    connection_id: ConnectionId,
+    conversation_id: Uuid,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
+    };
+
+    // DM only
+    if !conn_info.is_dm() {
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Only DMs can view conversation details",
+        ));
+    }
+
+    let conversation_uuid = wrldbldr_domain::ConversationId::from(conversation_id);
+
+    // Call use case to get conversation details
+    let result = match state
+        .app
+        .use_cases
+        .conversation
+        .get_details
+        .execute(crate::use_cases::conversation::GetConversationDetailsInput {
+            conversation_id: conversation_uuid,
+        })
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::conversation::GetConversationDetailsError::ConversationNotFound(_)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                "Conversation not found",
+            ))
+        }
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "get conversation details"),
+            ))
+        }
+    };
+
+    Some(ServerMessage::ConversationDetails {
+        details: result.to_protocol(),
+    })
 }

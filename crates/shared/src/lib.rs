@@ -43,14 +43,20 @@ pub use messages::{
     CharacterPosition,
     // Main message enums
     ClientMessage,
+    // Conversation Management (DM Only)
+    ConversationFullDetails,
+    ConversationInfo,
+    ConversationParticipant,
     CreateGoalData,
     CreateWantData,
     DialogueChoice,
+    DialogueTurn,
     DiceInputType,
     // Session types
     DirectorialContext,
     GoalData,
     InteractionData,
+    LocationContext,
     MapBoundsData,
     // Navigation types
     NavigationData,
@@ -65,10 +71,12 @@ pub use messages::{
     OutcomeBranchData,
     OutcomeDetailData,
     ParticipantInfo,
+    ParticipantType,
     PreviousStagingInfo,
     RegionData,
     RegionItemData,
     RegionListItemData,
+    SceneContext,
     SceneData,
     ServerMessage,
     SocialRelationData,
@@ -80,11 +88,6 @@ pub use messages::{
     UpdateGoalData,
     UpdateWantData,
     WaitingPcInfo,
-    // Actantial Model types (P1.5)
-    WantData,
-    WantTargetData,
-    WantTargetTypeData,
-    WantVisibilityData,
 };
 
 // =============================================================================

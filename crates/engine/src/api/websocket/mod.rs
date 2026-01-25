@@ -23,6 +23,7 @@ use wrldbldr_domain::ConnectionId;
 use crate::infrastructure::correlation::CorrelationId;
 
 mod correlation_helper;
+mod conversation_protocol;
 mod ws_actantial;
 mod ws_approval;
 mod ws_challenge;
@@ -801,6 +802,27 @@ async fn handle_message(
 
         ClientMessage::PerformInteraction { interaction_id } => {
             ws_conversation::handle_perform_interaction(state, connection_id, interaction_id).await
+        }
+
+        // Conversation Management (DM only)
+        ClientMessage::ListActiveConversations {
+            world_id,
+            include_ended,
+        } => {
+            ws_conversation::handle_list_active_conversations(state, connection_id, world_id, include_ended).await
+        }
+
+        ClientMessage::EndConversationById {
+            conversation_id,
+            reason,
+        } => {
+            ws_conversation::handle_end_conversation_by_id(state, connection_id, conversation_id, reason).await
+        }
+
+        ClientMessage::GetConversationDetails {
+            conversation_id,
+        } => {
+            ws_conversation::handle_get_conversation_details(state, connection_id, conversation_id).await
         }
 
         // Forward compatibility - return error so client doesn't hang

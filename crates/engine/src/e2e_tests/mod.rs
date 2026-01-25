@@ -63,6 +63,7 @@ mod approval_timeout_tests;
 mod benchmark;
 mod challenge_flow_tests;
 mod character_stats_tests;
+mod conversation_end_tests;
 mod disposition_item_tests;
 mod e2e_helpers;
 mod event_chain_tests;

@@ -275,6 +275,10 @@ pub struct GameState {
     pub backdrop_transitioning: Signal<bool>,
     /// Resolved visual state override from staging (for backdrop/atmosphere)
     pub visual_state_override: Signal<Option<ResolvedVisualStateData>>,
+    /// Active conversations list (for DM panel - updated from ActiveConversationsList event)
+    pub active_conversations: Signal<Vec<wrldbldr_shared::ConversationInfo>>,
+    /// Conversation details (for DM panel - updated from ConversationDetails event)
+    pub conversation_details: Signal<Option<wrldbldr_shared::ConversationFullDetails>>,
 }
 
 impl GameState {
@@ -309,6 +313,8 @@ impl GameState {
             npc_moods: Signal::new(HashMap::new()),
             backdrop_transitioning: Signal::new(false),
             visual_state_override: Signal::new(None),
+            active_conversations: Signal::new(Vec::new()),
+            conversation_details: Signal::new(None),
         }
     }
 
@@ -618,6 +624,24 @@ impl GameState {
         self.time_advance_notification.set(None);
     }
 
+    /// Set active conversations list (from ActiveConversationsList event)
+    pub fn set_active_conversations(
+        &mut self,
+        conversations: Vec<wrldbldr_shared::ConversationInfo>,
+    ) {
+        self.active_conversations.set(conversations);
+    }
+
+    /// Set conversation details (from ConversationDetails event)
+    pub fn set_conversation_details(&mut self, details: wrldbldr_shared::ConversationFullDetails) {
+        self.conversation_details.set(Some(details));
+    }
+
+    /// Clear conversation details
+    pub fn clear_conversation_details(&mut self) {
+        self.conversation_details.set(None);
+    }
+
     /// Trigger appropriate refresh based on entity change notification
     pub fn trigger_entity_refresh(&mut self, entity_changed: &EntityChangedData) {
         match entity_changed.entity_type.as_str() {
@@ -750,6 +774,8 @@ impl GameState {
         self.time_paused.set(true);
         self.time_advance_notification.set(None);
         self.clear_visual_state_override();
+        self.active_conversations.set(Vec::new());
+        self.conversation_details.set(None);
     }
 
     /// Clear all state

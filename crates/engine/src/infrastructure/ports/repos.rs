@@ -10,8 +10,9 @@ use wrldbldr_domain::*;
 
 use super::error::RepoError;
 use super::types::{
-    ActantialViewRecord, ConversationTurnRecord, GoalDetails, NpcRegionRelationType,
-    NpcWithRegionInfo, WantDetails, WantTargetRef,
+    ActantialViewRecord, ActiveConversationRecord, ConversationDetails,
+    ConversationTurnRecord, GoalDetails, NpcRegionRelationType, NpcWithRegionInfo,
+    WantDetails, WantTargetRef,
 };
 use crate::infrastructure::app_settings::AppSettings;
 
@@ -546,6 +547,37 @@ pub trait NarrativeRepo: Send + Sync {
         &self,
         world_id: WorldId,
     ) -> Result<std::collections::HashMap<NarrativeEventId, String>, RepoError>;
+
+    // =========================================================================
+    // Conversation Management (for DM monitoring)
+    // =========================================================================
+
+    /// List all active conversations in a world.
+    ///
+    /// Returns conversations with participant info, location context,
+    /// turn counts, and pending approval status.
+    async fn list_active_conversations(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<ActiveConversationRecord>, RepoError>;
+
+    /// Get conversation details by ID.
+    ///
+    /// Returns full conversation info including participants and recent turns.
+    async fn get_conversation_details(
+        &self,
+        conversation_id: ConversationId,
+    ) -> Result<Option<ConversationDetails>, RepoError>;
+
+    /// End a specific conversation by ID.
+    ///
+    /// Sets is_active = false and records who ended it.
+    async fn end_conversation_by_id(
+        &self,
+        conversation_id: ConversationId,
+        ended_by: Option<CharacterId>,
+        reason: Option<String>,
+    ) -> Result<bool, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

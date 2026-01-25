@@ -10,8 +10,8 @@ use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, QueueItemI
 use crate::queue_types::PlayerActionData;
 
 use crate::infrastructure::ports::{
-    CharacterRepo, ClockPort, PlayerCharacterRepo, QueueError, QueuePort, RepoError, SceneRepo,
-    StagingRepo, WorldRepo,
+    CharacterRepo, ClockPort, PlayerCharacterRepo, QueueError, QueuePort, RepoError,
+    SceneRepo, StagingRepo, WorldRepo,
 };
 
 /// Result of starting a conversation.
@@ -215,8 +215,9 @@ mod tests {
 
     use crate::infrastructure::ports::{
         ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
-        MockWorldRepo, QueueError, QueueItem, QueueItemId, QueuePort,
+        MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
+    use wrldbldr_domain::QueueItemId;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 

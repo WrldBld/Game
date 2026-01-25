@@ -260,6 +260,14 @@ impl DialogueState {
     pub fn has_custom_input(&self) -> bool {
         self.choices.read().iter().any(|c| c.is_custom_input)
     }
+
+    /// Check if there's an active conversation
+    ///
+    /// Returns true if a conversation_id is set, indicating an active conversation
+    /// that can be ended.
+    pub fn has_active_conversation(&self) -> bool {
+        self.conversation_id.read().is_some()
+    }
 }
 
 /// Calculate marker positions in the clean text

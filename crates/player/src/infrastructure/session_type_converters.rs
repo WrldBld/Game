@@ -7,9 +7,10 @@
 //! Free functions here are for backwards compatibility and specialized conversions.
 
 use crate::ports::session_types as app;
+use wrldbldr_shared::messages::DiceInputType;
 use wrldbldr_shared::{
-    AdHocOutcomes, ApprovalDecision, ChallengeOutcomeDecisionData, DiceInputType,
-    DirectorialContext, NpcMotivationData, ParticipantRole, WorldRole,
+    AdHocOutcomes, ApprovalDecision, ChallengeOutcomeDecisionData, DirectorialContext,
+    NpcMotivationData, ParticipantRole, WorldRole,
 };
 
 // Re-export protocol types used by callers

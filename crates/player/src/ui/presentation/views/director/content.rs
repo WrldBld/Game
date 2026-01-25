@@ -6,8 +6,10 @@ use wrldbldr_domain::DispositionLevel;
 use crate::application::dto::{ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData};
 use crate::infrastructure::spawn_task;
 use crate::infrastructure::websocket::ClientMessageBuilder;
+use crate::presentation::components::dm_panel::active_conversations::ActiveConversationsPanel;
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
 use crate::presentation::components::dm_panel::character_perspective::ViewAsData;
+use crate::presentation::components::dm_panel::conversation_details::ConversationDetailsPanel;
 use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
 use crate::presentation::components::dm_panel::location_preview_modal::LocationPreviewModal;
 use crate::presentation::components::dm_panel::log_entry::DynamicLogEntry;
@@ -20,7 +22,7 @@ use crate::presentation::components::dm_panel::staging_approval::{
 };
 use crate::presentation::components::dm_panel::time_control::TimeControlPanel;
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
-use crate::presentation::services::{use_challenge_service, use_command_bus, use_skill_service};
+use crate::presentation::services::{use_challenge_service, use_command_bus, use_conversation_service, use_skill_service};
 use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
     SessionState, ViewMode,
@@ -34,6 +36,7 @@ pub fn DirectorModeContent() -> Element {
     let game_state = use_game_state();
     let skill_service = use_skill_service();
     let challenge_service = use_challenge_service();
+    let conversation_service = use_conversation_service();
     let _generation_state = use_generation_state();
     let command_bus_disposition = use_command_bus();
     let command_bus_rel = use_command_bus();
@@ -53,6 +56,10 @@ pub fn DirectorModeContent() -> Element {
     let mut preview_location_id: Signal<Option<String>> = use_signal(|| None);
     let mut skills: Signal<Vec<SkillData>> = use_signal(Vec::new);
     let mut challenges: Signal<Vec<ChallengeData>> = use_signal(Vec::new);
+    let mut show_conversations = use_signal(|| false);
+    let mut selected_conversation_id: Signal<Option<String>> = use_signal(|| None);
+    let mut conversations_loading = use_signal(|| false);
+    let mut details_loading = use_signal(|| false);
 
     // Load skills and challenges when world is available
     let world_id_for_skills = game_state.world.read().as_ref().map(|w| w.world.id.clone());
@@ -88,6 +95,22 @@ pub fn DirectorModeContent() -> Element {
                 }
             });
         }
+    });
+
+    // Clear conversations loading when conversations arrive
+    let active_conversations_len = game_state.active_conversations.read().len();
+    use_effect(move || {
+        // This effect runs whenever active_conversations changes
+        let _ = active_conversations_len;
+        conversations_loading.set(false);
+    });
+
+    // Clear details loading when conversation details arrive
+    let conversation_details_exists = game_state.conversation_details.read().is_some();
+    use_effect(move || {
+        // This effect runs whenever conversation_details changes
+        let _ = conversation_details_exists;
+        details_loading.set(false);
     });
 
     // Get pending approvals from state
@@ -385,12 +408,33 @@ pub fn DirectorModeContent() -> Element {
                             class: "p-2 bg-pink-500 text-white border-none rounded-lg cursor-pointer",
                             "⚔️ Trigger Challenge"
                         }
+                         button {
+                             onclick: {
+                                 let conversation_service = conversation_service.clone();
+                                 let session_state = session_state.clone();
+                                 let mut conversations_loading = conversations_loading.clone();
+                                 let mut show_conversations = show_conversations.clone();
+                                 move |_| {
+                                    // Load conversations when opening panel
+                                    if let Some(world_id) = session_state.world_id().read().clone() {
+                                        conversations_loading.set(true);
+                                         if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
+                                            tracing::error!("Failed to list conversations: {}", e);
+                                            conversations_loading.set(false);
+                                        }
+                                    }
+                                    show_conversations.set(true);
+                                 }
+                             },
+                             class: "p-2 bg-cyan-500 text-white border-none rounded-lg cursor-pointer",
+                             "Conversations"
+                         }
                         button { class: "p-2 bg-blue-500 text-white border-none rounded-lg cursor-pointer", "View Social Graph" }
                         button { class: "p-2 bg-purple-500 text-white border-none rounded-lg cursor-pointer", "View Timeline" }
                         button { class: "p-2 bg-red-500 text-white border-none rounded-lg cursor-pointer", "Start Combat" }
                     }
                 }
-            }
+            }  // Close right panel div
 
             // Challenge Library Modal
             if *show_challenge_library.read() {
@@ -684,10 +728,124 @@ pub fn DirectorModeContent() -> Element {
                     }
                 }
             }
-        }
+
+            // Conversations Modal - DM can manage active conversations
+            if *show_conversations.read() {
+                {
+                    let has_selected = selected_conversation_id.read().is_some();
+                    if has_selected {
+                        // Show conversation details
+                        let mut game_state_for_close = game_state.clone();
+                        let conversation_service_for_end = conversation_service.clone();
+                        let session_state_for_end = session_state.clone();
+                        let selected_conversation_id_for_read = selected_conversation_id.clone();
+                        let mut show_conversations_for_end = show_conversations.clone();
+                        rsx! {
+                            ConversationDetailsPanel {
+                                details: game_state.conversation_details.read().clone(),
+                                loading: *details_loading.read(),
+                                on_close: move |_| {
+                                    selected_conversation_id.set(None);
+                                    game_state_for_close.clear_conversation_details();
+                                },
+                                on_end: move |_| {
+                                    let conv_id = selected_conversation_id_for_read.read().clone();
+                                    if let Some(conv_id_str) = conv_id {
+                                        match uuid::Uuid::parse_str(&conv_id_str) {
+                                            Ok(uuid) => {
+                                                if let Err(e) = conversation_service_for_end.end_conversation_by_id(uuid, None) {
+                                                    tracing::error!("Failed to end conversation: {}", e);
+                                                }
+                                                if let Some(world_id) = session_state_for_end.world_id().read().clone() {
+                                                    let _ = conversation_service_for_end.list_active_conversations(world_id, false);
+                                                }
+                                                selected_conversation_id.set(None);
+                                                show_conversations_for_end.set(false);
+                                            }
+                                            Err(e) => {
+                                                tracing::error!("Invalid conversation_id format: {}", e);
+                                            }
+                                        }
+                                    }
+                                },
+                                on_view_history: move |_| {
+                                    tracing::info!("View full history for conversation");
+                                },
+                            }
+                        }
+                    } else {
+                        // Show conversation list
+                        rsx! {
+                            div {
+                                class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                                onclick: move |_| show_conversations.set(false),
+                                div {
+                                    class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col",
+                                    onclick: move |e| e.stop_propagation(),
+
+                                    div {
+                                        class: "flex justify-between items-center p-4 border-b border-gray-700",
+
+                                        h2 {
+                                            class: "m-0 text-white text-xl",
+                                            "Active Conversations"
+                                        }
+
+                                        button {
+                                            onclick: move |_| show_conversations.set(false),
+                                            class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
+                                            "×"
+                                        }
+                                    }
+
+                                    ActiveConversationsPanel {
+                                        conversations: game_state.active_conversations.read().clone(),
+                                        loading: *conversations_loading.read(),
+                                        on_refresh: {
+                                            let conversation_service = conversation_service.clone();
+                                            let session_state = session_state.clone();
+                                            let mut conversations_loading = conversations_loading.clone();
+                                            move |_| {
+                                                if let Some(world_id) = session_state.world_id().read().clone() {
+                                                    conversations_loading.set(true);
+                                                    if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
+                                                        tracing::error!("Failed to refresh conversations: {}", e);
+                                                        conversations_loading.set(false);
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        on_view_details: {
+                                            let conversation_service = conversation_service.clone();
+                                            let mut selected_conversation_id = selected_conversation_id.clone();
+                                            let mut details_loading = details_loading.clone();
+                                            move |conv_id: String| {
+                                                selected_conversation_id.set(Some(conv_id.clone()));
+                                                details_loading.set(true);
+                                                match uuid::Uuid::parse_str(&conv_id) {
+                                                    Ok(uuid) => {
+                                                        if let Err(e) = conversation_service.get_conversation_details(uuid) {
+                                                            tracing::error!("Failed to get conversation details: {}", e);
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Invalid conversation ID format: {}", e);
+                                                        details_loading.set(false);
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }  // Close conversations modal if
+        }  // Close main container div
         } // end else block for ViewMode::ViewingAsCharacter
-    }
-}
+    } // Close rsx!
+}  // Close DirectorModeContent fn
 
 /// Approval popup for DM to approve/reject LLM responses
 #[derive(Props, Clone, PartialEq)]
@@ -949,11 +1107,10 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                         }
                     }
                 }
-            }
+                }
         }
     }
 }
-
 // =============================================================================
 // View-as-Character Mode Component
 // =============================================================================
@@ -1148,7 +1305,8 @@ fn ViewAsCharacterMode(props: ViewAsCharacterModeProps) -> Element {
                         }
                     }
                 }
-            }
+
         }
+    }
     }
 }

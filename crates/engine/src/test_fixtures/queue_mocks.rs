@@ -1,11 +1,10 @@
 //! Mock queue for testing.
 
-use std::sync::Mutex;
-
 use async_trait::async_trait;
 use crate::infrastructure::ports::{
-    QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort,
+    QueueError, QueueItem, QueuePort,
 };
+use wrldbldr_domain::QueueItemId;
 use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };

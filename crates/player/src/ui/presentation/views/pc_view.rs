@@ -567,7 +567,7 @@ pub fn PCView() -> Element {
                     show_region_items_panel.set(true);
                 })),
                 region_items_count: game_state.region_items.read().len(),
-                has_conversation: has_dialogue,
+                has_conversation: dialogue_state.has_active_conversation(),
                 on_end_conversation: Some(EventHandler::new({
                     let mut show_end_conversation_modal = show_end_conversation_modal.clone();
                     move |_| {
@@ -683,7 +683,10 @@ pub fn PCView() -> Element {
                     on_close: {
                         let mut session_state = session_state.clone();
                         move |_| {
+                            // Clear both active challenge and roll status
+                            // This ensures modal state is fully reset when user closes via X button
                             session_state.clear_active_challenge();
+                            session_state.clear_roll_status();
                         }
                     },
                 }

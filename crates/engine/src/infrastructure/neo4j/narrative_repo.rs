@@ -11,7 +11,11 @@ use uuid::Uuid;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
-use crate::infrastructure::ports::{ClockPort, ConversationTurnRecord, NarrativeRepo, RepoError};
+use crate::infrastructure::ports::{
+    ActiveConversationRecord, ClockPort, ConversationDetails, ConversationLocationContext,
+    ConversationParticipantDetail, ConversationSceneContext, ConversationTurnRecord,
+    DialogueTurnDetail, NarrativeRepo, ParticipantType, RepoError,
+};
 
 pub struct Neo4jNarrativeRepo {
     graph: Neo4jGraph,
@@ -1251,8 +1255,21 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             let id_str: String = row
                 .get("conversation_id")
                 .map_err(|e| RepoError::database("query", e))?;
-            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
-            Ok(Some(ConversationId::from(uuid)))
+
+            // Handle legacy non-UUID conversation IDs gracefully
+            match Uuid::parse_str(&id_str) {
+                Ok(uuid) => Ok(Some(ConversationId::from(uuid))),
+                Err(_) => {
+                    // Legacy data: log and skip instead of failing
+                    tracing::warn!(
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        conversation_id = %id_str,
+                        "Legacy non-UUID conversation ID found, skipping"
+                    );
+                    Ok(None)
+                }
+            }
         } else {
             Ok(None)
         }
@@ -1316,7 +1333,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
     ) -> Result<Option<ConversationId>, RepoError> {
-        // Find and end the active conversation between PC and NPC atomically
+        // Find and end active conversation between PC and NPC atomically
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
             SET c.is_active = false, c.ended_at = datetime()
@@ -1339,11 +1356,442 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             let id_str: String = row
                 .get("conversation_id")
                 .map_err(|e| RepoError::database("query", e))?;
-            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
-            Ok(Some(ConversationId::from(uuid)))
+
+            // Handle legacy non-UUID conversation IDs gracefully
+            match Uuid::parse_str(&id_str) {
+                Ok(uuid) => Ok(Some(ConversationId::from(uuid))),
+                Err(_) => {
+                    // Legacy data: log and skip instead of failing
+                    tracing::warn!(
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        conversation_id = %id_str,
+                        "Legacy non-UUID conversation ID found, skipping"
+                    );
+                    Ok(None)
+                }
+            }
         } else {
             Ok(None)
         }
+    }
+
+    // =========================================================================
+    // Conversation Management (for DM monitoring)
+    // =========================================================================
+
+    async fn list_active_conversations(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<ActiveConversationRecord>, RepoError> {
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {is_active: true})
+            MATCH (pc:PlayerCharacter)-[:PARTICIPATED_IN]->(c)
+            MATCH (npc:Character)-[:PARTICIPATED_IN]->(c)
+            OPTIONAL MATCH (c)-[:IN_SCENE]->(s:Scene)
+            OPTIONAL MATCH (c)-[:AT_LOCATION]->(l:Location)-[:IN_REGION]->(r:Region)
+            OPTIONAL MATCH (c)-[:AT_REGION]->(r2:Region)
+            WITH c, pc, npc, s, l, coalesce(r, r2) as region
+            // Check for pending approval - look for story events in this conversation
+            OPTIONAL MATCH (e:StoryEvent)-[:PART_OF_CONVERSATION]->(c)
+            WITH c, pc, npc, s, l, region, count(e) as pending_count
+            RETURN
+                c.id AS id,
+                pc.id AS pc_id,
+                pc.name AS pc_name,
+                npc.id AS npc_id,
+                npc.name AS npc_name,
+                c.topic_hint AS topic_hint,
+                c.started_at AS started_at,
+                c.last_updated_at AS last_updated_at,
+                c.is_active AS is_active,
+                s.id AS scene_id,
+                s.name AS scene_name,
+                l.id AS location_id,
+                l.name AS location_name,
+                region.name AS region_name,
+                (CASE WHEN pending_count > 0 THEN true ELSE false END) AS pending_approval
+            ORDER BY c.last_updated_at DESC",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut conversations = Vec::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
+            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
+
+            let pc_id_str: String = row
+                .get("pc_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            let pc_uuid = Uuid::parse_str(&pc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+            let npc_id_str: String = row
+                .get("npc_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            let npc_uuid = Uuid::parse_str(&npc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+            // Count turns
+            let turn_count = {
+                let q = query(
+                    "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                    RETURN count(t) AS turn_count",
+                )
+                .param("conversation_id", id_str.clone());
+
+                let mut turn_result = self
+                    .graph
+                    .execute(q)
+                    .await
+                    .map_err(|e| RepoError::database("query", e))?;
+
+                if let Some(row) = turn_result
+                    .next()
+                    .await
+                    .map_err(|e| RepoError::database("query", e))?
+                {
+                    row.get("turn_count").unwrap_or(0)
+                } else {
+                    0
+                }
+            };
+
+            conversations.push(ActiveConversationRecord {
+                id: ConversationId::from(uuid),
+                pc_id: PlayerCharacterId::from(pc_uuid),
+                npc_id: CharacterId::from(npc_uuid),
+                pc_name: row.get("pc_name").unwrap_or_default(),
+                npc_name: row.get("npc_name").unwrap_or_default(),
+                topic_hint: row.get("topic_hint").ok(),
+                started_at: row
+                    .get::<chrono::DateTime<Utc>>("started_at")
+                    .map_err(|e| RepoError::database("query", e))?,
+                last_updated_at: row
+                    .get::<chrono::DateTime<Utc>>("last_updated_at")
+                    .map_err(|e| RepoError::database("query", e))?,
+                is_active: row.get("is_active").unwrap_or(true),
+                turn_count: turn_count as u32,
+                pending_approval: row.get("pending_approval").unwrap_or(false),
+                location: row
+                    .get::<Option<String>>("location_id")
+                    .ok()
+                    .flatten()
+                    .and_then(|loc_id| {
+                        Uuid::parse_str(&loc_id).ok().map(|l| {
+                            Some(ConversationLocationContext {
+                                location_id: LocationId::from(l),
+                                location_name: row.get("location_name").unwrap_or_default(),
+                                region_name: row.get("region_name").unwrap_or_default(),
+                            })
+                        })
+                    })
+                    .flatten(),
+                scene: row
+                    .get::<Option<String>>("scene_id")
+                    .ok()
+                    .flatten()
+                    .and_then(|scene_id| {
+                        Uuid::parse_str(&scene_id).ok().map(|s| {
+                            Some(ConversationSceneContext {
+                                scene_id: SceneId::from(s),
+                                scene_name: row.get("scene_name").unwrap_or_default(),
+                            })
+                        })
+                    })
+                    .flatten(),
+            });
+        }
+
+        Ok(conversations)
+    }
+
+    async fn get_conversation_details(
+        &self,
+        conversation_id: ConversationId,
+    ) -> Result<Option<ConversationDetails>, RepoError> {
+        // First get the conversation record
+        let q = query(
+            "MATCH (c:Conversation {id: $conversation_id})
+            MATCH (pc:PlayerCharacter)-[:PARTICIPATED_IN]->(c)
+            MATCH (npc:Character)-[:PARTICIPATED_IN]->(c)
+            OPTIONAL MATCH (c)-[:IN_SCENE]->(s:Scene)
+            OPTIONAL MATCH (c)-[:AT_LOCATION]->(l:Location)-[:IN_REGION]->(r:Region)
+            OPTIONAL MATCH (c)-[:AT_REGION]->(r2:Region)
+            WITH c, pc, npc, s, l, coalesce(r, r2) as region
+            OPTIONAL MATCH (pc)-[spt:SPOKE_TO]->(npc)
+            RETURN
+                c.id AS id,
+                pc.id AS pc_id,
+                pc.name AS pc_name,
+                npc.id AS npc_id,
+                npc.name AS npc_name,
+                c.topic_hint AS topic_hint,
+                c.started_at AS started_at,
+                c.last_updated_at AS last_updated_at,
+                c.is_active AS is_active,
+                s.id AS scene_id,
+                s.name AS scene_name,
+                l.id AS location_id,
+                l.name AS location_name,
+                region.name AS region_name",
+        )
+        .param("conversation_id", conversation_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let conv = match result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            Some(row) => {
+                let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
+                let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
+
+                let pc_id_str: String = row
+                    .get("pc_id")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let pc_uuid = Uuid::parse_str(&pc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+                let npc_id_str: String = row
+                    .get("npc_id")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let npc_uuid = Uuid::parse_str(&npc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+                // Count turns
+                let turn_count = {
+                    let q = query(
+                        "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                        RETURN count(t) AS turn_count",
+                    )
+                    .param("conversation_id", id_str.clone());
+
+                    let mut turn_result = self
+                        .graph
+                        .execute(q)
+                        .await
+                        .map_err(|e| RepoError::database("query", e))?;
+
+                    if let Some(row) = turn_result
+                        .next()
+                        .await
+                        .map_err(|e| RepoError::database("query", e))?
+                    {
+                        row.get("turn_count").unwrap_or(0)
+                    } else {
+                        0
+                    }
+                };
+
+                ActiveConversationRecord {
+                    id: ConversationId::from(uuid),
+                    pc_id: PlayerCharacterId::from(pc_uuid),
+                    npc_id: CharacterId::from(npc_uuid),
+                    pc_name: row.get("pc_name").unwrap_or_default(),
+                    npc_name: row.get("npc_name").unwrap_or_default(),
+                    topic_hint: row.get("topic_hint").ok(),
+                    started_at: row
+                        .get::<chrono::DateTime<Utc>>("started_at")
+                        .map_err(|e| RepoError::database("query", e))?,
+                    last_updated_at: row
+                        .get::<chrono::DateTime<Utc>>("last_updated_at")
+                        .map_err(|e| RepoError::database("query", e))?,
+                    is_active: row.get("is_active").unwrap_or(true),
+                    turn_count: turn_count as u32,
+                    pending_approval: false, // Not tracked in details view
+                    location: row
+                        .get::<Option<String>>("location_id")
+                        .ok()
+                        .flatten()
+                        .and_then(|loc_id| {
+                            Uuid::parse_str(&loc_id).ok().map(|l| {
+                                Some(ConversationLocationContext {
+                                    location_id: LocationId::from(l),
+                                    location_name: row.get("location_name").unwrap_or_default(),
+                                    region_name: row.get("region_name").unwrap_or_default(),
+                                })
+                            })
+                        })
+                        .flatten(),
+                    scene: row
+                        .get::<Option<String>>("scene_id")
+                        .ok()
+                        .flatten()
+                        .and_then(|scene_id| {
+                            Uuid::parse_str(&scene_id).ok().map(|s| {
+                                Some(ConversationSceneContext {
+                                    scene_id: SceneId::from(s),
+                                    scene_name: row.get("scene_name").unwrap_or_default(),
+                                })
+                            })
+                        })
+                        .flatten(),
+                }
+            }
+            None => return Ok(None),
+        };
+
+        // Get participants with turn counts
+        let participants = {
+            let q = query(
+                "MATCH (c:Conversation {id: $conversation_id})<-[:PARTICIPATED_IN]-(p)
+                MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+                WHERE t.speaker_id = p.id
+                WITH p, count(t) as turn_count, max(t.order) as last_order
+                MATCH (t:DialogueTurn {order: last_order})
+                MATCH (p)-[spt:SPOKE_TO]->(npc:Character)
+                OPTIONAL MATCH (p)<-[w:WANTS]-(want:Want)
+                OPTIONAL MATCH (p)-[rel:HAS_RELATIONSHIP]->(target)
+                RETURN
+                    p.id AS character_id,
+                    p.name AS name,
+                    CASE WHEN p:PlayerCharacter THEN 'pc' ELSE 'npc' END AS participant_type,
+                    turn_count,
+                    CASE WHEN t.game_time IS NOT NULL THEN datetime({epochSeconds: toInteger(t.game_time)}) ELSE c.last_updated_at END AS last_spoke_at,
+                    t.text AS last_spoke,
+                    want.description AS want_description,
+                    rel.type AS relationship_type",
+            )
+            .param("conversation_id", conversation_id.to_string());
+
+            let mut result = self
+                .graph
+                .execute(q)
+                .await
+                .map_err(|e| RepoError::database("query", e))?;
+
+            let mut parts = Vec::new();
+            while let Some(row) = result
+                .next()
+                .await
+                .map_err(|e| RepoError::database("query", e))?
+            {
+                let char_id_str: String = row
+                    .get("character_id")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let char_uuid = Uuid::parse_str(&char_id_str).map_err(|e| RepoError::database("query", e))?;
+
+                let participant_type_str: String = row
+                    .get("participant_type")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let participant_type = if participant_type_str == "pc" {
+                    ParticipantType::Pc
+                } else {
+                    ParticipantType::Npc
+                };
+
+                parts.push(ConversationParticipantDetail {
+                    character_id: CharacterId::from(char_uuid),
+                    name: row.get("name").unwrap_or_default(),
+                    participant_type,
+                    turn_count: row.get("turn_count").unwrap_or(0) as u32,
+                    last_spoke_at: row.get("last_spoke_at").ok(),
+                    last_spoke: row.get("last_spoke").ok(),
+                    want: row.get("want_description").ok(),
+                    relationship: row.get("relationship_type").ok(),
+                });
+            }
+            parts
+        };
+
+        // Get recent turns
+        let recent_turns = {
+            let q = query(
+                "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                OPTIONAL MATCH (p)-[:SPEAKER]->(t)
+                RETURN
+                    p.name AS speaker_name,
+                    t.text AS text,
+                    c.last_updated_at AS timestamp,
+                    t.is_dm_override AS is_dm_override
+                ORDER BY t.order DESC
+                LIMIT 20",
+            )
+            .param("conversation_id", conversation_id.to_string());
+
+            let mut result = self
+                .graph
+                .execute(q)
+                .await
+                .map_err(|e| RepoError::database("query", e))?;
+
+            let mut turns = Vec::new();
+            while let Some(row) = result
+                .next()
+                .await
+                .map_err(|e| RepoError::database("query", e))?
+            {
+                turns.push(DialogueTurnDetail {
+                    speaker_name: row.get("speaker_name").unwrap_or_default(),
+                    text: row.get("text").unwrap_or_default(),
+                    timestamp: row
+                        .get::<chrono::DateTime<Utc>>("timestamp")
+                        .map_err(|e| RepoError::database("query", e))?,
+                    is_dm_override: row.get("is_dm_override").unwrap_or(false),
+                });
+            }
+            // Reverse to get chronological order
+            turns.reverse();
+            turns
+        };
+
+        Ok(Some(ConversationDetails {
+            conversation: conv,
+            participants,
+            recent_turns,
+        }))
+    }
+
+    async fn end_conversation_by_id(
+        &self,
+        conversation_id: ConversationId,
+        ended_by: Option<CharacterId>,
+        reason: Option<String>,
+    ) -> Result<bool, RepoError> {
+        // End conversation by ID, tracking who ended it and why
+        let q = query(
+            "MATCH (c:Conversation {id: $conversation_id, is_active: true})
+            SET c.is_active = false,
+                c.ended_at = datetime(),
+                c.ended_by = $ended_by,
+                c.ended_reason = $reason
+            RETURN c.id AS conversation_id",
+        )
+        .param("conversation_id", conversation_id.to_string())
+        .param(
+            "ended_by",
+            ended_by.map(|id| id.to_string()).unwrap_or_default(),
+        )
+        .param("reason", reason.unwrap_or_default());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // If we got a result, the conversation was found and ended
+        let ended = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+            .is_some();
+
+        Ok(ended)
     }
 }
 

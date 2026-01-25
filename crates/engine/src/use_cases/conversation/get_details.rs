@@ -1,0 +1,124 @@
+// Get conversation details use case
+#![allow(dead_code)]
+
+//! Get conversation details use case.
+//!
+//! Allows DMs to view full details of a specific conversation.
+//! Returns conversation info, participants, and recent turns.
+
+use std::sync::Arc;
+use wrldbldr_domain::ConversationId;
+
+use crate::infrastructure::ports::{CharacterRepo, NarrativeRepo, RepoError};
+use crate::infrastructure::ports::ConversationDetails;
+
+/// Input for getting conversation details.
+#[derive(Debug, Clone)]
+pub struct GetConversationDetailsInput {
+    pub conversation_id: ConversationId,
+}
+
+/// Output for getting conversation details.
+pub type GetConversationDetailsOutput = ConversationDetails;
+
+/// Errors for get conversation details.
+#[derive(Debug, thiserror::Error)]
+pub enum GetConversationDetailsError {
+    #[error("Repository error: {0}")]
+    Repo(#[from] RepoError),
+
+    #[error("Conversation {0} not found")]
+    ConversationNotFound(ConversationId),
+}
+
+/// Get conversation details use case.
+///
+/// Retrieves full details for a specific conversation including
+/// participants and recent dialogue turns. Used by DMs for monitoring
+/// and managing active conversations.
+pub struct GetConversationDetails {
+    narrative: Arc<dyn NarrativeRepo>,
+    character: Arc<dyn CharacterRepo>,
+}
+
+impl GetConversationDetails {
+    pub fn new(
+        narrative: Arc<dyn NarrativeRepo>,
+        character: Arc<dyn CharacterRepo>,
+    ) -> Self {
+        Self { narrative, character }
+    }
+
+    /// Get conversation details by ID.
+    ///
+    /// # Arguments
+    /// * `input` - Input containing conversation_id
+    ///
+    /// # Returns
+    /// * `Ok(ConversationDetails)` - Full conversation details
+    /// * `Err(GetConversationDetailsError)` - Failed to get details
+    pub async fn execute(
+        &self,
+        input: GetConversationDetailsInput,
+    ) -> Result<GetConversationDetailsOutput, GetConversationDetailsError> {
+        let details = self
+            .narrative
+            .get_conversation_details(input.conversation_id)
+            .await?
+            .ok_or(GetConversationDetailsError::ConversationNotFound(
+                input.conversation_id,
+            ))?;
+
+        Ok(details)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::ports::MockNarrativeRepo;
+
+    #[tokio::test]
+    async fn get_conversation_details_returns_details() {
+        let mut mock_narrative = MockNarrativeRepo::new();
+        let mock_character = Arc::new(MockCharacterRepo::new());
+
+        // Setup mock response
+        let expected_details = ConversationDetails {
+            conversation: crate::infrastructure::ports::ActiveConversationRecord {
+                id: ConversationId::new(),
+                pc_id: wrldbldr_domain::PlayerCharacterId::new(),
+                npc_id: wrldbldr_domain::CharacterId::new(),
+                pc_name: "Test PC".to_string(),
+                npc_name: "Test NPC".to_string(),
+                topic_hint: Some("Test topic".to_string()),
+                started_at: chrono::Utc::now(),
+                last_updated_at: chrono::Utc::now(),
+                is_active: true,
+                turn_count: 5,
+                pending_approval: false,
+                location: None,
+                scene: None,
+            },
+            participants: vec![],
+            recent_turns: vec![],
+        };
+
+        mock_narrative
+            .expect_get_conversation_details()
+            .returning(move |_| Ok(Some(expected_details.clone())));
+
+        let use_case = GetConversationDetails::new(
+            Arc::new(mock_narrative),
+            mock_character,
+        );
+
+        let input = GetConversationDetailsInput {
+            conversation_id: expected_details.conversation.id,
+        };
+
+        let result = use_case.execute(input).await;
+
+        assert!(result.is_ok());
+    }
+}

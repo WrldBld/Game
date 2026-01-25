@@ -14,8 +14,11 @@ use dioxus::prelude::*;
 
 use crate::application::dto::{
     ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
-    SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
+    SocialRelationData, WantTargetTypeData, WantVisibilityData,
 };
+// Note: WantData is re-exported from dto/player_events for PlayerEvent types
+// For service request/response types, use messages::WantData
+use wrldbldr_shared::messages::WantData;
 use crate::application::services::{
     AddActantialViewRequest, CreateGoalRequest, CreateWantRequest, RemoveActantialViewRequest,
     SetWantTargetRequest, SuggestionContext, UpdateWantRequest,

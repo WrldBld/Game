@@ -71,6 +71,8 @@ pub struct ConversationLogEntry {
 pub struct PendingChallengeOutcome {
     /// Unique resolution ID for tracking
     pub resolution_id: String,
+    /// Challenge ID (needed for ChallengeResolved matching)
+    pub challenge_id: String,
     /// Challenge name for display
     pub challenge_name: String,
     /// ID of the character who rolled
@@ -263,6 +265,20 @@ impl ApprovalState {
         self.pending_challenge_outcomes
             .write()
             .retain(|o| o.resolution_id != resolution_id);
+    }
+
+    /// Remove a pending challenge outcome by challenge_id (P3.3/P3.4)
+    ///
+    /// This is used when a ChallengeResolved message is received, indicating that
+    /// the outcome has been fully resolved and is no longer pending approval.
+    ///
+    /// Note: We match on challenge_id instead of resolution_id because
+    /// ChallengeResolved message doesn't include the resolution_id.
+    /// This assumes at most one pending outcome per challenge at a time.
+    pub fn remove_pending_challenge_outcome_by_challenge(&mut self, challenge_id: &str) {
+        self.pending_challenge_outcomes
+            .write()
+            .retain(|o| o.challenge_id != challenge_id);
     }
 
     /// Update suggestions for a pending challenge outcome (P3.3/P3.4)

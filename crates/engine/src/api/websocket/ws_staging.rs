@@ -189,14 +189,32 @@ pub(super) async fn handle_staging_approval(
         .map(|n| n.to_protocol())
         .collect();
 
+    let region_id_str = payload.region_id.to_string();
+    let visual_state_proto = payload.visual_state.as_ref().map(|vs| vs.to_protocol());
+    let visual_state_data = visual_state_proto.clone().unwrap_or_default();
+
     state
         .connections
         .broadcast_to_world(
             world_id,
             ServerMessage::StagingReady {
-                region_id: payload.region_id.to_string(),
+                region_id: region_id_str.clone(),
                 npcs_present: npcs_present_proto,
-                visual_state: payload.visual_state.map(|vs| vs.to_protocol()),
+                visual_state: visual_state_proto.clone(),
+            },
+        )
+        .await;
+
+    // Broadcast VisualStateChanged after staging approval
+    // This ensures players already in region get the updated visual state
+    // without requiring a scene change
+    state
+        .connections
+        .broadcast_to_world(
+            world_id,
+            ServerMessage::VisualStateChanged {
+                region_id: Some(region_id_str),
+                visual_state: visual_state_data,
             },
         )
         .await;

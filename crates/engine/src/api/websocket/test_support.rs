@@ -15,10 +15,10 @@ use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 
 use crate::app::{App, Repositories, UseCases};
 use crate::infrastructure::ports::{
-    ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem, QueueItemId,
-    QueueItemStatus, QueuePort, RandomPort,
+    ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem,
+    QueuePort, RandomPort,
 };
-use crate::test_fixtures::queue_mocks::MockQueueForTesting;
+use wrldbldr_domain::QueueItemId;
 use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
     MockFlagRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
@@ -638,6 +638,7 @@ pub(crate) fn build_test_app_with_ports(
         resolve_outcome,
         Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
             challenge_repo.clone(),
+            player_character_repo.clone(),
         )),
         outcome_decision,
         Arc::new(crate::use_cases::challenge::ChallengeOps::new(

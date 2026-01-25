@@ -88,17 +88,32 @@ pub fn handle_server_message(
             npc_id: _,
             npc_name,
             pc_id: _,
-            summary,
+            summary: _,
             conversation_id: _,
+            ended_by,
+            reason,
         } => {
-            // Log the conversation end
-            let msg = match summary {
-                Some(s) => format!("Conversation ended: {}", s),
-                None => "Conversation ended.".to_string(),
+            // Log to conversation log
+            let msg = match (ended_by, reason) {
+                (Some(s), _) => format!("Conversation ended by: {}", s),
+                (None, Some(r)) => format!("Conversation ended: {}", r),
+                (None, None) => "Conversation ended.".to_string(),
             };
             session_state.add_log_entry(npc_name, msg, false, platform);
             // Clear dialogue state since conversation is over (includes conversation_id)
             dialogue_state.clear();
+        }
+
+        PlayerEvent::ActiveConversationsList { conversations } => {
+            tracing::info!("Received {} active conversations", conversations.len());
+            // Store conversations in game state for UI components to access
+            game_state.set_active_conversations(conversations);
+        }
+
+        PlayerEvent::ConversationDetails { details } => {
+            tracing::info!("Received details for conversation: {}", details.conversation_id);
+            // Store conversation details in game state for UI components to access
+            game_state.set_conversation_details(details);
         }
 
         PlayerEvent::LLMProcessing { action_id } => {
@@ -264,13 +279,14 @@ pub fn handle_server_message(
             roll_breakdown,
             individual_rolls,
         } => {
-            // Clear active challenge if it matches
-            let active = { session_state.active_challenge().read().clone() };
-            if let Some(active_challenge) = active {
-                if active_challenge.challenge_id == challenge_id {
-                    session_state.clear_active_challenge();
-                }
-            }
+            // Keep active challenge open - player needs to acknowledge result
+            // Modal will close when player clicks "Continue" button in ResultDisplayPhase
+
+            // DM queue cleanup: remove pending challenge outcome from approval state
+            // When a challenge is resolved, it's no longer pending DM approval
+            session_state
+                .approval
+                .remove_pending_challenge_outcome_by_challenge(&challenge_id);
 
             let timestamp = platform.now_unix_secs();
             let result = ChallengeResultData {
@@ -434,7 +450,7 @@ pub fn handle_server_message(
         // P3.3/P3.4: Challenge outcome pending DM approval (DM only)
         PlayerEvent::ChallengeOutcomePending {
             resolution_id,
-            challenge_id: _,
+            challenge_id,
             challenge_name,
             character_id,
             character_name,
@@ -459,6 +475,7 @@ pub fn handle_server_message(
             let timestamp = platform.now_unix_secs();
             let pending = PendingChallengeOutcome {
                 resolution_id,
+                challenge_id,
                 challenge_name,
                 character_id,
                 character_name,
@@ -971,7 +988,7 @@ pub fn handle_server_message(
         PlayerEvent::StagingReady {
             region_id,
             npcs_present,
-            visual_state,
+            visual_state: _visual_state, // Not used - VisualStateChanged handles it
         } => {
             tracing::info!(
                 "Staging ready for region {}: {} NPCs present",
@@ -981,11 +998,12 @@ pub fn handle_server_message(
 
             // Clear the pending staging overlay (for players)
             game_state.clear_staging_pending();
-            // Clear the DM approval popup (staging has been approved)
+            // Clear DM approval popup (staging has been approved)
             game_state.clear_pending_staging_approval();
 
-            // Set visual state override if provided in staging
-            game_state.set_visual_state_override(visual_state);
+            // Note: Visual state override is NOT set here
+            // The VisualStateChanged message (broadcast immediately after StagingReady)
+            // will handle the visual state update with region matching logic
 
             // Update region staging status to Active with NPC names
             let npc_names: Vec<String> = npcs_present.iter().map(|n| n.name.clone()).collect();
@@ -1008,6 +1026,46 @@ pub fn handle_server_message(
                 })
                 .collect();
             game_state.npcs_present.set(npcs);
+        }
+
+        PlayerEvent::VisualStateChanged {
+            region_id,
+            visual_state,
+        } => {
+            tracing::info!(
+                "Visual state changed for region {}: {}",
+                region_id,
+                visual_state.is_some()
+            );
+
+            // Only apply visual state override if current region matches message's region_id
+            // This prevents applying visual state updates for regions the player is not in
+            let current_region_id = game_state
+                .current_region
+                .read()
+                .as_ref()
+                .map(|r| r.id.clone());
+
+            if let Some(current_id) = current_region_id {
+                if current_id == region_id {
+                    game_state.set_visual_state_override(visual_state);
+                    tracing::debug!(
+                        "Applied visual state override for current region {}",
+                        region_id
+                    );
+                } else {
+                    tracing::debug!(
+                        "Ignored visual state update for region {} (not current region: {})",
+                        region_id,
+                        current_id
+                    );
+                }
+            } else {
+                tracing::debug!(
+                    "Ignored visual state update for region {} (no current region)",
+                    region_id
+                );
+            }
         }
 
         PlayerEvent::StagingRegenerated {

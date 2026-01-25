@@ -4,11 +4,13 @@
 //! directorial notes, NPC motivation tracking, LLM response approval,
 //! staging approval, challenge management, and time controls.
 
+pub mod active_conversations;
 pub mod adhoc_challenge_modal;
 pub mod approval_popup;
 pub mod challenge_library;
 pub mod challenge_outcome_approval;
 pub mod character_perspective;
+pub mod conversation_details;
 pub mod conversation_log;
 pub mod decision_queue;
 pub mod director_generate_modal;
@@ -33,7 +35,9 @@ pub mod visual_state_generation_modal;
 pub mod visual_state_preview;
 
 // Re-export key types for external use
+pub use active_conversations::ActiveConversationsPanel;
 pub use challenge_outcome_approval::{ChallengeOutcomeApprovalCard, ChallengeOutcomesSection};
+pub use conversation_details::ConversationDetailsPanel;
 pub use conversation_log::{ChallengeResultInfo, ConversationLog, ConversationTurn};
 pub use location_preview_modal::LocationPreviewModal;
 pub use location_staging::{LocationStagingPanel, PreStageApprovalData, RegionStagingInfo, StagingStatus};

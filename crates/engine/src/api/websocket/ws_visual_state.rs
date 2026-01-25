@@ -894,9 +894,7 @@ mod tests {
     #[test]
     fn test_domain_to_location_state_data_conversion() {
         use chrono::Utc;
-        use wrldbldr_domain::{
-            ActivationLogic, ActivationRule, AssetPath, Atmosphere, LocationId, WorldId,
-        };
+        use wrldbldr_domain::{AssetPath, LocationId, WorldId};
 
         let state = wrldbldr_domain::LocationState::new(
             LocationId::new(),
