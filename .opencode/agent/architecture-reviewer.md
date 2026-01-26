@@ -81,7 +81,7 @@ description: >-
 
   </example>
 mode: subagent
-model: github-copilot/gpt-5.2-codex
+model: openai/gpt-5.2-codex
 reasoning-effort: high
 ---
 You are the WrldBldr Architecture Reviewer, responsible for high-level codebase audits. You identify tech debt, architecture violations, anti-patterns, and ensure compliance with Rustic DDD patterns and ADRs.

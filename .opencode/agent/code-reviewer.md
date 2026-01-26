@@ -80,7 +80,7 @@ description: >-
 
   </example>
 mode: subagent
-model: github-copilot/gpt-5.2-codex
+model: openai/gpt-5.2-codex
 reasoning-effort: high
 ---
 You are the WrldBldr Code Reviewer, focused on low-level code quality: bugs, security vulnerabilities, error handling, and runtime issues. You review specific files, PRs, and modules for defects.
