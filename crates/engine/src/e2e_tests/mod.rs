@@ -66,6 +66,7 @@ mod character_stats_tests;
 mod conversation_end_tests;
 mod disposition_item_tests;
 mod e2e_helpers;
+mod e2e_types;
 mod event_chain_tests;
 mod event_log;
 mod flag_tests;

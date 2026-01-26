@@ -11,9 +11,9 @@ use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use wrldbldr_domain::WorldId;
+use wrldbldr_domain::{ChallengeId, ConversationId, QueueItemId, WorldId};
 
+use super::e2e_types::TestRequestId;
 use crate::infrastructure::ports::TokenUsage;
 
 /// Maximum content length before truncation (10KB).
@@ -38,32 +38,32 @@ pub enum E2EEvent {
 
     // Queue operations
     ActionEnqueued {
-        id: Uuid,
+        id: QueueItemId,
         action_type: String,
         target: Option<String>,
         dialogue: Option<String>,
     },
     ActionProcessed {
-        id: Uuid,
+        id: QueueItemId,
         duration_ms: u64,
     },
     LlmRequestEnqueued {
-        id: Uuid,
+        id: QueueItemId,
         request_type: String,
         callback_id: String,
     },
     LlmRequestProcessed {
-        id: Uuid,
+        id: QueueItemId,
         duration_ms: u64,
         tokens: Option<TokenUsageLog>,
     },
     ApprovalEnqueued {
-        id: Uuid,
+        id: QueueItemId,
         decision_type: String,
         urgency: String,
     },
     ApprovalDecision {
-        id: Uuid,
+        id: QueueItemId,
         decision: String,
         modified: bool,
         dm_feedback: Option<String>,
@@ -71,7 +71,7 @@ pub enum E2EEvent {
 
     // LLM interactions (full capture)
     LlmPromptSent {
-        request_id: Uuid,
+        request_id: TestRequestId,
         system_prompt: Option<String>,
         messages: Vec<ChatMessageLog>,
         temperature: Option<f32>,
@@ -79,7 +79,7 @@ pub enum E2EEvent {
         tools: Option<Vec<String>>,
     },
     LlmResponseReceived {
-        request_id: Uuid,
+        request_id: TestRequestId,
         content: String,
         tool_calls: Vec<ToolCallLog>,
         finish_reason: String,
@@ -89,38 +89,38 @@ pub enum E2EEvent {
 
     // Conversations
     ConversationStarted {
-        id: Uuid,
+        id: ConversationId,
         pc_id: String,
         npc_id: String,
         npc_name: String,
     },
     ConversationTurn {
-        id: Uuid,
+        id: ConversationId,
         speaker: String,
         content: String,
         turn_number: u32,
     },
     ConversationEnded {
-        id: Uuid,
+        id: ConversationId,
         total_turns: u32,
         summary: Option<String>,
     },
 
     // Challenges
     ChallengeTriggered {
-        id: Option<Uuid>,
+        id: Option<ChallengeId>,
         name: String,
         target_pc: String,
         difficulty: i32,
     },
     ChallengeRoll {
-        challenge_id: Uuid,
+        challenge_id: ChallengeId,
         roll: i32,
         modifier: i32,
         total: i32,
     },
     ChallengeOutcome {
-        challenge_id: Uuid,
+        challenge_id: ChallengeId,
         success: bool,
         outcome_description: String,
     },
@@ -473,7 +473,7 @@ mod tests {
         });
 
         log.log(E2EEvent::ConversationStarted {
-            id: Uuid::new_v4(),
+            id: ConversationId::new(),
             pc_id: "pc-1".to_string(),
             npc_id: "npc-1".to_string(),
             npc_name: "Marta".to_string(),
@@ -488,14 +488,14 @@ mod tests {
 
         // Add some events
         log.log(E2EEvent::ConversationStarted {
-            id: Uuid::new_v4(),
+            id: ConversationId::new(),
             pc_id: "pc-1".to_string(),
             npc_id: "npc-1".to_string(),
             npc_name: "Marta".to_string(),
         });
 
         log.log(E2EEvent::LlmResponseReceived {
-            request_id: Uuid::new_v4(),
+            request_id: TestRequestId::new(),
             content: "Hello!".to_string(),
             tool_calls: vec![],
             finish_reason: "stop".to_string(),
@@ -535,7 +535,7 @@ mod tests {
     #[test]
     fn test_event_serialization() {
         let event = E2EEvent::LlmPromptSent {
-            request_id: Uuid::nil(),
+            request_id: TestRequestId::from(Uuid::nil()),
             system_prompt: Some("You are an NPC".to_string()),
             messages: vec![ChatMessageLog::new("user", "Hello")],
             temperature: Some(0.7),

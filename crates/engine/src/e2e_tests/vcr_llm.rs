@@ -29,7 +29,6 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::infrastructure::openai_compatible::{
     OpenAICompatibleClient, DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL,
@@ -38,6 +37,7 @@ use crate::infrastructure::ports::{
     FinishReason, LlmError, LlmPort, LlmRequest, LlmResponse, MessageRole,
 };
 
+use super::e2e_types::TestRequestId;
 use super::event_log::{ChatMessageLog, E2EEvent, E2EEventLog, TokenUsageLog};
 use super::vcr_fingerprint::RequestFingerprint;
 
@@ -191,7 +191,7 @@ impl LoggingLlmDecorator {
     }
 
     /// Log prompt sent event to the event log.
-    fn log_prompt_sent(&self, request_id: Uuid, request: &LlmRequest) {
+    fn log_prompt_sent(&self, request_id: TestRequestId, request: &LlmRequest) {
         let messages: Vec<ChatMessageLog> = request
             .messages
             .iter()
@@ -217,7 +217,7 @@ impl LoggingLlmDecorator {
     }
 
     /// Log response received event to the event log.
-    fn log_response_received(&self, request_id: Uuid, response: &LlmResponse, latency_ms: u64) {
+    fn log_response_received(&self, request_id: TestRequestId, response: &LlmResponse, latency_ms: u64) {
         let tokens = response.usage.as_ref().map(TokenUsageLog::from);
 
         self.event_log.log(E2EEvent::LlmResponseReceived {
@@ -234,7 +234,7 @@ impl LoggingLlmDecorator {
 #[async_trait]
 impl LlmPort for LoggingLlmDecorator {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
-        let request_id = Uuid::new_v4();
+        let request_id = TestRequestId::new();
         self.log_prompt_sent(request_id, &request);
         let start = std::time::Instant::now();
 
