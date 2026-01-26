@@ -189,9 +189,11 @@ impl LocationManagement {
         } else {
             region.name().clone()
         };
-        let new_description =
-            Description::new(description.unwrap_or_else(|| region.description().to_string()))
-                .unwrap_or_default();
+        let new_description = if let Some(desc) = description {
+            Description::new(&desc).map_err(|e| ManagementError::InvalidInput(e.to_string()))?
+        } else {
+            Description::new(region.description()).unwrap_or_default()
+        };
         let new_is_spawn_point = is_spawn_point.unwrap_or_else(|| region.is_spawn_point());
 
         let region = wrldbldr_domain::Region::from_parts(
@@ -294,10 +296,15 @@ impl LocationManagement {
             ));
         }
         let is_locked = locked.unwrap_or(false);
+        let conn_description = if let Some(desc) = description {
+            Some(Description::new(&desc).map_err(|e| ManagementError::InvalidInput(e.to_string()))?)
+        } else {
+            None
+        };
         let connection = wrldbldr_domain::RegionConnection {
             from_region,
             to_region,
-            description: description.map(|s| Description::new(s).unwrap_or_default()),
+            description: conn_description,
             bidirectional: bidirectional.unwrap_or(true),
             is_locked,
             lock_description: if is_locked {
@@ -430,11 +437,16 @@ impl LocationManagement {
             );
         }
 
+        let exit_description = if let Some(desc) = description {
+            Some(Description::new(&desc).map_err(|e| ManagementError::InvalidInput(e.to_string()))?)
+        } else {
+            None
+        };
         let exit = wrldbldr_domain::RegionExit {
             from_region: region_id,
             to_location: location_id,
             arrival_region_id,
-            description: description.map(|s| Description::new(s).unwrap_or_default()),
+            description: exit_description,
             bidirectional: is_bidirectional,
         };
         self.location.save_region_exit(&exit).await?;

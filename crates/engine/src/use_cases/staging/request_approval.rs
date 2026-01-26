@@ -172,7 +172,7 @@ impl RequestStagingApproval {
         // Store time suggestion if present
         if let Some(ref time_suggestion) = input.time_suggestion {
             ctx.pending_time_suggestions
-                .insert(time_suggestion.clone())
+                .insert(time_suggestion.id.to_uuid(), time_suggestion.clone())
                 .await;
         }
 

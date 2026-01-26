@@ -45,16 +45,26 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
     let template_key_for_save = template_key.clone();
     let template_key_for_reset = template_key.clone();
     let mut template_value_for_change = template_value.clone();
-    let world_id_for_effect = world_id.clone();
-    let service_for_effect = service.clone();
     let service_for_save = service.clone();
     let service_for_reset = service.clone();
 
-    // Load template on mount
+    // Clone specifically for memo to avoid moving variables needed in RSX
+    let world_id_for_memo = world_id.clone();
+    let template_key_for_memo = template_key.clone();
+
+    // Memo to track when (world_id, template_key) changes
+    // This prevents re-fetching on every render - only fetches when props change
+    let key = use_memo(move || (world_id_for_memo.clone(), template_key_for_memo.clone()));
+
+    // Clone service for effect - must be before use_effect
+    let service_for_effect = service.clone();
+
+    // Load template when world_id or template_key changes (NOT every render)
     use_effect(move || {
-        let world_id = world_id_for_effect.clone();
-        let template_key = template_key.clone();
+        // Reading key() creates the dependency - effect re-runs only when key changes
+        let (world_id_dep, template_key_dep) = key.read().clone();
         let svc = service_for_effect.clone();
+
         // Clone signals into async closure (Dioxus: cloned signals are read-write)
         let mut template_value_clone = template_value.clone();
         let mut is_override_clone = is_override.clone();
@@ -63,7 +73,7 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
         let mut error_clone = error.clone();
 
         spawn_task(async move {
-            match svc.get_template(&world_id, &template_key).await {
+            match svc.get_template(&world_id_dep, &template_key_dep).await {
                 Ok(resolved) => {
                     template_value_clone.set(resolved.value);
                     is_override_clone.set(resolved.is_override);
@@ -177,7 +187,7 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
 
                     h3 {
                         class: "text-white font-semibold m-0",
-                        "dialogue.response_format"
+                        "{template_key}"
                     }
 
                     p {

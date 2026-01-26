@@ -170,14 +170,11 @@ pub(super) async fn handle_move_to_region(
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
-                    let pending_time_suggestions = crate::stores::TimeSuggestionStore::new(
-                        state.pending_time_suggestions.clone(),
-                    );
                     let pending_staging_requests = crate::stores::PendingStagingStore::new(
                         state.pending_staging_requests.clone(),
                     );
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
-                        pending_time_suggestions: &pending_time_suggestions,
+                        pending_time_suggestions: &state.pending_time_suggestions,
                         pending_staging_requests: &pending_staging_requests,
                     };
                     let input = crate::use_cases::staging::StagingApprovalInput {
@@ -369,14 +366,11 @@ pub(super) async fn handle_exit_to_location(
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
-                    let pending_time_suggestions = crate::stores::TimeSuggestionStore::new(
-                        state.pending_time_suggestions.clone(),
-                    );
                     let pending_staging_requests = crate::stores::PendingStagingStore::new(
                         state.pending_staging_requests.clone(),
                     );
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
-                        pending_time_suggestions: &pending_time_suggestions,
+                        pending_time_suggestions: &state.pending_time_suggestions,
                         pending_staging_requests: &pending_staging_requests,
                     };
                     let input = crate::use_cases::staging::StagingApprovalInput {

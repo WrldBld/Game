@@ -40,15 +40,23 @@ pub fn TimeAdvanceToast() -> Element {
     // Hook for auto-dismiss timer - clone notification for effect to avoid move
     let game_state_for_dismiss = game_state.clone();
     let game_state_for_button = game_state.clone();  // Clone for second closure
-    let notification_for_effect = notification.clone();
+    let _notification_for_effect = notification.clone();
+
+    // Extract created_at_ms for dependency - if None, effect won't re-run when it becomes Some
+    let created_at_ms = notification.as_ref().map(|n| n.created_at_ms);
 
     use_effect(move || {
-        if notification_for_effect.is_some() {
-            // Auto-dismiss after 5 seconds
+        if let Some(notification_created_at) = created_at_ms {
+            // Auto-dismiss after 5 seconds, but only if this notification is still current
             let mut game_state = game_state_for_dismiss.clone();
             spawn_task(async move {
                 tokio::time::sleep(Duration::from_secs(5)).await;
-                game_state.clear_time_advance_notification();
+                // Only clear if the notification's created_at_ms still matches
+                // (prevents clearing a newer notification that arrived during the delay)
+                let current = game_state.time_advance_notification.read().clone();
+                if current.as_ref().map(|n| n.created_at_ms) == Some(notification_created_at) {
+                    game_state.clear_time_advance_notification();
+                }
             });
         }
     });

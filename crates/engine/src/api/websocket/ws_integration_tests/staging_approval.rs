@@ -365,7 +365,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
@@ -1086,7 +1086,7 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });

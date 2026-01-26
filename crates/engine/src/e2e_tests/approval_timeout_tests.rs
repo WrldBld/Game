@@ -689,7 +689,7 @@ async fn test_expired_time_decision_returns_error() {
     // This test creates a time suggestion, waits for expiration,
     // then attempts to resolve it which should return NotFound error.
 
-    use crate::api::websocket::TimeSuggestionStoreImpl;
+    use crate::stores::TimeSuggestionStore;
 
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
@@ -708,11 +708,10 @@ async fn test_expired_time_decision_returns_error() {
     .await
     .expect("Player creation should succeed");
 
-    // Use the standard TimeSuggestionStoreImpl (30 min TTL)
+    // Use the standard TimeSuggestionStore (30 min TTL)
     // Since we can't wait 30 minutes, we'll test the NotFound case
     // by attempting to resolve a suggestion that was never inserted
-    let store = Arc::new(TimeSuggestionStoreImpl::new());
-    let store_repo = crate::stores::TimeSuggestionStore::new(store);
+    let store = Arc::new(TimeSuggestionStore::new());
 
     // Create a fake suggestion ID that doesn't exist in the store
     let fake_suggestion_id = Uuid::new_v4();
@@ -724,7 +723,7 @@ async fn test_expired_time_decision_returns_error() {
         .time
         .suggestions
         .resolve(
-            &store_repo,
+            &store,
             ctx.world.world_id,
             fake_suggestion_id.into(),
             TimeSuggestionDecision::Approve,

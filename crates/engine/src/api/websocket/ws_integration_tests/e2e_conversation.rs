@@ -67,7 +67,7 @@ async fn test_e2e_join_world_and_get_template() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });

@@ -82,7 +82,7 @@ async fn when_player_ends_conversation_then_broadcasts_to_world() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
@@ -256,7 +256,7 @@ async fn when_dm_ends_conversation_then_returns_bad_request_error() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
@@ -379,7 +379,7 @@ async fn when_npc_not_found_then_returns_error() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
@@ -466,7 +466,7 @@ async fn when_pc_not_found_then_returns_error() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });

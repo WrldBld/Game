@@ -479,11 +479,15 @@ pub fn LocationForm(
                                             let hs = hidden_secrets.read().clone();
                                             if hs.is_empty() { None } else { Some(hs) }
                                         },
-                                        parent_location_id: parent_location_id.read().clone(),
-                                        backdrop_asset: None,
-                                        backdrop_regions: Vec::new(),
-                                        presence_cache_ttl_hours: Some(*presence_cache_ttl_hours.read()),
-                                        use_llm_presence: Some(*use_llm_presence.read()),
+                                         parent_location_id: parent_location_id.read().clone(),
+                                         backdrop_asset: None,
+                                         backdrop_regions: Vec::new(),
+                                         presence_cache_ttl_hours: if *presence_cache_ttl_hours.read() == 0 {
+                                             None  // 0 means use world default
+                                         } else {
+                                             Some(*presence_cache_ttl_hours.read())
+                                         },
+                                         use_llm_presence: Some(*use_llm_presence.read()),
                                     };
 
                                     match if is_new {

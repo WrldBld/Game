@@ -6,18 +6,20 @@ This plan targets the smallest changes that materially improve the DM/Player loo
 
 **Scope:** UI wiring, small orchestration updates, and configuration surfaces.
 
+**Status:** ✅ Completed (all quick gains implemented and verified)
+
 **Note:** US-TIME-010 (Set exact game time) and US-TIME-012 (Time mode toggle) are already implemented in the backend/protocol. UI wiring remains.
 
 ---
 
 ## Ordered Delivery
 
-1. **US-DLG-017** — Player End Conversation (P0)
-2. **US-TIME-013** — Dialogue Approval Emits Time Suggestion (P0)
-3. **US-TIME-011** — Player Time-Advance Toast (P1)
-4. **US-STG-016** — World Staging Auto-Approve Timeout UI (P1)
-5. **US-STG-017** — Location Staging Defaults (TTL + LLM Presence) (P1)
-6. **US-DLG-010** — Dialogue Response Template Overrides UI (P2)
+1. **US-DLG-017** — Player End Conversation (P0) ✅
+2. **US-TIME-013** — Dialogue Approval Emits Time Suggestion (P0) ✅
+3. **US-TIME-011** — Player Time-Advance Toast (P1) ✅
+4. **US-STG-016** — World Staging Auto-Approve Timeout UI (P1) ✅
+5. **US-STG-017** — Location Staging Defaults (TTL + LLM Presence) (P1) ✅
+6. **US-DLG-010** — Dialogue Response Template Overrides UI (P2) ✅
 
 ---
 
@@ -35,6 +37,8 @@ This plan targets the smallest changes that materially improve the DM/Player loo
 - Tests cover the end-conversation use case and message handling.
 
 **Dependencies:** Dialogue state management; WebSocket messages for end events.
+
+**Status:** ✅ Complete
 
 **Likely Files**
 - `crates/engine/src/use_cases/conversation/end.rs`
@@ -58,6 +62,8 @@ This plan targets the smallest changes that materially improve the DM/Player loo
 
 **Dependencies:** Time suggestion use case; approval flow; time config.
 
+**Status:** ✅ Complete
+
 **Likely Files**
 - `crates/engine/src/use_cases/queues/mod.rs`
 - `crates/engine/src/use_cases/time/mod.rs`
@@ -78,6 +84,8 @@ This plan targets the smallest changes that materially improve the DM/Player loo
 
 **Dependencies:** `GameTimeAdvanced` payload handling in player state.
 
+**Status:** ✅ Complete
+
 **Likely Files**
 - `crates/player/src/ui/presentation/views/pc_view.rs`
 - `crates/player/src/ui/presentation/components/navigation_panel.rs`
@@ -97,6 +105,8 @@ This plan targets the smallest changes that materially improve the DM/Player loo
 
 **Dependencies:** World settings UI.
 
+**Status:** ✅ Complete
+
 **Likely Files**
 - `crates/player/src/ui/presentation/components/creator/world_form.rs`
 - `crates/player/src/application/services/world_service.rs`
@@ -113,6 +123,8 @@ This plan targets the smallest changes that materially improve the DM/Player loo
 - Staging approval uses location defaults when present.
 
 **Dependencies:** Location settings UI and DTOs.
+
+**Status:** ✅ Complete
 
 **Likely Files**
 - `crates/player/src/ui/presentation/components/creator/location_form.rs`
@@ -132,6 +144,8 @@ This plan targets the smallest changes that materially improve the DM/Player loo
 - Dialogue generation uses the resolved template.
 
 **Dependencies:** Prompt Template System APIs.
+
+**Status:** ✅ Complete
 
 **Likely Files**
 - `crates/player/src/ui/presentation/components/settings/*`

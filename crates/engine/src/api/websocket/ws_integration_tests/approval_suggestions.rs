@@ -29,7 +29,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
@@ -184,7 +184,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
@@ -315,7 +315,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });

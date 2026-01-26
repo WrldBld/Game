@@ -29,10 +29,11 @@ pub mod test_fixtures;
 
 use api::{
     websocket::{
-        GenerationStateStoreImpl, PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState,
+        GenerationStateStoreImpl, PendingStagingStoreImpl, WsState,
     },
     ConnectionManager,
 };
+use stores::TimeSuggestionStore;
 use app::App;
 use infrastructure::{
     clock::SystemClock,
@@ -140,7 +141,7 @@ async fn main() -> anyhow::Result<()> {
     let ws_state = Arc::new(WsState {
         app: app.clone(),
         connections,
-        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
         pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });

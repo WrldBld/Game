@@ -68,16 +68,16 @@ use wrldbldr_shared::{
 use super::connections::ConnectionManager;
 use crate::app::App;
 use crate::infrastructure::cache::TtlCache;
-use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
+use crate::infrastructure::ports::PendingStagingRequest;
+
+// Re-export TimeSuggestionStore for test modules
+pub use crate::stores::TimeSuggestionStore;
 
 /// Buffer size for per-connection message channel.
 const CONNECTION_CHANNEL_BUFFER: usize = 256;
 
 /// TTL for pending staging requests (1 hour).
 const STAGING_REQUEST_TTL: Duration = Duration::from_secs(60 * 60);
-
-/// TTL for time suggestions (30 minutes).
-const TIME_SUGGESTION_TTL: Duration = Duration::from_secs(30 * 60);
 
 /// TTL for generation read state (5 minutes).
 const GENERATION_STATE_TTL: Duration = Duration::from_secs(5 * 60);
@@ -86,7 +86,7 @@ const GENERATION_STATE_TTL: Duration = Duration::from_secs(5 * 60);
 pub struct WsState {
     pub app: Arc<App>,
     pub connections: Arc<ConnectionManager>,
-    pub pending_time_suggestions: Arc<TimeSuggestionStoreImpl>,
+    pub pending_time_suggestions: Arc<TimeSuggestionStore>,
     pub pending_staging_requests: Arc<PendingStagingStoreImpl>,
     pub generation_read_state: GenerationStateStoreImpl,
 }
@@ -185,57 +185,6 @@ impl PendingStagingStoreImpl {
     pub fn mark_processed(&self, key: &str) -> bool {
         let mut processed_ids = self.processed_ids.write().unwrap();
         processed_ids.insert(key.to_string())
-    }
-}
-
-/// TTL-based implementation of TimeSuggestionStore (30 minute TTL).
-pub struct TimeSuggestionStoreImpl {
-    inner: TtlCache<Uuid, TimeSuggestion>,
-}
-
-impl TimeSuggestionStoreImpl {
-    pub fn new() -> Self {
-        Self {
-            inner: TtlCache::new(TIME_SUGGESTION_TTL),
-        }
-    }
-
-    /// Insert a time suggestion.
-    pub async fn insert(&self, key: Uuid, suggestion: TimeSuggestion) {
-        self.inner.insert(key, suggestion).await;
-    }
-
-    /// Get a time suggestion by key.
-    pub async fn get(&self, key: &Uuid) -> Option<TimeSuggestion> {
-        self.inner.get(key).await
-    }
-
-    /// Remove and return a time suggestion.
-    pub async fn remove(&self, key: &Uuid) -> Option<TimeSuggestion> {
-        self.inner.remove(key).await
-    }
-
-    /// Remove all suggestions for a given PC.
-    /// This prevents unbounded growth when a player performs multiple actions
-    /// before the DM resolves the first suggestion.
-    pub async fn remove_for_pc(&self, pc_id: wrldbldr_domain::PlayerCharacterId) {
-        let entries = self.inner.entries().await;
-        for (key, suggestion) in entries {
-            if suggestion.pc_id == pc_id {
-                self.inner.remove(&key).await;
-            }
-        }
-    }
-
-    /// Remove expired entries and return count.
-    pub async fn cleanup_expired(&self) -> usize {
-        self.inner.cleanup_expired().await
-    }
-}
-
-impl Default for TimeSuggestionStoreImpl {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

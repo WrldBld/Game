@@ -89,37 +89,30 @@ impl EndConversation {
 
         // 3. End the active conversation tracking (clear active conversation state)
         // This atomically finds and ends the active conversation between PC and NPC
-        let ended_conversation_id =
-            match self.narrative.end_active_conversation(pc_id, npc_id).await {
-                Ok(id) => {
-                    if let Some(conv_id) = &id {
-                        tracing::info!(
-                            conversation_id = %conv_id,
-                            pc_id = %pc_id,
-                            npc_id = %npc_id,
-                            "Marked conversation as ended"
-                        );
-                    } else {
-                        tracing::debug!(
-                            pc_id = %pc_id,
-                            npc_id = %npc_id,
-                            "No active conversation found to end"
-                        );
-                    }
-                    id
-                }
-                Err(e) => {
-                    // Log but don't fail - the conversation end should still succeed
-                    // even if we can't update the tracking state
-                    tracing::warn!(
-                        error = %e,
+        // Fail-fast: propagate errors to ensure consistent state
+        let ended_conversation_id = match self.narrative.end_active_conversation(pc_id, npc_id).await {
+            Ok(id) => {
+                if let Some(conv_id) = &id {
+                    tracing::info!(
+                        conversation_id = %conv_id,
                         pc_id = %pc_id,
                         npc_id = %npc_id,
-                        "Failed to end active conversation tracking, proceeding anyway"
+                        "Marked conversation as ended"
                     );
-                    None
+                } else {
+                    tracing::debug!(
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        "No active conversation found to end"
+                    );
                 }
-            };
+                id
+            }
+            Err(e) => {
+                // Fail-fast: don't allow conversation to proceed if tracking update fails
+                return Err(EndConversationError::Repo(e));
+            }
+        };
 
         tracing::info!(
             pc_id = %pc_id,

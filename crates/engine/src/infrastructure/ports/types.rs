@@ -245,7 +245,7 @@ pub struct TimeSuggestion {
 }
 
 // Note: TimeSuggestionStore trait was removed.
-// The concrete implementation is TimeSuggestionStoreImpl in api/websocket/mod.rs.
+// The concrete implementation is TimeSuggestionStore in stores/time_suggestion.rs.
 
 // =============================================================================
 // Conversation Management Types (for DM monitoring)

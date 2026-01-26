@@ -224,22 +224,24 @@ pub(super) async fn handle_end_conversation(
         "Conversation ended"
     );
 
-    // Broadcast ConversationEnded to all participants and DMs
-    // For player-initiated ends, ended_by and reason are None
-    let broadcast_msg = ServerMessage::ConversationEnded {
-        npc_id: npc_id.clone(),
-        npc_name: result.npc_name.clone(),
-        pc_id: pc_id.to_string(),
-        summary: result.summary.clone(),
-        conversation_id: result.conversation_id.map(|id| id.to_string()),
-        ended_by: None,
-        reason: None,
-    };
+    // Only broadcast if an actual conversation was ended (conversation_id is Some)
+    // This prevents false UI events and potential abuse when no conversation was active
+    if result.conversation_id.is_some() {
+        let broadcast_msg = ServerMessage::ConversationEnded {
+            npc_id: npc_id.clone(),
+            npc_name: result.npc_name.clone(),
+            pc_id: pc_id.to_string(),
+            summary: result.summary.clone(),
+            conversation_id: result.conversation_id.map(|id| id.to_string()),
+            ended_by: None,
+            reason: None,
+        };
 
-    state
-        .connections
-        .broadcast_to_world(world_id, broadcast_msg)
-        .await;
+        state
+            .connections
+            .broadcast_to_world(world_id, broadcast_msg)
+            .await;
+    }
 
     // Return success response to caller
     Some(ServerMessage::ConversationEnded {
