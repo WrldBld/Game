@@ -1,7 +1,3 @@
-//! Settings use cases.
-//!
-//! Settings operations have been moved to entities::Settings.
-//! This module remains for potential future orchestration use cases.
+pub mod settings_ops;
 
-// Re-export SettingsError for backward compatibility
-pub use crate::entities::settings::SettingsError;
+pub use settings_ops::{SettingsError, SettingsOps};

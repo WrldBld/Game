@@ -1,3 +1,6 @@
+// Execute effects - fields for future effect execution
+#![allow(dead_code)]
+
 //! Execute event effects use case.
 //!
 //! When a narrative event triggers and the DM approves, this executes the effects
@@ -9,11 +12,13 @@ use wrldbldr_domain::{
     CharacterId, EventEffect, NarrativeEventId, PlayerCharacterId, RelationshipEvent,
     RelationshipType, SceneId, WorldId,
 };
+use wrldbldr_shared::character_sheet::SheetValue;
 
-use crate::entities::{
-    Challenge, Character, Flag, Inventory, Narrative, Observation, PlayerCharacter, Scene, World,
+use crate::infrastructure::ports::{
+    ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, ItemRepo, ObservationRepo,
+    PlayerCharacterRepo, SceneRepo, WorldRepo,
 };
-use crate::infrastructure::ports::ClockPort;
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Result of executing a single effect.
 #[derive(Debug, Clone)]
@@ -58,48 +63,48 @@ pub struct EffectExecutionContext {
 
 /// Executes event effects when narrative events trigger.
 ///
-/// Orchestrates multiple entity modules to apply effects like:
-/// - GiveItem / TakeItem via Inventory
-/// - EnableChallenge / DisableChallenge via Challenge
-/// - EnableEvent / DisableEvent via Narrative
-/// - ModifyRelationship via Character
-/// - RevealInformation via Observation
-/// - ModifyStat via PlayerCharacter
-/// - TriggerScene via Scene
-/// - SetFlag via Flag
+/// Orchestrates multiple port traits to apply effects like:
+/// - GiveItem / TakeItem via ItemRepo + PlayerCharacterRepo
+/// - EnableChallenge / DisableChallenge via ChallengeRepo
+/// - EnableEvent / DisableEvent via NarrativeOps
+/// - ModifyRelationship via CharacterRepo
+/// - RevealInformation via ObservationRepo
+/// - ModifyStat via PlayerCharacterRepo
+/// - TriggerScene via SceneRepo
+/// - SetFlag via FlagRepo
 pub struct ExecuteEffects {
-    inventory: Arc<Inventory>,
-    challenge: Arc<Challenge>,
-    narrative: Arc<Narrative>,
-    character: Arc<Character>,
-    observation: Arc<Observation>,
-    player_character: Arc<PlayerCharacter>,
-    scene: Arc<Scene>,
-    flag: Arc<Flag>,
-    world: Arc<World>,
+    item: Arc<dyn ItemRepo>,
+    pc: Arc<dyn PlayerCharacterRepo>,
+    challenge: Arc<dyn ChallengeRepo>,
+    narrative: Arc<NarrativeOps>,
+    character: Arc<dyn CharacterRepo>,
+    observation: Arc<dyn ObservationRepo>,
+    scene: Arc<dyn SceneRepo>,
+    flag: Arc<dyn FlagRepo>,
+    world: Arc<dyn WorldRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
 impl ExecuteEffects {
     pub fn new(
-        inventory: Arc<Inventory>,
-        challenge: Arc<Challenge>,
-        narrative: Arc<Narrative>,
-        character: Arc<Character>,
-        observation: Arc<Observation>,
-        player_character: Arc<PlayerCharacter>,
-        scene: Arc<Scene>,
-        flag: Arc<Flag>,
-        world: Arc<World>,
+        item: Arc<dyn ItemRepo>,
+        pc: Arc<dyn PlayerCharacterRepo>,
+        challenge: Arc<dyn ChallengeRepo>,
+        narrative: Arc<NarrativeOps>,
+        character: Arc<dyn CharacterRepo>,
+        observation: Arc<dyn ObservationRepo>,
+        scene: Arc<dyn SceneRepo>,
+        flag: Arc<dyn FlagRepo>,
+        world: Arc<dyn WorldRepo>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            inventory,
+            item,
+            pc,
             challenge,
             narrative,
             character,
             observation,
-            player_character,
             scene,
             flag,
             world,
@@ -338,7 +343,10 @@ impl ExecuteEffects {
                     return EffectExecutionResult {
                         description: "Add reward effect has empty reward type".to_string(),
                         success: false,
-                        error: Some("Reward effect requires a reward type (e.g., 'gold', 'xp', 'item')".to_string()),
+                        error: Some(
+                            "Reward effect requires a reward type (e.g., 'gold', 'xp', 'item')"
+                                .to_string(),
+                        ),
                         requires_dm_action: false,
                     };
                 }
@@ -352,7 +360,10 @@ impl ExecuteEffects {
                 }
                 if description.trim().is_empty() {
                     return EffectExecutionResult {
-                        description: format!("Add {} x{} reward with empty description", reward_type, amount),
+                        description: format!(
+                            "Add {} x{} reward with empty description",
+                            reward_type, amount
+                        ),
                         success: false,
                         error: Some("Reward effect requires a description".to_string()),
                         requires_dm_action: false,
@@ -433,9 +444,10 @@ impl ExecuteEffects {
         item_description: Option<String>,
         quantity: u32,
     ) -> EffectExecutionResult {
-        match self
-            .inventory
-            .give_item_to_pc(pc_id, item_name.clone(), item_description)
+        let give_item =
+            crate::use_cases::inventory::GiveItem::new(self.item.clone(), self.pc.clone());
+        match give_item
+            .execute(pc_id, item_name.clone(), item_description)
             .await
         {
             Ok(result) => EffectExecutionResult {
@@ -460,12 +472,16 @@ impl ExecuteEffects {
         quantity: u32,
     ) -> EffectExecutionResult {
         // Find the item in PC's inventory by name
-        match self.inventory.get_pc_inventory(pc_id).await {
+        match self.pc.get_inventory(pc_id).await {
             Ok(inventory) => {
-                if let Some(item) = inventory.iter().find(|i| i.name == item_name) {
+                if let Some(item) = inventory.iter().find(|i| i.name.as_str() == item_name) {
                     let item_id = item.id;
-                    // For now, just drop it (removes from inventory)
-                    match self.inventory.drop_item(pc_id, item_id, quantity).await {
+                    // Drop the item (removes from inventory)
+                    let drop_item = crate::use_cases::inventory::DropItem::new(
+                        self.item.clone(),
+                        self.pc.clone(),
+                    );
+                    match drop_item.execute(pc_id, item_id, quantity).await {
                         Ok(_) => EffectExecutionResult {
                             description: format!("Took {} x{} from player", item_name, quantity),
                             success: true,
@@ -596,10 +612,10 @@ impl ExecuteEffects {
                 // Find existing relationship to target
                 let existing_relationship = relationships
                     .into_iter()
-                    .find(|r| r.to_character == to_character);
+                    .find(|r| r.to_character() == to_character);
 
                 // If no existing relationship, create a new one with logging
-                let (mut relationship, is_new_relationship) = match existing_relationship {
+                let (relationship, is_new_relationship) = match existing_relationship {
                     Some(rel) => (rel, false),
                     None => {
                         tracing::info!(
@@ -621,17 +637,36 @@ impl ExecuteEffects {
                     }
                 };
 
-                // Apply sentiment change
-                let old_sentiment = relationship.sentiment;
-                relationship.sentiment =
-                    (relationship.sentiment + sentiment_change).clamp(-1.0, 1.0);
+                // Validate sentiment change is a finite number
+                if !sentiment_change.is_finite() {
+                    tracing::warn!(
+                        from_character = %from_character,
+                        to_character = %to_character,
+                        sentiment_change = %sentiment_change,
+                        "Invalid sentiment change value (NaN or Infinity), skipping"
+                    );
+                    return EffectExecutionResult {
+                        description: format!(
+                            "Invalid sentiment change value: {}",
+                            sentiment_change
+                        ),
+                        success: false,
+                        error: Some("Sentiment change is NaN or Infinity".to_string()),
+                        requires_dm_action: false,
+                    };
+                }
 
-                // Add event to history
-                relationship.add_event(RelationshipEvent {
-                    description: reason.to_string(),
-                    sentiment_change,
-                    timestamp: self.clock.now(),
-                });
+                // Apply sentiment change and add event to history
+                let old_sentiment = relationship.sentiment();
+                let new_sentiment = (old_sentiment + sentiment_change).clamp(-1.0, 1.0);
+                let relationship =
+                    relationship
+                        .with_sentiment(new_sentiment)
+                        .with_event(RelationshipEvent::new(
+                            reason.to_string(),
+                            sentiment_change,
+                            self.clock.now(),
+                        ));
 
                 // Save updated relationship
                 match self.character.save_relationship(&relationship).await {
@@ -644,7 +679,12 @@ impl ExecuteEffects {
                         EffectExecutionResult {
                             description: format!(
                                 "{}: {} -> {} (sentiment {:.2} -> {:.2}, reason: {})",
-                                action, from_name, to_name, old_sentiment, relationship.sentiment, reason
+                                action,
+                                from_name,
+                                to_name,
+                                old_sentiment,
+                                relationship.sentiment(),
+                                reason
                             ),
                             success: true,
                             error: None,
@@ -682,11 +722,7 @@ impl ExecuteEffects {
         if persist_to_journal {
             // Save as deduced info in the observation system
             let info_entry = format!("[{}] {}: {}", info_type, title, content);
-            match self
-                .observation
-                .record_deduced_info(pc_id, info_entry)
-                .await
-            {
+            match self.observation.save_deduced_info(pc_id, info_entry).await {
                 Ok(()) => EffectExecutionResult {
                     description: format!("Revealed {} '{}' (saved to journal)", info_type, title),
                     success: true,
@@ -723,11 +759,7 @@ impl ExecuteEffects {
         modifier: i32,
     ) -> EffectExecutionResult {
         // Use the PC from context for stat modification
-        match self
-            .player_character
-            .modify_stat(pc_id, stat_name, modifier)
-            .await
-        {
+        match self.pc.modify_stat(pc_id, stat_name, modifier).await {
             Ok(()) => EffectExecutionResult {
                 description: format!(
                     "Modified stat {} by {:+} for {}",
@@ -802,6 +834,7 @@ impl ExecuteEffects {
 
     /// Add XP reward to a player character.
     /// Updates XP_CURRENT in the character's sheet_data.
+    #[allow(dead_code)]
     async fn execute_add_xp_reward(
         &self,
         pc_id: PlayerCharacterId,
@@ -822,7 +855,7 @@ impl ExecuteEffects {
         description: &str,
     ) -> EffectExecutionResult {
         // Get the PC
-        let pc = match self.player_character.get(pc_id).await {
+        let pc = match self.pc.get(pc_id).await {
             Ok(Some(pc)) => pc,
             Ok(None) => {
                 return EffectExecutionResult {
@@ -834,7 +867,10 @@ impl ExecuteEffects {
             }
             Err(e) => {
                 return EffectExecutionResult {
-                    description: format!("Failed to add {} {}: error loading PC", amount, stat_name),
+                    description: format!(
+                        "Failed to add {} {}: error loading PC",
+                        amount, stat_name
+                    ),
                     success: false,
                     error: Some(e.to_string()),
                     requires_dm_action: false,
@@ -844,25 +880,22 @@ impl ExecuteEffects {
 
         // Get current value from sheet_data (default to 0 if not present)
         let current_value = pc
-            .sheet_data
-            .as_ref()
+            .sheet_data()
             .and_then(|sd| sd.get_number(stat_name))
             .unwrap_or(0);
 
-        let new_value = current_value + amount;
+        let new_value = current_value.saturating_add(amount as i64);
 
         // Create updated sheet_data
-        let mut sheet_data = pc.sheet_data.clone().unwrap_or_default();
-        sheet_data.set(stat_name, wrldbldr_domain::FieldValue::Number(new_value));
+        let mut sheet_data = pc.sheet_data().cloned().unwrap_or_default();
+        sheet_data.set(stat_name, SheetValue::Integer(new_value as i32));
 
-        // Create updated PC
-        let updated_pc = wrldbldr_domain::PlayerCharacter {
-            sheet_data: Some(sheet_data),
-            ..pc
-        };
+        // Create updated PC with new sheet_data
+        let mut updated_pc = pc;
+        updated_pc.set_sheet_data(Some(sheet_data));
 
         // Save the updated PC
-        match self.player_character.save(&updated_pc).await {
+        match self.pc.save(&updated_pc).await {
             Ok(()) => {
                 tracing::info!(
                     pc_id = %pc_id,
@@ -928,7 +961,7 @@ impl ExecuteEffects {
         };
 
         // Map system variant to XP field name
-        let xp_field = match world.rule_system.variant {
+        let xp_field = match world.rule_system().variant {
             RuleSystemVariant::Dnd5e
             | RuleSystemVariant::Pathfinder2e
             | RuleSystemVariant::GenericD20 => "XP_CURRENT",
@@ -1009,7 +1042,7 @@ impl ExecuteEffects {
         };
 
         // Map system variant to currency field name
-        match world.rule_system.variant {
+        match world.rule_system().variant {
             RuleSystemVariant::Dnd5e
             | RuleSystemVariant::Pathfinder2e
             | RuleSystemVariant::GenericD20 => {

@@ -61,12 +61,13 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
     // State for selected expressions
     let mut selected_expressions = use_signal(|| {
         // Pre-select expressions from the character's config
-        props.expression_config.expressions.clone()
+        props.expression_config.expressions().to_vec()
     });
     let mut workflow = use_signal(|| "expression_sheet".to_string());
     let mut style_prompt = use_signal(String::new);
     let mut use_standard_grid = use_signal(|| true);
     let mut is_generating = use_signal(|| false);
+    let mut custom_expr_input = use_signal(String::new);
 
     // Calculate grid layout based on expression count
     let grid_layout = use_memo(move || {
@@ -154,7 +155,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
 
                         for expr in STANDARD_EXPRESSION_ORDER {
                             {
-                                let is_selected = selected_expressions.read().iter().any(|e| e.eq_ignore_ascii_case(expr));
+                                let is_selected = selected_expressions.read().iter().any(|e: &String| e.eq_ignore_ascii_case(expr));
                                 let expr_str = expr.to_string();
                                 rsx! {
                                     button {
@@ -170,7 +171,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                                         onclick: move |_| {
                                             let mut current = selected_expressions.read().clone();
                                             if is_selected {
-                                                current.retain(|e| !e.eq_ignore_ascii_case(&expr_str));
+                                                current.retain(|e: &String| !e.eq_ignore_ascii_case(&expr_str));
                                             } else {
                                                 current.push(expr_str.clone());
                                             }
@@ -184,49 +185,44 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                     }
 
                     // Custom expression input
-                    {
-                        let mut custom_expr_input = use_signal(String::new);
-                        rsx! {
-                            div {
-                                class: "mt-2 flex gap-2",
+                    div {
+                        class: "mt-2 flex gap-2",
 
-                                input {
-                                    class: "flex-1 p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
-                                    r#type: "text",
-                                    placeholder: "Add custom expression...",
-                                    value: "{custom_expr_input}",
-                                    oninput: move |e| custom_expr_input.set(e.value()),
-                                    onkeypress: move |e: KeyboardEvent| {
-                                        if e.key() == Key::Enter {
-                                            let expr = custom_expr_input.read().trim().to_string();
-                                            if !expr.is_empty() {
-                                                let mut current = selected_expressions.read().clone();
-                                                if !current.iter().any(|e| e.eq_ignore_ascii_case(&expr)) {
-                                                    current.push(expr);
-                                                    selected_expressions.set(current);
-                                                }
-                                                custom_expr_input.set(String::new());
-                                            }
+                        input {
+                            class: "flex-1 p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
+                            r#type: "text",
+                            placeholder: "Add custom expression...",
+                            value: "{custom_expr_input}",
+                            oninput: move |e| custom_expr_input.set(e.value()),
+                            onkeypress: move |e: KeyboardEvent| {
+                                if e.key() == Key::Enter {
+                                    let expr = custom_expr_input.read().trim().to_string();
+                                    if !expr.is_empty() {
+                                        let mut current = selected_expressions.read().clone();
+                                        if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
+                                            current.push(expr);
+                                            selected_expressions.set(current);
                                         }
-                                    },
+                                        custom_expr_input.set(String::new());
+                                    }
                                 }
+                            },
+                        }
 
-                                button {
-                                    class: "px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-500",
-                                    onclick: move |_| {
-                                        let expr = custom_expr_input.read().trim().to_string();
-                                        if !expr.is_empty() {
-                                            let mut current = selected_expressions.read().clone();
-                                            if !current.iter().any(|e| e.eq_ignore_ascii_case(&expr)) {
-                                                current.push(expr);
-                                                selected_expressions.set(current);
-                                            }
-                                            custom_expr_input.set(String::new());
-                                        }
-                                    },
-                                    "Add"
+                        button {
+                            class: "px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-500",
+                            onclick: move |_| {
+                                let expr = custom_expr_input.read().trim().to_string();
+                                if !expr.is_empty() {
+                                    let mut current = selected_expressions.read().clone();
+                                    if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
+                                        current.push(expr);
+                                        selected_expressions.set(current);
+                                    }
+                                    custom_expr_input.set(String::new());
                                 }
-                            }
+                            },
+                            "Add"
                         }
                     }
                 }
@@ -315,7 +311,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                         {
                             let total_slots = (grid_layout.read().0 * grid_layout.read().1) as usize;
                             let filled = selected_expressions.read().len();
-                            let empty_slots = if total_slots > filled { total_slots - filled } else { 0 };
+                            let empty_slots = total_slots.saturating_sub(filled);
                             rsx! {
                                 for i in 0..empty_slots {
                                     div {
@@ -434,17 +430,14 @@ pub fn ExpressionMapping(props: ExpressionMappingProps) -> Element {
                         select {
                             class: "w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm",
                             value: mappings.read().iter().find(|(i, _)| *i == idx).map(|(_, e)| e.clone()).unwrap_or_default(),
-                            onchange: {
-                                let idx = idx;
-                                move |e| {
-                                    let mut current = mappings.read().clone();
-                                    if let Some(entry) = current.iter_mut().find(|(i, _)| *i == idx) {
-                                        entry.1 = e.value();
-                                    } else {
-                                        current.push((idx, e.value()));
-                                    }
-                                    mappings.set(current);
+                            onchange: move |e| {
+                                let mut current = mappings.read().clone();
+                                if let Some(entry) = current.iter_mut().find(|(i, _)| *i == idx) {
+                                    entry.1 = e.value();
+                                } else {
+                                    current.push((idx, e.value()));
                                 }
+                                mappings.set(current);
                             },
 
                             option { value: "", "— Select —" }

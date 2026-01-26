@@ -6,14 +6,18 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::dto::InventoryItemData;
+use crate::application::dto::{DiceInput, InteractionData, PlayerAction};
+use crate::infrastructure::messaging::CommandBus;
 use crate::infrastructure::spawn_task;
-use crate::application::dto::{
-    DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate,
-};
+use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
-use crate::presentation::components::event_overlays::{ApproachEventOverlay, LocationEventBanner};
+use crate::presentation::components::common::TimeAdvanceToast;
+use crate::presentation::components::event_overlays::{
+    ApproachEventOverlay, EndConversationConfirmation, LocationEventBanner,
+};
 use crate::presentation::components::inventory_panel::InventoryPanel;
 use crate::presentation::components::known_npcs_panel::{KnownNpcsPanel, NpcObservationData};
 use crate::presentation::components::mini_map::{MapBounds, MapRegionData, MiniMap};
@@ -25,8 +29,6 @@ use crate::presentation::components::tactical::{
 use crate::presentation::components::visual_novel::{
     Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox,
 };
-use crate::infrastructure::messaging::CommandBus;
-use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::services::{
     use_character_service, use_command_bus, use_location_service, use_observation_service,
     use_skill_service, use_world_service,
@@ -35,6 +37,11 @@ use crate::presentation::state::{
     use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
     RollSubmissionStatus,
 };
+use wrldbldr_shared::character_sheet::SheetValue;
+
+/// Animation timing for backdrop transitions.
+/// Must match the transition duration defined in tailwind.config.js.
+const BACKDROP_TRANSITION_MS: u64 = 500;
 
 /// Player Character View - visual novel gameplay interface
 ///
@@ -45,6 +52,7 @@ pub fn PCView() -> Element {
     let game_state = use_game_state();
     let mut dialogue_state = use_dialogue_state();
     let session_state = use_session_state();
+    let navigator = use_navigator();
 
     // Get command bus for sending messages
     let command_bus = use_command_bus();
@@ -58,8 +66,8 @@ pub fn PCView() -> Element {
 
     // Character sheet viewer state
     let mut show_character_sheet = use_signal(|| false);
-    let mut character_sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
-    let mut character_sheet_values: Signal<HashMap<String, FieldValue>> = use_signal(HashMap::new);
+    let mut character_sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
+    let mut character_sheet_values: Signal<HashMap<String, SheetValue>> = use_signal(HashMap::new);
     let mut player_character_name = use_signal(|| "Your Character".to_string());
     let mut selected_character_id: Signal<Option<String>> = use_signal(|| None);
     let mut is_loading_sheet = use_signal(|| false);
@@ -81,22 +89,20 @@ pub fn PCView() -> Element {
     let mut show_mini_map = use_signal(|| false);
 
     // Backdrop transition effect - auto-clear after animation completes
-    {
-        let game_state_for_effect = game_state.clone();
-        let transitioning = *game_state_for_effect.backdrop_transitioning.read();
-        let platform = crate::use_platform();
-        use_effect(move || {
-            if transitioning {
-                let mut gs = game_state_for_effect.clone();
-                let sleep_future = platform.sleep_ms(500);
-                spawn_task(async move {
-                    // Wait for animation to complete (0.5s defined in tailwind.config.js)
-                    sleep_future.await;
-                    gs.clear_backdrop_transition();
-                });
-            }
-        });
-    }
+    let game_state_for_effect = game_state.clone();
+    let transitioning = *game_state_for_effect.backdrop_transitioning.read();
+    let platform = crate::use_platform();
+    use_effect(move || {
+        if transitioning {
+            let mut gs = game_state_for_effect.clone();
+            let sleep_future = platform.sleep_ms(BACKDROP_TRANSITION_MS);
+            spawn_task(async move {
+                // Wait for animation to complete
+                sleep_future.await;
+                gs.clear_backdrop_transition();
+            });
+        }
+    });
     let mut map_regions: Signal<Vec<MapRegionData>> = use_signal(Vec::new);
     let mut is_loading_map = use_signal(|| false);
 
@@ -108,6 +114,9 @@ pub fn PCView() -> Element {
     // Region items panel state (items visible in current region)
     let mut show_region_items_panel = use_signal(|| false);
 
+    // End conversation confirmation modal state
+    let show_end_conversation_modal = use_signal(|| false);
+
     // Error feedback state for user actions
     let mut action_error: Signal<Option<String>> = use_signal(|| None);
 
@@ -115,49 +124,47 @@ pub fn PCView() -> Element {
     use_typewriter_effect(&mut dialogue_state);
 
     // Auto-refresh observations when refresh counter changes (if panel is open)
-    // Track the refresh counter - this will trigger re-render when it changes
+    // Track of refresh counter - this will trigger re-render when it changes
     let observations_refresh = *game_state.observations_refresh_counter.read();
-    {
-        let is_panel_open = *show_known_npcs_panel.read();
-        let pc_id = game_state.selected_pc_id.read().clone();
-        let obs_svc = observation_service.clone();
+    let is_panel_open = *show_known_npcs_panel.read();
+    let pc_id = game_state.selected_pc_id.read().clone();
+    let obs_svc = observation_service.clone();
 
-        use_effect(move || {
-            // Use the counter to establish reactive dependency (even if we just log it)
-            let _ = observations_refresh;
+    use_effect(move || {
+        // Use counter to establish reactive dependency (even if we just log it)
+        let _ = observations_refresh;
 
-            // Only refresh if panel is currently open and we have a PC
-            if is_panel_open {
-                if let Some(pid) = pc_id.clone() {
-                    let obs_svc = obs_svc.clone();
-                    spawn_task(async move {
-                        match obs_svc.list_observations(&pid).await {
-                            Ok(observations) => {
-                                let npc_data: Vec<NpcObservationData> = observations
-                                    .into_iter()
-                                    .map(|o| NpcObservationData {
-                                        npc_id: o.npc_id,
-                                        npc_name: o.npc_name,
-                                        npc_portrait: o.npc_portrait,
-                                        location_name: o.location_name,
-                                        region_name: o.region_name,
-                                        game_time: o.game_time,
-                                        observation_type: o.observation_type,
-                                        observation_type_icon: o.observation_type_icon,
-                                        notes: o.notes,
-                                    })
-                                    .collect();
-                                known_npcs.set(npc_data);
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to refresh observations: {}", e);
-                            }
+        // Only refresh if panel is currently open and we have a PC
+        if is_panel_open {
+            if let Some(pid) = pc_id.clone() {
+                let obs_svc = obs_svc.clone();
+                spawn_task(async move {
+                    match obs_svc.list_observations(&pid).await {
+                        Ok(observations) => {
+                            let npc_data: Vec<NpcObservationData> = observations
+                                .into_iter()
+                                .map(|o| NpcObservationData {
+                                    npc_id: o.npc_id,
+                                    npc_name: o.npc_name,
+                                    npc_portrait: o.npc_portrait,
+                                    location_name: o.location_name,
+                                    region_name: o.region_name,
+                                    game_time: o.game_time,
+                                    observation_type: o.observation_type,
+                                    observation_type_icon: o.observation_type_icon,
+                                    notes: o.notes,
+                                })
+                                .collect();
+                            known_npcs.set(npc_data);
                         }
-                    });
-                }
+                        Err(e) => {
+                            tracing::warn!("Failed to refresh observations: {}", e);
+                        }
+                    }
+                });
             }
-        });
-    }
+        }
+    });
 
     // Read scene characters from game state (reactive)
     let scene_characters = game_state.scene_characters.read().clone();
@@ -264,7 +271,7 @@ pub fn PCView() -> Element {
 
                 if has_dialogue {
                     DialogueBox {
-                        speaker_name: speaker_name,
+                        speaker_name: speaker_name.clone(),
                         dialogue_text: displayed_text,
                         is_typing: is_typing,
                         is_llm_processing: is_llm_processing,
@@ -372,21 +379,24 @@ pub fn PCView() -> Element {
                             let world_svc = world_service.clone();
                             let char_svc = character_service.clone();
                             spawn_task(async move {
-                                // Load template
+                                // Load schema
                                 match world_svc.get_sheet_template(&wid).await {
-                                    Ok(template_json) => {
-                                        if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
-                                            character_sheet_template.set(Some(template));
-                                        }
+                                    Ok(schema) => {
+                                        character_sheet_schema.set(Some(schema));
                                     }
-                                    Err(e) => tracing::warn!("Failed to load sheet template: {}", e),
+                                    Err(e) => tracing::warn!("Failed to load sheet schema: {}", e),
                                 }
                                 // Load character data
                                 match char_svc.get_character(&cid).await {
                                     Ok(char_data) => {
                                         player_character_name.set(char_data.name);
                                         if let Some(sheet_data) = char_data.sheet_data {
-                                            character_sheet_values.set(sheet_data.values);
+                                            character_sheet_values.set(
+                                                sheet_data
+                                                    .values
+                                                    .into_iter()
+                                                    .collect::<HashMap<_, _>>()
+                                            );
                                         }
                                     }
                                     Err(e) => tracing::warn!("Failed to load character: {}", e),
@@ -528,10 +538,7 @@ pub fn PCView() -> Element {
                                                 let modifier = sheet_values
                                                     .get(&format!("skill_{}", s.name.to_lowercase().replace(' ', "_")))
                                                     .or_else(|| sheet_values.get(&s.name.to_lowercase()))
-                                                    .and_then(|v| match v {
-                                                        crate::application::dto::FieldValue::Number(n) => Some(*n),
-                                                        _ => None,
-                                                    })
+                                                    .and_then(|v| v.as_i64().map(|n| n as i32))
                                                     .unwrap_or(0);
 
                                                 PlayerSkillData {
@@ -562,6 +569,14 @@ pub fn PCView() -> Element {
                     show_region_items_panel.set(true);
                 })),
                 region_items_count: game_state.region_items.read().len(),
+                has_conversation: dialogue_state.has_active_conversation(),
+                on_end_conversation: Some(EventHandler::new({
+                    let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                    move |_| {
+                        tracing::info!("Show end conversation confirmation");
+                        show_end_conversation_modal.set(true);
+                    }
+                })),
             }
 
             // Character sheet viewer modal
@@ -582,19 +597,24 @@ pub fn PCView() -> Element {
                             }
                         }
                     }
-                } else if let Some(template) = character_sheet_template.read().as_ref() {
+                } else if let Some(schema) = character_sheet_schema.read().as_ref() {
                     CharacterSheetViewer {
                         character_name: player_character_name.read().clone(),
-                        template: template.clone(),
+                        schema: schema.clone(),
                         values: character_sheet_values.read().clone(),
                         on_close: move |_| show_character_sheet.set(false),
                     }
                 } else {
                     // No template loaded - show placeholder with character selection
                     {
-                        let characters = game_state.world.read().as_ref()
+                        // Read world state once to avoid multiple borrows
+                        let world_read = game_state.world.read();
+                        let characters = world_read.as_ref()
                             .map(|w| w.characters.clone())
                             .unwrap_or_default();
+                        let world_id_for_create = world_read.as_ref()
+                            .map(|w| w.world.id.clone());
+                        drop(world_read); // Explicitly drop the borrow before rsx!
                         rsx! {
                             div {
                                 class: "character-sheet-overlay fixed inset-0 bg-black/85 z-[1000] flex items-center justify-center p-8",
@@ -612,7 +632,16 @@ pub fn PCView() -> Element {
                                     if characters.is_empty() {
                                         p {
                                             class: "text-gray-400 m-0 mb-6",
-                                            "No characters available in this world."
+                                            "No player character created yet."
+                                        }
+                                        if let Some(wid) = world_id_for_create.clone() {
+                                            button {
+                                                onclick: move |_| {
+                                                    navigator.push(crate::routes::Route::PCCreationRoute { world_id: wid.clone() });
+                                                },
+                                                class: "py-2 px-6 bg-blue-500 text-white border-0 rounded-lg cursor-pointer mb-4",
+                                                "Create Character"
+                                            }
                                         }
                                     } else {
                                         p {
@@ -656,7 +685,10 @@ pub fn PCView() -> Element {
                     on_close: {
                         let mut session_state = session_state.clone();
                         move |_| {
+                            // Clear both active challenge and roll status
+                            // This ensures modal state is fully reset when user closes via X button
                             session_state.clear_active_challenge();
+                            session_state.clear_roll_status();
                         }
                     },
                 }
@@ -929,6 +961,42 @@ pub fn PCView() -> Element {
                 }
             }
 
+            // Time advance toast (when DM advances time)
+            TimeAdvanceToast {}
+
+            // End conversation confirmation modal
+            if *show_end_conversation_modal.read() {
+                EndConversationConfirmation {
+                    npc_name: speaker_name.clone(),
+                    on_confirm: {
+                        let command_bus = command_bus.clone();
+                        let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                        let dialogue_state_for_closure = dialogue_state.clone();
+                        move |_| {
+                            let speaker_id = dialogue_state_for_closure.speaker_id.read().clone();
+                            if let Some(npc_id) = speaker_id {
+                                // Send EndConversation message
+                                let msg = ClientMessageBuilder::end_conversation(&npc_id, None);
+                                if let Err(e) = command_bus.send(msg) {
+                                    tracing::error!("Failed to send EndConversation message: {}", e);
+                                } else {
+                                    tracing::info!("Sent EndConversation message for NPC: {}", npc_id);
+                                }
+                            } else {
+                                tracing::warn!("No speaker ID available for ending conversation");
+                            }
+                            show_end_conversation_modal.set(false);
+                        }
+                    },
+                    on_cancel: {
+                        let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                        move |_| {
+                            show_end_conversation_modal.set(false);
+                        }
+                    },
+                }
+            }
+
             // Staging pending overlay (player waiting for DM to set the scene)
             if let Some(ref pending) = *game_state.staging_pending.read() {
                 StagingPendingOverlay {
@@ -943,11 +1011,7 @@ pub fn PCView() -> Element {
 
 /// Overlay shown when player is waiting for DM to approve staging
 #[component]
-fn StagingPendingOverlay(
-    region_name: String,
-    started_at_ms: u64,
-    timeout_seconds: u64,
-) -> Element {
+fn StagingPendingOverlay(region_name: String, started_at_ms: u64, timeout_seconds: u64) -> Element {
     let platform = use_context::<std::sync::Arc<dyn crate::ports::outbound::PlatformPort>>();
     let mut remaining_seconds = use_signal(|| {
         // Calculate initial remaining time
@@ -957,34 +1021,32 @@ fn StagingPendingOverlay(
     });
 
     // Timer effect to update countdown every second
-    {
-        let platform_for_effect = platform.clone();
-        use_effect(move || {
-            if timeout_seconds == 0 {
-                return; // No countdown if timeout is 0
-            }
+    let platform_for_effect = platform.clone();
+    use_effect(move || {
+        if timeout_seconds == 0 {
+            return; // No countdown if timeout is 0
+        }
 
-            let platform = platform_for_effect.clone();
-            spawn_task(async move {
-                loop {
-                    // Wait 1 second
-                    platform.sleep_ms(1000).await;
+        let platform = platform_for_effect.clone();
+        spawn_task(async move {
+            loop {
+                // Wait 1 second
+                platform.sleep_ms(1000).await;
 
-                    // Recalculate remaining time
-                    let elapsed_ms = platform.now_millis().saturating_sub(started_at_ms);
-                    let elapsed_secs = elapsed_ms / 1000;
-                    let new_remaining = timeout_seconds.saturating_sub(elapsed_secs);
+                // Recalculate remaining time
+                let elapsed_ms = platform.now_millis().saturating_sub(started_at_ms);
+                let elapsed_secs = elapsed_ms / 1000;
+                let new_remaining = timeout_seconds.saturating_sub(elapsed_secs);
 
-                    remaining_seconds.set(new_remaining);
+                remaining_seconds.set(new_remaining);
 
-                    // Stop updating if we've reached 0
-                    if new_remaining == 0 {
-                        break;
-                    }
+                // Stop updating if we've reached 0
+                if new_remaining == 0 {
+                    break;
                 }
-            });
+            }
         });
-    }
+    });
 
     let remaining = *remaining_seconds.read();
 
@@ -1206,7 +1268,10 @@ fn handle_advance(dialogue_state: &mut crate::presentation::state::DialogueState
 
 /// Handle an interaction being selected from the action panel
 /// Returns Ok(()) on success, Err(message) on failure
-fn handle_interaction(command_bus: &CommandBus, interaction: &InteractionData) -> Result<(), String> {
+fn handle_interaction(
+    command_bus: &CommandBus,
+    interaction: &InteractionData,
+) -> Result<(), String> {
     tracing::info!(
         "Selected interaction: {} ({})",
         interaction.name,
@@ -1246,7 +1311,11 @@ fn send_challenge_roll_input(
 
 /// Send a move to region command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_move_to_region(command_bus: &CommandBus, pc_id: &str, region_id: &str) -> Result<(), String> {
+fn send_move_to_region(
+    command_bus: &CommandBus,
+    pc_id: &str,
+    region_id: &str,
+) -> Result<(), String> {
     let msg = ClientMessageBuilder::move_to_region(pc_id, region_id);
     command_bus
         .send(msg)

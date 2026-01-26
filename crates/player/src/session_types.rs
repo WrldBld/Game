@@ -10,11 +10,12 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
-use wrldbldr_protocol::{
+use wrldbldr_shared::messages::DiceInputType as ProtoDiceInputType;
+use wrldbldr_shared::{
     AdHocOutcomes as ProtoAdHocOutcomes, ApprovedNpcInfo as ProtoApprovedNpcInfo,
     ChallengeOutcomeDecisionData as ProtoChallengeOutcomeDecisionData,
-    DiceInputType as ProtoDiceInputType, DirectorialContext as ProtoDirectorialContext,
-    NpcMotivationData as ProtoNpcMotivationData, ParticipantRole as ProtoParticipantRole,
+    DirectorialContext as ProtoDirectorialContext, NpcMotivationData as ProtoNpcMotivationData,
+    ParticipantRole as ProtoParticipantRole,
 };
 
 // ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]
@@ -22,7 +23,7 @@ use wrldbldr_protocol::{
 // for wire-format types. This avoids duplication and ensures serialization consistency
 // between engine and player. The Unknown variant with #[serde(other)] provides forward
 // compatibility - callers should handle Unknown by converting to Reject at boundaries.
-pub use wrldbldr_protocol::ApprovalDecision;
+pub use wrldbldr_shared::ApprovalDecision;
 
 /// Role of a participant in a game session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,7 +91,7 @@ pub struct AdHocOutcomes {
 
 /// Challenge outcome decision from DM
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
+#[serde(tag = "action")]
 pub enum ChallengeOutcomeDecision {
     /// Accept the outcome as-is
     Accept,
@@ -166,10 +167,10 @@ impl From<ProtoApprovedNpcInfo> for ApprovedNpcInfo {
 impl From<ProtoAdHocOutcomes> for AdHocOutcomes {
     fn from(proto: ProtoAdHocOutcomes) -> Self {
         Self {
-            success: proto.success,
-            failure: proto.failure,
-            critical_success: proto.critical_success,
-            critical_failure: proto.critical_failure,
+            success: proto.success().to_string(),
+            failure: proto.failure().to_string(),
+            critical_success: proto.critical_success().map(|s| s.to_string()),
+            critical_failure: proto.critical_failure().map(|s| s.to_string()),
         }
     }
 }
@@ -249,12 +250,15 @@ impl From<ApprovedNpcInfo> for ProtoApprovedNpcInfo {
 
 impl From<AdHocOutcomes> for ProtoAdHocOutcomes {
     fn from(local: AdHocOutcomes) -> Self {
-        Self {
-            success: local.success,
-            failure: local.failure,
-            critical_success: local.critical_success,
-            critical_failure: local.critical_failure,
-        }
+        // UI validation (AdHocChallengeModal) guarantees success/failure are non-empty
+        // and criticals are symmetric. If this panics, it's a bug in the UI.
+        Self::new(
+            local.success,
+            local.failure,
+            local.critical_success,
+            local.critical_failure,
+        )
+        .expect("AdHocOutcomes from UI should be valid")
     }
 }
 

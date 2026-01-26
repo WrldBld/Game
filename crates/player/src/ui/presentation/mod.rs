@@ -3,6 +3,7 @@
 pub mod components;
 pub mod game_time_format;
 pub mod handlers;
+pub mod helpers;
 pub mod services;
 pub mod state;
 pub mod utils;

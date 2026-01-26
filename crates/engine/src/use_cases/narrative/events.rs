@@ -1,38 +1,97 @@
+// Narrative events - fields for future event chain features
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
-use chrono::Utc;
-use serde_json::Value;
+use serde::Serialize;
 
-use wrldbldr_domain::{self as domain, NarrativeEvent, NarrativeEventId, NarrativeTrigger, WorldId};
+use wrldbldr_domain::{
+    self as domain, aggregates::narrative_event::{EventActivation, FavoriteStatus}, DomainError,
+    NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger, WorldId,
+};
 
-use crate::entities::Narrative;
+use crate::infrastructure::ports::ClockPort;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
+use crate::use_cases::narrative_operations::NarrativeOps;
+
+// =============================================================================
+// Domain Result Types
+// =============================================================================
+
+/// Summary of a narrative event.
+#[derive(Debug, Clone, Serialize)]
+pub struct NarrativeEventSummary {
+    pub id: String,
+    pub world_id: String,
+    pub name: String,
+    pub description: String,
+    pub scene_direction: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_opening: Option<String>,
+    pub trigger_count: u32,
+    pub is_active: bool,
+    pub is_triggered: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triggered_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_outcome: Option<String>,
+    pub is_repeatable: bool,
+    pub delay_turns: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_after_turns: Option<u32>,
+    pub priority: i32,
+    pub is_favorite: bool,
+    pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scene_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub act_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_position: Option<u32>,
+    pub outcome_count: usize,
+    pub trigger_condition_count: usize,
+    pub created_at: String,
+    pub updated_at: String,
+}
 
 pub struct NarrativeEventOps {
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
     execute_effects: Arc<ExecuteEffects>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl NarrativeEventOps {
-    pub fn new(narrative: Arc<Narrative>, execute_effects: Arc<ExecuteEffects>) -> Self {
+    pub fn new(
+        narrative: Arc<NarrativeOps>,
+        execute_effects: Arc<ExecuteEffects>,
+        clock: Arc<dyn ClockPort>,
+    ) -> Self {
         Self {
             narrative,
             execute_effects,
+            clock,
         }
     }
 
-    pub async fn list(&self, world_id: WorldId) -> Result<Vec<Value>, NarrativeEventError> {
+    pub async fn list(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<NarrativeEventSummary>, NarrativeEventError> {
         let events = self.narrative.list_events(world_id).await?;
-        Ok(events.iter().map(narrative_event_to_json).collect())
+        Ok(events.iter().map(narrative_event_to_summary).collect())
     }
 
     pub async fn get(
         &self,
         event_id: NarrativeEventId,
-    ) -> Result<Option<Value>, NarrativeEventError> {
+    ) -> Result<Option<NarrativeEventSummary>, NarrativeEventError> {
         let event = self.narrative.get_event(event_id).await?;
-        Ok(event.as_ref().map(narrative_event_to_json))
+        Ok(event.as_ref().map(narrative_event_to_summary))
     }
 
     pub async fn create(
@@ -42,62 +101,87 @@ impl NarrativeEventOps {
         description: Option<String>,
         trigger_conditions: Option<Vec<NarrativeTrigger>>,
         outcomes: Option<Vec<domain::EventOutcome>>,
-    ) -> Result<Value, NarrativeEventError> {
-        let now = Utc::now();
-        let mut event = NarrativeEvent::new(world_id, &name, now);
+    ) -> Result<NarrativeEventSummary, NarrativeEventError> {
+        let now = self.clock.now();
+        let name = NarrativeEventName::new(name).map_err(NarrativeEventError::Domain)?;
+        let mut event = NarrativeEvent::new(world_id, name, now);
 
         if let Some(description) = description {
-            event.description = description;
+            event.set_description(description, now);
         }
         if let Some(triggers) = trigger_conditions {
-            event.trigger_conditions = triggers;
+            event.set_trigger_conditions(triggers, now);
         }
         if let Some(outcomes) = outcomes {
-            event.outcomes = outcomes;
+            event.set_outcomes(outcomes, now);
         }
 
         self.narrative.save_event(&event).await?;
-        Ok(narrative_event_to_json(&event))
+        Ok(narrative_event_to_summary(&event))
     }
 
     pub async fn update(
         &self,
+        world_id: WorldId,
         event_id: NarrativeEventId,
         name: Option<String>,
         description: Option<String>,
         trigger_conditions: Option<Vec<NarrativeTrigger>>,
         outcomes: Option<Vec<domain::EventOutcome>>,
-    ) -> Result<Value, NarrativeEventError> {
+    ) -> Result<NarrativeEventSummary, NarrativeEventError> {
+        let now = self.clock.now();
         let mut event = self
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
 
         if let Some(name) = name {
-            event.name = name;
+            let name = NarrativeEventName::new(name).map_err(NarrativeEventError::Domain)?;
+            event.set_name(name, now);
         }
         if let Some(description) = description {
-            event.description = description;
+            event.set_description(description, now);
         }
         if let Some(triggers) = trigger_conditions {
-            event.trigger_conditions = triggers;
+            event.set_trigger_conditions(triggers, now);
         }
         if let Some(outcomes) = outcomes {
-            event.outcomes = outcomes;
+            event.set_outcomes(outcomes, now);
         }
 
         self.narrative.save_event(&event).await?;
-        Ok(narrative_event_to_json(&event))
+        Ok(narrative_event_to_summary(&event))
     }
 
-    pub async fn delete(&self, event_id: NarrativeEventId) -> Result<(), NarrativeEventError> {
+    pub async fn delete(
+        &self,
+        world_id: WorldId,
+        event_id: NarrativeEventId,
+    ) -> Result<(), NarrativeEventError> {
+        let event = self
+            .narrative
+            .get_event(event_id)
+            .await?
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
+
         self.narrative.delete_event(event_id).await?;
         Ok(())
     }
 
     pub async fn set_active(
         &self,
+        world_id: WorldId,
         event_id: NarrativeEventId,
         active: bool,
     ) -> Result<(), NarrativeEventError> {
@@ -105,14 +189,26 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
-        event.is_active = active;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
+
+        let activation = if active {
+            EventActivation::Active
+        } else {
+            EventActivation::Inactive
+        };
+        event.set_active(activation, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
     }
 
     pub async fn set_favorite(
         &self,
+        world_id: WorldId,
         event_id: NarrativeEventId,
         favorite: bool,
     ) -> Result<(), NarrativeEventError> {
@@ -120,8 +216,19 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
-        event.is_favorite = favorite;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
+
+        let favorite_status = if favorite {
+            FavoriteStatus::Favorite
+        } else {
+            FavoriteStatus::Normal
+        };
+        event.set_favorite(favorite_status, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
     }
@@ -136,24 +243,22 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
 
-        if event.world_id != world_id {
+        if event.world_id() != world_id {
             return Err(NarrativeEventError::WorldMismatch);
         }
 
         let outcome_name = event
-            .selected_outcome
-            .clone()
-            .or_else(|| event.default_outcome.clone())
-            .or_else(|| event.outcomes.first().map(|o| o.name.clone()))
+            .selected_outcome()
+            .map(|s| s.to_string())
+            .or_else(|| event.default_outcome().map(|s| s.to_string()))
+            .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
             .unwrap_or_default();
 
-        event.is_triggered = true;
-        event.selected_outcome = Some(outcome_name.clone());
-        event.triggered_at = Some(Utc::now());
-        event.trigger_count = event.trigger_count.saturating_add(1);
-        let maybe_outcome = event.outcomes.iter().find(|o| o.name == outcome_name);
+        let now = self.clock.now();
+        event.trigger(Some(outcome_name.clone()), now);
+        let maybe_outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
         self.narrative.save_event(&event).await?;
 
         let mut effects_summary = None;
@@ -171,7 +276,7 @@ impl NarrativeEventOps {
 
                 let summary = self
                     .execute_effects
-                    .execute(event.id, outcome.name.clone(), &outcome.effects, &context)
+                    .execute(event.id(), outcome.name.clone(), &outcome.effects, &context)
                     .await;
                 effects_summary = Some(summary);
             }
@@ -182,12 +287,12 @@ impl NarrativeEventOps {
             .unwrap_or_default();
 
         Ok(TriggeredNarrativeEvent {
-            world_id: event.world_id,
-            event_id: event.id,
-            event_name: event.name.clone(),
+            world_id: event.world_id(),
+            event_id: event.id(),
+            event_name: event.name().to_string(),
             outcome_name,
             outcome_description,
-            scene_direction: event.scene_direction.clone(),
+            scene_direction: event.scene_direction().to_string(),
             effects_summary,
             effects_present,
         })
@@ -196,18 +301,16 @@ impl NarrativeEventOps {
     pub async fn reset(
         &self,
         event_id: NarrativeEventId,
-    ) -> Result<Value, NarrativeEventError> {
+    ) -> Result<NarrativeEventSummary, NarrativeEventError> {
         let mut event = self
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
-        event.is_triggered = false;
-        event.selected_outcome = None;
-        event.triggered_at = None;
-        event.trigger_count = 0;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
+        let now = self.clock.now();
+        event.reset(now);
         self.narrative.save_event(&event).await?;
-        Ok(narrative_event_to_json(&event))
+        Ok(narrative_event_to_summary(&event))
     }
 }
 
@@ -225,41 +328,45 @@ pub struct TriggeredNarrativeEvent {
 
 #[derive(Debug, thiserror::Error)]
 pub enum NarrativeEventError {
-    #[error("Narrative event not found")]
-    NotFound,
+    #[error("Narrative event not found: {0}")]
+    NotFound(NarrativeEventId),
     #[error("Event does not belong to the requested world")]
     WorldMismatch,
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+    #[error("Domain error: {0}")]
+    Domain(#[from] DomainError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
 
-fn narrative_event_to_json(event: &NarrativeEvent) -> Value {
-    serde_json::json!({
-        "id": event.id.to_string(),
-        "world_id": event.world_id.to_string(),
-        "name": event.name,
-        "description": event.description,
-        "scene_direction": event.scene_direction,
-        "suggested_opening": event.suggested_opening,
-        "trigger_count": event.trigger_count,
-        "is_active": event.is_active,
-        "is_triggered": event.is_triggered,
-        "triggered_at": event.triggered_at.map(|dt| dt.to_rfc3339()),
-        "selected_outcome": event.selected_outcome,
-        "is_repeatable": event.is_repeatable,
-        "delay_turns": event.delay_turns,
-        "expires_after_turns": event.expires_after_turns,
-        "priority": event.priority,
-        "is_favorite": event.is_favorite,
-        "tags": event.tags,
-        "scene_id": Option::<String>::None,
-        "location_id": Option::<String>::None,
-        "act_id": Option::<String>::None,
-        "chain_id": Option::<String>::None,
-        "chain_position": Option::<u32>::None,
-        "outcome_count": event.outcomes.len(),
-        "trigger_condition_count": event.trigger_conditions.len(),
-        "created_at": event.created_at.to_rfc3339(),
-        "updated_at": event.updated_at.to_rfc3339(),
-    })
+fn narrative_event_to_summary(event: &NarrativeEvent) -> NarrativeEventSummary {
+    NarrativeEventSummary {
+        id: event.id().to_string(),
+        world_id: event.world_id().to_string(),
+        name: event.name().to_string(),
+        description: event.description().to_string(),
+        scene_direction: event.scene_direction().to_string(),
+        suggested_opening: event.suggested_opening().map(|s| s.to_string()),
+        trigger_count: event.trigger_count(),
+        is_active: event.is_active(),
+        is_triggered: event.is_triggered(),
+        triggered_at: event.triggered_at().map(|dt| dt.to_rfc3339()),
+        selected_outcome: event.selected_outcome().map(|s| s.to_string()),
+        is_repeatable: event.is_repeatable(),
+        delay_turns: event.delay_turns(),
+        expires_after_turns: event.expires_after_turns(),
+        priority: event.priority(),
+        is_favorite: event.is_favorite(),
+        tags: event.tags().iter().map(|t| t.to_string()).collect(),
+        scene_id: None,
+        location_id: None,
+        act_id: None,
+        chain_id: None,
+        chain_position: None,
+        outcome_count: event.outcomes().len(),
+        trigger_condition_count: event.trigger_conditions().len(),
+        created_at: event.created_at().to_rfc3339(),
+        updated_at: event.updated_at().to_rfc3339(),
+    }
 }

@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::value_objects::AssetPath;
 use crate::{AssetId, BatchId};
 
 // Re-export shared types from types module
@@ -10,7 +11,6 @@ pub use crate::types::{AssetType, EntityType};
 
 /// Metadata about how an asset was generated
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GenerationMetadata {
     /// ComfyUI workflow used
     pub workflow: String,
@@ -26,55 +26,26 @@ pub struct GenerationMetadata {
     pub batch_id: BatchId,
 }
 
-impl GenerationMetadata {
-    pub fn new(
-        workflow: impl Into<String>,
-        prompt: impl Into<String>,
-        seed: i64,
-        batch_id: BatchId,
-    ) -> Self {
-        Self {
-            workflow: workflow.into(),
-            prompt: prompt.into(),
-            negative_prompt: None,
-            seed,
-            style_reference_id: None,
-            batch_id,
-        }
-    }
-
-    pub fn with_negative_prompt(mut self, negative_prompt: impl Into<String>) -> Self {
-        self.negative_prompt = Some(negative_prompt.into());
-        self
-    }
-
-    pub fn with_style_reference(mut self, style_reference_id: AssetId) -> Self {
-        self.style_reference_id = Some(style_reference_id);
-        self
-    }
-}
-
 /// An asset stored in an entity's gallery
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GalleryAsset {
-    pub id: AssetId,
+    id: AssetId,
     /// Type of entity that owns this asset
-    pub entity_type: EntityType,
+    entity_type: EntityType,
     /// ID of the owning entity (Character, Location, or Item)
-    pub entity_id: String,
+    entity_id: String,
     /// Type of asset (Portrait, Sprite, Backdrop, etc.)
-    pub asset_type: AssetType,
+    asset_type: AssetType,
     /// Path to the stored asset file
-    pub file_path: String,
+    file_path: AssetPath,
     /// Whether this is the currently active asset for this slot
-    pub is_active: bool,
+    is_active: bool,
     /// User-defined label (e.g., "Angry", "Winter Outfit", "Night")
-    pub label: Option<String>,
+    label: Option<String>,
     /// Metadata about generation (if AI-generated)
-    pub generation_metadata: Option<GenerationMetadata>,
+    generation_metadata: Option<GenerationMetadata>,
     /// When the asset was created/uploaded
-    pub created_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
 }
 
 impl GalleryAsset {
@@ -83,7 +54,7 @@ impl GalleryAsset {
         entity_type: EntityType,
         entity_id: impl Into<String>,
         asset_type: AssetType,
-        file_path: impl Into<String>,
+        file_path: AssetPath,
         now: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -91,7 +62,7 @@ impl GalleryAsset {
             entity_type,
             entity_id: entity_id.into(),
             asset_type,
-            file_path: file_path.into(),
+            file_path,
             is_active: false,
             label: None,
             generation_metadata: None,
@@ -104,7 +75,7 @@ impl GalleryAsset {
         entity_type: EntityType,
         entity_id: impl Into<String>,
         asset_type: AssetType,
-        file_path: impl Into<String>,
+        file_path: AssetPath,
         metadata: GenerationMetadata,
         now: DateTime<Utc>,
     ) -> Self {
@@ -113,13 +84,79 @@ impl GalleryAsset {
             entity_type,
             entity_id: entity_id.into(),
             asset_type,
-            file_path: file_path.into(),
+            file_path,
             is_active: false,
             label: None,
             generation_metadata: Some(metadata),
             created_at: now,
         }
     }
+
+    /// Reconstruct from stored data (e.g., database)
+    #[allow(clippy::too_many_arguments)]
+    pub fn reconstruct(
+        id: AssetId,
+        entity_type: EntityType,
+        entity_id: String,
+        asset_type: AssetType,
+        file_path: AssetPath,
+        is_active: bool,
+        label: Option<String>,
+        generation_metadata: Option<GenerationMetadata>,
+        created_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id,
+            entity_type,
+            entity_id,
+            asset_type,
+            file_path,
+            is_active,
+            label,
+            generation_metadata,
+            created_at,
+        }
+    }
+
+    // --- Accessors ---
+
+    pub fn id(&self) -> AssetId {
+        self.id
+    }
+
+    pub fn entity_type(&self) -> EntityType {
+        self.entity_type
+    }
+
+    pub fn entity_id(&self) -> &str {
+        &self.entity_id
+    }
+
+    pub fn asset_type(&self) -> AssetType {
+        self.asset_type
+    }
+
+    pub fn file_path(&self) -> &AssetPath {
+        &self.file_path
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.is_active
+    }
+
+    pub fn label(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+
+    pub fn generation_metadata(&self) -> Option<&GenerationMetadata> {
+        self.generation_metadata.as_ref()
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    // --- Builder methods ---
 
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
@@ -130,6 +167,8 @@ impl GalleryAsset {
         self.is_active = active;
         self
     }
+
+    // --- Mutation methods ---
 
     /// Activate this asset (mark as current for its slot)
     pub fn activate(&mut self) {
@@ -142,7 +181,7 @@ impl GalleryAsset {
     }
 
     /// Update the label
-    pub fn set_label(&mut self, label: Option<String>) {
+    pub fn update_label(&mut self, label: Option<String>) {
         self.label = label;
     }
 

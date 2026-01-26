@@ -4,117 +4,10 @@
 //! Connections between locations use CONNECTED_TO edges.
 //! Regions are separate nodes with HAS_REGION edges (see region.rs).
 
-use super::region::MapBounds;
 use serde::{Deserialize, Serialize};
-use wrldbldr_domain::{LocationId, RegionId, WorldId};
+use wrldbldr_domain::LocationId;
 
-/// A location in the world
-///
-/// Locations form a hierarchy via Neo4j edges:
-/// - Parent/child: `(parent)-[:CONTAINS_LOCATION]->(child)`
-/// - Navigation: `(from)-[:CONNECTED_TO]->(to)`
-/// - Regions: `(location)-[:HAS_REGION]->(region)`
-/// - Grid map: `(location)-[:HAS_TACTICAL_MAP]->(map)`
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Location {
-    pub id: LocationId,
-    pub world_id: WorldId,
-    pub name: String,
-    pub description: String,
-    pub location_type: LocationType,
-
-    // Visual assets
-    /// Path to the default backdrop image asset (used if entering without specific region)
-    pub backdrop_asset: Option<String>,
-    /// Path to the top-down map image for navigation between regions
-    pub map_asset: Option<String>,
-
-    // Position on parent location's map (if this location is nested)
-    /// Bounds defining where this location appears on its parent's map
-    pub parent_map_bounds: Option<MapBounds>,
-
-    // Default entry point
-    /// Default region to place players when arriving without a specific region target
-    pub default_region_id: Option<RegionId>,
-
-    /// Sensory/emotional description of the location's atmosphere
-    pub atmosphere: Option<String>,
-
-    // Staging settings
-    /// Default staging duration in game hours (default: 3)
-    pub presence_cache_ttl_hours: i32,
-    /// Whether to use LLM for staging decisions (default: true)
-    pub use_llm_presence: bool,
-}
-
-impl Location {
-    pub fn new(world_id: WorldId, name: impl Into<String>, location_type: LocationType) -> Self {
-        Self {
-            id: LocationId::new(),
-            world_id,
-            name: name.into(),
-            description: String::new(),
-            location_type,
-            backdrop_asset: None,
-            map_asset: None,
-            parent_map_bounds: None,
-            default_region_id: None,
-            atmosphere: None,
-            presence_cache_ttl_hours: 3,
-            use_llm_presence: true,
-        }
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
-        self
-    }
-
-    pub fn with_backdrop(mut self, asset_path: impl Into<String>) -> Self {
-        self.backdrop_asset = Some(asset_path.into());
-        self
-    }
-
-    pub fn with_map(mut self, asset_path: impl Into<String>) -> Self {
-        self.map_asset = Some(asset_path.into());
-        self
-    }
-
-    pub fn with_parent_map_bounds(mut self, bounds: MapBounds) -> Self {
-        self.parent_map_bounds = Some(bounds);
-        self
-    }
-
-    pub fn with_default_region(mut self, region_id: RegionId) -> Self {
-        self.default_region_id = Some(region_id);
-        self
-    }
-
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere = Some(atmosphere.into());
-        self
-    }
-
-    pub fn with_presence_ttl(mut self, hours: i32) -> Self {
-        self.presence_cache_ttl_hours = hours;
-        self
-    }
-
-    pub fn with_llm_presence(mut self, enabled: bool) -> Self {
-        self.use_llm_presence = enabled;
-        self
-    }
-
-    /// Check if a pixel position is within this location's parent map bounds
-    pub fn contains_point_on_parent_map(&self, x: u32, y: u32) -> bool {
-        if let Some(bounds) = &self.parent_map_bounds {
-            bounds.contains(x, y)
-        } else {
-            false
-        }
-    }
-}
+use crate::value_objects::Description;
 
 /// The type of location
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -131,18 +24,76 @@ pub enum LocationType {
     Unknown,
 }
 
+/// Type of connection between locations
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum ConnectionType {
+    /// A door or doorway
+    Door,
+    /// A path, road, or trail
+    Path,
+    /// Stairs or ladder
+    Stairs,
+    /// Magical or supernatural portal
+    Portal,
+    /// Hidden or secret passage
+    Hidden,
+    /// Other/custom connection type (for forward compatibility)
+    #[default]
+    #[serde(other)]
+    Other,
+}
+
+impl ConnectionType {
+    /// Get a display-friendly name for this connection type
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Door => "Door",
+            Self::Path => "Path",
+            Self::Stairs => "Stairs",
+            Self::Portal => "Portal",
+            Self::Hidden => "Hidden",
+            Self::Other => "Connection",
+        }
+    }
+
+    /// Get the string representation for database storage
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Door => "Door",
+            Self::Path => "Path",
+            Self::Stairs => "Stairs",
+            Self::Portal => "Portal",
+            Self::Hidden => "Hidden",
+            Self::Other => "Connection",
+        }
+    }
+
+    /// Parse a connection type from a string (case-insensitive)
+    pub fn parse(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "door" => Self::Door,
+            "path" => Self::Path,
+            "stairs" => Self::Stairs,
+            "portal" => Self::Portal,
+            "hidden" => Self::Hidden,
+            _ => Self::Other,
+        }
+    }
+}
+
 /// A connection between two locations
 ///
 /// Stored as a `CONNECTED_TO` edge in Neo4j with properties.
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocationConnection {
     pub from_location: LocationId,
     pub to_location: LocationId,
-    /// Type of connection (Door, Path, Stairs, Portal, etc.)
-    pub connection_type: String,
+    /// Type of connection (Door, Path, Stairs, Portal, Hidden, or Other)
+    pub connection_type: ConnectionType,
     /// Description of the path/transition
-    pub description: Option<String>,
+    pub description: Option<Description>,
     /// Whether this connection works both ways
     pub bidirectional: bool,
     /// Travel time in game-time units (0 = instant)
@@ -154,11 +105,11 @@ pub struct LocationConnection {
 }
 
 impl LocationConnection {
-    pub fn new(from: LocationId, to: LocationId, connection_type: impl Into<String>) -> Self {
+    pub fn new(from: LocationId, to: LocationId, connection_type: ConnectionType) -> Self {
         Self {
             from_location: from,
             to_location: to,
-            connection_type: connection_type.into(),
+            connection_type,
             description: None,
             bidirectional: true,
             travel_time: 0,
@@ -167,44 +118,53 @@ impl LocationConnection {
         }
     }
 
+    /// Reconstruct a connection from storage
+    pub fn from_storage(
+        from_location: LocationId,
+        to_location: LocationId,
+        connection_type: ConnectionType,
+        description: Option<Description>,
+        bidirectional: bool,
+        travel_time: u32,
+        is_locked: bool,
+        lock_description: Option<String>,
+    ) -> Self {
+        Self {
+            from_location,
+            to_location,
+            connection_type,
+            description,
+            bidirectional,
+            travel_time,
+            is_locked,
+            lock_description,
+        }
+    }
+
+    // Factory methods
+
     /// Create a door connection
     pub fn door(from: LocationId, to: LocationId) -> Self {
-        Self::new(from, to, "Door")
+        Self::new(from, to, ConnectionType::Door)
     }
 
     /// Create a path/road connection
     pub fn path(from: LocationId, to: LocationId) -> Self {
-        Self::new(from, to, "Path")
+        Self::new(from, to, ConnectionType::Path)
     }
 
     /// Create a stairs connection
     pub fn stairs(from: LocationId, to: LocationId) -> Self {
-        Self::new(from, to, "Stairs")
+        Self::new(from, to, ConnectionType::Stairs)
     }
 
     /// Create a portal/magical connection
     pub fn portal(from: LocationId, to: LocationId) -> Self {
-        Self::new(from, to, "Portal")
+        Self::new(from, to, ConnectionType::Portal)
     }
 
-    pub fn one_way(mut self) -> Self {
-        self.bidirectional = false;
-        self
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    pub fn with_travel_time(mut self, time: u32) -> Self {
-        self.travel_time = time;
-        self
-    }
-
-    pub fn locked(mut self, description: impl Into<String>) -> Self {
-        self.is_locked = true;
-        self.lock_description = Some(description.into());
-        self
+    /// Create a hidden/secret passage connection
+    pub fn hidden(from: LocationId, to: LocationId) -> Self {
+        Self::new(from, to, ConnectionType::Hidden)
     }
 }

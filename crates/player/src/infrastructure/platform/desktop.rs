@@ -16,6 +16,30 @@ use std::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{future::Future, pin::Pin, sync::Arc};
 
+/// Guard that keeps the Tokio runtime context active for the application's lifetime.
+/// Dropping this will exit the runtime context.
+pub struct RuntimeGuard {
+    // We leak the runtime to keep it alive and get a 'static enter guard.
+    // This is intentional - the runtime lives for the entire application.
+    _enter_guard: tokio::runtime::EnterGuard<'static>,
+}
+
+/// Initialize the async runtime for desktop.
+/// Returns a guard that must be kept alive for the application's lifetime.
+/// The runtime is leaked intentionally since it needs to live for the entire program.
+///
+/// # Errors
+///
+/// Returns an error if the Tokio runtime fails to initialize.
+pub fn init_async_runtime() -> Result<RuntimeGuard, std::io::Error> {
+    let runtime = tokio::runtime::Runtime::new()?;
+    let runtime: &'static tokio::runtime::Runtime = Box::leak(Box::new(runtime));
+    let enter_guard = runtime.enter();
+    Ok(RuntimeGuard {
+        _enter_guard: enter_guard,
+    })
+}
+
 /// Desktop time provider using std::time
 #[derive(Clone, Default)]
 pub struct DesktopTimeProvider;

@@ -1,9 +1,28 @@
 # WrldBldr Documentation
 
-**WrldBldr** is a TTRPG management system with an AI-powered game master assistant.
+**WrldBldr is a digital tabletop RPG platform that merges human Dungeon Masters with AI assistance to create a visual novel-style gameplay experience.**
 
-- **Engine** (Rust/Axum): World creation tool with Neo4j database, Ollama LLM integration
-- **Player** (Rust/Dioxus): Gameplay client with visual novel interface (runner owns composition root; UI is presentation-only)
+### The Vision
+
+Running a rich TTRPG world is exhausting for human DMs. WrldBldr puts an **AI assistant alongside the DM** - not replacing them. The AI handles the heavy lifting (generating NPC dialogue, deciding who's at a location, suggesting challenges), while the DM retains **absolute authority** through an approval queue.
+
+**Players** see a visual novel interface with backdrop images, character sprites, typewriter dialogue, and choice buttons.
+
+**DMs** see a control panel with AI proposals, reasoning, tool calls, and approve/modify/reject controls.
+
+### Technical Stack
+
+- **Engine** (Rust/Axum): Backend server with Neo4j graph database, Ollama LLM integration, ComfyUI image generation
+- **Player** (Rust/Dioxus): Cross-platform client (Desktop + WASM) with visual novel UI
+- **Domain** (Pure Rust): Business logic using Rustic DDD patterns
+- **Shared** (Rust/Serde): Wire format and shared vocabulary types
+
+### Key Concepts
+
+- **Graph-First Model**: Everything in Neo4j - locations, characters, relationships, events, all queryable
+- **Staging System**: "Who's on stage" when players enter a region - rule-based + LLM with DM approval
+- **Character Psychology**: NPCs have Campbell archetypes and Greimas actantial model (wants, helpers, opponents)
+- **Multi-System Support**: D&D, Call of Cthulhu, Fate - different dice, same narrative tools
 
 ---
 
@@ -33,12 +52,27 @@ Core gameplay mechanics, each with user stories, UI mockups, and implementation 
 
 Technical reference for developers.
 
-| Document                                                         | Description                            |
-| ---------------------------------------------------------------- | -------------------------------------- |
-| [Neo4j Schema](architecture/neo4j-schema.md)                     | Complete graph database schema         |
-| [Hexagonal Architecture](architecture/hexagonal-architecture.md) | Ports/adapters patterns, layer rules   |
-| [WebSocket Protocol](architecture/websocket-protocol.md)         | All client/server message types        |
-| [Queue System](architecture/queue-system.md)                     | Action and approval queue architecture |
+| Document                                                         | Description                              |
+| ---------------------------------------------------------------- | ---------------------------------------- |
+| [Code Review Guidelines](architecture/review.md)                 | Full Rustic DDD spec, review criteria    |
+| [Review Checklist](REVIEW_CHECKLIST.md)                          | Quick reference for code reviewers       |
+| [Neo4j Schema](architecture/neo4j-schema.md)                     | Complete graph database schema           |
+| [Hexagonal Architecture](architecture/hexagonal-architecture.md) | Ports/adapters patterns, layer rules     |
+| [WebSocket Protocol](architecture/websocket-protocol.md)         | All client/server message types          |
+| [Queue System](architecture/queue-system.md)                     | Action and approval queue architecture   |
+| [E2E Testing](architecture/e2e-testing.md)                       | VCR LLM, event logging, testcontainers   |
+
+### Architecture Decision Records (ADRs)
+
+| ADR | Decision |
+| --- | -------- |
+| [ADR-001](architecture/ADR-001-uuid-generation-in-domain.md) | UUID generation allowed in domain |
+| [ADR-002](architecture/ADR-002-hexagonal-pragmatism.md) | Pragmatic hexagonal (~10 port traits) |
+| [ADR-003](architecture/ADR-003-neo4j-graph-model.md) | Neo4j as primary storage |
+| [ADR-004](architecture/ADR-004-vcr-llm-testing.md) | VCR-based LLM testing |
+| [ADR-005](architecture/ADR-005-websocket-protocol.md) | WebSocket protocol design |
+| [ADR-006](architecture/ADR-006-llm-port-design.md) | LLM port trait design |
+| [ADR-007](architecture/ADR-007-ttl-cache-ephemeral-state.md) | TtlCache for ephemeral state |
 
 ---
 
@@ -54,11 +88,18 @@ Technical reference for developers.
 
 ## Plans
 
-| Document                                                                              | Description                                  |
-| ------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [Known Architecture Issues](plans/KNOWN_ARCHITECTURE_ISSUES.md)                       | Pre-existing tech debt for later remediation |
-| [Architecture Remediation Master Plan](plans/ARCHITECTURE_REMEDIATION_MASTER_PLAN.md) | Single source of truth for refactoring       |
-| [Service Port Migration Plan](plans/SERVICE_PORT_INBOUND_MIGRATION_PLAN.md)           | Completed migration documentation            |
+| Document                                                                        | Description                                              |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [Strict Review Remediation Plan](plans/STRICT_REVIEW_REMEDIATION_PLAN.md)       | Active architecture remediation plan (strict layering)   |
+| [Mood & Expression System Plan](plans/MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md) | P3.1 feature plan for emotional model + UI               |
+| [Playtestable State Plan](plans/PLAYTESTABLE_STATE_PLAN.md)                     | Stabilize core loop for playtesting                      |
+| [Player Architecture Simplification](plans/PLAYER_ARCHITECTURE_SIMPLIFICATION.md) | Draft plan to reduce client-side abstraction             |
+| [Behavior Testing + TDD Plan](plans/BEHAVIOR_TESTING_TDD_PLAN.md)               | Testing strategy and workflow                            |
+| [Implementation Gaps Plan](plans/IMPLEMENTATION_GAPS_PLAN.md)                   | Wiring gaps checklist (engine/player coverage)           |
+| [Use Case Wiring Audit](plans/USE_CASE_WIRING_AUDIT.md)                         | Audit of wired vs unwired use cases                       |
+| [Systems Review and Fixes](plans/SYSTEMS_REVIEW_AND_FIXES.md)                    | Ongoing systems doc audit and fixes                      |
+| [Simplified Architecture](plans/SIMPLIFIED_ARCHITECTURE.md)                     | Active architecture baseline                             |
+| [WebSocket Architecture](plans/WEBSOCKET_ARCHITECTURE.md)                       | Proposal for WS-first approach                           |
 
 ---
 

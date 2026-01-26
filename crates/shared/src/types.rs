@@ -1,0 +1,1748 @@
+//! Shared type definitions
+//!
+//! Common types used across the protocol that don't fit in other modules.
+
+use serde::{Deserialize, Serialize};
+
+// Re-export shared vocabulary types from domain::types
+// These are stable types used in wire format without modification.
+pub use wrldbldr_domain::types::CampbellArchetype;
+pub use wrldbldr_domain::types::MonomythStage;
+
+// =============================================================================
+// Session & Participant Types
+// =============================================================================
+
+/// Role of a participant in a game session
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ParticipantRole {
+    DungeonMaster,
+    Player,
+    Spectator,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
+// =============================================================================
+// Approval Types
+// =============================================================================
+
+/// Proposed tool call information
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProposedToolInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub arguments: serde_json::Value,
+}
+
+/// DM's decision on an approval request
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "decision")]
+pub enum ApprovalDecision {
+    /// Accept all proposed tools with default recipients
+    Accept,
+    /// Accept with item recipient selection
+    AcceptWithRecipients {
+        /// For give_item tools: maps tool_id -> recipient PC IDs
+        /// Empty list means "don't give this item"
+        item_recipients: std::collections::HashMap<String, Vec<String>>,
+    },
+    /// Accept with modifications to dialogue and/or tool selection
+    AcceptWithModification {
+        modified_dialogue: String,
+        approved_tools: Vec<String>,
+        rejected_tools: Vec<String>,
+        /// For give_item tools: maps tool_id -> recipient PC IDs
+        /// Empty list means "don't give this item"
+        #[serde(default)]
+        item_recipients: std::collections::HashMap<String, Vec<String>>,
+    },
+    Reject {
+        feedback: String,
+    },
+    TakeOver {
+        dm_response: String,
+    },
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
+impl ApprovalDecision {
+    /// Validate approval decision constraints
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            ApprovalDecision::AcceptWithModification {
+                modified_dialogue,
+                approved_tools,
+                rejected_tools,
+                item_recipients,
+            } => {
+                // Validate modified_dialogue (max 5000 chars)
+                if !modified_dialogue.is_empty() && modified_dialogue.len() > 5000 {
+                    return Err("Modified dialogue too long (max 5000 chars)".to_string());
+                }
+
+                // Validate approved_tools (max 50 items, 100 chars each)
+                if approved_tools.len() > 50 {
+                    return Err("Too many approved tools (max 50)".to_string());
+                }
+                for tool in approved_tools {
+                    if tool.len() > 100 {
+                        return Err("Tool name too long (max 100 chars)".to_string());
+                    }
+                }
+
+                // Validate rejected_tools (max 50 items, 100 chars each)
+                if rejected_tools.len() > 50 {
+                    return Err("Too many rejected tools (max 50)".to_string());
+                }
+                for tool in rejected_tools {
+                    if tool.len() > 100 {
+                        return Err("Tool name too long (max 100 chars)".to_string());
+                    }
+                }
+
+                // Validate item_recipients (max 20 items, max 10 recipients per item)
+                if item_recipients.len() > 20 {
+                    return Err("Too many item grants (max 20)".to_string());
+                }
+                for recipients in item_recipients.values() {
+                    if recipients.len() > 10 {
+                        return Err("Too many recipients for item (max 10)".to_string());
+                    }
+                }
+
+                Ok(())
+            }
+            ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+                // Validate item_recipients (max 20 items, max 10 recipients per item)
+                if item_recipients.len() > 20 {
+                    return Err("Too many item grants (max 20)".to_string());
+                }
+                for recipients in item_recipients.values() {
+                    if recipients.len() > 10 {
+                        return Err("Too many recipients for item (max 10)".to_string());
+                    }
+                }
+                Ok(())
+            }
+            ApprovalDecision::Reject { feedback } => {
+                // Validate feedback (max 5000 chars)
+                if !feedback.is_empty() && feedback.len() > 5000 {
+                    return Err("Feedback too long (max 5000 chars)".to_string());
+                }
+                Ok(())
+            }
+            ApprovalDecision::TakeOver { dm_response } => {
+                // Validate dm_response (max 5000 chars)
+                if !dm_response.is_empty() && dm_response.len() > 5000 {
+                    return Err("DM response too long (max 5000 chars)".to_string());
+                }
+                Ok(())
+            }
+            ApprovalDecision::Accept => Ok(()),
+            &ApprovalDecision::Unknown => Ok(()), // Unknown is always valid (forward compatibility)
+        }
+    }
+}
+
+// =============================================================================
+// Suggestion Types
+// =============================================================================
+
+/// Challenge suggestion information for DM approval
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChallengeSuggestionInfo {
+    pub challenge_id: String,
+    pub challenge_name: String,
+    pub skill_name: String,
+    pub difficulty_display: String,
+    pub confidence: String,
+    pub reasoning: String,
+    /// Target player character ID for skill modifier lookup
+    #[serde(default)]
+    pub target_pc_id: Option<String>,
+    /// Optional editable outcomes for DM modification
+    #[serde(default)]
+    pub outcomes: Option<ChallengeSuggestionOutcomes>,
+}
+
+/// Editable challenge outcomes for DM modification
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct ChallengeSuggestionOutcomes {
+    #[serde(default)]
+    pub success: Option<String>,
+    #[serde(default)]
+    pub failure: Option<String>,
+    #[serde(default)]
+    pub critical_success: Option<String>,
+    #[serde(default)]
+    pub critical_failure: Option<String>,
+}
+
+/// Narrative event suggestion information for DM approval
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NarrativeEventSuggestionInfo {
+    pub event_id: String,
+    pub event_name: String,
+    pub description: String,
+    pub scene_direction: String,
+    pub confidence: String,
+    pub reasoning: String,
+    pub matched_triggers: Vec<String>,
+    /// Suggested outcome (can be cleared/modified by DM)
+    #[serde(default)]
+    pub suggested_outcome: Option<String>,
+}
+
+// =============================================================================
+// Character Archetypes - Re-exported from domain-types (see top of file)
+// =============================================================================
+
+// =============================================================================
+// Monomyth Stages - Re-exported from domain-types (see top of file)
+// =============================================================================
+
+// =============================================================================
+// Game Time
+// =============================================================================
+
+/// Game time representation for wire transfer
+///
+/// Uses `total_seconds` as the canonical time representation, with additional
+/// computed fields for easy client display. Conversion from domain GameTime
+/// happens in the adapter layer.
+///
+/// ## Fields
+/// - `total_seconds` is canonical time representation (source of truth)
+/// - `day`, `hour`, `minute`, `second` are computed for easy client display
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameTime {
+    /// The canonical game time in total seconds since epoch.
+    /// This is source of truth for time calculations.
+    pub total_seconds: i64,
+
+    /// Day number (computed from total_seconds)
+    /// For calendar-aware worlds, this is day of the current month.
+    /// For simple worlds, this is ordinal day (1-based).
+    pub day: u32,
+
+    /// Hour (0-23, computed from total_seconds)
+    pub hour: u8,
+
+    /// Minute (0-59, computed from total_seconds)
+    pub minute: u8,
+
+    /// Second (0-59, computed from total_seconds)
+    #[serde(default)]
+    pub second: u8,
+
+    /// Whether time is paused
+    pub is_paused: bool,
+
+    /// Formatted date string for display (e.g., "15th of Hammer, 1492 DR")
+    /// Only present if world has a calendar configured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatted_date: Option<String>,
+
+    /// Formatted time string for display (e.g., "9:00 AM")
+    /// Computed by server based on TimeFormat preference.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatted_time: Option<String>,
+
+    /// Time of day period (e.g., "Morning", "Afternoon", "Evening", "Night")
+    /// Always provided for UI display.
+    #[serde(default = "default_period")]
+    pub period: String,
+}
+
+fn default_period() -> String {
+    "Morning".to_string()
+}
+
+impl Default for GameTime {
+    fn default() -> Self {
+        Self {
+            total_seconds: 8 * 3600, // Day 1, 8:00 AM
+            day: 1,
+            hour: 8,
+            minute: 0,
+            second: 0,
+            is_paused: true,
+            formatted_date: None,
+            formatted_time: Some("8:00 AM".to_string()),
+            period: "Morning".to_string(),
+        }
+    }
+}
+
+impl GameTime {
+    /// Create a new game time (simple constructor)
+    pub fn new(day: u32, hour: u8, minute: u8, is_paused: bool) -> Self {
+        let total_seconds =
+            (day as i64 - 1) * 24 * 3600 + (hour as i64) * 3600 + (minute as i64) * 60;
+        let period = Self::compute_period(hour);
+        Self {
+            total_seconds,
+            day,
+            hour,
+            minute,
+            second: 0,
+            is_paused,
+            formatted_date: None,
+            formatted_time: None,
+            period,
+        }
+    }
+
+    /// Create a new game time with all fields (for server-side construction)
+    pub fn new_full(
+        total_seconds: i64,
+        day: u32,
+        hour: u8,
+        minute: u8,
+        second: u8,
+        is_paused: bool,
+        formatted_date: Option<String>,
+        formatted_time: Option<String>,
+        period: String,
+    ) -> Self {
+        Self {
+            total_seconds,
+            day,
+            hour,
+            minute,
+            second,
+            is_paused,
+            formatted_date,
+            formatted_time,
+            period,
+        }
+    }
+
+    /// Create from total seconds (canonical constructor)
+    pub fn from_total_seconds(total_seconds: i64, is_paused: bool) -> Self {
+        // Calculate day/hour/minute/second from total_seconds
+        // Uses div_euclid/rem_euclid for correct handling of negative values
+        // to match domain behavior
+        let seconds_per_day = 24 * 60 * 60;
+        let second_of_day = total_seconds.rem_euclid(seconds_per_day);
+        let hour = (second_of_day / 3600) as u8;
+        let second_of_hour = second_of_day.rem_euclid(3600);
+        let minute = (second_of_hour / 60) as u8;
+        let second = second_of_hour.rem_euclid(60) as u8;
+        let period = Self::compute_period(hour);
+
+        // Calculate 1-based day number using euclidean division
+        let day = if total_seconds >= 0 {
+            (total_seconds / seconds_per_day) as u32 + 1
+        } else {
+            // For negative values: -86400..-1 is day 1, -172800..-86401 is day 2
+            ((-total_seconds - 1) / seconds_per_day) as u32 + 1
+        };
+
+        Self {
+            total_seconds,
+            day,
+            hour,
+            minute,
+            second,
+            is_paused,
+            formatted_date: None,
+            formatted_time: None,
+            period,
+        }
+    }
+
+    /// Compute the period string from hour
+    fn compute_period(hour: u8) -> String {
+        match hour {
+            5..=11 => "Morning",
+            12..=17 => "Afternoon",
+            18..=21 => "Evening",
+            _ => "Night",
+        }
+        .to_string()
+    }
+
+    /// Get the time of day period
+    pub fn time_of_day(&self) -> &str {
+        &self.period
+    }
+
+    /// Format as display string (e.g., "Day 3, 9:00 AM")
+    /// Prefers formatted_date/formatted_time if available.
+    pub fn display(&self) -> String {
+        match (&self.formatted_date, &self.formatted_time) {
+            (Some(date), Some(time)) => format!("{}, {}", date, time),
+            (Some(date), None) => date.clone(),
+            (None, Some(time)) => format!("Day {}, {}", self.day, time),
+            (None, None) => {
+                // Fallback to computed display
+                let period = if self.hour >= 12 { "PM" } else { "AM" };
+                let display_hour = if self.hour == 0 {
+                    12
+                } else if self.hour > 12 {
+                    self.hour - 12
+                } else {
+                    self.hour
+                };
+                format!(
+                    "Day {}, {}:{:02} {}",
+                    self.day, display_hour, self.minute, period
+                )
+            }
+        }
+    }
+}
+
+// =============================================================================
+// Time Cost Configuration
+// =============================================================================
+
+/// Time costs for various actions (wire format)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimeCostConfig {
+    /// Seconds for travel between locations
+    pub travel_location: u32,
+    /// Seconds for travel between regions
+    pub travel_region: u32,
+    /// Seconds for short rest
+    pub rest_short: u32,
+    /// Seconds for long rest
+    pub rest_long: u32,
+    /// Seconds per conversation exchange
+    pub conversation: u32,
+    /// Seconds per challenge attempt
+    pub challenge: u32,
+    /// Seconds for scene transitions
+    pub scene_transition: u32,
+}
+
+impl Default for TimeCostConfig {
+    fn default() -> Self {
+        Self {
+            travel_location: 3600,
+            travel_region: 600,
+            rest_short: 3600,
+            rest_long: 28800,
+            conversation: 0,
+            challenge: 600,
+            scene_transition: 0,
+        }
+    }
+}
+
+// =============================================================================
+// Time Mode
+// =============================================================================
+
+/// How time suggestions are handled (wire format)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum TimeMode {
+    /// Time only advances via explicit DM action
+    Manual,
+    /// System suggests, DM approves (default)
+    #[default]
+    Suggested,
+}
+
+// =============================================================================
+// Time Format
+// =============================================================================
+
+/// How time is displayed to players.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum TimeFormat {
+    /// "9:00 AM"
+    #[default]
+    TwelveHour,
+    /// "09:00"
+    TwentyFourHour,
+    /// "Morning" (period only, no specific time)
+    PeriodOnly,
+}
+
+// =============================================================================
+// Game Time Configuration
+// =============================================================================
+
+/// Complete time configuration (wire format)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameTimeConfig {
+    /// How time suggestions are handled
+    pub mode: TimeMode,
+    /// Default time costs per action type
+    pub time_costs: TimeCostConfig,
+    /// Whether to show exact time to players
+    pub show_time_to_players: bool,
+    /// Time format preference for display
+    #[serde(default)]
+    pub time_format: TimeFormat,
+    /// Calendar identifier (e.g., "forgotten_realms", "gregorian")
+    /// If None, uses simple day counting without calendar formatting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calendar_id: Option<String>,
+    /// Year at epoch (second 0)
+    /// For Forgotten Realms, this might be 1492 (Dale Reckoning).
+    /// If None, year display is omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epoch_year: Option<i32>,
+}
+
+impl Default for GameTimeConfig {
+    fn default() -> Self {
+        Self {
+            mode: TimeMode::default(),
+            time_costs: TimeCostConfig::default(),
+            show_time_to_players: true,
+            time_format: TimeFormat::default(),
+            calendar_id: None,
+            epoch_year: None,
+        }
+    }
+}
+
+// =============================================================================
+// Time Suggestion
+// =============================================================================
+
+/// A time suggestion awaiting DM approval
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeSuggestionData {
+    /// Unique ID for this suggestion
+    pub suggestion_id: String,
+    /// PC that triggered this suggestion
+    pub pc_id: String,
+    /// PC name for display
+    pub pc_name: String,
+    /// Type of action (travel_location, rest_short, etc.)
+    pub action_type: String,
+    /// Human-readable description
+    pub action_description: String,
+    /// Suggested time cost in seconds
+    pub suggested_seconds: u32,
+    /// Current time before advancement
+    pub current_time: GameTime,
+    /// Time after advancement if approved
+    pub resulting_time: GameTime,
+    /// If period changes, (from_period, to_period)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub period_change: Option<(String, String)>,
+}
+
+// =============================================================================
+// Time Advance Data
+// =============================================================================
+
+/// Data about a time advancement (for broadcasting)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeAdvanceData {
+    /// Time before advancement
+    pub previous_time: GameTime,
+    /// Time after advancement
+    pub new_time: GameTime,
+    /// Seconds that were advanced
+    pub seconds_advanced: u32,
+    /// Human-readable reason
+    pub reason: String,
+    /// Whether the time period changed
+    pub period_changed: bool,
+    /// New period name if changed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_period: Option<String>,
+}
+
+// =============================================================================
+// Time Suggestion Decision
+// =============================================================================
+
+/// DM's decision on a time suggestion
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "decision")]
+pub enum TimeSuggestionDecision {
+    /// Accept's suggested time cost
+    Approve,
+    /// Modify's time cost
+    Modify { seconds: u32 },
+    /// Skip this time suggestion (no advancement)
+    Skip,
+    /// Unknown decision type for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
+impl From<wrldbldr_domain::TimeSuggestionDecision> for TimeSuggestionDecision {
+    fn from(decision: wrldbldr_domain::TimeSuggestionDecision) -> Self {
+        match decision {
+            wrldbldr_domain::TimeSuggestionDecision::Approve => TimeSuggestionDecision::Approve,
+            wrldbldr_domain::TimeSuggestionDecision::Modify { seconds } => {
+                TimeSuggestionDecision::Modify { seconds }
+            }
+            wrldbldr_domain::TimeSuggestionDecision::Skip => TimeSuggestionDecision::Skip,
+        }
+    }
+}
+
+/// Error when converting protocol TimeSuggestionDecision to domain type.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Unknown time suggestion decision cannot be converted to domain type")]
+pub struct UnknownTimeSuggestionDecisionError;
+
+impl TryFrom<TimeSuggestionDecision> for wrldbldr_domain::TimeSuggestionDecision {
+    type Error = UnknownTimeSuggestionDecisionError;
+
+    fn try_from(decision: TimeSuggestionDecision) -> Result<Self, Self::Error> {
+        match decision {
+            TimeSuggestionDecision::Approve => Ok(wrldbldr_domain::TimeSuggestionDecision::Approve),
+            TimeSuggestionDecision::Modify { seconds } => {
+                Ok(wrldbldr_domain::TimeSuggestionDecision::Modify { seconds })
+            }
+            TimeSuggestionDecision::Skip => Ok(wrldbldr_domain::TimeSuggestionDecision::Skip),
+            TimeSuggestionDecision::Unknown => Err(UnknownTimeSuggestionDecisionError),
+        }
+    }
+}
+
+// =============================================================================
+// Lore Types
+// =============================================================================
+
+/// Category of lore (wire format)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum LoreCategoryData {
+    Historical,
+    Legend,
+    Secret,
+    Common,
+    Technical,
+    Political,
+    Natural,
+    Religious,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Lore chunk for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoreChunkData {
+    pub id: String,
+    pub order: u32,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub content: String,
+    #[serde(default)]
+    pub discovery_hint: Option<String>,
+}
+
+/// Lore entry for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoreData {
+    pub id: String,
+    pub world_id: String,
+    pub title: String,
+    pub summary: String,
+    pub category: LoreCategoryData,
+    pub chunks: Vec<LoreChunkData>,
+    pub is_common_knowledge: bool,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// How lore was discovered (wire format)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum LoreDiscoverySourceData {
+    ReadBook {
+        book_name: String,
+    },
+    Conversation {
+        npc_id: String,
+        npc_name: String,
+    },
+    Investigation,
+    DmGranted {
+        reason: Option<String>,
+    },
+    CommonKnowledge,
+    LlmDiscovered {
+        context: String,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+/// Character's knowledge of lore (wire format)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoreKnowledgeData {
+    pub lore_id: String,
+    pub character_id: String,
+    /// Empty = knows all chunks
+    pub known_chunk_ids: Vec<String>,
+    pub discovery_source: LoreDiscoverySourceData,
+    pub discovered_at: String,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+/// Lore summary for list views
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoreSummaryData {
+    pub id: String,
+    pub title: String,
+    pub category: LoreCategoryData,
+    pub is_common_knowledge: bool,
+    pub chunk_count: u32,
+    /// How many chunks the character knows (for partial knowledge display)
+    #[serde(default)]
+    pub known_chunk_count: Option<u32>,
+}
+
+// =============================================================================
+// Visual State Types
+// =============================================================================
+
+/// Time of day period (wire format, matches domain::TimeOfDay)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TimeOfDayData {
+    Morning,
+    Afternoon,
+    Evening,
+    Night,
+    #[serde(other)]
+    Unknown,
+}
+
+impl From<wrldbldr_domain::TimeOfDay> for TimeOfDayData {
+    fn from(tod: wrldbldr_domain::TimeOfDay) -> Self {
+        match tod {
+            wrldbldr_domain::TimeOfDay::Morning => TimeOfDayData::Morning,
+            wrldbldr_domain::TimeOfDay::Afternoon => TimeOfDayData::Afternoon,
+            wrldbldr_domain::TimeOfDay::Evening => TimeOfDayData::Evening,
+            wrldbldr_domain::TimeOfDay::Night => TimeOfDayData::Night,
+        }
+    }
+}
+
+impl From<TimeOfDayData> for wrldbldr_domain::TimeOfDay {
+    fn from(tod: TimeOfDayData) -> Self {
+        match tod {
+            TimeOfDayData::Morning => wrldbldr_domain::TimeOfDay::Morning,
+            TimeOfDayData::Afternoon => wrldbldr_domain::TimeOfDay::Afternoon,
+            TimeOfDayData::Evening => wrldbldr_domain::TimeOfDay::Evening,
+            TimeOfDayData::Night => wrldbldr_domain::TimeOfDay::Night,
+            // Unknown defaults to Morning (safe fallback)
+            TimeOfDayData::Unknown => wrldbldr_domain::TimeOfDay::Morning,
+        }
+    }
+}
+
+/// Activation rule for visual states (wire format)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ActivationRuleData {
+    Always,
+    DateExact {
+        month: u32,
+        day: u32,
+    },
+    DateRange {
+        start_month: u32,
+        start_day: u32,
+        end_month: u32,
+        end_day: u32,
+    },
+    TimeOfDay {
+        period: TimeOfDayData,
+    },
+    EventTriggered {
+        event_id: String,
+        event_name: String,
+    },
+    FlagSet {
+        flag_name: String,
+    },
+    CharacterPresent {
+        character_id: String,
+        character_name: String,
+    },
+    Custom {
+        description: String,
+        #[serde(default)]
+        llm_prompt: Option<String>,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+/// How rules are combined (wire format)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ActivationLogicData {
+    #[default]
+    All,
+    Any,
+    AtLeast(u32),
+    #[serde(other)]
+    Unknown,
+}
+
+/// Location state for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocationStateData {
+    pub id: String,
+    pub location_id: String,
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub backdrop_override: Option<String>,
+    #[serde(default)]
+    pub atmosphere_override: Option<String>,
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+    #[serde(default)]
+    pub map_overlay: Option<String>,
+    pub activation_rules: Vec<ActivationRuleData>,
+    #[serde(default)]
+    pub activation_logic: ActivationLogicData,
+    pub priority: i32,
+    pub is_default: bool,
+    #[serde(default)]
+    pub generation_prompt: Option<String>,
+    #[serde(default)]
+    pub workflow_id: Option<String>,
+}
+
+/// Region state for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RegionStateData {
+    pub id: String,
+    pub region_id: String,
+    pub location_id: String,
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub backdrop_override: Option<String>,
+    #[serde(default)]
+    pub atmosphere_override: Option<String>,
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+    pub activation_rules: Vec<ActivationRuleData>,
+    #[serde(default)]
+    pub activation_logic: ActivationLogicData,
+    pub priority: i32,
+    pub is_default: bool,
+    #[serde(default)]
+    pub generation_prompt: Option<String>,
+    #[serde(default)]
+    pub workflow_id: Option<String>,
+}
+
+/// Resolved state info for staging (lightweight)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedStateInfoData {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub backdrop_override: Option<String>,
+    #[serde(default)]
+    pub atmosphere_override: Option<String>,
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+}
+
+/// How visual state was resolved
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum VisualStateSourceData {
+    #[default]
+    HardRulesOnly,
+    WithLlmEvaluation,
+    DmOverride,
+    Default,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Complete resolved visual state for staging
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ResolvedVisualStateData {
+    #[serde(default)]
+    pub location_state: Option<ResolvedStateInfoData>,
+    #[serde(default)]
+    pub region_state: Option<ResolvedStateInfoData>,
+}
+
+/// State option for DM selection
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StateOptionData {
+    pub id: String,
+    pub name: String,
+    pub priority: i32,
+    pub is_default: bool,
+    /// Why this state was suggested (rule match description)
+    #[serde(default)]
+    pub match_reason: Option<String>,
+}
+
+// =============================================================================
+// Trigger Schema Types (for Visual Trigger Builder)
+// =============================================================================
+
+/// Complete schema describing all available trigger types for the visual builder
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TriggerSchema {
+    /// All available trigger types
+    pub trigger_types: Vec<TriggerTypeSchema>,
+    /// Available logic options (All, Any, AtLeast)
+    pub logic_options: Vec<TriggerLogicOption>,
+}
+
+/// Schema for a single trigger type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TriggerTypeSchema {
+    /// Internal type name (e.g., "PlayerEntersLocation")
+    pub type_name: String,
+    /// Display label for UI
+    pub label: String,
+    /// Description of what this trigger does
+    pub description: String,
+    /// Category for grouping in UI
+    pub category: TriggerCategory,
+    /// Fields required/available for this trigger type
+    pub fields: Vec<TriggerFieldSchema>,
+}
+
+/// Category for grouping trigger types in UI
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TriggerCategory {
+    /// Location-based triggers
+    Location,
+    /// NPC/character-based triggers
+    Character,
+    /// Item/inventory triggers
+    Inventory,
+    /// Challenge/combat triggers
+    Challenge,
+    /// Time-based triggers
+    Time,
+    /// Flag/state triggers
+    State,
+    /// Event-based triggers
+    Event,
+    /// Custom/LLM-evaluated triggers
+    Custom,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
+impl TriggerCategory {
+    pub fn label(&self) -> &'static str {
+        match self {
+            TriggerCategory::Location => "Location",
+            TriggerCategory::Character => "Character",
+            TriggerCategory::Inventory => "Inventory",
+            TriggerCategory::Challenge => "Challenge",
+            TriggerCategory::Time => "Time",
+            TriggerCategory::State => "State",
+            TriggerCategory::Event => "Event",
+            TriggerCategory::Custom => "Custom",
+            TriggerCategory::Unknown => "Unknown",
+        }
+    }
+}
+
+/// Schema for a single field within a trigger type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TriggerFieldSchema {
+    /// Field name (matches JSON key)
+    pub name: String,
+    /// Display label for UI
+    pub label: String,
+    /// Field data type
+    pub field_type: TriggerFieldType,
+    /// Whether this field is required
+    pub required: bool,
+    /// Help text for UI
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Default value (as JSON)
+    #[serde(default)]
+    pub default_value: Option<serde_json::Value>,
+}
+
+/// Data type for a trigger field
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TriggerFieldType {
+    /// Plain text string
+    String,
+    /// Numeric value (integer)
+    Integer,
+    /// Numeric value (float)
+    Float,
+    /// Boolean (checkbox)
+    Boolean,
+    /// Reference to a Location entity (picker)
+    LocationRef,
+    /// Reference to a Region entity (picker)
+    RegionRef,
+    /// Reference to a Character/NPC entity (picker)
+    CharacterRef,
+    /// Reference to a Challenge entity (picker)
+    ChallengeRef,
+    /// Reference to a NarrativeEvent entity (picker)
+    EventRef,
+    /// Reference to an Item (picker or text)
+    ItemRef,
+    /// Time of day enum (Morning, Afternoon, Evening, Night)
+    TimeOfDay,
+    /// Array of keyword strings (tag input)
+    Keywords,
+    /// Sentiment value (-1.0 to 1.0)
+    Sentiment,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
+/// Option for trigger logic selection
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TriggerLogicOption {
+    /// Value to use (e.g., "all", "any", "atLeast")
+    pub value: String,
+    /// Display label
+    pub label: String,
+    /// Description
+    pub description: String,
+    /// Whether this option requires a count parameter
+    pub requires_count: bool,
+}
+
+impl TriggerSchema {
+    /// Generate the complete trigger schema
+    pub fn generate() -> Self {
+        Self {
+            trigger_types: Self::generate_trigger_types(),
+            logic_options: vec![
+                TriggerLogicOption {
+                    value: "all".to_string(),
+                    label: "All must match".to_string(),
+                    description: "All conditions must be true (AND)".to_string(),
+                    requires_count: false,
+                },
+                TriggerLogicOption {
+                    value: "any".to_string(),
+                    label: "Any can match".to_string(),
+                    description: "Any single condition can be true (OR)".to_string(),
+                    requires_count: false,
+                },
+                TriggerLogicOption {
+                    value: "atLeast".to_string(),
+                    label: "At least N".to_string(),
+                    description: "At least N conditions must be true".to_string(),
+                    requires_count: true,
+                },
+            ],
+        }
+    }
+
+    fn generate_trigger_types() -> Vec<TriggerTypeSchema> {
+        vec![
+            // Location triggers
+            TriggerTypeSchema {
+                type_name: "PlayerEntersLocation".to_string(),
+                label: "Player Enters Location".to_string(),
+                description: "Triggers when a player enters a specific location (city/area)"
+                    .to_string(),
+                category: TriggerCategory::Location,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "location_id".to_string(),
+                        label: "Location".to_string(),
+                        field_type: TriggerFieldType::LocationRef,
+                        required: true,
+                        description: Some("The location that triggers this event".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "location_name".to_string(),
+                        label: "Location Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: Some("Display name (auto-filled from selection)".to_string()),
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "TimeAtLocation".to_string(),
+                label: "Time at Location".to_string(),
+                description: "Triggers when player is at location during specific time".to_string(),
+                category: TriggerCategory::Location,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "location_id".to_string(),
+                        label: "Location".to_string(),
+                        field_type: TriggerFieldType::LocationRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "location_name".to_string(),
+                        label: "Location Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "time_context".to_string(),
+                        label: "Time Context".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: Some(
+                            "Time description (e.g., 'at night', 'during the festival')"
+                                .to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Character triggers
+            TriggerTypeSchema {
+                type_name: "NpcAction".to_string(),
+                label: "NPC Action".to_string(),
+                description: "Triggers when an NPC performs a specific action".to_string(),
+                category: TriggerCategory::Character,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "npc_id".to_string(),
+                        label: "NPC".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "npc_name".to_string(),
+                        label: "NPC Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "action_keywords".to_string(),
+                        label: "Action Keywords".to_string(),
+                        field_type: TriggerFieldType::Keywords,
+                        required: true,
+                        description: Some("Keywords that identify the action".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "action_description".to_string(),
+                        label: "Action Description".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: Some("Human-readable description of the action".to_string()),
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "DialogueTopic".to_string(),
+                label: "Dialogue Topic".to_string(),
+                description: "Triggers when a specific topic is discussed".to_string(),
+                category: TriggerCategory::Character,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "keywords".to_string(),
+                        label: "Topic Keywords".to_string(),
+                        field_type: TriggerFieldType::Keywords,
+                        required: true,
+                        description: Some("Keywords that identify the topic".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "with_npc".to_string(),
+                        label: "With NPC".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: false,
+                        description: Some("Optional: Only trigger with specific NPC".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "npc_name".to_string(),
+                        label: "NPC Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "RelationshipThreshold".to_string(),
+                label: "Relationship Threshold".to_string(),
+                description: "Triggers when relationship sentiment reaches a threshold".to_string(),
+                category: TriggerCategory::Character,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "character_id".to_string(),
+                        label: "Character".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "character_name".to_string(),
+                        label: "Character Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "with_character".to_string(),
+                        label: "With Character".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "with_character_name".to_string(),
+                        label: "With Character Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "min_sentiment".to_string(),
+                        label: "Min Sentiment".to_string(),
+                        field_type: TriggerFieldType::Sentiment,
+                        required: false,
+                        description: Some("Minimum sentiment (-1.0 to 1.0)".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "max_sentiment".to_string(),
+                        label: "Max Sentiment".to_string(),
+                        field_type: TriggerFieldType::Sentiment,
+                        required: false,
+                        description: Some("Maximum sentiment (-1.0 to 1.0)".to_string()),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Inventory triggers
+            TriggerTypeSchema {
+                type_name: "HasItem".to_string(),
+                label: "Has Item".to_string(),
+                description: "Triggers when player has a specific item".to_string(),
+                category: TriggerCategory::Inventory,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "item_name".to_string(),
+                        label: "Item Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "quantity".to_string(),
+                        label: "Quantity".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: false,
+                        description: Some("Minimum quantity required (default: 1)".to_string()),
+                        default_value: Some(serde_json::json!(1)),
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "MissingItem".to_string(),
+                label: "Missing Item".to_string(),
+                description: "Triggers when player does NOT have a specific item".to_string(),
+                category: TriggerCategory::Inventory,
+                fields: vec![TriggerFieldSchema {
+                    name: "item_name".to_string(),
+                    label: "Item Name".to_string(),
+                    field_type: TriggerFieldType::String,
+                    required: true,
+                    description: None,
+                    default_value: None,
+                }],
+            },
+            // Challenge triggers
+            TriggerTypeSchema {
+                type_name: "ChallengeCompleted".to_string(),
+                label: "Challenge Completed".to_string(),
+                description: "Triggers when a challenge is completed".to_string(),
+                category: TriggerCategory::Challenge,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "challenge_id".to_string(),
+                        label: "Challenge".to_string(),
+                        field_type: TriggerFieldType::ChallengeRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "challenge_name".to_string(),
+                        label: "Challenge Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "requires_success".to_string(),
+                        label: "Requires Success".to_string(),
+                        field_type: TriggerFieldType::Boolean,
+                        required: false,
+                        description: Some(
+                            "If set, only triggers on success or failure".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "CombatResult".to_string(),
+                label: "Combat Result".to_string(),
+                description: "Triggers after combat ends".to_string(),
+                category: TriggerCategory::Challenge,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "victory".to_string(),
+                        label: "Victory Required".to_string(),
+                        field_type: TriggerFieldType::Boolean,
+                        required: false,
+                        description: Some("If set, only triggers on victory or defeat".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "involved_npc".to_string(),
+                        label: "Involved NPC".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: false,
+                        description: Some(
+                            "Optional: Only trigger if this NPC was involved".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Time triggers
+            TriggerTypeSchema {
+                type_name: "TurnCount".to_string(),
+                label: "Turn Count".to_string(),
+                description: "Triggers after a certain number of turns".to_string(),
+                category: TriggerCategory::Time,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "turns".to_string(),
+                        label: "Turn Count".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: true,
+                        description: Some("Number of turns to wait".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "since_event".to_string(),
+                        label: "Since Event".to_string(),
+                        field_type: TriggerFieldType::EventRef,
+                        required: false,
+                        description: Some(
+                            "Count turns since this event (or session start)".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // State triggers
+            TriggerTypeSchema {
+                type_name: "FlagSet".to_string(),
+                label: "Flag Set".to_string(),
+                description: "Triggers when a game flag is set to true".to_string(),
+                category: TriggerCategory::State,
+                fields: vec![TriggerFieldSchema {
+                    name: "flag_name".to_string(),
+                    label: "Flag Name".to_string(),
+                    field_type: TriggerFieldType::String,
+                    required: true,
+                    description: Some("Name of the flag to check".to_string()),
+                    default_value: None,
+                }],
+            },
+            TriggerTypeSchema {
+                type_name: "FlagNotSet".to_string(),
+                label: "Flag Not Set".to_string(),
+                description: "Triggers when a game flag is NOT set (or false)".to_string(),
+                category: TriggerCategory::State,
+                fields: vec![TriggerFieldSchema {
+                    name: "flag_name".to_string(),
+                    label: "Flag Name".to_string(),
+                    field_type: TriggerFieldType::String,
+                    required: true,
+                    description: Some("Name of the flag to check".to_string()),
+                    default_value: None,
+                }],
+            },
+            TriggerTypeSchema {
+                type_name: "StatThreshold".to_string(),
+                label: "Stat Threshold".to_string(),
+                description: "Triggers when a character stat reaches a threshold".to_string(),
+                category: TriggerCategory::State,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "character_id".to_string(),
+                        label: "Character".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "stat_name".to_string(),
+                        label: "Stat Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "min_value".to_string(),
+                        label: "Min Value".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "max_value".to_string(),
+                        label: "Max Value".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                ],
+            },
+            // Event triggers
+            TriggerTypeSchema {
+                type_name: "EventCompleted".to_string(),
+                label: "Event Completed".to_string(),
+                description: "Triggers when another narrative event is completed".to_string(),
+                category: TriggerCategory::Event,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "event_id".to_string(),
+                        label: "Event".to_string(),
+                        field_type: TriggerFieldType::EventRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "event_name".to_string(),
+                        label: "Event Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "outcome_name".to_string(),
+                        label: "Required Outcome".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: Some(
+                            "Optional: Only trigger if this outcome was selected".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Custom triggers
+            TriggerTypeSchema {
+                type_name: "Custom".to_string(),
+                label: "Custom Condition".to_string(),
+                description: "A custom condition described in natural language".to_string(),
+                category: TriggerCategory::Custom,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "description".to_string(),
+                        label: "Description".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: Some("Describe when this should trigger".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "llm_evaluation".to_string(),
+                        label: "LLM Evaluation".to_string(),
+                        field_type: TriggerFieldType::Boolean,
+                        required: false,
+                        description: Some("If true, LLM will evaluate this condition".to_string()),
+                        default_value: Some(serde_json::json!(true)),
+                    },
+                ],
+            },
+        ]
+    }
+}
+
+// =============================================================================
+// GameTime Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod game_time_from_total_seconds {
+        use super::*;
+
+        /// Test that zero total_seconds produces correct time
+        #[test]
+        fn zero_total_seconds_produces_midnight_day_one() {
+            let gt = GameTime::from_total_seconds(0, false);
+            assert_eq!(gt.total_seconds, 0);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 0);
+            assert_eq!(gt.minute, 0);
+            assert_eq!(gt.second, 0);
+            assert_eq!(gt.period, "Night");
+        }
+
+        /// Test positive total_seconds within first day
+        #[test]
+        fn positive_seconds_within_first_day() {
+            let gt = GameTime::from_total_seconds(45296, false); // 12:34:56
+            assert_eq!(gt.total_seconds, 45296);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 12);
+            assert_eq!(gt.minute, 34);
+            assert_eq!(gt.second, 56);
+            assert_eq!(gt.period, "Afternoon");
+        }
+
+        /// Test positive total_seconds spanning multiple days
+        #[test]
+        fn positive_seconds_across_multiple_days() {
+            let gt = GameTime::from_total_seconds(200000, false); // Day 3, 7:33:20
+            assert_eq!(gt.total_seconds, 200000);
+            assert_eq!(gt.day, 3);
+            assert_eq!(gt.hour, 7);
+            assert_eq!(gt.minute, 33);
+            assert_eq!(gt.second, 20);
+            assert_eq!(gt.period, "Morning");
+        }
+
+        /// Test negative total_seconds (-1 second uses Euclidean math)
+        #[test]
+        fn negative_one_second_wraps_to_previous_day_end() {
+            let gt = GameTime::from_total_seconds(-1, false);
+            // -1 should give us 23:59:59 of day 1 (before epoch)
+            assert_eq!(gt.total_seconds, -1);
+            assert_eq!(gt.day, 1); // Day 1 before epoch
+            assert_eq!(gt.hour, 23);
+            assert_eq!(gt.minute, 59);
+            assert_eq!(gt.second, 59);
+            assert_eq!(gt.period, "Night");
+        }
+
+        /// Test negative total_seconds at day boundary
+        #[test]
+        fn negative_day_boundary_eight_sixty_four_hundred() {
+            let gt = GameTime::from_total_seconds(-86400, false);
+            // Exactly one day before epoch
+            assert_eq!(gt.total_seconds, -86400);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 0);
+            assert_eq!(gt.minute, 0);
+            assert_eq!(gt.second, 0);
+        }
+
+        /// Test negative total_seconds past day boundary
+        #[test]
+        fn negative_past_day_boundary_eight_sixty_four_hundred_one() {
+            let gt = GameTime::from_total_seconds(-86401, false);
+            // Just past one day boundary
+            assert_eq!(gt.total_seconds, -86401);
+            assert_eq!(gt.day, 2); // Day 2 before epoch
+            assert_eq!(gt.hour, 23);
+            assert_eq!(gt.minute, 59);
+            assert_eq!(gt.second, 59);
+        }
+
+        /// Test negative total_seconds with specific time (-1:00:30)
+        #[test]
+        fn negative_specific_time_hour_minute_second() {
+            let gt = GameTime::from_total_seconds(-3630, false); // -1:00:30
+            assert_eq!(gt.total_seconds, -3630);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 22);
+            assert_eq!(gt.minute, 59);
+            assert_eq!(gt.second, 30);
+        }
+
+        /// Test negative total_seconds across multiple days
+        #[test]
+        fn negative_multiple_days_before_epoch() {
+            let gt = GameTime::from_total_seconds(-200000, false);
+            // ~2.3 days before epoch
+            assert_eq!(gt.total_seconds, -200000);
+            assert_eq!(gt.day, 3);
+            // -200000 rem_euclid 86400 = 59200
+            // 59200 / 3600 = 16 hours
+            // 59200 rem_euclid 3600 = 1600 seconds
+            // 1600 / 60 = 26 minutes
+            // 1600 rem_euclid 60 = 40 seconds
+            assert_eq!(gt.hour, 16);
+            assert_eq!(gt.minute, 26);
+            assert_eq!(gt.second, 40);
+        }
+
+        /// Test period calculation at negative time boundaries
+        #[test]
+        fn negative_time_period_morning() {
+            let gt = GameTime::from_total_seconds(-18000, false); // -5 hours = 19:00 previous day
+            assert_eq!(gt.hour, 19);
+            assert_eq!(gt.period, "Evening");
+        }
+
+        /// Test period calculation at negative time in morning range
+        #[test]
+        fn negative_time_in_morning_period() {
+            let gt = GameTime::from_total_seconds(-25000, false);
+            // -25000 / 86400 = 0 rem_euclid = 61400
+            // 61400 / 3600 = 17 hours = 5 PM = Evening
+            // Let's verify: 86400 - 25000 = 61400, 61400 / 3600 = 17.055...
+            assert_eq!(gt.hour, 17);
+            assert_eq!(gt.period, "Afternoon");
+        }
+    }
+
+    mod game_time_display {
+        use super::*;
+
+        #[test]
+        fn display_without_formatted_fields() {
+            let gt = GameTime::new(3, 14, 30, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 3, 2:30 PM");
+        }
+
+        #[test]
+        fn display_with_formatted_time() {
+            let mut gt = GameTime::new(3, 14, 30, false);
+            gt.formatted_time = Some("2:30 PM".to_string());
+            let display = gt.display();
+            assert_eq!(display, "Day 3, 2:30 PM");
+        }
+
+        #[test]
+        fn display_with_formatted_date_and_time() {
+            let mut gt = GameTime::new(3, 14, 30, false);
+            gt.formatted_date = Some("15th of Hammer, 1492 DR".to_string());
+            gt.formatted_time = Some("2:30 PM".to_string());
+            let display = gt.display();
+            assert_eq!(display, "15th of Hammer, 1492 DR, 2:30 PM");
+        }
+
+        #[test]
+        fn display_morning() {
+            let gt = GameTime::new(1, 9, 0, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 1, 9:00 AM");
+        }
+
+        #[test]
+        fn display_noon() {
+            let gt = GameTime::new(1, 12, 0, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 1, 12:00 PM");
+        }
+
+        #[test]
+        fn display_midnight() {
+            let gt = GameTime::new(1, 0, 0, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 1, 12:00 AM");
+        }
+    }
+
+    mod time_suggestion_decision_conversion {
+        use super::*;
+
+        #[test]
+        fn decision_approve_to_domain() {
+            let decision = TimeSuggestionDecision::Approve;
+            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            assert!(matches!(
+                domain,
+                wrldbldr_domain::TimeSuggestionDecision::Approve
+            ));
+        }
+
+        #[test]
+        fn decision_modify_to_domain() {
+            let decision = TimeSuggestionDecision::Modify { seconds: 600 };
+            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            assert!(matches!(
+                domain,
+                wrldbldr_domain::TimeSuggestionDecision::Modify { seconds: 600 }
+            ));
+        }
+
+        #[test]
+        fn decision_skip_to_domain() {
+            let decision = TimeSuggestionDecision::Skip;
+            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            assert!(matches!(
+                domain,
+                wrldbldr_domain::TimeSuggestionDecision::Skip
+            ));
+        }
+
+        #[test]
+        fn decision_unknown_fails_conversion() {
+            let decision = TimeSuggestionDecision::Unknown;
+            let result: Result<wrldbldr_domain::TimeSuggestionDecision, _> = decision.try_into();
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn decision_from_domain_approve() {
+            let domain = wrldbldr_domain::TimeSuggestionDecision::Approve;
+            let protocol: TimeSuggestionDecision = domain.into();
+            assert!(matches!(protocol, TimeSuggestionDecision::Approve));
+        }
+
+        #[test]
+        fn decision_from_domain_modify() {
+            let domain = wrldbldr_domain::TimeSuggestionDecision::Modify { seconds: 900 };
+            let protocol: TimeSuggestionDecision = domain.into();
+            assert!(matches!(
+                protocol,
+                TimeSuggestionDecision::Modify { seconds: 900 }
+            ));
+        }
+
+        #[test]
+        fn decision_from_domain_skip() {
+            let domain = wrldbldr_domain::TimeSuggestionDecision::Skip;
+            let protocol: TimeSuggestionDecision = domain.into();
+            assert!(matches!(protocol, TimeSuggestionDecision::Skip));
+        }
+    }
+}

@@ -11,6 +11,7 @@
 //! - Affects default expression and dialogue tone
 //! - Included in LLM context for richer responses
 
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -26,7 +27,6 @@ use std::str::FromStr;
 /// - "Elara is curious about the ancient ruins"
 /// - "The guard is alert due to recent robberies"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum MoodState {
     /// Feeling good, positive outlook
     Happy,
@@ -192,8 +192,17 @@ impl fmt::Display for MoodState {
 }
 
 impl FromStr for MoodState {
-    type Err = String;
+    type Err = DomainError;
 
+    /// Parses a string into a MoodState.
+    ///
+    /// Unlike serde deserialization (which falls back to `Unknown` for unknown values
+    /// via `#[serde(other)]`), this returns an error for unrecognized inputs.
+    ///
+    /// **Rationale**: `FromStr` is typically used for internal/validated sources
+    /// (e.g., database values) where unknown values indicate data corruption or a bug.
+    /// Failing fast surfaces these issues immediately. Serde's fallback handles
+    /// forward compatibility for external JSON payloads from updated clients.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "happy" => Ok(MoodState::Happy),
@@ -212,7 +221,13 @@ impl FromStr for MoodState {
             "weary" => Ok(MoodState::Weary),
             "confident" => Ok(MoodState::Confident),
             "nervous" => Ok(MoodState::Nervous),
-            _ => Ok(MoodState::Unknown),
+            "unknown" => Ok(MoodState::Unknown),
+            _ => Err(DomainError::parse(format!(
+                "Unknown mood state: '{}'. Valid values: happy, calm, anxious, excited, \
+                melancholic, irritated, alert, bored, fearful, hopeful, curious, \
+                contemplative, amused, weary, confident, nervous, unknown",
+                s
+            ))),
         }
     }
 }
@@ -230,10 +245,8 @@ mod tests {
     fn test_mood_parse() {
         assert_eq!("happy".parse::<MoodState>().unwrap(), MoodState::Happy);
         assert_eq!("ANXIOUS".parse::<MoodState>().unwrap(), MoodState::Anxious);
-        assert_eq!(
-            "unknown_value".parse::<MoodState>().unwrap(),
-            MoodState::Unknown
-        );
+        assert_eq!("unknown".parse::<MoodState>().unwrap(), MoodState::Unknown);
+        assert!("unknown_value".parse::<MoodState>().is_err());
     }
 
     #[test]

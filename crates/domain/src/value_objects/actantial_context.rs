@@ -1,12 +1,12 @@
 //! Actantial context value objects for LLM consumption
 //!
-//! These types represent the resolved, aggregated actantial model data
-//! that gets passed to the LLM for character roleplay context.
+//! These types represent resolved, aggregated actantial model data
+//! that gets passed to LLM for character roleplay context.
 //!
 //! # Design Notes
 //!
 //! - `ActantialTarget` distinguishes between NPC and PC targets for actantial views
-//! - `WantTarget` is the resolved target of a want (Character, Item, or Goal)
+//! - `WantTarget` is a resolved target of a want (Character, Item, or Goal)
 //! - `WantContext` is a fully resolved want with all its associated data
 //! - `ActantialContext` is the complete context for a character
 //!
@@ -14,11 +14,20 @@
 //!
 //! The `ActantialContextService` aggregates data from multiple repositories
 //! to build these resolved contexts for LLM consumption.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - Most types (`ActantialActor`,
+//!   `WantContext`, `SecretMotivationContext`, etc.) are simple data structs.
+//! - **Tier 2: Validated Enum** - `ActorType` represents mutually exclusive actor types.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::entities::WantVisibility;
+use crate::{CharacterId, GoalId, ItemId, PlayerCharacterId, WantId};
 
 // =============================================================================
 // Actor Type (simple enum for LLM context)
@@ -29,7 +38,6 @@ use crate::entities::WantVisibility;
 /// Used in LLM context serialization where we only need the type label,
 /// not the full ID. For internal operations with IDs, use `ActantialTarget`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum ActorType {
     /// Non-player character
     Npc,
@@ -55,38 +63,48 @@ impl std::fmt::Display for ActorType {
 /// NPCs can view both other NPCs and PCs as helpers/opponents/etc.
 /// This enum allows the system to track these relationships uniformly.
 ///
-/// Uses Uuid internally for serde compatibility; convert to/from typed IDs
-/// at the service layer.
+/// Uses typed IDs (CharacterId, PlayerCharacterId) for type safety.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ActantialTarget {
     /// An NPC (Character)
-    Npc(Uuid),
+    Npc(CharacterId),
     /// A Player Character
-    Pc(Uuid),
+    Pc(PlayerCharacterId),
 }
 
 impl ActantialTarget {
     /// Create from a CharacterId (NPC)
-    pub fn npc(id: impl Into<Uuid>) -> Self {
-        ActantialTarget::Npc(id.into())
+    pub fn npc(id: CharacterId) -> Self {
+        ActantialTarget::Npc(id)
     }
 
     /// Create from a PlayerCharacterId
-    pub fn pc(id: impl Into<Uuid>) -> Self {
-        ActantialTarget::Pc(id.into())
+    pub fn pc(id: PlayerCharacterId) -> Self {
+        ActantialTarget::Pc(id)
     }
 
-    /// Get the ID as a Uuid
-    pub fn id(&self) -> Uuid {
+    /// Get the CharacterId if this is an NPC target
+    pub fn as_character_id(&self) -> Option<CharacterId> {
         match self {
-            ActantialTarget::Npc(id) => *id,
-            ActantialTarget::Pc(id) => *id,
+            ActantialTarget::Npc(id) => Some(*id),
+            ActantialTarget::Pc(_) => None,
         }
     }
 
-    /// Get the ID as a string for generic operations
+    /// Get the PlayerCharacterId if this is a PC target
+    pub fn as_player_character_id(&self) -> Option<PlayerCharacterId> {
+        match self {
+            ActantialTarget::Npc(_) => None,
+            ActantialTarget::Pc(id) => Some(*id),
+        }
+    }
+
+    /// Get the ID as a string for generic operations (e.g., serialization)
     pub fn id_string(&self) -> String {
-        self.id().to_string()
+        match self {
+            ActantialTarget::Npc(id) => id.to_string(),
+            ActantialTarget::Pc(id) => id.to_string(),
+        }
     }
 
     /// Get the actor type (without ID)
@@ -127,12 +145,12 @@ impl ActantialTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WantTarget {
     /// Want targets a Character (NPC)
-    Character { id: Uuid, name: String },
+    Character { id: CharacterId, name: String },
     /// Want targets an Item
-    Item { id: Uuid, name: String },
+    Item { id: ItemId, name: String },
     /// Want targets a Goal (abstract desire)
     Goal {
-        id: Uuid,
+        id: GoalId,
         name: String,
         description: Option<String>,
     },
@@ -157,12 +175,36 @@ impl WantTarget {
         }
     }
 
-    /// Get the target ID
-    pub fn id(&self) -> Uuid {
+    /// Get the CharacterId if this is a Character target
+    pub fn as_character_id(&self) -> Option<CharacterId> {
         match self {
-            WantTarget::Character { id, .. } => *id,
-            WantTarget::Item { id, .. } => *id,
-            WantTarget::Goal { id, .. } => *id,
+            WantTarget::Character { id, .. } => Some(*id),
+            _ => None,
+        }
+    }
+
+    /// Get the ItemId if this is an Item target
+    pub fn as_item_id(&self) -> Option<ItemId> {
+        match self {
+            WantTarget::Item { id, .. } => Some(*id),
+            _ => None,
+        }
+    }
+
+    /// Get the GoalId if this is a Goal target
+    pub fn as_goal_id(&self) -> Option<GoalId> {
+        match self {
+            WantTarget::Goal { id, .. } => Some(*id),
+            _ => None,
+        }
+    }
+
+    /// Get the ID as a string for generic operations (e.g., serialization)
+    pub fn id_string(&self) -> String {
+        match self {
+            WantTarget::Character { id, .. } => id.to_string(),
+            WantTarget::Item { id, .. } => id.to_string(),
+            WantTarget::Goal { id, .. } => id.to_string(),
         }
     }
 
@@ -215,6 +257,10 @@ impl ActantialActor {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Formatting
+    // -------------------------------------------------------------------------
+
     /// Format for LLM context
     pub fn to_context_string(&self) -> String {
         format!("{} ({})", self.name, self.reason)
@@ -232,41 +278,41 @@ impl ActantialActor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WantContext {
     /// The want's ID
-    pub want_id: Uuid,
+    want_id: WantId,
     /// Description of what the character wants
-    pub description: String,
+    description: String,
     /// Intensity (0.0 = mild interest, 1.0 = obsession)
-    pub intensity: f32,
+    intensity: f32,
     /// Priority (1 = primary want)
-    pub priority: u32,
+    priority: u32,
     /// How much the player knows
-    pub visibility: WantVisibility,
+    visibility: WantVisibility,
     /// The resolved target (if any)
-    pub target: Option<WantTarget>,
+    target: Option<WantTarget>,
     /// How to behave when probed about this want
-    pub deflection_behavior: Option<String>,
+    deflection_behavior: Option<String>,
     /// Behavioral tells that hint at this want
-    pub tells: Vec<String>,
+    tells: Vec<String>,
     /// Characters seen as helping achieve this want
-    pub helpers: Vec<ActantialActor>,
+    helpers: Vec<ActantialActor>,
     /// Characters seen as opposing this want
-    pub opponents: Vec<ActantialActor>,
+    opponents: Vec<ActantialActor>,
     /// Who/what initiated or motivated this want
-    pub sender: Option<ActantialActor>,
+    sender: Option<ActantialActor>,
     /// Who benefits from this want being fulfilled
-    pub receiver: Option<ActantialActor>,
+    receiver: Option<ActantialActor>,
 }
 
 impl WantContext {
     /// Create a new WantContext with minimal data
     pub fn new(
-        want_id: impl Into<Uuid>,
+        want_id: WantId,
         description: impl Into<String>,
         intensity: f32,
         priority: u32,
     ) -> Self {
         Self {
-            want_id: want_id.into(),
+            want_id,
             description: description.into(),
             intensity,
             priority,
@@ -280,6 +326,126 @@ impl WantContext {
             receiver: None,
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the want's ID
+    pub fn want_id(&self) -> WantId {
+        self.want_id
+    }
+
+    /// Get the description of what the character wants
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Get the intensity (0.0 = mild interest, 1.0 = obsession)
+    pub fn intensity(&self) -> f32 {
+        self.intensity
+    }
+
+    /// Get the priority (1 = primary want)
+    pub fn priority(&self) -> u32 {
+        self.priority
+    }
+
+    /// Get the visibility level
+    pub fn visibility(&self) -> WantVisibility {
+        self.visibility
+    }
+
+    /// Get the resolved target (if any)
+    pub fn target(&self) -> Option<&WantTarget> {
+        self.target.as_ref()
+    }
+
+    /// Get the deflection behavior (if any)
+    pub fn deflection_behavior(&self) -> Option<&str> {
+        self.deflection_behavior.as_deref()
+    }
+
+    /// Get the behavioral tells
+    pub fn tells(&self) -> &[String] {
+        &self.tells
+    }
+
+    /// Get the helpers
+    pub fn helpers(&self) -> &[ActantialActor] {
+        &self.helpers
+    }
+
+    /// Get the opponents
+    pub fn opponents(&self) -> &[ActantialActor] {
+        &self.opponents
+    }
+
+    /// Get the sender (who/what initiated this want)
+    pub fn sender(&self) -> Option<&ActantialActor> {
+        self.sender.as_ref()
+    }
+
+    /// Get the receiver (who benefits from fulfillment)
+    pub fn receiver(&self) -> Option<&ActantialActor> {
+        self.receiver.as_ref()
+    }
+
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Set the visibility
+    pub fn with_visibility(mut self, visibility: WantVisibility) -> Self {
+        self.visibility = visibility;
+        self
+    }
+
+    /// Set the target
+    pub fn with_target(mut self, target: WantTarget) -> Self {
+        self.target = Some(target);
+        self
+    }
+
+    /// Set the deflection behavior
+    pub fn with_deflection_behavior(mut self, behavior: impl Into<String>) -> Self {
+        self.deflection_behavior = Some(behavior.into());
+        self
+    }
+
+    /// Set the behavioral tells
+    pub fn with_tells(mut self, tells: Vec<String>) -> Self {
+        self.tells = tells;
+        self
+    }
+
+    /// Set the helpers
+    pub fn with_helpers(mut self, helpers: Vec<ActantialActor>) -> Self {
+        self.helpers = helpers;
+        self
+    }
+
+    /// Set the opponents
+    pub fn with_opponents(mut self, opponents: Vec<ActantialActor>) -> Self {
+        self.opponents = opponents;
+        self
+    }
+
+    /// Set the sender
+    pub fn with_sender(mut self, sender: ActantialActor) -> Self {
+        self.sender = Some(sender);
+        self
+    }
+
+    /// Set the receiver
+    pub fn with_receiver(mut self, receiver: ActantialActor) -> Self {
+        self.receiver = Some(receiver);
+        self
+    }
+
+    // -------------------------------------------------------------------------
+    // Query methods
+    // -------------------------------------------------------------------------
 
     /// Check if this is a hidden want
     pub fn is_hidden(&self) -> bool {
@@ -382,9 +548,9 @@ impl WantContext {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SocialViewSummary {
     /// Characters seen as allies (target, name, reasons from all wants)
-    pub allies: Vec<(ActantialTarget, String, Vec<String>)>,
+    allies: Vec<(ActantialTarget, String, Vec<String>)>,
     /// Characters seen as enemies (target, name, reasons from all wants)
-    pub enemies: Vec<(ActantialTarget, String, Vec<String>)>,
+    enemies: Vec<(ActantialTarget, String, Vec<String>)>,
 }
 
 impl SocialViewSummary {
@@ -392,23 +558,47 @@ impl SocialViewSummary {
         Self::default()
     }
 
-    /// Add an ally with a reason
-    pub fn add_ally(&mut self, target: ActantialTarget, name: String, reason: String) {
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the allies list
+    pub fn allies(&self) -> &[(ActantialTarget, String, Vec<String>)] {
+        &self.allies
+    }
+
+    /// Get the enemies list
+    pub fn enemies(&self) -> &[(ActantialTarget, String, Vec<String>)] {
+        &self.enemies
+    }
+
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Add an ally with a reason (builder pattern)
+    pub fn with_ally(mut self, target: ActantialTarget, name: String, reason: String) -> Self {
         if let Some(existing) = self.allies.iter_mut().find(|(t, _, _)| t == &target) {
             existing.2.push(reason);
         } else {
             self.allies.push((target, name, vec![reason]));
         }
+        self
     }
 
-    /// Add an enemy with a reason
-    pub fn add_enemy(&mut self, target: ActantialTarget, name: String, reason: String) {
+    /// Add an enemy with a reason (builder pattern)
+    pub fn with_enemy(mut self, target: ActantialTarget, name: String, reason: String) -> Self {
         if let Some(existing) = self.enemies.iter_mut().find(|(t, _, _)| t == &target) {
             existing.2.push(reason);
         } else {
             self.enemies.push((target, name, vec![reason]));
         }
+        self
     }
+
+    // -------------------------------------------------------------------------
+    // Query methods
+    // -------------------------------------------------------------------------
 
     /// Check if a target is considered an ally
     pub fn is_ally(&self, target: &ActantialTarget) -> bool {
@@ -419,6 +609,10 @@ impl SocialViewSummary {
     pub fn is_enemy(&self, target: &ActantialTarget) -> bool {
         self.enemies.iter().any(|(t, _, _)| t == target)
     }
+
+    // -------------------------------------------------------------------------
+    // Formatting
+    // -------------------------------------------------------------------------
 
     /// Format for LLM context
     pub fn to_llm_string(&self) -> String {
@@ -461,35 +655,79 @@ impl SocialViewSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActantialContext {
     /// The character's ID
-    pub character_id: Uuid,
+    character_id: CharacterId,
     /// The character's name
-    pub character_name: String,
+    character_name: String,
     /// All wants with their full context
-    pub wants: Vec<WantContext>,
+    wants: Vec<WantContext>,
     /// Aggregated social views
-    pub social_views: SocialViewSummary,
+    social_views: SocialViewSummary,
 }
 
 impl ActantialContext {
-    pub fn new(character_id: impl Into<Uuid>, character_name: impl Into<String>) -> Self {
+    pub fn new(character_id: CharacterId, character_name: impl Into<String>) -> Self {
         Self {
-            character_id: character_id.into(),
+            character_id,
             character_name: character_name.into(),
             wants: Vec::new(),
             social_views: SocialViewSummary::new(),
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the character's ID
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    /// Get the character's name
+    pub fn character_name(&self) -> &str {
+        &self.character_name
+    }
+
+    /// Get all wants
+    pub fn wants(&self) -> &[WantContext] {
+        &self.wants
+    }
+
+    /// Get the social views summary
+    pub fn social_views(&self) -> &SocialViewSummary {
+        &self.social_views
+    }
+
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Set the wants
+    pub fn with_wants(mut self, wants: Vec<WantContext>) -> Self {
+        self.wants = wants;
+        self
+    }
+
+    /// Set the social views
+    pub fn with_social_views(mut self, social_views: SocialViewSummary) -> Self {
+        self.social_views = social_views;
+        self
+    }
+
+    // -------------------------------------------------------------------------
+    // Query methods
+    // -------------------------------------------------------------------------
+
     /// Get the primary want (priority 1)
     pub fn primary_want(&self) -> Option<&WantContext> {
-        self.wants.iter().find(|w| w.priority == 1)
+        self.wants.iter().find(|w| w.priority() == 1)
     }
 
     /// Get known wants (visible to player)
     pub fn known_wants(&self) -> Vec<&WantContext> {
         self.wants
             .iter()
-            .filter(|w| w.visibility.is_known())
+            .filter(|w| w.visibility().is_known())
             .collect()
     }
 
@@ -497,6 +735,10 @@ impl ActantialContext {
     pub fn hidden_wants(&self) -> Vec<&WantContext> {
         self.wants.iter().filter(|w| w.is_hidden()).collect()
     }
+
+    // -------------------------------------------------------------------------
+    // Formatting
+    // -------------------------------------------------------------------------
 
     /// Format for LLM context
     ///
@@ -542,13 +784,13 @@ impl ActantialContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActantialLLMContext {
     /// Primary motivation summary
-    pub primary_motivation: Option<String>,
+    primary_motivation: Option<String>,
     /// List of known motivations (what player knows)
-    pub known_motivations: Vec<String>,
+    known_motivations: Vec<String>,
     /// Secret motivations with behavioral guidance
-    pub secret_motivations: Vec<SecretMotivationContext>,
+    secret_motivations: Vec<SecretMotivationContext>,
     /// Social alignment summary
-    pub social_summary: String,
+    social_summary: String,
 }
 
 /// Compact representation of a secret motivation for LLM
@@ -562,35 +804,62 @@ pub struct SecretMotivationContext {
     pub tells: Vec<String>,
 }
 
+impl SecretMotivationContext {
+    /// Create a new secret motivation context
+    pub fn new(want: impl Into<String>, deflection: impl Into<String>, tells: Vec<String>) -> Self {
+        Self {
+            want: want.into(),
+            deflection: deflection.into(),
+            tells,
+        }
+    }
+}
+
 impl ActantialLLMContext {
+    /// Create a new ActantialLLMContext
+    pub fn new(
+        primary_motivation: Option<String>,
+        known_motivations: Vec<String>,
+        secret_motivations: Vec<SecretMotivationContext>,
+        social_summary: impl Into<String>,
+    ) -> Self {
+        Self {
+            primary_motivation,
+            known_motivations,
+            secret_motivations,
+            social_summary: social_summary.into(),
+        }
+    }
+
     /// Build from full ActantialContext
     pub fn from_context(ctx: &ActantialContext) -> Self {
         let primary_motivation = ctx.primary_want().map(|w| {
             let target = w
-                .target
-                .as_ref()
+                .target()
                 .map(|t| format!(" (targeting {})", t.name()))
                 .unwrap_or_default();
-            format!("{}{}", w.description, target)
+            format!("{}{}", w.description(), target)
         });
 
         let known_motivations: Vec<String> = ctx
             .known_wants()
             .iter()
-            .map(|w| w.description.clone())
+            .map(|w| w.description().to_string())
             .collect();
 
         let secret_motivations: Vec<SecretMotivationContext> = ctx
             .hidden_wants()
             .iter()
-            .map(|w| SecretMotivationContext {
-                want: w.description.clone(),
-                deflection: w.effective_deflection(),
-                tells: w.tells.clone(),
+            .map(|w| {
+                SecretMotivationContext::new(
+                    w.description(),
+                    w.effective_deflection(),
+                    w.tells().to_vec(),
+                )
             })
             .collect();
 
-        let social_summary = ctx.social_views.to_llm_string();
+        let social_summary = ctx.social_views().to_llm_string();
 
         Self {
             primary_motivation,
@@ -599,6 +868,34 @@ impl ActantialLLMContext {
             social_summary,
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the primary motivation summary
+    pub fn primary_motivation(&self) -> Option<&str> {
+        self.primary_motivation.as_deref()
+    }
+
+    /// Get the known motivations
+    pub fn known_motivations(&self) -> &[String] {
+        &self.known_motivations
+    }
+
+    /// Get the secret motivations
+    pub fn secret_motivations(&self) -> &[SecretMotivationContext] {
+        &self.secret_motivations
+    }
+
+    /// Get the social summary
+    pub fn social_summary(&self) -> &str {
+        &self.social_summary
+    }
+
+    // -------------------------------------------------------------------------
+    // Formatting
+    // -------------------------------------------------------------------------
 
     /// Format as compact LLM string
     pub fn to_compact_string(&self) -> String {
@@ -631,111 +928,5 @@ impl ActantialLLMContext {
         lines.push(self.social_summary.clone());
 
         lines.join("\n")
-    }
-}
-
-// =============================================================================
-// Conversions to LLM Context Types
-// =============================================================================
-
-use super::llm_context::{
-    ActantialActorEntry, MotivationEntry, MotivationsContext, SecretMotivationEntry,
-    SocialRelationEntry, SocialStanceContext,
-};
-
-impl ActantialContext {
-    /// Convert to LLM-ready MotivationsContext
-    pub fn to_motivations_context(&self) -> MotivationsContext {
-        let mut known = Vec::new();
-        let mut suspected = Vec::new();
-        let mut secret = Vec::new();
-
-        for want in &self.wants {
-            match want.visibility {
-                WantVisibility::Known => {
-                    known.push(want.to_motivation_entry());
-                }
-                WantVisibility::Suspected => {
-                    suspected.push(want.to_motivation_entry());
-                }
-                WantVisibility::Hidden => {
-                    secret.push(want.to_secret_motivation_entry());
-                }
-            }
-        }
-
-        MotivationsContext {
-            known,
-            suspected,
-            secret,
-        }
-    }
-
-    /// Convert to LLM-ready SocialStanceContext
-    pub fn to_social_stance_context(&self) -> SocialStanceContext {
-        let allies = self
-            .social_views
-            .allies
-            .iter()
-            .map(|(target, name, reasons)| SocialRelationEntry {
-                name: name.clone(),
-                character_type: target.actor_type(),
-                reasons: reasons.clone(),
-            })
-            .collect();
-
-        let enemies = self
-            .social_views
-            .enemies
-            .iter()
-            .map(|(target, name, reasons)| SocialRelationEntry {
-                name: name.clone(),
-                character_type: target.actor_type(),
-                reasons: reasons.clone(),
-            })
-            .collect();
-
-        SocialStanceContext { allies, enemies }
-    }
-}
-
-impl WantContext {
-    /// Convert to a MotivationEntry (for Known/Suspected wants)
-    fn to_motivation_entry(&self) -> MotivationEntry {
-        MotivationEntry {
-            description: self.description.clone(),
-            priority: self.priority,
-            intensity: self.intensity_description().to_string(),
-            target: self.target.as_ref().map(|t| t.to_context_string()),
-            helpers: self.helpers.iter().map(|a| a.to_actor_entry()).collect(),
-            opponents: self.opponents.iter().map(|a| a.to_actor_entry()).collect(),
-        }
-    }
-
-    /// Convert to a SecretMotivationEntry (for Hidden wants)
-    fn to_secret_motivation_entry(&self) -> SecretMotivationEntry {
-        SecretMotivationEntry {
-            description: self.description.clone(),
-            priority: self.priority,
-            intensity: self.intensity_description().to_string(),
-            target: self.target.as_ref().map(|t| t.to_context_string()),
-            helpers: self.helpers.iter().map(|a| a.to_actor_entry()).collect(),
-            opponents: self.opponents.iter().map(|a| a.to_actor_entry()).collect(),
-            sender: self.sender.as_ref().map(|a| a.to_actor_entry()),
-            receiver: self.receiver.as_ref().map(|a| a.to_actor_entry()),
-            deflection_behavior: self.effective_deflection(),
-            tells: self.tells.clone(),
-        }
-    }
-}
-
-impl ActantialActor {
-    /// Convert to an ActantialActorEntry for LLM context
-    fn to_actor_entry(&self) -> ActantialActorEntry {
-        ActantialActorEntry {
-            name: self.name.clone(),
-            actor_type: self.target.actor_type(),
-            reason: self.reason.clone(),
-        }
     }
 }

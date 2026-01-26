@@ -1,7 +1,9 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
-use wrldbldr_protocol::{LocationRequest, RegionRequest};
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::apply_pagination_limits;
+use wrldbldr_shared::{LocationRequest, RegionRequest};
 
 pub(super) async fn handle_location_request(
     state: &WsState,
@@ -10,18 +12,37 @@ pub(super) async fn handle_location_request(
     request: LocationRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        LocationRequest::ListLocations { world_id } => {
+        LocationRequest::ListLocations { world_id, limit, offset } => {
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let settings = match state
+                .app
+                .use_cases
+                .settings
+                .get_for_world(world_id_typed)
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        world_id = %world_id,
+                        "Failed to load settings for list locations, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_locations(world_id_typed)
+                .list_locations(world_id_typed, Some(limit), offset)
                 .await
             {
                 Ok(locations) => {
@@ -29,9 +50,9 @@ pub(super) async fn handle_location_request(
                         .into_iter()
                         .map(|l| {
                             serde_json::json!({
-                                "id": l.id.to_string(),
-                                "name": l.name,
-                                "location_type": format!("{:?}", l.location_type),
+                                "id": l.id().to_string(),
+                                "name": l.name().as_str(),
+                                "location_type": format!("{:?}", l.location_type()),
                             })
                         })
                         .collect();
@@ -39,7 +60,7 @@ pub(super) async fn handle_location_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list locations"),
                 )),
             }
         }
@@ -59,13 +80,14 @@ pub(super) async fn handle_location_request(
                 .await
             {
                 Ok(Some(location)) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": location.id.to_string(),
-                    "name": location.name,
-                    "description": if location.description.is_empty() { None } else { Some(location.description) },
-                    "location_type": Some(format!("{:?}", location.location_type)),
-                    "atmosphere": location.atmosphere,
-                    "backdrop_asset": location.backdrop_asset,
-                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours,
+                    "id": location.id().to_string(),
+                    "name": location.name().as_str(),
+                    "description": if location.description().is_empty() { None } else { Some(location.description().as_str()) },
+                    "location_type": Some(format!("{:?}", location.location_type())),
+                    "atmosphere": location.atmosphere(),
+                    "backdrop_asset": location.backdrop_asset(),
+                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
+                    "use_llm_presence": location.use_llm_presence(),
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -73,92 +95,132 @@ pub(super) async fn handle_location_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get location"),
                 )),
             }
         }
 
         LocationRequest::CreateLocation { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
 
+            // Fetch app settings for default values
+            let settings = match state.app.use_cases.settings.get_for_world(world_id_typed).await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        world_id = %world_id,
+                        "Failed to load settings for create location, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+
+            // Use app settings as defaults when not provided
+            let presence_cache_ttl_hours =
+                data.presence_cache_ttl_hours.unwrap_or_else(|| settings.default_presence_cache_ttl_hours());
+            let use_llm_presence =
+                data.use_llm_presence.unwrap_or_else(|| settings.default_use_llm_presence());
+
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .create_location(world_id_typed, data.name, data.description, data.setting)
+                .create_location(
+                    world_id_typed,
+                    data.name,
+                    data.description,
+                    data.setting,
+                    Some(presence_cache_ttl_hours),
+                    Some(use_llm_presence),
+                )
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": location.id.to_string(),
-                    "name": location.name,
-                    "description": if location.description.is_empty() { None } else { Some(location.description) },
-                    "location_type": Some(format!("{:?}", location.location_type)),
-                    "atmosphere": location.atmosphere,
-                    "backdrop_asset": location.backdrop_asset,
-                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours,
+                    "id": location.id().to_string(),
+                    "name": location.name().as_str(),
+                    "description": if location.description().is_empty() { None } else { Some(location.description().as_str()) },
+                    "location_type": Some(format!("{:?}", location.location_type())),
+                    "atmosphere": location.atmosphere(),
+                    "backdrop_asset": location.backdrop_asset(),
+                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
+                    "use_llm_presence": location.use_llm_presence(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create location"),
                 )),
             }
         }
 
         LocationRequest::UpdateLocation { location_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
 
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .update_location(location_id_typed, data.name, data.description, data.setting)
+                .update_location(
+                    world_id,
+                    location_id_typed,
+                    data.name,
+                    data.description,
+                    data.setting,
+                    data.presence_cache_ttl_hours,
+                    data.use_llm_presence,
+                )
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": location.id.to_string(),
-                    "name": location.name,
-                    "description": if location.description.is_empty() { None } else { Some(location.description) },
-                    "location_type": Some(format!("{:?}", location.location_type)),
-                    "atmosphere": location.atmosphere,
-                    "backdrop_asset": location.backdrop_asset,
-                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours,
+                    "id": location.id().to_string(),
+                    "name": location.name().as_str(),
+                    "description": if location.description().is_empty() { None } else { Some(location.description().as_str()) },
+                    "location_type": Some(format!("{:?}", location.location_type())),
+                    "atmosphere": location.atmosphere(),
+                    "backdrop_asset": location.backdrop_asset(),
+                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
+                    "use_llm_presence": location.use_llm_presence(),
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Location not found"),
+                ),
+                Err(crate::use_cases::management::ManagementError::Unauthorized { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Location not in current world"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update location"),
                 )),
             }
         }
 
         LocationRequest::DeleteLocation { location_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
@@ -174,28 +236,40 @@ pub(super) async fn handle_location_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Location not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete location"),
                 )),
             }
         }
 
-        LocationRequest::GetLocationConnections { location_id } => {
+        LocationRequest::GetLocationConnections { location_id, limit } => {
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list location connections, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, _) = apply_pagination_limits(&settings, limit, None);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_location_connections(location_id_typed)
+                .list_location_connections(location_id_typed, Some(limit))
                 .await
             {
                 Ok(connections) => {
@@ -205,10 +279,10 @@ pub(super) async fn handle_location_request(
                             serde_json::json!({
                                 "from_location_id": c.from_location.to_string(),
                                 "to_location_id": c.to_location.to_string(),
-                                "connection_type": c.connection_type,
-                                "description": c.description.unwrap_or_default(),
+                                "connection_type": &c.connection_type,
+                                "description": c.description.as_ref().map(|d| d.as_str()).unwrap_or_default(),
                                 "bidirectional": c.bidirectional,
-                                "travel_time": c.travel_time,
+                                "travel_time": &c.travel_time,
                             })
                         })
                         .collect();
@@ -216,15 +290,13 @@ pub(super) async fn handle_location_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get location connections"),
                 )),
             }
         }
 
         LocationRequest::CreateLocationConnection { data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_location_id_for_request(&data.from_id, request_id) {
                 Ok(id) => id,
@@ -246,15 +318,13 @@ pub(super) async fn handle_location_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create location connection"),
                 )),
             }
         }
 
         LocationRequest::DeleteLocationConnection { from_id, to_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_location_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -276,14 +346,9 @@ pub(super) async fn handle_location_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete location connection"),
                 )),
             }
-        }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
         }
     }
 }
@@ -295,25 +360,37 @@ pub(super) async fn handle_region_request(
     request: RegionRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        RegionRequest::ListRegions { location_id } => {
+        RegionRequest::ListRegions { location_id, limit, offset } => {
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list regions, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_regions(location_id_typed)
+                .list_regions(location_id_typed, Some(limit), offset)
                 .await
             {
                 Ok(regions) => {
                     let data: Vec<serde_json::Value> = regions
                         .into_iter()
                         .map(|r| {
-                            let bounds = r.map_bounds.map(|b| {
+                            let bounds = r.map_bounds().map(|b| {
                                 serde_json::json!({
                                     "x": b.x,
                                     "y": b.y,
@@ -322,15 +399,15 @@ pub(super) async fn handle_region_request(
                                 })
                             });
                             serde_json::json!({
-                                "id": r.id.to_string(),
-                                "location_id": r.location_id.to_string(),
-                                "name": r.name,
-                                "description": r.description,
-                                "backdrop_asset": r.backdrop_asset,
-                                "atmosphere": r.atmosphere,
+                                "id": r.id().to_string(),
+                                "location_id": r.location_id().to_string(),
+                                "name": r.name(),
+                                "description": r.description(),
+                                "backdrop_asset": r.backdrop_asset(),
+                                "atmosphere": r.atmosphere(),
                                 "map_bounds": bounds,
-                                "is_spawn_point": r.is_spawn_point,
-                                "order": r.order,
+                                "is_spawn_point": r.is_spawn_point(),
+                                "order": r.order(),
                             })
                         })
                         .collect();
@@ -338,7 +415,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list regions"),
                 )),
             }
         }
@@ -358,7 +435,7 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(Some(region)) => {
-                    let bounds = region.map_bounds.map(|b| {
+                    let bounds = region.map_bounds().map(|b| {
                         serde_json::json!({
                             "x": b.x,
                             "y": b.y,
@@ -367,15 +444,15 @@ pub(super) async fn handle_region_request(
                         })
                     });
                     Ok(ResponseResult::success(serde_json::json!({
-                        "id": region.id.to_string(),
-                        "location_id": region.location_id.to_string(),
-                        "name": region.name,
-                        "description": region.description,
-                        "backdrop_asset": region.backdrop_asset,
-                        "atmosphere": region.atmosphere,
+                        "id": region.id().to_string(),
+                        "location_id": region.location_id().to_string(),
+                        "name": region.name(),
+                        "description": region.description(),
+                        "backdrop_asset": region.backdrop_asset(),
+                        "atmosphere": region.atmosphere(),
                         "map_bounds": bounds,
-                        "is_spawn_point": region.is_spawn_point,
-                        "order": region.order,
+                        "is_spawn_point": region.is_spawn_point(),
+                        "order": region.order(),
                     })))
                 }
                 Ok(None) => Ok(ResponseResult::error(
@@ -384,15 +461,13 @@ pub(super) async fn handle_region_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get region"),
                 )),
             }
         }
 
         RegionRequest::CreateRegion { location_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
@@ -413,35 +488,33 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(region) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": region.id.to_string(),
-                    "location_id": region.location_id.to_string(),
-                    "name": region.name,
-                    "description": region.description,
-                    "backdrop_asset": region.backdrop_asset,
-                    "atmosphere": region.atmosphere,
-                    "map_bounds": region.map_bounds.map(|b| serde_json::json!({
+                    "id": region.id().to_string(),
+                    "location_id": region.location_id().to_string(),
+                    "name": region.name(),
+                    "description": region.description(),
+                    "backdrop_asset": region.backdrop_asset(),
+                    "atmosphere": region.atmosphere(),
+                    "map_bounds": region.map_bounds().map(|b| serde_json::json!({
                         "x": b.x,
                         "y": b.y,
                         "width": b.width,
                         "height": b.height,
                     })),
-                    "is_spawn_point": region.is_spawn_point,
-                    "order": region.order,
+                    "is_spawn_point": region.is_spawn_point(),
+                    "order": region.order(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create region"),
                 )),
             }
         }
 
         RegionRequest::UpdateRegion { region_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -462,22 +535,22 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(region) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": region.id.to_string(),
-                    "location_id": region.location_id.to_string(),
-                    "name": region.name,
-                    "description": region.description,
-                    "backdrop_asset": region.backdrop_asset,
-                    "atmosphere": region.atmosphere,
-                    "map_bounds": region.map_bounds.map(|b| serde_json::json!({
+                    "id": region.id().to_string(),
+                    "location_id": region.location_id().to_string(),
+                    "name": region.name(),
+                    "description": region.description(),
+                    "backdrop_asset": region.backdrop_asset(),
+                    "atmosphere": region.atmosphere(),
+                    "map_bounds": region.map_bounds().map(|b| serde_json::json!({
                         "x": b.x,
                         "y": b.y,
                         "width": b.width,
                         "height": b.height,
                     })),
-                    "is_spawn_point": region.is_spawn_point,
-                    "order": region.order,
+                    "is_spawn_point": region.is_spawn_point(),
+                    "order": region.order(),
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Region not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -485,15 +558,13 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update region"),
                 )),
             }
         }
 
         RegionRequest::DeleteRegion { region_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -509,28 +580,40 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Region not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete region"),
                 )),
             }
         }
 
-        RegionRequest::GetRegionConnections { region_id } => {
+        RegionRequest::GetRegionConnections { region_id, limit } => {
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list region connections, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, _) = apply_pagination_limits(&settings, limit, None);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_region_connections(region_id_typed)
+                .list_region_connections(region_id_typed, Some(limit))
                 .await
             {
                 Ok(connections) => {
@@ -551,7 +634,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get region connections"),
                 )),
             }
         }
@@ -561,9 +644,7 @@ pub(super) async fn handle_region_request(
             to_id,
             data,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_region_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -592,15 +673,13 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create region connection"),
                 )),
             }
         }
 
         RegionRequest::DeleteRegionConnection { from_id, to_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_region_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -622,15 +701,13 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete region connection"),
                 )),
             }
         }
 
         RegionRequest::UnlockRegionConnection { from_id, to_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_region_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -650,28 +727,40 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Connection not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "unlock region connection"),
                 )),
             }
         }
 
-        RegionRequest::GetRegionExits { region_id } => {
+        RegionRequest::GetRegionExits { region_id, limit } => {
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list region exits, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, _) = apply_pagination_limits(&settings, limit, None);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_region_exits(region_id_typed)
+                .list_region_exits(region_id_typed, Some(limit))
                 .await
             {
                 Ok(exits) => {
@@ -691,7 +780,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get region exits"),
                 )),
             }
         }
@@ -703,9 +792,7 @@ pub(super) async fn handle_region_request(
             description,
             bidirectional,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -738,7 +825,7 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create region exit"),
                 )),
             }
         }
@@ -747,9 +834,7 @@ pub(super) async fn handle_region_request(
             region_id,
             location_id,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -771,12 +856,14 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete region exit"),
                 )),
             }
         }
 
-        RegionRequest::ListSpawnPoints { world_id } => {
+        RegionRequest::ListSpawnPoints { world_id, limit: _, offset: _ } => {
+            // Note: limit/offset are accepted in protocol but not yet implemented in use case
+            // The use case iterates through all locations to find spawn points
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
@@ -795,20 +882,20 @@ pub(super) async fn handle_region_request(
                         .into_iter()
                         .map(|r| {
                             serde_json::json!({
-                                "id": r.id.to_string(),
-                                "location_id": r.location_id.to_string(),
-                                "name": r.name,
-                                "description": r.description,
-                                "backdrop_asset": r.backdrop_asset,
-                                "atmosphere": r.atmosphere,
-                                "map_bounds": r.map_bounds.map(|b| serde_json::json!({
+                                "id": r.id().to_string(),
+                                "location_id": r.location_id().to_string(),
+                                "name": r.name(),
+                                "description": r.description(),
+                                "backdrop_asset": r.backdrop_asset(),
+                                "atmosphere": r.atmosphere(),
+                                "map_bounds": r.map_bounds().map(|b| serde_json::json!({
                                     "x": b.x,
                                     "y": b.y,
                                     "width": b.width,
                                     "height": b.height,
                                 })),
-                                "is_spawn_point": r.is_spawn_point,
-                                "order": r.order,
+                                "is_spawn_point": r.is_spawn_point(),
+                                "order": r.order(),
                             })
                         })
                         .collect();
@@ -816,7 +903,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list spawn points"),
                 )),
             }
         }

@@ -7,13 +7,14 @@
 //! Free functions here are for backwards compatibility and specialized conversions.
 
 use crate::ports::session_types as app;
-use wrldbldr_protocol::{
-    AdHocOutcomes, ApprovalDecision, ChallengeOutcomeDecisionData, DiceInputType,
-    DirectorialContext, NpcMotivationData, ParticipantRole, WorldRole,
+use wrldbldr_shared::messages::DiceInputType;
+use wrldbldr_shared::{
+    AdHocOutcomes, ApprovalDecision, ChallengeOutcomeDecisionData, DirectorialContext,
+    NpcMotivationData, ParticipantRole, WorldRole,
 };
 
 // Re-export protocol types used by callers
-pub use wrldbldr_protocol::ApprovedNpcInfo;
+pub use wrldbldr_shared::ApprovedNpcInfo;
 
 // =============================================================================
 // ParticipantRole Conversions
@@ -56,11 +57,11 @@ pub fn dice_input_from_proto(input: DiceInputType) -> app::DiceInput {
 // =============================================================================
 
 pub fn approval_decision_to_proto(decision: app::ApprovalDecision) -> ApprovalDecision {
-    decision.into()
+    decision
 }
 
 pub fn approval_decision_from_proto(decision: ApprovalDecision) -> app::ApprovalDecision {
-    decision.into()
+    decision
 }
 
 // =============================================================================

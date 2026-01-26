@@ -1,4 +1,7 @@
-//! Reusable UI components
+//! Reusable UI components for player and DM interfaces.
+//!
+//! Organized into domain-specific submodules for visual novel gameplay,
+//! DM controls, world creation, settings, and shared utilities.
 
 pub mod action_panel;
 pub mod character_sheet_viewer;
@@ -13,6 +16,7 @@ pub mod mini_map;
 pub mod navigation_panel;
 pub mod pc;
 pub mod region_items_panel;
+pub mod schema_character_sheet;
 pub mod settings;
 pub mod story_arc;
 pub mod tactical;

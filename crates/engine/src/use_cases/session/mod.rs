@@ -1,3 +1,6 @@
+// Session use cases - fields for future session features
+#![allow(dead_code)]
+
 //! Session use cases.
 //!
 //! Orchestrates session-level flows (joining worlds, snapshots, etc.).
@@ -7,13 +10,11 @@ use std::sync::Arc;
 mod directorial;
 mod join_world;
 mod join_world_flow;
+mod types;
 
-pub use join_world::{JoinWorld, JoinWorldError, JoinWorldResult};
-pub use join_world_flow::{
-    JoinWorldContext, JoinWorldFlow, JoinWorldFlowError, JoinWorldFlowResult, JoinWorldInput,
-    UserJoinedPayload,
-};
 pub use directorial::{DirectorialUpdate, DirectorialUpdateContext, DirectorialUpdateInput};
+pub use join_world::{JoinWorld, JoinWorldError};
+pub use join_world_flow::{JoinWorldFlow, JoinWorldFlowError};
 
 /// Container for session use cases.
 pub struct SessionUseCases {

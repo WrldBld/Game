@@ -2,42 +2,55 @@
 //!
 //! Handles both Location and Region CRUD operations, plus connections.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt, RowExt};
+use super::helpers::{parse_optional_description, parse_typed_id, NodeExt, RowExt};
 use crate::infrastructure::ports::{LocationRepo, RepoError};
 
 /// Repository for Location and Region operations.
 pub struct Neo4jLocationRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jLocationRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 
     fn row_to_location(&self, row: Row) -> Result<Location, RepoError> {
-        let node: neo4rs::Node = row
-            .get("l")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let node: neo4rs::Node = row.get("l").map_err(|e| RepoError::database("query", e))?;
 
-        let id: LocationId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let description: String = node
-            .get("description")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let location_type_str: String = node
-            .get("location_type")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let id: LocationId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse LocationId: {}", e))
+        })?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse WorldId for Location {}: {}", id, e),
+            )
+        })?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Location {}: {}", id, e),
+            )
+        })?;
+        let description: String = node.get("description").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'description' for Location {}: {}", id, e),
+            )
+        })?;
+        let location_type_str: String = node.get("location_type").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'location_type' for Location {}: {}", id, e),
+            )
+        })?;
 
         let backdrop_asset = node.get_optional_string("backdrop_asset");
         let map_asset = node.get_optional_string("map_asset");
@@ -64,45 +77,81 @@ impl Neo4jLocationRepo {
             .filter(|s| !s.is_empty())
             .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
             .and_then(|v| {
-                Some(MapBounds {
-                    x: v.get("x")?.as_u64()? as u32,
-                    y: v.get("y")?.as_u64()? as u32,
-                    width: v.get("width")?.as_u64()? as u32,
-                    height: v.get("height")?.as_u64()? as u32,
-                })
+                MapBounds::new(
+                    v.get("x")?.as_u64()? as u32,
+                    v.get("y")?.as_u64()? as u32,
+                    v.get("width")?.as_u64()? as u32,
+                    v.get("height")?.as_u64()? as u32,
+                )
             });
 
-        Ok(Location {
-            id,
-            world_id,
-            name,
-            description,
-            location_type,
-            backdrop_asset,
-            map_asset,
-            parent_map_bounds,
-            default_region_id,
-            atmosphere,
-            presence_cache_ttl_hours: presence_cache_ttl_hours as i32,
-            use_llm_presence,
-        })
+        // Build location using aggregate constructor and builder pattern
+        let location_name =
+            value_objects::LocationName::new(&name).map_err(|e| RepoError::database("parse", e))?;
+        let desc = value_objects::Description::new(&description)
+            .map_err(|e| RepoError::database("parse", e))?;
+
+        let mut location = Location::new(world_id, location_name, location_type)
+            .with_id(id)
+            .with_description(desc)
+            .with_presence_ttl(presence_cache_ttl_hours as i32)
+            .with_llm_presence(use_llm_presence);
+
+        if let Some(asset_str) = backdrop_asset {
+            let asset = AssetPath::new(asset_str).map_err(|e| RepoError::database("parse", e))?;
+            location = location.with_backdrop(asset);
+        }
+        if let Some(asset_str) = map_asset {
+            let asset = AssetPath::new(asset_str).map_err(|e| RepoError::database("parse", e))?;
+            location = location.with_map(asset);
+        }
+        if let Some(atm_str) = atmosphere {
+            let atm = value_objects::Atmosphere::new(atm_str)
+                .map_err(|e| RepoError::database("parse", e))?;
+            location = location.with_atmosphere(atm);
+        }
+        if let Some(bounds) = parent_map_bounds {
+            location = location.with_parent_map_bounds(bounds);
+        }
+        if let Some(region_id) = default_region_id {
+            location = location.with_default_region(region_id);
+        }
+
+        Ok(location)
     }
 
     fn row_to_region(&self, row: &Row) -> Result<Region, RepoError> {
-        let node: neo4rs::Node = row
-            .get("r")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let node: neo4rs::Node = row.get("r").map_err(|e| RepoError::database("query", e))?;
 
-        let id: RegionId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-        let location_id: LocationId =
-            parse_typed_id(&node, "location_id").map_err(|e| RepoError::Database(e.to_string()))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let description = node.get_string_or("description", "");
-        let backdrop_asset = node.get_optional_string("backdrop_asset");
-        let atmosphere = node.get_optional_string("atmosphere");
+        let id: RegionId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse RegionId: {}", e))
+        })?;
+        let location_id: LocationId = parse_typed_id(&node, "location_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse LocationId for Region {}: {}", id, e),
+            )
+        })?;
+        let name_str: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Region {}: {}", id, e),
+            )
+        })?;
+        let name = value_objects::RegionName::new(name_str)
+            .map_err(|e| RepoError::database("parse", e))?;
+        let description = value_objects::Description::new(node.get_string_or("description", ""))
+            .unwrap_or_default();
+        let backdrop_asset = node
+            .get_optional_string("backdrop_asset")
+            .map(value_objects::AssetPath::new)
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let atmosphere = node
+            .get_optional_string("atmosphere")
+            .map(value_objects::Atmosphere::new)
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
         let is_spawn_point = node.get_bool_or("is_spawn_point", false);
         let order = node.get_i64_or("order", 0) as u32;
 
@@ -112,15 +161,15 @@ impl Neo4jLocationRepo {
             .filter(|s| !s.is_empty())
             .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
             .and_then(|v| {
-                Some(MapBounds {
-                    x: v.get("x")?.as_u64()? as u32,
-                    y: v.get("y")?.as_u64()? as u32,
-                    width: v.get("width")?.as_u64()? as u32,
-                    height: v.get("height")?.as_u64()? as u32,
-                })
+                MapBounds::new(
+                    v.get("x")?.as_u64()? as u32,
+                    v.get("y")?.as_u64()? as u32,
+                    v.get("width")?.as_u64()? as u32,
+                    v.get("height")?.as_u64()? as u32,
+                )
             });
 
-        Ok(Region {
+        Ok(Region::from_storage(
             id,
             location_id,
             name,
@@ -130,67 +179,107 @@ impl Neo4jLocationRepo {
             map_bounds,
             is_spawn_point,
             order,
-        })
+        ))
     }
 
     fn row_to_region_connection(&self, row: Row) -> Result<RegionConnection, RepoError> {
         let from_id_str: String = row
             .get("from_id")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let to_id_str: String = row
-            .get("to_id")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let description = row.get_optional_string("description");
+            .map_err(|e| RepoError::database("query", e))?;
+        let to_id_str: String = row.get("to_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'to_id' for RegionConnection with from_id={}: {}",
+                    from_id_str, e
+                ),
+            )
+        })?;
+        let description = parse_optional_description(row.get_optional_string("description"));
         let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
         let is_locked: bool = row.get("is_locked").unwrap_or(false);
         let lock_description = row.get_optional_string("lock_description");
 
-        let from_id =
-            uuid::Uuid::parse_str(&from_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
-        let to_id =
-            uuid::Uuid::parse_str(&to_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
+        let from_id = uuid::Uuid::parse_str(&from_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse from_id for RegionConnection: {}", e),
+            )
+        })?;
+        let to_id = uuid::Uuid::parse_str(&to_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse to_id for RegionConnection (from: {}, to: {}): {}",
+                    from_id, to_id_str, e
+                ),
+            )
+        })?;
 
-        Ok(RegionConnection {
-            from_region: RegionId::from_uuid(from_id),
-            to_region: RegionId::from_uuid(to_id),
+        Ok(RegionConnection::from_storage(
+            RegionId::from_uuid(from_id),
+            RegionId::from_uuid(to_id),
             description,
             bidirectional,
             is_locked,
             lock_description,
-        })
+        ))
     }
 
     fn row_to_location_connection(&self, row: Row) -> Result<LocationConnection, RepoError> {
         let from_id_str: String = row
             .get("from_id")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let to_id_str: String = row
-            .get("to_id")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let connection_type: String = row
-            .get("connection_type")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
+        let to_id_str: String = row.get("to_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'to_id' for LocationConnection with from_id={}: {}",
+                    from_id_str, e
+                ),
+            )
+        })?;
+        let connection_type_str: String = row.get("connection_type").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'connection_type' for LocationConnection (from: {}, to: {}): {}",
+                    from_id_str, to_id_str, e
+                ),
+            )
+        })?;
         let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
         let travel_time: i64 = row.get("travel_time").unwrap_or(0);
         let is_locked: bool = row.get("is_locked").unwrap_or(false);
-        let description = row.get_optional_string("description");
+        let description = parse_optional_description(row.get_optional_string("description"));
         let lock_description = row.get_optional_string("lock_description");
 
-        let from_id =
-            uuid::Uuid::parse_str(&from_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
-        let to_id =
-            uuid::Uuid::parse_str(&to_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
+        let from_id = uuid::Uuid::parse_str(&from_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse from_id for LocationConnection: {}", e),
+            )
+        })?;
+        let to_id = uuid::Uuid::parse_str(&to_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse to_id for LocationConnection (from: {}, to: {}): {}",
+                    from_id, to_id_str, e
+                ),
+            )
+        })?;
 
-        Ok(LocationConnection {
-            from_location: LocationId::from_uuid(from_id),
-            to_location: LocationId::from_uuid(to_id),
-            connection_type,
+        Ok(LocationConnection::from_storage(
+            LocationId::from_uuid(from_id),
+            LocationId::from_uuid(to_id),
+            ConnectionType::parse(&connection_type_str),
             description,
             bidirectional,
-            travel_time: travel_time as u32,
+            travel_time as u32,
             is_locked,
             lock_description,
-        })
+        ))
     }
 }
 
@@ -207,12 +296,12 @@ impl LocationRepo for Neo4jLocationRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_location(row)?))
         } else {
@@ -222,8 +311,7 @@ impl LocationRepo for Neo4jLocationRepo {
 
     async fn save_location(&self, location: &Location) -> Result<(), RepoError> {
         let map_bounds_json = location
-            .parent_map_bounds
-            .as_ref()
+            .parent_map_bounds()
             .map(|b| {
                 serde_json::json!({
                     "x": b.x,
@@ -253,62 +341,96 @@ impl LocationRepo for Neo4jLocationRepo {
             MERGE (w)-[:CONTAINS_LOCATION]->(l)
             RETURN l.id as id",
         )
-        .param("id", location.id.to_string())
-        .param("world_id", location.world_id.to_string())
-        .param("name", location.name.clone())
-        .param("description", location.description.clone())
-        .param("location_type", format!("{:?}", location.location_type))
+        .param("id", location.id().to_string())
+        .param("world_id", location.world_id().to_string())
+        .param("name", location.name().as_str().to_string())
+        .param("description", location.description().as_str().to_string())
+        .param("location_type", format!("{:?}", location.location_type()))
         .param(
             "backdrop_asset",
-            location.backdrop_asset.clone().unwrap_or_default(),
+            location
+                .backdrop_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
         )
-        .param("map_asset", location.map_asset.clone().unwrap_or_default())
+        .param(
+            "map_asset",
+            location
+                .map_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
+        )
         .param("parent_map_bounds", map_bounds_json)
         .param(
             "default_region_id",
             location
-                .default_region_id
+                .default_region_id()
                 .map(|id| id.to_string())
                 .unwrap_or_default(),
         )
         .param(
             "atmosphere",
-            location.atmosphere.clone().unwrap_or_default(),
+            location
+                .atmosphere()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "presence_cache_ttl_hours",
-            location.presence_cache_ttl_hours as i64,
+            location.presence_cache_ttl_hours() as i64,
         )
-        .param("use_llm_presence", location.use_llm_presence);
+        .param("use_llm_presence", location.use_llm_presence());
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved location: {}", location.name);
+        tracing::debug!("Saved location: {}", location.name().as_str());
         Ok(())
     }
 
-    async fn list_locations_in_world(&self, world_id: WorldId) -> Result<Vec<Location>, RepoError> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:CONTAINS_LOCATION]->(l:Location)
-            RETURN l
-            ORDER BY l.name",
-        )
-        .param("world_id", world_id.to_string());
+    async fn list_locations_in_world(
+        &self,
+        world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Location>, RepoError> {
+        let limit = limit.unwrap_or(50).min(200);
+        let skip = offset.unwrap_or(0);
+
+        let query_str = if skip > 0 {
+            format!(
+                "MATCH (w:World {{id: $world_id}})-[:CONTAINS_LOCATION]->(l:Location)
+                RETURN l
+                ORDER BY l.name
+                SKIP {} LIMIT {}",
+                skip, limit
+            )
+        } else {
+            format!(
+                "MATCH (w:World {{id: $world_id}})-[:CONTAINS_LOCATION]->(l:Location)
+                RETURN l
+                ORDER BY l.name
+                LIMIT {}",
+                limit
+            )
+        };
+
+        let q = query(&query_str)
+            .param("world_id", world_id.to_string());
 
         let mut result = self
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut locations = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             locations.push(self.row_to_location(row)?);
         }
@@ -326,7 +448,7 @@ impl LocationRepo for Neo4jLocationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted location: {}", id);
         Ok(())
@@ -343,12 +465,12 @@ impl LocationRepo for Neo4jLocationRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_region(&row)?))
         } else {
@@ -358,8 +480,7 @@ impl LocationRepo for Neo4jLocationRepo {
 
     async fn save_region(&self, region: &Region) -> Result<(), RepoError> {
         let map_bounds_json = region
-            .map_bounds
-            .as_ref()
+            .map_bounds()
             .map(|b| {
                 serde_json::json!({
                     "x": b.x,
@@ -386,50 +507,78 @@ impl LocationRepo for Neo4jLocationRepo {
             MERGE (l)-[:HAS_REGION]->(r)
             RETURN r.id as id",
         )
-        .param("id", region.id.to_string())
-        .param("location_id", region.location_id.to_string())
-        .param("name", region.name.clone())
-        .param("description", region.description.clone())
+        .param("id", region.id().to_string())
+        .param("location_id", region.location_id().to_string())
+        .param("name", region.name().to_string())
+        .param("description", region.description().to_string())
         .param(
             "backdrop_asset",
-            region.backdrop_asset.clone().unwrap_or_default(),
+            region
+                .backdrop_asset()
+                .map(|a| a.to_string())
+                .unwrap_or_default(),
         )
-        .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
+        .param(
+            "atmosphere",
+            region
+                .atmosphere()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
+        )
         .param("map_bounds", map_bounds_json)
-        .param("is_spawn_point", region.is_spawn_point)
-        .param("order", region.order as i64);
+        .param("is_spawn_point", region.is_spawn_point())
+        .param("order", region.order() as i64);
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved region: {}", region.name);
+        tracing::debug!("Saved region: {}", region.name());
         Ok(())
     }
 
     async fn list_regions_in_location(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<Region>, RepoError> {
-        let q = query(
-            "MATCH (l:Location {id: $location_id})-[:HAS_REGION]->(r:Region)
-            RETURN r
-            ORDER BY r.order",
-        )
-        .param("location_id", location_id.to_string());
+        let limit = limit.unwrap_or(50).min(200);
+        let skip = offset.unwrap_or(0);
+
+        let query_str = if skip > 0 {
+            format!(
+                "MATCH (l:Location {{id: $location_id}})-[:HAS_REGION]->(r:Region)
+                RETURN r
+                ORDER BY r.order
+                SKIP {} LIMIT {}",
+                skip, limit
+            )
+        } else {
+            format!(
+                "MATCH (l:Location {{id: $location_id}})-[:HAS_REGION]->(r:Region)
+                RETURN r
+                ORDER BY r.order
+                LIMIT {}",
+                limit
+            )
+        };
+
+        let q = query(&query_str)
+            .param("location_id", location_id.to_string());
 
         let mut result = self
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut regions = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             regions.push(self.row_to_region(&row)?);
         }
@@ -447,7 +596,7 @@ impl LocationRepo for Neo4jLocationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted region: {}", id);
         Ok(())
@@ -460,28 +609,34 @@ impl LocationRepo for Neo4jLocationRepo {
     async fn get_connections(
         &self,
         region_id: RegionId,
+        limit: Option<u32>,
     ) -> Result<Vec<RegionConnection>, RepoError> {
-        let q = query(
-            "MATCH (from:Region {id: $id})-[rel:CONNECTED_TO_REGION]->(to:Region)
+        let limit = limit.unwrap_or(50).min(200);
+        let query_str = format!(
+            "MATCH (from:Region {{id: $id}})-[rel:CONNECTED_TO_REGION]->(to:Region)
             RETURN from.id as from_id, to.id as to_id,
                    rel.description as description,
                    rel.bidirectional as bidirectional,
                    rel.is_locked as is_locked,
-                   rel.lock_description as lock_description",
-        )
-        .param("id", region_id.to_string());
+                   rel.lock_description as lock_description
+            LIMIT {}",
+            limit
+        );
+
+        let q = query(&query_str)
+            .param("id", region_id.to_string());
 
         let mut result = self
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut connections = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             connections.push(self.row_to_region_connection(row)?);
         }
@@ -490,70 +645,62 @@ impl LocationRepo for Neo4jLocationRepo {
     }
 
     async fn save_connection(&self, connection: &RegionConnection) -> Result<(), RepoError> {
+        // Use explicit transaction to ensure both directions are created atomically
+        let mut txn = self
+            .graph
+            .start_txn()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
         let q = query(
-            "MATCH (from:Region {id: $from_id})
-            MATCH (to:Region {id: $to_id})
+            "MATCH (from:Region {id: $from_id}), (to:Region {id: $to_id})
             MERGE (from)-[rel:CONNECTED_TO_REGION]->(to)
             SET rel.description = $description,
                 rel.bidirectional = $bidirectional,
                 rel.is_locked = $is_locked,
                 rel.lock_description = $lock_description
+            WITH from, to
+            FOREACH (_ IN CASE WHEN $bidirectional THEN [1] ELSE [] END |
+                MERGE (to)-[:CONNECTED_TO_REGION]->(from)
+                SET to_rel = rel
+                SET to_rel.description = $description,
+                    to_rel.bidirectional = $bidirectional,
+                    to_rel.is_locked = $is_locked,
+                    to_rel.lock_description = $lock_description
+            )
             RETURN from.id as from_id",
         )
         .param("from_id", connection.from_region.to_string())
         .param("to_id", connection.to_region.to_string())
         .param(
             "description",
-            connection.description.clone().unwrap_or_default(),
+            connection
+                .description
+                .as_ref()
+                .map(|d| d.as_str())
+                .unwrap_or_default()
+                .to_string(),
         )
         .param("bidirectional", connection.bidirectional)
         .param("is_locked", connection.is_locked)
         .param(
             "lock_description",
-            connection.lock_description.clone().unwrap_or_default(),
+            connection
+                .lock_description
+                .as_deref()
+                .unwrap_or_default()
+                .to_string(),
         );
 
-        self.graph
-            .run(q)
+        txn.run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
-        // If bidirectional, also create the reverse connection
-        if connection.bidirectional {
-            let reverse_q = query(
-                "MATCH (from:Region {id: $to_id})
-                MATCH (to:Region {id: $from_id})
-                MERGE (from)-[rel:CONNECTED_TO_REGION]->(to)
-                SET rel.description = $description,
-                    rel.bidirectional = $bidirectional,
-                    rel.is_locked = $is_locked,
-                    rel.lock_description = $lock_description
-                RETURN from.id as from_id",
-            )
-            .param("from_id", connection.from_region.to_string())
-            .param("to_id", connection.to_region.to_string())
-            .param(
-                "description",
-                connection.description.clone().unwrap_or_default(),
-            )
-            .param("bidirectional", connection.bidirectional)
-            .param("is_locked", connection.is_locked)
-            .param(
-                "lock_description",
-                connection.lock_description.clone().unwrap_or_default(),
-            );
+        // Commit transaction
+        txn.commit()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
 
-            self.graph
-                .run(reverse_q)
-                .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-        }
-
-        tracing::debug!(
-            "Saved connection from {} to {}",
-            connection.from_region,
-            connection.to_region
-        );
         Ok(())
     }
 
@@ -572,7 +719,7 @@ impl LocationRepo for Neo4jLocationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let reverse_q = query(
             "MATCH (from:Region {id: $to_id})-[rel:CONNECTED_TO_REGION]->(to:Region {id: $from_id})
@@ -584,7 +731,7 @@ impl LocationRepo for Neo4jLocationRepo {
         self.graph
             .run(reverse_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -596,30 +743,36 @@ impl LocationRepo for Neo4jLocationRepo {
     async fn get_location_exits(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
     ) -> Result<Vec<LocationConnection>, RepoError> {
-        let q = query(
-            "MATCH (from:Location {id: $id})-[r:CONNECTED_TO]->(to:Location)
+        let limit = limit.unwrap_or(50).min(200);
+        let query_str = format!(
+            "MATCH (from:Location {{id: $id}})-[r:CONNECTED_TO]->(to:Location)
             RETURN from.id as from_id, to.id as to_id,
                    r.connection_type as connection_type,
                    r.description as description,
                    r.bidirectional as bidirectional,
                    r.travel_time as travel_time,
                    r.is_locked as is_locked,
-                   r.lock_description as lock_description",
-        )
-        .param("id", location_id.to_string());
+                   r.lock_description as lock_description
+            LIMIT {}",
+            limit
+        );
+
+        let q = query(&query_str)
+            .param("id", location_id.to_string());
 
         let mut result = self
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut connections = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             connections.push(self.row_to_location_connection(row)?);
         }
@@ -644,23 +797,32 @@ impl LocationRepo for Neo4jLocationRepo {
         )
         .param("from_id", connection.from_location.to_string())
         .param("to_id", connection.to_location.to_string())
-        .param("connection_type", connection.connection_type.clone())
+        .param("connection_type", connection.connection_type.as_str())
         .param(
             "description",
-            connection.description.clone().unwrap_or_default(),
+            connection
+                .description
+                .as_ref()
+                .map(|d| d.as_str())
+                .unwrap_or_default()
+                .to_string(),
         )
         .param("bidirectional", connection.bidirectional)
         .param("travel_time", connection.travel_time as i64)
         .param("is_locked", connection.is_locked)
         .param(
             "lock_description",
-            connection.lock_description.clone().unwrap_or_default(),
+            connection
+                .lock_description
+                .as_deref()
+                .unwrap_or_default()
+                .to_string(),
         );
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if connection.bidirectional {
             let reverse_q = query(
@@ -676,23 +838,32 @@ impl LocationRepo for Neo4jLocationRepo {
             )
             .param("from_id", connection.from_location.to_string())
             .param("to_id", connection.to_location.to_string())
-            .param("connection_type", connection.connection_type.clone())
+            .param("connection_type", connection.connection_type.as_str())
             .param(
                 "description",
-                connection.description.clone().unwrap_or_default(),
+                connection
+                    .description
+                    .as_ref()
+                    .map(|d| d.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
             )
             .param("bidirectional", connection.bidirectional)
             .param("travel_time", connection.travel_time as i64)
             .param("is_locked", connection.is_locked)
             .param(
                 "lock_description",
-                connection.lock_description.clone().unwrap_or_default(),
+                connection
+                    .lock_description
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_string(),
             );
 
             self.graph
                 .run(reverse_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         Ok(())
@@ -713,7 +884,7 @@ impl LocationRepo for Neo4jLocationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let reverse_q = query(
             "MATCH (from:Location {id: $to_id})-[r:CONNECTED_TO]->(to:Location {id: $from_id})
@@ -725,65 +896,72 @@ impl LocationRepo for Neo4jLocationRepo {
         self.graph
             .run(reverse_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
 
-    async fn get_region_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>, RepoError> {
-        let q = query(
-            "MATCH (r:Region {id: $id})-[rel:EXITS_TO_LOCATION]->(l:Location)
+    async fn get_region_exits(
+        &self,
+        region_id: RegionId,
+        limit: Option<u32>,
+    ) -> Result<Vec<RegionExit>, RepoError> {
+        let limit = limit.unwrap_or(50).min(200);
+        let query_str = format!(
+            "MATCH (r:Region {{id: $id}})-[rel:EXITS_TO_LOCATION]->(l:Location)
             RETURN r.id as from_region, l.id as to_location,
                    rel.arrival_region_id as arrival_region_id,
                    rel.description as description,
-                   rel.bidirectional as bidirectional",
-        )
-        .param("id", region_id.to_string());
+                   rel.bidirectional as bidirectional
+            LIMIT {}",
+            limit
+        );
+
+        let q = query(&query_str)
+            .param("id", region_id.to_string());
 
         let mut result = self
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut exits = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let from_region: String = row
                 .get("from_region")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let to_location: String = row
                 .get("to_location")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let arrival_region: String = row
                 .get("arrival_region_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let description: String = row.get("description").unwrap_or_default();
             let bidirectional: bool = row.get("bidirectional").unwrap_or(false);
 
-            exits.push(RegionExit {
-                from_region: RegionId::from(
-                    Uuid::parse_str(&from_region)
-                        .map_err(|e| RepoError::Database(e.to_string()))?,
+            exits.push(RegionExit::from_storage(
+                RegionId::from(
+                    Uuid::parse_str(&from_region).map_err(|e| RepoError::database("query", e))?,
                 ),
-                to_location: LocationId::from(
-                    Uuid::parse_str(&to_location)
-                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                LocationId::from(
+                    Uuid::parse_str(&to_location).map_err(|e| RepoError::database("query", e))?,
                 ),
-                arrival_region_id: RegionId::from(
+                RegionId::from(
                     Uuid::parse_str(&arrival_region)
-                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                        .map_err(|e| RepoError::database("query", e))?,
                 ),
-                description: if description.is_empty() {
+                parse_optional_description(if description.is_empty() {
                     None
                 } else {
                     Some(description)
-                },
+                }),
                 bidirectional,
-            });
+            ));
         }
 
         Ok(exits)
@@ -801,13 +979,13 @@ impl LocationRepo for Neo4jLocationRepo {
         .param("from_id", exit.from_region.to_string())
         .param("to_id", exit.to_location.to_string())
         .param("arrival_region_id", exit.arrival_region_id.to_string())
-        .param("description", exit.description.clone().unwrap_or_default())
+        .param("description", exit.description.as_ref().map(|d| d.as_str()).unwrap_or_default().to_string())
         .param("bidirectional", exit.bidirectional);
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if exit.bidirectional {
             let reverse_q = query(
@@ -821,13 +999,13 @@ impl LocationRepo for Neo4jLocationRepo {
             .param("from_id", exit.from_region.to_string())
             .param("to_id", exit.to_location.to_string())
             .param("arrival_region_id", exit.arrival_region_id.to_string())
-            .param("description", exit.description.clone().unwrap_or_default())
+            .param("description", exit.description.as_ref().map(|d| d.as_str()).unwrap_or_default().to_string())
             .param("bidirectional", exit.bidirectional);
 
             self.graph
                 .run(reverse_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         } else {
             let cleanup_q = query(
                 "MATCH (from:Region {id: $from_id})<-[:HAS_REGION]-(from_location:Location)
@@ -842,7 +1020,7 @@ impl LocationRepo for Neo4jLocationRepo {
             self.graph
                 .run(cleanup_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         Ok(())
@@ -866,7 +1044,7 @@ impl LocationRepo for Neo4jLocationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }

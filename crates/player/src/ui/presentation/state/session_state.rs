@@ -23,8 +23,8 @@ use crate::presentation::state::connection_state::{ConnectionState, ConnectionSt
 
 /// Session state for connection and user information
 ///
-/// This is a facade that composes ConnectionState, ApprovalState, and ChallengeState.
-/// For new code, prefer accessing the substates directly via the `connection`,
+/// This is a facade that composes ConnectionState, ApprovalState and ChallengeState.
+/// For new code, prefer accessing the substates directly via `connection`,
 /// `approval`, and `challenge` fields.
 #[derive(Clone)]
 pub struct SessionState {
@@ -34,6 +34,8 @@ pub struct SessionState {
     pub approval: ApprovalState,
     /// Challenge-related state (active challenge, results, skills)
     pub challenge: ChallengeState,
+    /// Whether to show time to players (from TimeConfigUpdated)
+    pub show_time_to_players: Signal<bool>,
 }
 
 impl SessionState {
@@ -43,156 +45,18 @@ impl SessionState {
             connection: ConnectionState::new(),
             approval: ApprovalState::new(),
             challenge: ChallengeState::new(),
+            show_time_to_players: Signal::new(true),
         }
     }
 
-    // =========================================================================
-    // Backward-compatible field accessors (delegate to substates)
-    // =========================================================================
-
-    /// Current connection status
-    pub fn connection_status(&self) -> Signal<ConnectionStatus> {
-        self.connection.connection_status
+    /// Accessor for show_time_to_players flag
+    pub fn should_show_time_to_players(&self) -> Signal<bool> {
+        self.show_time_to_players.clone()
     }
 
-    /// World ID after joining (all connections are world-scoped)
-    pub fn world_id(&self) -> Signal<Option<Uuid>> {
-        self.connection.world_id
-    }
-
-    /// User ID (local identifier)
-    pub fn user_id(&self) -> Signal<Option<String>> {
-        self.connection.user_id
-    }
-
-    /// User role (DungeonMaster, Player, Spectator) - legacy
-    pub fn user_role(&self) -> Signal<Option<ParticipantRole>> {
-        self.connection.user_role
-    }
-
-    /// World role (DM, Player, Spectator) - WebSocket-first protocol
-    pub fn world_role(&self) -> Signal<Option<WorldRole>> {
-        self.connection.world_role
-    }
-
-    /// Connected users in the current world
-    pub fn connected_users(&self) -> Signal<Vec<ConnectedUser>> {
-        self.connection.connected_users
-    }
-
-    /// Server URL we're connected to
-    pub fn server_url(&self) -> Signal<Option<String>> {
-        self.connection.server_url
-    }
-
-    /// Error message if connection failed
-    pub fn error_message(&self) -> Signal<Option<String>> {
-        self.connection.error_message
-    }
-
-    /// Pending approval requests (for DM)
-    pub fn pending_approvals(&self) -> Signal<Vec<PendingApproval>> {
-        self.approval.pending_approvals
-    }
-
-    /// Conversation log (for DM view)
-    pub fn conversation_log(&self) -> Signal<Vec<ConversationLogEntry>> {
-        self.approval.conversation_log
-    }
-
-    /// Active challenge prompt (if any)
-    pub fn active_challenge(&self) -> Signal<Option<ChallengePromptData>> {
-        self.challenge.active_challenge
-    }
-
-    /// Recent challenge results for display
-    pub fn challenge_results(&self) -> Signal<Vec<ChallengeResultData>> {
-        self.challenge.challenge_results
-    }
-
-    /// Player character skills with modifiers
-    pub fn player_skills(&self) -> Signal<Vec<PlayerSkillData>> {
-        self.challenge.player_skills
-    }
-
-    /// Recent approval decisions for DM decision history
-    pub fn decision_history(&self) -> Signal<Vec<ApprovalHistoryEntry>> {
-        self.approval.decision_history
-    }
-
-    /// ComfyUI connection state
-    pub fn comfyui_state(&self) -> Signal<String> {
-        self.connection.comfyui_state
-    }
-
-    pub fn comfyui_message(&self) -> Signal<Option<String>> {
-        self.connection.comfyui_message
-    }
-
-    pub fn comfyui_retry_in_seconds(&self) -> Signal<Option<u32>> {
-        self.connection.comfyui_retry_in_seconds
-    }
-
-    // =========================================================================
-    // Backward-compatible methods (delegate to substates)
-    // =========================================================================
-
-    /// Set the connection to connecting state
-    pub fn start_connecting(&mut self, server_url: &str) {
-        self.connection.start_connecting(server_url);
-    }
-
-    /// Set the connection to connected state
-    pub fn set_connected(&mut self) {
-        self.connection.set_connected();
-    }
-
-    /// Set the world as joined
-    pub fn set_world_joined(
-        &mut self,
-        world_id: Uuid,
-        role: WorldRole,
-        connected_users: Vec<ConnectedUser>,
-    ) {
-        self.connection
-            .set_world_joined(world_id, role, connected_users);
-    }
-
-    /// Add a user to the connected users list
-    pub fn add_connected_user(&mut self, user: ConnectedUser) {
-        self.connection.add_connected_user(user);
-    }
-
-    /// Remove a user from the connected users list
-    pub fn remove_connected_user(&mut self, user_id: &str) {
-        self.connection.remove_connected_user(user_id);
-    }
-
-    /// Set user information (legacy)
-    pub fn set_user(&mut self, user_id: String, role: ParticipantRole) {
-        self.connection.set_user(user_id, role);
-    }
-
-    /// Set the connection to disconnected state
-    pub fn set_disconnected(&mut self) {
-        self.connection.set_disconnected();
-    }
-
-    /// Set the connection to failed state with error
-    pub fn set_failed(&mut self, error: String) {
-        self.connection.set_failed(error);
-    }
-
-    /// Set the connection to reconnecting state
-    pub fn set_reconnecting(&mut self) {
-        self.connection.set_reconnecting();
-    }
-
-    /// Clear all session state
-    pub fn clear(&mut self) {
-        self.connection.clear();
-        self.approval.clear();
-        self.challenge.clear();
+    /// Update show_time_to_players flag
+    pub fn set_show_time_to_players(&mut self, show: bool) {
+        self.show_time_to_players.set(show);
     }
 
     /// Add a pending approval request
@@ -216,7 +80,6 @@ impl SessionState {
         self.approval
             .add_log_entry(speaker, text, is_system, platform);
     }
-
 
     /// Set active challenge prompt
     pub fn set_active_challenge(&mut self, challenge: ChallengePromptData) {
@@ -345,6 +208,123 @@ impl SessionState {
         &self,
     ) -> Signal<Vec<crate::presentation::state::approval_state::PendingChallengeOutcome>> {
         self.approval.pending_challenge_outcomes
+    }
+
+    // =========================================================================
+    // Convenience accessors for UI components
+    // =========================================================================
+
+    /// User ID accessor (for components that need local user identifier)
+    pub fn user_id(&self) -> Signal<Option<String>> {
+        self.connection.user_id.clone()
+    }
+
+    /// User role accessor (for connection routes)
+    pub fn user_role(&self) -> Signal<Option<ParticipantRole>> {
+        self.connection.user_role.clone()
+    }
+
+    /// World ID accessor (for components that need current world identifier)
+    pub fn world_id(&self) -> Signal<Option<Uuid>> {
+        self.connection.world_id.clone()
+    }
+
+    /// ComfyUI connection state accessor
+    pub fn comfyui_state(&self) -> Signal<String> {
+        self.connection.comfyui_state.clone()
+    }
+
+    /// ComfyUI error message accessor
+    pub fn comfyui_message(&self) -> Signal<Option<String>> {
+        self.connection.comfyui_message.clone()
+    }
+
+    /// ComfyUI retry timer accessor
+    pub fn comfyui_retry_in_seconds(&self) -> Signal<Option<u32>> {
+        self.connection.comfyui_retry_in_seconds.clone()
+    }
+
+    /// Pending approvals accessor (for decision queue components)
+    pub fn pending_approvals(
+        &self,
+    ) -> Signal<Vec<crate::presentation::state::approval_state::PendingApproval>> {
+        self.approval.pending_approvals.clone()
+    }
+
+    /// Connection status accessor (for session event handlers)
+    pub fn connection_status(&self) -> Signal<ConnectionStatus> {
+        self.connection.connection_status.clone()
+    }
+
+    /// Error message accessor (for displaying connection errors)
+    pub fn error_message(&self) -> Signal<Option<String>> {
+        self.connection.error_message.clone()
+    }
+
+    /// Active challenge accessor (for challenge handlers)
+    pub fn active_challenge(&self) -> Signal<Option<ChallengePromptData>> {
+        self.challenge.active_challenge.clone()
+    }
+
+    /// Conversation log accessor (for message handlers that need to push entries)
+    pub fn conversation_log(&self) -> Signal<Vec<ConversationLogEntry>> {
+        self.approval.conversation_log.clone()
+    }
+
+    // =========================================================================
+    // Connection state convenience methods
+    // =========================================================================
+
+    /// Start connecting to server (delegates to ConnectionState)
+    pub fn start_connecting(&mut self, server_url: &str) {
+        self.connection.start_connecting(server_url);
+    }
+
+    /// Set connection as disconnected (delegates to ConnectionState)
+    pub fn set_disconnected(&mut self) {
+        self.connection.set_disconnected();
+    }
+
+    /// Set user information (delegates to ConnectionState)
+    pub fn set_user(&mut self, user_id: String, role: ParticipantRole) {
+        self.connection.set_user(user_id, role);
+    }
+
+    /// Set the world as joined (delegates to ConnectionState)
+    pub fn set_world_joined(
+        &mut self,
+        world_id: Uuid,
+        role: WorldRole,
+        connected_users: Vec<ConnectedUser>,
+    ) {
+        self.connection
+            .set_world_joined(world_id, role, connected_users);
+    }
+
+    /// Add a connected user (delegates to ConnectionState)
+    pub fn add_connected_user(&mut self, user: ConnectedUser) {
+        self.connection.add_connected_user(user);
+    }
+
+    /// Remove a connected user (delegates to ConnectionState)
+    pub fn remove_connected_user(&mut self, user_id: &str) {
+        self.connection.remove_connected_user(user_id);
+    }
+
+    /// Set connection as failed with error message (delegates to ConnectionState)
+    pub fn set_failed(&mut self, error: String) {
+        self.connection.set_failed(error);
+    }
+
+    // =========================================================================
+    // Clear all session state
+    // =========================================================================
+
+    /// Clear all session state (for disconnect events)
+    pub fn clear(&mut self) {
+        self.connection.clear();
+        self.approval.clear();
+        self.challenge.clear();
     }
 }
 

@@ -6,7 +6,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
 pub enum BatchQueueFailurePolicy {
     /// Any failure while queueing prompts fails the entire batch.
     AllOrNothing,
@@ -132,6 +131,17 @@ pub struct AppSettings {
     pub default_max_stat_value: i32,
 
     // ============================================================================
+    // Staging System
+    // ============================================================================
+    /// Auto-approve timeout for staging requests in seconds (default: 30)
+    #[serde(default = "default_staging_timeout_seconds")]
+    pub staging_timeout_seconds: u32,
+
+    /// Whether to auto-approve staging requests when timeout expires (default: true)
+    #[serde(default = "default_auto_approve_on_timeout")]
+    pub auto_approve_on_timeout: bool,
+
+    // ============================================================================
     // Challenge System
     // ============================================================================
     /// Number of outcome branches to generate for each challenge result tier
@@ -168,6 +178,17 @@ pub struct AppSettings {
     /// Policy for how to handle failures while queueing prompts for a batch.
     #[serde(default = "default_batch_queue_failure_policy")]
     pub batch_queue_failure_policy: BatchQueueFailurePolicy,
+
+    // ============================================================================
+    // List Pagination Limits - Environment Overrides
+    // ============================================================================
+    /// Environment variable override for default list page size
+    #[serde(default)]
+    pub list_default_page_size_override: Option<u32>,
+
+    /// Environment variable override for max list page size
+    #[serde(default)]
+    pub list_max_page_size_override: Option<u32>,
 }
 
 fn default_outcome_branch_count() -> usize {
@@ -184,6 +205,12 @@ fn default_conversation_history_turns() -> usize {
 }
 fn default_suggestion_tokens_per_branch() -> u32 {
     200
+}
+fn default_staging_timeout_seconds() -> u32 {
+    30
+}
+fn default_auto_approve_on_timeout() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -202,6 +229,8 @@ impl Default for AppSettings {
             typewriter_pause_delay_ms: 80,
             typewriter_char_delay_ms: 30,
             default_max_stat_value: 20,
+            staging_timeout_seconds: default_staging_timeout_seconds(),
+            auto_approve_on_timeout: default_auto_approve_on_timeout(),
             outcome_branch_count: 2,
             outcome_branch_min: 1,
             outcome_branch_max: 4,
@@ -209,6 +238,8 @@ impl Default for AppSettings {
             context_budget: ContextBudgetConfig::default(),
             style_reference_asset_id: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
+            list_default_page_size_override: None,
+            list_max_page_size_override: None,
         }
     }
 }

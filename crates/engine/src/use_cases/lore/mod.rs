@@ -2,18 +2,190 @@
 
 use std::sync::Arc;
 
-use serde_json::Value;
+use serde::Serialize;
 use uuid::Uuid;
 
-use crate::entities::Lore;
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
 use wrldbldr_domain::{
     CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
 };
-use wrldbldr_protocol::requests::{
-    CreateLoreChunkData, CreateLoreData, UpdateLoreChunkData, UpdateLoreData,
-};
-use wrldbldr_protocol::types::LoreDiscoverySourceData;
+
+// =============================================================================
+// Domain Result Types
+// =============================================================================
+
+/// Result of creating a lore entry.
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateLoreResult {
+    pub id: String,
+    pub title: String,
+}
+
+/// Result of updating a lore entry.
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateLoreResult {
+    pub id: String,
+    pub title: String,
+}
+
+/// Result of deleting a lore entry.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeleteLoreResult {
+    pub deleted: bool,
+}
+
+/// Result of adding a chunk to lore.
+#[derive(Debug, Clone, Serialize)]
+pub struct AddChunkResult {
+    pub chunk_id: String,
+}
+
+/// Result of updating a chunk.
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateChunkResult {
+    pub lore_id: String,
+    pub chunk_id: String,
+}
+
+/// Result of deleting a chunk.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeleteChunkResult {
+    pub deleted: bool,
+    pub lore_id: String,
+    pub chunk_id: String,
+}
+
+/// Result of granting knowledge.
+#[derive(Debug, Clone, Serialize)]
+pub struct GrantKnowledgeResult {
+    pub granted: bool,
+}
+
+/// Result of revoking knowledge.
+#[derive(Debug, Clone, Serialize)]
+pub struct RevokeKnowledgeResult {
+    pub revoked: bool,
+    pub partial: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunks_removed: Option<usize>,
+    pub relationship_deleted: bool,
+}
+
+/// Lore knowledge info for a character.
+#[derive(Debug, Clone, Serialize)]
+pub struct CharacterLoreInfo {
+    pub lore_id: String,
+    pub character_id: String,
+    pub known_chunk_ids: Vec<String>,
+    pub discovered_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+/// Info about a character who knows some lore.
+#[derive(Debug, Clone, Serialize)]
+pub struct LoreKnowerInfo {
+    pub character_id: String,
+    pub known_chunk_ids: Vec<String>,
+    pub discovered_at: String,
+}
+
+/// Summary of a lore entry (for list views).
+#[derive(Debug, Clone, Serialize)]
+pub struct LoreSummary {
+    pub id: String,
+    pub world_id: String,
+    pub title: String,
+    pub summary: String,
+    pub category: String,
+    pub is_common_knowledge: bool,
+    pub tags: Vec<String>,
+    pub chunk_count: usize,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Detailed lore entry (for single item view).
+#[derive(Debug, Clone, Serialize)]
+pub struct LoreDetail {
+    pub id: String,
+    pub world_id: String,
+    pub title: String,
+    pub summary: String,
+    pub category: String,
+    pub is_common_knowledge: bool,
+    pub tags: Vec<String>,
+    pub chunks: Vec<LoreChunkDetail>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Detail of a lore chunk.
+#[derive(Debug, Clone, Serialize)]
+pub struct LoreChunkDetail {
+    pub id: String,
+    pub order: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discovery_hint: Option<String>,
+}
+
+// =============================================================================
+// Domain Input Types
+// =============================================================================
+
+/// Input for creating a lore entry (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct CreateLoreInput {
+    pub title: String,
+    pub summary: Option<String>,
+    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub is_common_knowledge: Option<bool>,
+    pub chunks: Option<Vec<CreateLoreChunkInput>>,
+}
+
+/// Input for updating a lore entry (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct UpdateLoreInput {
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub is_common_knowledge: Option<bool>,
+}
+
+/// Input for creating a lore chunk (domain representation).
+#[derive(Debug, Clone)]
+pub struct CreateLoreChunkInput {
+    pub title: Option<String>,
+    pub content: String,
+    pub order: Option<u32>,
+    pub discovery_hint: Option<String>,
+}
+
+/// Input for updating a lore chunk (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct UpdateLoreChunkInput {
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub order: Option<u32>,
+    pub discovery_hint: Option<String>,
+}
+
+/// Source of lore discovery (domain representation).
+#[derive(Debug, Clone)]
+pub enum LoreDiscoverySourceInput {
+    ReadBook { book_name: String },
+    Conversation { npc_id: String, npc_name: String },
+    Investigation,
+    DmGranted { reason: Option<String> },
+    CommonKnowledge,
+    LlmDiscovered { context: String },
+    Unknown,
+}
 
 /// Container for lore use cases.
 pub struct LoreUseCases {
@@ -28,50 +200,59 @@ impl LoreUseCases {
 
 /// Lore operations.
 pub struct LoreOps {
-    lore: Arc<Lore>,
+    lore: Arc<dyn LoreRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl LoreOps {
-    pub fn new(lore: Arc<Lore>) -> Self {
-        Self { lore }
+    pub fn new(lore: Arc<dyn LoreRepo>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { lore, clock }
     }
 
-    pub async fn list(&self, world_id: WorldId) -> Result<Vec<Value>, LoreError> {
+    pub async fn list(&self, world_id: WorldId) -> Result<Vec<LoreSummary>, LoreError> {
         let lore_list = self.lore.list_for_world(world_id).await?;
-        Ok(lore_list.into_iter().map(lore_summary_to_json).collect())
+        Ok(lore_list.into_iter().map(lore_to_summary).collect())
     }
 
-    pub async fn get(&self, lore_id: LoreId) -> Result<Option<Value>, LoreError> {
+    pub async fn get(&self, lore_id: LoreId) -> Result<Option<LoreDetail>, LoreError> {
         let lore = self.lore.get(lore_id).await?;
-        Ok(lore.map(lore_to_json))
+        Ok(lore.map(lore_to_detail))
     }
 
     pub async fn create(
         &self,
         world_id: WorldId,
-        data: CreateLoreData,
-    ) -> Result<Value, LoreError> {
-        let category = match data.category.as_deref() {
-            Some(cat_str) => cat_str
-                .parse::<LoreCategory>()
-                .map_err(|e| LoreError::InvalidCategory(e))?,
+        input: CreateLoreInput,
+    ) -> Result<CreateLoreResult, LoreError> {
+        let category = match input.category.as_deref() {
+            Some(cat_str) => {
+                cat_str
+                    .parse::<LoreCategory>()
+                    .map_err(|e: wrldbldr_domain::DomainError| {
+                        LoreError::InvalidCategory(e.to_string())
+                    })?
+            }
             None => LoreCategory::Common,
         };
 
-        let now = chrono::Utc::now();
-        let mut lore = wrldbldr_domain::Lore::new(world_id, &data.title, category, now);
+        let now = self.clock.now();
+        let mut lore = wrldbldr_domain::Lore::new(world_id, &input.title, category, now);
 
-        if let Some(summary) = data.summary.as_ref() {
+        if let Some(summary) = input.summary.as_ref() {
             lore = lore.with_summary(summary);
         }
-        if let Some(tags) = data.tags.as_ref() {
-            lore = lore.with_tags(tags.clone());
+        if let Some(tags) = input.tags.as_ref() {
+            for tag_str in tags {
+                if let Ok(tag) = wrldbldr_domain::Tag::new(tag_str) {
+                    lore = lore.with_tag(tag);
+                }
+            }
         }
-        if data.is_common_knowledge.unwrap_or(false) {
+        if input.is_common_knowledge.unwrap_or(false) {
             lore = lore.as_common_knowledge();
         }
 
-        if let Some(chunks) = data.chunks.as_ref() {
+        if let Some(chunks) = input.chunks.as_ref() {
             let mut domain_chunks = Vec::new();
             let mut used_orders = std::collections::HashSet::new();
             let mut next_auto_order = 0u32;
@@ -113,45 +294,75 @@ impl LoreOps {
 
         self.lore.save(&lore).await?;
 
-        Ok(serde_json::json!({
-            "id": lore.id.to_string(),
-            "title": lore.title,
-        }))
+        Ok(CreateLoreResult {
+            id: lore.id().to_string(),
+            title: lore.title().to_string(),
+        })
     }
 
-    pub async fn update(&self, lore_id: LoreId, data: UpdateLoreData) -> Result<Value, LoreError> {
-        let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+    pub async fn update(
+        &self,
+        lore_id: LoreId,
+        input: UpdateLoreInput,
+    ) -> Result<UpdateLoreResult, LoreError> {
+        let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
-        if let Some(title) = data.title.as_ref() {
-            lore.title = title.clone();
-        }
-        if let Some(summary) = data.summary.as_ref() {
-            lore.summary = summary.clone();
-        }
-        if let Some(category_str) = data.category.as_ref() {
-            lore.category = category_str
-                .parse::<LoreCategory>()
-                .map_err(|e| LoreError::InvalidCategory(e))?;
-        }
-        if let Some(tags) = data.tags.as_ref() {
-            lore.tags = tags.clone();
-        }
-        if let Some(is_common) = data.is_common_knowledge {
-            lore.is_common_knowledge = is_common;
-        }
-        lore.updated_at = chrono::Utc::now();
+        // Parse category if provided
+        let new_category = if let Some(category_str) = input.category.as_ref() {
+            Some(category_str.parse::<LoreCategory>().map_err(
+                |e: wrldbldr_domain::DomainError| LoreError::InvalidCategory(e.to_string()),
+            )?)
+        } else {
+            None
+        };
 
-        self.lore.save(&lore).await?;
+        // Build updated lore using builder pattern
+        let now = self.clock.now();
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            input.title.as_ref().unwrap_or(&lore.title().to_string()),
+            new_category.unwrap_or(lore.category()),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(
+            input
+                .summary
+                .as_ref()
+                .unwrap_or(&lore.summary().to_string()),
+        )
+        .with_chunks(lore.chunks().to_vec())
+        .with_timestamps(lore.created_at(), now);
 
-        Ok(serde_json::json!({
-            "id": lore.id.to_string(),
-            "title": lore.title,
-        }))
+        // Apply tags: use input tags if provided, otherwise keep existing
+        if let Some(new_tags) = input.tags.as_ref() {
+            for tag_str in new_tags {
+                if let Ok(tag) = wrldbldr_domain::Tag::new(tag_str) {
+                    updated_lore = updated_lore.with_tag(tag);
+                }
+            }
+        } else {
+            updated_lore = updated_lore.with_tags(lore.tags().to_vec());
+        }
+
+        if input
+            .is_common_knowledge
+            .unwrap_or(lore.is_common_knowledge())
+        {
+            updated_lore = updated_lore.as_common_knowledge();
+        }
+
+        self.lore.save(&updated_lore).await?;
+
+        Ok(UpdateLoreResult {
+            id: updated_lore.id().to_string(),
+            title: updated_lore.title().to_string(),
+        })
     }
 
-    pub async fn delete(&self, lore_id: LoreId) -> Result<Value, LoreError> {
+    pub async fn delete(&self, lore_id: LoreId) -> Result<DeleteLoreResult, LoreError> {
         self.lore.delete(lore_id).await?;
-        Ok(serde_json::json!({ "deleted": true }))
+        Ok(DeleteLoreResult { deleted: true })
     }
 
     /// Add a chunk to existing lore.
@@ -165,60 +376,83 @@ impl LoreOps {
     pub async fn add_chunk(
         &self,
         lore_id: LoreId,
-        data: CreateLoreChunkData,
-    ) -> Result<Value, LoreError> {
-        let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+        input: CreateLoreChunkInput,
+    ) -> Result<AddChunkResult, LoreError> {
+        let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         // Determine the order: use provided order or auto-assign next sequential
-        let order = match data.order {
+        let order = match input.order {
             Some(provided_order) => {
                 // Validate that the provided order is unique
-                if lore.chunks.iter().any(|c| c.order == provided_order) {
+                if lore.chunks().iter().any(|c| c.order == provided_order) {
                     return Err(LoreError::DuplicateChunkOrder(provided_order));
                 }
                 provided_order
             }
             None => {
                 // Auto-assign next sequential order
-                lore.chunks.iter().map(|c| c.order).max().map_or(0, |max| max + 1)
+                lore.chunks()
+                    .iter()
+                    .map(|c| c.order)
+                    .max()
+                    .map_or(0, |max| max + 1)
             }
         };
 
-        let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content).with_order(order);
-        if let Some(title) = data.title.as_ref() {
+        let mut chunk = wrldbldr_domain::LoreChunk::new(&input.content).with_order(order);
+        if let Some(title) = input.title.as_ref() {
             chunk = chunk.with_title(title);
         }
-        if let Some(hint) = data.discovery_hint.as_ref() {
+        if let Some(hint) = input.discovery_hint.as_ref() {
             chunk = chunk.with_discovery_hint(hint);
         }
 
         let chunk_id = chunk.id.to_string();
-        lore.chunks.push(chunk);
-        lore.updated_at = chrono::Utc::now();
 
-        self.lore.save(&lore).await?;
+        // Rebuild lore with new chunk
+        let now = self.clock.now();
+        let mut chunks = lore.chunks().to_vec();
+        chunks.push(chunk);
 
-        Ok(serde_json::json!({ "chunkId": chunk_id }))
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            lore.title(),
+            lore.category(),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(lore.summary())
+        .with_chunks(chunks)
+        .with_tags(lore.tags().to_vec())
+        .with_timestamps(lore.created_at(), now);
+
+        if lore.is_common_knowledge() {
+            updated_lore = updated_lore.as_common_knowledge();
+        }
+
+        self.lore.save(&updated_lore).await?;
+
+        Ok(AddChunkResult { chunk_id })
     }
 
     pub async fn update_chunk(
         &self,
         world_id: WorldId,
         chunk_id: LoreChunkId,
-        data: UpdateLoreChunkData,
-    ) -> Result<Value, LoreError> {
-        let mut lore = self
+        input: UpdateLoreChunkInput,
+    ) -> Result<UpdateChunkResult, LoreError> {
+        let lore = self
             .lore
             .list_for_world(world_id)
             .await?
             .into_iter()
-            .find(|l| l.chunks.iter().any(|c| c.id == chunk_id))
+            .find(|l| l.chunks().iter().any(|c| c.id == chunk_id))
             .ok_or(LoreError::ChunkNotFound)?;
 
         // Validate that new order doesn't conflict with other chunks
-        if let Some(new_order) = data.order {
+        if let Some(new_order) = input.order {
             let conflicts = lore
-                .chunks
+                .chunks()
                 .iter()
                 .any(|c| c.id != chunk_id && c.order == new_order);
             if conflicts {
@@ -226,67 +460,137 @@ impl LoreOps {
             }
         }
 
-        let chunk = lore
-            .chunks
-            .iter_mut()
+        let old_chunk = lore
+            .chunks()
+            .iter()
             .find(|c| c.id == chunk_id)
             .ok_or(LoreError::ChunkNotFound)?;
 
-        if let Some(title) = data.title.as_ref() {
-            chunk.title = Some(title.clone());
-        }
-        if let Some(content) = data.content.as_ref() {
-            chunk.content = content.clone();
-        }
-        if let Some(order) = data.order {
-            chunk.order = order;
-        }
-        if let Some(hint) = data.discovery_hint.as_ref() {
-            chunk.discovery_hint = Some(hint.clone());
+        // Build updated chunk
+        let content = input.content.as_deref().unwrap_or(&old_chunk.content);
+        let mut new_chunk = wrldbldr_domain::LoreChunk::new(content)
+            .with_id(chunk_id)
+            .with_order(input.order.unwrap_or(old_chunk.order));
+
+        // Apply title - use input if provided, otherwise keep existing
+        if let Some(title) = input.title.as_ref() {
+            new_chunk = new_chunk.with_title(title);
+        } else if let Some(existing_title) = old_chunk.title.as_ref() {
+            new_chunk = new_chunk.with_title(existing_title);
         }
 
-        lore.updated_at = chrono::Utc::now();
-        self.lore.save(&lore).await?;
+        // Apply discovery hint - use input if provided, otherwise keep existing
+        if let Some(hint) = input.discovery_hint.as_ref() {
+            new_chunk = new_chunk.with_discovery_hint(hint);
+        } else if let Some(existing_hint) = old_chunk.discovery_hint.as_ref() {
+            new_chunk = new_chunk.with_discovery_hint(existing_hint);
+        }
 
-        Ok(serde_json::json!({
-            "loreId": lore.id.to_string(),
-            "chunkId": chunk_id.to_string(),
-        }))
+        // Rebuild chunks list with updated chunk
+        let mut chunks: Vec<_> = lore
+            .chunks()
+            .iter()
+            .filter(|c| c.id != chunk_id)
+            .cloned()
+            .collect();
+        chunks.push(new_chunk);
+
+        let now = self.clock.now();
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            lore.title(),
+            lore.category(),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(lore.summary())
+        .with_chunks(chunks)
+        .with_tags(lore.tags().to_vec())
+        .with_timestamps(lore.created_at(), now);
+
+        if lore.is_common_knowledge() {
+            updated_lore = updated_lore.as_common_knowledge();
+        }
+
+        self.lore.save(&updated_lore).await?;
+
+        Ok(UpdateChunkResult {
+            lore_id: lore.id().to_string(),
+            chunk_id: chunk_id.to_string(),
+        })
     }
 
     pub async fn delete_chunk(
         &self,
         world_id: WorldId,
         chunk_id: LoreChunkId,
-    ) -> Result<Value, LoreError> {
-        let mut lore = self
+    ) -> Result<DeleteChunkResult, LoreError> {
+        let lore = self
             .lore
             .list_for_world(world_id)
             .await?
             .into_iter()
-            .find(|l| l.chunks.iter().any(|c| c.id == chunk_id))
+            .find(|l| l.chunks().iter().any(|c| c.id == chunk_id))
             .ok_or(LoreError::ChunkNotFound)?;
 
-        let before = lore.chunks.len();
-        lore.chunks.retain(|c| c.id != chunk_id);
-        if lore.chunks.len() == before {
+        let before = lore.chunks().len();
+        let mut remaining_chunks: Vec<_> = lore
+            .chunks()
+            .iter()
+            .filter(|c| c.id != chunk_id)
+            .cloned()
+            .collect();
+        if remaining_chunks.len() == before {
             return Err(LoreError::ChunkNotFound);
         }
 
         // Re-index remaining chunks to maintain sequential order (0, 1, 2, ...)
-        lore.chunks.sort_by_key(|c| c.order);
-        for (i, chunk) in lore.chunks.iter_mut().enumerate() {
-            chunk.order = i as u32;
+        remaining_chunks.sort_by_key(|c| c.order);
+        let reindexed_chunks: Vec<_> = remaining_chunks
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let mut chunk = wrldbldr_domain::LoreChunk::new(&c.content)
+                    .with_id(c.id)
+                    .with_order(i as u32);
+                if let Some(title) = c.title.as_ref() {
+                    if !title.is_empty() {
+                        chunk = chunk.with_title(title);
+                    }
+                }
+                if let Some(hint) = c.discovery_hint.as_ref() {
+                    if !hint.is_empty() {
+                        chunk = chunk.with_discovery_hint(hint);
+                    }
+                }
+                chunk
+            })
+            .collect();
+
+        let now = self.clock.now();
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            lore.title(),
+            lore.category(),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(lore.summary())
+        .with_chunks(reindexed_chunks)
+        .with_tags(lore.tags().to_vec())
+        .with_timestamps(lore.created_at(), now);
+
+        if lore.is_common_knowledge() {
+            updated_lore = updated_lore.as_common_knowledge();
         }
 
-        lore.updated_at = chrono::Utc::now();
-        self.lore.save(&lore).await?;
+        self.lore.save(&updated_lore).await?;
 
-        Ok(serde_json::json!({
-            "deleted": true,
-            "loreId": lore.id.to_string(),
-            "chunkId": chunk_id.to_string(),
-        }))
+        Ok(DeleteChunkResult {
+            deleted: true,
+            lore_id: lore.id().to_string(),
+            chunk_id: chunk_id.to_string(),
+        })
     }
 
     pub async fn grant_knowledge(
@@ -294,15 +598,15 @@ impl LoreOps {
         character_id: CharacterId,
         lore_id: LoreId,
         chunk_ids: Option<Vec<LoreChunkId>>,
-        discovery_source: LoreDiscoverySourceData,
-    ) -> Result<Value, LoreError> {
+        discovery_source: LoreDiscoverySourceInput,
+    ) -> Result<GrantKnowledgeResult, LoreError> {
         // Validate that the lore exists and chunk IDs are valid
         let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         // If chunk_ids are provided, validate they exist in the lore
         if let Some(ref ids) = chunk_ids {
             let valid_chunk_ids: std::collections::HashSet<_> =
-                lore.chunks.iter().map(|c| c.id).collect();
+                lore.chunks().iter().map(|c| c.id).collect();
             let invalid_ids: Vec<_> = ids
                 .iter()
                 .filter(|id| !valid_chunk_ids.contains(id))
@@ -315,7 +619,7 @@ impl LoreOps {
         }
 
         let domain_source = lore_discovery_source(discovery_source)?;
-        let now = chrono::Utc::now();
+        let now = self.clock.now();
         let knowledge = if let Some(ids) = chunk_ids {
             LoreKnowledge::partial(lore_id, character_id, ids, domain_source, now)
         } else {
@@ -323,7 +627,7 @@ impl LoreOps {
         };
 
         self.lore.grant_knowledge(&knowledge).await?;
-        Ok(serde_json::json!({ "granted": true }))
+        Ok(GrantKnowledgeResult { granted: true })
     }
 
     pub async fn revoke_knowledge(
@@ -331,18 +635,16 @@ impl LoreOps {
         character_id: CharacterId,
         lore_id: LoreId,
         chunk_ids: Option<Vec<LoreChunkId>>,
-    ) -> Result<Value, LoreError> {
+    ) -> Result<RevokeKnowledgeResult, LoreError> {
         match chunk_ids {
             // Explicit empty list is an error - use None for full revocation
-            Some(ref ids) if ids.is_empty() => {
-                return Err(LoreError::EmptyChunkList);
-            }
+            Some(ref ids) if ids.is_empty() => Err(LoreError::EmptyChunkList),
             Some(ids) => {
                 // Validate that the lore exists and chunk IDs are valid
                 let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
                 let valid_chunk_ids: std::collections::HashSet<_> =
-                    lore.chunks.iter().map(|c| c.id).collect();
+                    lore.chunks().iter().map(|c| c.id).collect();
                 let invalid_ids: Vec<_> = ids
                     .iter()
                     .filter(|id| !valid_chunk_ids.contains(id))
@@ -359,21 +661,22 @@ impl LoreOps {
                     .remove_chunks_from_knowledge(character_id, lore_id, &ids)
                     .await?;
 
-                Ok(serde_json::json!({
-                    "revoked": true,
-                    "partial": !fully_revoked,
-                    "chunksRemoved": ids.len(),
-                    "relationshipDeleted": fully_revoked,
-                }))
+                Ok(RevokeKnowledgeResult {
+                    revoked: true,
+                    partial: !fully_revoked,
+                    chunks_removed: Some(ids.len()),
+                    relationship_deleted: fully_revoked,
+                })
             }
             None => {
                 // Full revocation - remove entire knowledge relationship
                 self.lore.revoke_knowledge(character_id, lore_id).await?;
-                Ok(serde_json::json!({
-                    "revoked": true,
-                    "partial": false,
-                    "relationshipDeleted": true,
-                }))
+                Ok(RevokeKnowledgeResult {
+                    revoked: true,
+                    partial: false,
+                    chunks_removed: None,
+                    relationship_deleted: true,
+                })
             }
         }
     }
@@ -381,40 +684,31 @@ impl LoreOps {
     pub async fn get_character_lore(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<Value>, LoreError> {
+    ) -> Result<Vec<CharacterLoreInfo>, LoreError> {
         let knowledge_list = self.lore.get_character_knowledge(character_id).await?;
         Ok(knowledge_list
             .into_iter()
-            .map(|k| {
-                serde_json::json!({
-                    "loreId": k.lore_id.to_string(),
-                    "characterId": k.character_id.to_string(),
-                    "knownChunkIds": k
-                        .known_chunk_ids
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>(),
-                    "discoveredAt": k.discovered_at.to_rfc3339(),
-                    "notes": k.notes,
-                })
+            .map(|k| CharacterLoreInfo {
+                lore_id: k.lore_id.to_string(),
+                character_id: k.character_id.to_string(),
+                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
+                discovered_at: k.discovered_at.to_rfc3339(),
+                notes: k.notes.clone(),
             })
             .collect())
     }
 
-    pub async fn get_lore_knowers(&self, lore_id: LoreId) -> Result<Vec<Value>, LoreError> {
+    pub async fn get_lore_knowers(
+        &self,
+        lore_id: LoreId,
+    ) -> Result<Vec<LoreKnowerInfo>, LoreError> {
         let knowledge_list = self.lore.get_knowledge_for_lore(lore_id).await?;
         Ok(knowledge_list
             .into_iter()
-            .map(|k| {
-                serde_json::json!({
-                    "characterId": k.character_id.to_string(),
-                    "knownChunkIds": k
-                        .known_chunk_ids
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>(),
-                    "discoveredAt": k.discovered_at.to_rfc3339(),
-                })
+            .map(|k| LoreKnowerInfo {
+                character_id: k.character_id.to_string(),
+                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
+                discovered_at: k.discovered_at.to_rfc3339(),
             })
             .collect())
     }
@@ -440,106 +734,109 @@ pub enum LoreError {
     Repo(#[from] RepoError),
 }
 
-fn lore_discovery_source(data: LoreDiscoverySourceData) -> Result<LoreDiscoverySource, LoreError> {
-    match data {
-        LoreDiscoverySourceData::ReadBook { book_name } => {
+fn lore_discovery_source(
+    input: LoreDiscoverySourceInput,
+) -> Result<LoreDiscoverySource, LoreError> {
+    match input {
+        LoreDiscoverySourceInput::ReadBook { book_name } => {
             Ok(LoreDiscoverySource::ReadBook { book_name })
         }
-        LoreDiscoverySourceData::Conversation { npc_id, npc_name } => {
+        LoreDiscoverySourceInput::Conversation { npc_id, npc_name } => {
             let npc_uuid = Uuid::parse_str(&npc_id)
                 .map(CharacterId::from_uuid)
-                .map_err(|_| LoreError::InvalidNpcId(npc_id))?;
+                .map_err(|e| {
+                    tracing::debug!(input = %npc_id, error = %e, "NPC ID parsing failed");
+                    LoreError::InvalidNpcId(npc_id)
+                })?;
             Ok(LoreDiscoverySource::Conversation {
                 npc_id: npc_uuid,
                 npc_name,
             })
         }
-        LoreDiscoverySourceData::Investigation => Ok(LoreDiscoverySource::Investigation),
-        LoreDiscoverySourceData::DmGranted { reason } => {
+        LoreDiscoverySourceInput::Investigation => Ok(LoreDiscoverySource::Investigation),
+        LoreDiscoverySourceInput::DmGranted { reason } => {
             Ok(LoreDiscoverySource::DmGranted { reason })
         }
-        LoreDiscoverySourceData::CommonKnowledge => Ok(LoreDiscoverySource::CommonKnowledge),
-        LoreDiscoverySourceData::LlmDiscovered { context } => {
+        LoreDiscoverySourceInput::CommonKnowledge => Ok(LoreDiscoverySource::CommonKnowledge),
+        LoreDiscoverySourceInput::LlmDiscovered { context } => {
             Ok(LoreDiscoverySource::LlmDiscovered { context })
         }
-        LoreDiscoverySourceData::Unknown => Ok(LoreDiscoverySource::DmGranted {
+        LoreDiscoverySourceInput::Unknown => Ok(LoreDiscoverySource::DmGranted {
             reason: Some("Unknown source type".to_string()),
         }),
     }
 }
 
-fn lore_summary_to_json(lore: wrldbldr_domain::Lore) -> Value {
-    serde_json::json!({
-        "id": lore.id.to_string(),
-        "worldId": lore.world_id.to_string(),
-        "title": lore.title,
-        "summary": lore.summary,
-        "category": format!("{}", lore.category),
-        "isCommonKnowledge": lore.is_common_knowledge,
-        "tags": lore.tags,
-        "chunkCount": lore.chunks.len(),
-        "createdAt": lore.created_at.to_rfc3339(),
-        "updatedAt": lore.updated_at.to_rfc3339(),
-    })
+fn lore_to_summary(lore: wrldbldr_domain::Lore) -> LoreSummary {
+    LoreSummary {
+        id: lore.id().to_string(),
+        world_id: lore.world_id().to_string(),
+        title: lore.title().to_string(),
+        summary: lore.summary().to_string(),
+        category: format!("{}", lore.category()),
+        is_common_knowledge: lore.is_common_knowledge(),
+        tags: lore.tags().iter().map(|t| t.to_string()).collect(),
+        chunk_count: lore.chunks().len(),
+        created_at: lore.created_at().to_rfc3339(),
+        updated_at: lore.updated_at().to_rfc3339(),
+    }
 }
 
-fn lore_to_json(lore: wrldbldr_domain::Lore) -> Value {
-    let chunks: Vec<Value> = lore
-        .chunks
+fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
+    let chunks: Vec<LoreChunkDetail> = lore
+        .chunks()
         .iter()
-        .map(|c| {
-            serde_json::json!({
-                "id": c.id.to_string(),
-                "order": c.order,
-                "title": c.title,
-                "content": c.content,
-                "discoveryHint": c.discovery_hint,
-            })
+        .map(|c| LoreChunkDetail {
+            id: c.id.to_string(),
+            order: c.order,
+            title: c.title.clone(),
+            content: c.content.clone(),
+            discovery_hint: c.discovery_hint.clone(),
         })
         .collect();
 
-    serde_json::json!({
-        "id": lore.id.to_string(),
-        "worldId": lore.world_id.to_string(),
-        "title": lore.title,
-        "summary": lore.summary,
-        "category": format!("{}", lore.category),
-        "isCommonKnowledge": lore.is_common_knowledge,
-        "tags": lore.tags,
-        "chunks": chunks,
-        "createdAt": lore.created_at.to_rfc3339(),
-        "updatedAt": lore.updated_at.to_rfc3339(),
-    })
+    LoreDetail {
+        id: lore.id().to_string(),
+        world_id: lore.world_id().to_string(),
+        title: lore.title().to_string(),
+        summary: lore.summary().to_string(),
+        category: format!("{}", lore.category()),
+        is_common_knowledge: lore.is_common_knowledge(),
+        tags: lore.tags().iter().map(|t| t.to_string()).collect(),
+        chunks,
+        created_at: lore.created_at().to_rfc3339(),
+        updated_at: lore.updated_at().to_rfc3339(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::Lore as LoreEntity;
+    use crate::infrastructure::clock::FixedClock;
     use crate::infrastructure::ports::MockLoreRepo;
+    use chrono::TimeZone;
     use std::sync::Arc;
-    use wrldbldr_protocol::requests::CreateLoreChunkData;
+
+    fn fixed_time() -> chrono::DateTime<chrono::Utc> {
+        chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     fn create_test_lore(world_id: WorldId) -> wrldbldr_domain::Lore {
-        wrldbldr_domain::Lore::new(
-            world_id,
-            "Test Lore",
-            LoreCategory::Common,
-            chrono::Utc::now(),
-        )
+        wrldbldr_domain::Lore::new(world_id, "Test Lore", LoreCategory::Common, fixed_time())
     }
 
     fn create_test_lore_with_chunks(
         world_id: WorldId,
         chunk_orders: &[u32],
     ) -> wrldbldr_domain::Lore {
-        let mut lore = create_test_lore(world_id);
-        for &order in chunk_orders {
-            let chunk =
-                wrldbldr_domain::LoreChunk::new(&format!("Content {}", order)).with_order(order);
-            lore.chunks.push(chunk);
-        }
-        lore
+        let lore = create_test_lore(world_id);
+        let chunks: Vec<_> = chunk_orders
+            .iter()
+            .map(|&order| {
+                wrldbldr_domain::LoreChunk::new(&format!("Content {}", order)).with_order(order)
+            })
+            .collect();
+        lore.with_chunks(chunks)
     }
 
     // ==========================================================================
@@ -550,7 +847,7 @@ mod tests {
     async fn add_chunk_rejects_duplicate_order() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -558,18 +855,18 @@ mod tests {
             .with(mockall::predicate::eq(lore_id))
             .returning(move |_| Ok(Some(lore.clone())));
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Try to add chunk with order 1 (already exists)
-        let data = CreateLoreChunkData {
+        let input = CreateLoreChunkInput {
             content: "New content".to_string(),
             title: None,
             order: Some(1),
             discovery_hint: None,
         };
 
-        let result = ops.add_chunk(lore_id, data).await;
+        let result = ops.add_chunk(lore_id, input).await;
         assert!(matches!(result, Err(LoreError::DuplicateChunkOrder(1))));
     }
 
@@ -577,7 +874,7 @@ mod tests {
     async fn add_chunk_auto_assigns_next_order() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -586,22 +883,22 @@ mod tests {
             .returning(move |_| Ok(Some(lore.clone())));
         mock_repo.expect_save().returning(|saved_lore| {
             // Verify the new chunk has order 3 (next after 0,1,2)
-            let new_chunk = saved_lore.chunks.last().unwrap();
+            let new_chunk = saved_lore.chunks().last().unwrap();
             assert_eq!(new_chunk.order, 3);
             Ok(())
         });
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
-        let data = CreateLoreChunkData {
+        let input = CreateLoreChunkInput {
             content: "New content".to_string(),
             title: None,
             order: None, // Auto-assign
             discovery_hint: None,
         };
 
-        let result = ops.add_chunk(lore_id, data).await;
+        let result = ops.add_chunk(lore_id, input).await;
         assert!(result.is_ok());
     }
 
@@ -609,25 +906,25 @@ mod tests {
     async fn update_chunk_rejects_conflicting_order() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let chunk_id = lore.chunks[2].id; // Chunk with order 2
+        let chunk_id = lore.chunks()[2].id; // Chunk with order 2
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
             .expect_list_for_world()
             .returning(move |_| Ok(vec![lore.clone()]));
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Try to update chunk 2's order to 0 (already taken)
-        let data = wrldbldr_protocol::requests::UpdateLoreChunkData {
+        let input = UpdateLoreChunkInput {
             title: None,
             content: None,
             order: Some(0),
             discovery_hint: None,
         };
 
-        let result = ops.update_chunk(world_id, chunk_id, data).await;
+        let result = ops.update_chunk(world_id, chunk_id, input).await;
         assert!(matches!(result, Err(LoreError::DuplicateChunkOrder(0))));
     }
 
@@ -635,7 +932,7 @@ mod tests {
     async fn delete_chunk_reindexes_remaining() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let chunk_to_delete = lore.chunks[1].id; // Delete middle chunk (order 1)
+        let chunk_to_delete = lore.chunks()[1].id; // Delete middle chunk (order 1)
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -643,14 +940,14 @@ mod tests {
             .returning(move |_| Ok(vec![lore.clone()]));
         mock_repo.expect_save().returning(|saved_lore| {
             // After deleting chunk with order 1, remaining should be reindexed to 0, 1
-            assert_eq!(saved_lore.chunks.len(), 2);
-            assert_eq!(saved_lore.chunks[0].order, 0);
-            assert_eq!(saved_lore.chunks[1].order, 1);
+            assert_eq!(saved_lore.chunks().len(), 2);
+            assert_eq!(saved_lore.chunks()[0].order, 0);
+            assert_eq!(saved_lore.chunks()[1].order, 1);
             Ok(())
         });
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let result = ops.delete_chunk(world_id, chunk_to_delete).await;
         assert!(result.is_ok());
@@ -664,12 +961,12 @@ mod tests {
     async fn revoke_with_empty_chunk_list_fails() {
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
         let character_id = CharacterId::new();
 
         let mock_repo = MockLoreRepo::new();
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Empty chunk list should fail
         let result = ops
@@ -683,7 +980,7 @@ mod tests {
     async fn revoke_with_none_does_full_revocation() {
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
         let character_id = CharacterId::new();
 
         let mut mock_repo = MockLoreRepo::new();
@@ -695,23 +992,23 @@ mod tests {
             )
             .returning(|_, _| Ok(()));
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let result = ops.revoke_knowledge(character_id, lore_id, None).await;
         assert!(result.is_ok());
 
-        let json = result.unwrap();
-        assert_eq!(json["revoked"], true);
-        assert_eq!(json["partial"], false);
-        assert_eq!(json["relationshipDeleted"], true);
+        let result = result.unwrap();
+        assert!(result.revoked);
+        assert!(!result.partial);
+        assert!(result.relationship_deleted);
     }
 
     #[tokio::test]
     async fn revoke_with_invalid_chunk_ids_fails() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1]);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
         let character_id = CharacterId::new();
         let invalid_chunk_id = LoreChunkId::new();
 
@@ -721,8 +1018,8 @@ mod tests {
             .with(mockall::predicate::eq(lore_id))
             .returning(move |_| Ok(Some(lore.clone())));
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let result = ops
             .revoke_knowledge(character_id, lore_id, Some(vec![invalid_chunk_id]))
@@ -740,24 +1037,24 @@ mod tests {
         let world_id = WorldId::new();
 
         let mock_repo = MockLoreRepo::new();
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Create with duplicate orders
-        let data = CreateLoreData {
+        let data = CreateLoreInput {
             title: "Test".to_string(),
             summary: None,
             category: None,
             tags: None,
             is_common_knowledge: None,
             chunks: Some(vec![
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "First".to_string(),
                     title: None,
                     order: Some(0),
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Second".to_string(),
                     title: None,
                     order: Some(0), // Duplicate!
@@ -777,36 +1074,36 @@ mod tests {
         let mut mock_repo = MockLoreRepo::new();
         mock_repo.expect_save().returning(|saved_lore| {
             // Verify auto-assigned orders are sequential starting from 0
-            assert_eq!(saved_lore.chunks.len(), 3);
-            assert_eq!(saved_lore.chunks[0].order, 0);
-            assert_eq!(saved_lore.chunks[1].order, 1);
-            assert_eq!(saved_lore.chunks[2].order, 2);
+            assert_eq!(saved_lore.chunks().len(), 3);
+            assert_eq!(saved_lore.chunks()[0].order, 0);
+            assert_eq!(saved_lore.chunks()[1].order, 1);
+            assert_eq!(saved_lore.chunks()[2].order, 2);
             Ok(())
         });
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
-        let data = CreateLoreData {
+        let data = CreateLoreInput {
             title: "Test".to_string(),
             summary: None,
             category: None,
             tags: None,
             is_common_knowledge: None,
             chunks: Some(vec![
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "First".to_string(),
                     title: None,
                     order: None, // Auto-assign
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Second".to_string(),
                     title: None,
                     order: None, // Auto-assign
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Third".to_string(),
                     title: None,
                     order: None, // Auto-assign
@@ -828,36 +1125,36 @@ mod tests {
             // First chunk: explicit order 5
             // Second chunk: auto-assign (should get 0, first available)
             // Third chunk: explicit order 2
-            assert_eq!(saved_lore.chunks.len(), 3);
-            assert_eq!(saved_lore.chunks[0].order, 5);
-            assert_eq!(saved_lore.chunks[1].order, 0);
-            assert_eq!(saved_lore.chunks[2].order, 2);
+            assert_eq!(saved_lore.chunks().len(), 3);
+            assert_eq!(saved_lore.chunks()[0].order, 5);
+            assert_eq!(saved_lore.chunks()[1].order, 0);
+            assert_eq!(saved_lore.chunks()[2].order, 2);
             Ok(())
         });
 
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
-        let data = CreateLoreData {
+        let data = CreateLoreInput {
             title: "Test".to_string(),
             summary: None,
             category: None,
             tags: None,
             is_common_knowledge: None,
             chunks: Some(vec![
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "First".to_string(),
                     title: None,
                     order: Some(5), // Explicit
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Second".to_string(),
                     title: None,
                     order: None, // Auto-assign (should get 0)
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Third".to_string(),
                     title: None,
                     order: Some(2), // Explicit

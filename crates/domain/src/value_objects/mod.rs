@@ -1,28 +1,31 @@
 //! Value objects - Immutable objects defined by their attributes
+//!
+//! This module contains domain value objects organized by tier classification.
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for the complete tier-level classification system (Tiers 1-5).
 
 mod actantial_context;
 mod activation_rules;
 mod ad_hoc_outcomes;
 mod archetype;
+mod calendar;
+mod character_state;
 mod comfyui_config;
-mod context_budget;
 mod dice;
 mod directorial;
-mod game_tools;
+mod names;
 // IDs live in `wrldbldr-domain`
-mod context_budget_enforcement;
 mod dialogue_markers;
 mod disposition;
 mod expression_config;
-mod llm_context;
-mod prompt_templates;
+mod presence_ttl;
 mod quantity;
-mod queue_data;
 mod region;
 mod relationship;
 mod rule_system;
-mod settings;
 mod staging_context;
+mod stat;
+pub mod stat_block;
 mod world_state;
 
 // Activation rules for visual states
@@ -41,13 +44,6 @@ pub use actantial_context::{
 pub use archetype::{ArchetypeChange, CampbellArchetype};
 
 pub use comfyui_config::ComfyUIConfig;
-pub use context_budget::{
-    count_tokens, exceeds_token_budget, ContextBudgetConfig, ContextCategory, TokenCountMethod,
-    TokenCounter,
-};
-pub use context_budget_enforcement::{
-    ContextBudgetEnforcer, ContextBuilder, EnforcementResult, EnforcementStats,
-};
 pub use dialogue_markers::{
     parse_dialogue, parse_dialogue_markers, validate_markers, DialogueMarker, ParsedDialogue,
 };
@@ -60,18 +56,7 @@ pub use disposition::{
     RelationshipLevel,
 };
 pub use expression_config::ExpressionConfig;
-pub use game_tools::{ChangeAmount, GameTool, InfoImportance, RelationshipChange};
-pub use llm_context::{
-    ActantialActorEntry, ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext,
-    ConversationTurn, GamePromptRequest, MotivationEntry, MotivationsContext, PlayerActionContext,
-    RegionItemContext, SceneContext, SecretMotivationEntry, SocialRelationEntry,
-    SocialStanceContext,
-};
-pub use prompt_templates::{
-    all_keys as prompt_template_keys, defaults as prompt_defaults,
-    get_default as get_prompt_default, key_to_env_var, keys as prompt_keys,
-    prompt_template_metadata, PromptTemplateCategory, PromptTemplateMetadata,
-};
+
 pub use quantity::QuantityChangeResult;
 pub use region::{RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift};
 pub use relationship::{FamilyRelation, Relationship, RelationshipEvent, RelationshipType};
@@ -98,20 +83,33 @@ pub use rule_system::{
     StatDefinition,
     SuccessComparison,
 };
-pub use settings::{
-    settings_metadata, AppSettings, BatchQueueFailurePolicy, SettingsFieldMetadata,
-};
 pub use staging_context::{
     ActiveEventContext, NpcDialogueContext, RollResult, RuleBasedSuggestion, StagingContext,
 };
 pub use world_state::{ApprovalType, ConversationEntry, PendingApprovalItem, Speaker};
 
-// Queue data value objects (pure domain representations)
-pub use queue_data::{
-    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, AssetGenerationData,
-    ChallengeOutcomeData, ChallengeSuggestion, ChallengeSuggestionOutcomes, DmActionData,
-    DmActionType, DmApprovalDecision, LlmRequestData, LlmRequestType, NarrativeEventSuggestion,
-    PlayerActionData, ProposedTool, SuggestionContext,
+// Validated name newtypes
+pub use names::{
+    AssetPath, Atmosphere, ChallengeName, CharacterName, Description, GoalName, ItemName,
+    LocationName, NarrativeEventName, RegionName, SceneName, StateName, Tag, WorldName,
+};
+
+// Character lifecycle state enum
+pub use character_state::CharacterState;
+
+// Presence cache TTL in hours
+pub use presence_ttl::PresenceTtlHours;
+
+// Stat enum for ability/stat checks
+pub use stat::Stat;
+
+// Stat block value objects
+pub use stat_block::{StatBlock, StatModifier, StatValue};
+
+// Calendar system value objects
+pub use calendar::{
+    calculate_calendar_date, CalendarDate, CalendarDefinition, CalendarId, EpochConfig,
+    EraDefinition, IntercalaryDay, MonthDefinition, Season,
 };
 
 // NOTE: Want has been promoted to an entity (domain/entities/want.rs)

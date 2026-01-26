@@ -15,11 +15,10 @@ workspace = true
 
 [dependencies]
 wrldbldr-domain = { workspace = true }
-wrldbldr-protocol = { workspace = true }
+wrldbldr-shared = { workspace = true }
 
 # Shared
 anyhow = { workspace = true }
-thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
@@ -28,9 +27,6 @@ tracing = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 futures-channel = { workspace = true }
-regex-lite = { workspace = true }
-url = { workspace = true }
-mockall = { workspace = true }
 
 # Dioxus (feature-selected per target)
 dioxus = { workspace = true }

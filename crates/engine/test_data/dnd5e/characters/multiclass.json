@@ -1,0 +1,179 @@
+{
+  "id": "00000000-0000-0000-0001-000000000003",
+  "user_id": "test-user-003",
+  "world_id": "00000000-0000-0000-0000-000000000001",
+  "name": "Kael Stormborn",
+  "description": "A human variant who combines martial prowess with arcane magic. A former soldier who discovered latent magical talent.",
+  "sheet_data": {
+    "values": {
+      "RACE": {"type": "String", "value": "human"},
+      "SUBRACE": {"type": "String", "value": "variant"},
+      "CLASS": {"type": "String", "value": "fighter"},
+      "LEVEL": {"type": "Integer", "value": 5},
+      "BACKGROUND": {"type": "String", "value": "soldier"},
+      "STR": {"type": "Integer", "value": 16},
+      "DEX": {"type": "Integer", "value": 12},
+      "CON": {"type": "Integer", "value": 14},
+      "INT": {"type": "Integer", "value": 14},
+      "WIS": {"type": "Integer", "value": 10},
+      "CHA": {"type": "Integer", "value": 8},
+      "HP_MAX": {"type": "Integer", "value": 38},
+      "HP_CURRENT": {"type": "Integer", "value": 38},
+      "AC": {"type": "Integer", "value": 16},
+      "SPEED": {"type": "Integer", "value": 30},
+      "PROFICIENCY_BONUS": {"type": "Integer", "value": 3},
+      "FEATS": {"type": "String", "value": "war_caster"},
+      "KNOWN_SPELLS": {"type": "String", "value": "shield,absorb_elements,find_familiar,magic_missile,sleep,detect_magic"},
+      "character_identity": {"type": "Object", "value": {
+        "race": {"type": "String", "value": "human"},
+        "subrace": {"type": "String", "value": "variant"},
+        "classes": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "class_id": {"type": "String", "value": "fighter"},
+            "subclass": {"type": "String", "value": "eldritch_knight"},
+            "level": {"type": "Integer", "value": 3}
+          }},
+          {"type": "Object", "value": {
+            "class_id": {"type": "String", "value": "wizard"},
+            "subclass": {"type": "Null", "value": null},
+            "level": {"type": "Integer", "value": 2}
+          }}
+        ]},
+        "background": {"type": "String", "value": "soldier"},
+        "alignment": {"type": "String", "value": "neutral"},
+        "total_level": {"type": "Integer", "value": 5}
+      }},
+      "character_spells": {"type": "Object", "value": {
+        "cantrips": {"type": "List", "value": [
+          {"type": "String", "value": "booming_blade"},
+          {"type": "String", "value": "green_flame_blade"},
+          {"type": "String", "value": "minor_illusion"}
+        ]},
+        "known": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "shield"},
+            "source": {"type": "String", "value": "fighter_eldritch_knight"},
+            "notes": {"type": "Null", "value": null}
+          }},
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "absorb_elements"},
+            "source": {"type": "String", "value": "fighter_eldritch_knight"},
+            "notes": {"type": "Null", "value": null}
+          }},
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "find_familiar"},
+            "source": {"type": "String", "value": "wizard"},
+            "notes": {"type": "Null", "value": null}
+          }},
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "magic_missile"},
+            "source": {"type": "String", "value": "wizard"},
+            "notes": {"type": "Null", "value": null}
+          }},
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "sleep"},
+            "source": {"type": "String", "value": "wizard"},
+            "notes": {"type": "Null", "value": null}
+          }},
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "detect_magic"},
+            "source": {"type": "String", "value": "wizard"},
+            "notes": {"type": "String", "value": "Ritual only"}
+          }}
+        ]},
+        "prepared": {"type": "List", "value": [
+          {"type": "String", "value": "shield"},
+          {"type": "String", "value": "absorb_elements"},
+          {"type": "String", "value": "magic_missile"}
+        ]},
+        "slots": {"type": "Object", "value": {
+          "1": {"type": "Object", "value": {
+            "current": {"type": "Integer", "value": 4},
+            "max": {"type": "Integer", "value": 4}
+          }},
+          "2": {"type": "Object", "value": {
+            "current": {"type": "Integer", "value": 2},
+            "max": {"type": "Integer", "value": 2}
+          }}
+        }},
+        "pact_slots": {"type": "Null", "value": null},
+        "spellcasting_ability": {"type": "String", "value": "INT"}
+      }},
+      "character_feats": {"type": "Object", "value": {
+        "feats": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "feat_id": {"type": "String", "value": "war_caster"},
+            "acquired_at_level": {"type": "Integer", "value": 1},
+            "choices": {"type": "Object", "value": {}},
+            "notes": {"type": "String", "value": "Human variant feat"}
+          }}
+        ]}
+      }},
+      "character_features": {"type": "Object", "value": {
+        "features": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "fighting_style_defense"},
+            "uses_remaining": {"type": "Null", "value": null},
+            "uses_max": {"type": "Null", "value": null},
+            "choices": {"type": "Object", "value": {}}
+          }},
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "second_wind"},
+            "uses_remaining": {"type": "Integer", "value": 1},
+            "uses_max": {"type": "Integer", "value": 1},
+            "choices": {"type": "Object", "value": {}}
+          }},
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "action_surge"},
+            "uses_remaining": {"type": "Integer", "value": 1},
+            "uses_max": {"type": "Integer", "value": 1},
+            "choices": {"type": "Object", "value": {}}
+          }},
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "weapon_bond"},
+            "uses_remaining": {"type": "Null", "value": null},
+            "uses_max": {"type": "Null", "value": null},
+            "choices": {"type": "Object", "value": {}}
+          }},
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "arcane_recovery"},
+            "uses_remaining": {"type": "Integer", "value": 1},
+            "uses_max": {"type": "Integer", "value": 1},
+            "choices": {"type": "Object", "value": {}}
+          }}
+        ]}
+      }},
+      "skill_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "athletics"},
+        {"type": "String", "value": "arcana"},
+        {"type": "String", "value": "perception"},
+        {"type": "String", "value": "survival"}
+      ]},
+      "saving_throw_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "strength"},
+        {"type": "String", "value": "constitution"},
+        {"type": "String", "value": "intelligence"},
+        {"type": "String", "value": "wisdom"}
+      ]},
+      "armor_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "light"},
+        {"type": "String", "value": "medium"},
+        {"type": "String", "value": "heavy"},
+        {"type": "String", "value": "shields"}
+      ]},
+      "weapon_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "simple"},
+        {"type": "String", "value": "martial"}
+      ]}
+    }
+  },
+  "current_location_id": "00000000-0000-0000-0002-000000000001",
+  "current_region_id": null,
+  "starting_location_id": "00000000-0000-0000-0002-000000000001",
+  "sprite_asset": null,
+  "portrait_asset": null,
+  "is_alive": true,
+  "is_active": true,
+  "created_at": "2024-01-01T00:00:00Z",
+  "last_active_at": "2024-01-01T12:00:00Z"
+}

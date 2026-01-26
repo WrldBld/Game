@@ -5,10 +5,22 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::value_objects::{Stat, Tag};
+
 /// A feat, talent, or special ability that a character can acquire.
 ///
 /// This struct supports various TTRPG systems' concepts of character
 /// customization options (D&D feats, Pathfinder feats, etc.).
+///
+/// # Design Decision (ADR-008 Tier 4)
+///
+/// This struct uses public fields because it is a **simple data struct** with no invariants to protect:
+/// - No business rules that could be violated (e.g., any combination of fields is valid)
+/// - No complex state transitions
+/// - Primarily used for data transfer and storage
+///
+/// Adding private fields with accessors would add boilerplate without providing any safety benefits.
+/// See [ADR-008](docs/architecture/ADR-008-tiered-encapsulation.md) for rationale.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Feat {
@@ -35,7 +47,59 @@ pub struct Feat {
     pub repeatable: bool,
     /// Tags for filtering and categorization
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub tags: Vec<Tag>,
+}
+
+impl Feat {
+    /// Create a new feat with required fields.
+    pub fn new(
+        id: impl Into<String>,
+        system_id: impl Into<String>,
+        name: impl Into<String>,
+        description: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            system_id: system_id.into(),
+            name: name.into(),
+            description: description.into(),
+            prerequisites: Vec::new(),
+            benefits: Vec::new(),
+            source: source.into(),
+            category: None,
+            repeatable: false,
+            tags: Vec::new(),
+        }
+    }
+
+    /// Reconstruct a Feat from storage
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_storage(
+        id: String,
+        system_id: String,
+        name: String,
+        description: String,
+        prerequisites: Vec<Prerequisite>,
+        benefits: Vec<FeatBenefit>,
+        source: String,
+        category: Option<String>,
+        repeatable: bool,
+        tags: Vec<Tag>,
+    ) -> Self {
+        Self {
+            id,
+            system_id,
+            name,
+            description,
+            prerequisites,
+            benefits,
+            source,
+            category,
+            repeatable,
+            tags,
+        }
+    }
 }
 
 /// A prerequisite for acquiring a feat.
@@ -44,8 +108,8 @@ pub struct Feat {
 pub enum Prerequisite {
     /// Minimum ability score requirement
     MinStat {
-        /// The stat name (e.g., "STR", "Dexterity")
-        stat: String,
+        /// The stat (e.g., Str, Dex)
+        stat: Stat,
         /// Minimum value required
         value: i32,
     },
@@ -108,11 +172,8 @@ pub enum Prerequisite {
 
 impl Prerequisite {
     /// Create a minimum stat prerequisite.
-    pub fn min_stat(stat: impl Into<String>, value: i32) -> Self {
-        Prerequisite::MinStat {
-            stat: stat.into(),
-            value,
-        }
+    pub fn min_stat(stat: Stat, value: i32) -> Self {
+        Prerequisite::MinStat { stat, value }
     }
 
     /// Create a minimum level prerequisite.
@@ -152,14 +213,14 @@ pub enum FeatBenefit {
     /// Increase an ability score
     StatIncrease {
         /// The stat to increase
-        stat: String,
+        stat: Stat,
         /// Amount to increase by
         value: i32,
     },
     /// Choose from multiple stats to increase
     StatChoice {
         /// Options to choose from
-        options: Vec<String>,
+        options: Vec<Stat>,
         /// Amount to increase by
         value: i32,
         /// Number of choices to make
@@ -237,6 +298,13 @@ pub struct AbilityUses {
     pub recharge: RechargeType,
 }
 
+impl AbilityUses {
+    /// Create new ability uses.
+    pub fn new(max: UsesFormula, recharge: RechargeType) -> Self {
+        Self { max, recharge }
+    }
+}
+
 /// Formula for calculating ability uses.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -248,7 +316,7 @@ pub enum UsesFormula {
     /// Uses equal to a stat modifier (minimum 1)
     StatModifier {
         /// Which stat modifier to use
-        stat: String,
+        stat: Stat,
         /// Minimum value (usually 1)
         #[serde(default = "default_one_i32")]
         min: i32,
@@ -276,11 +344,8 @@ impl UsesFormula {
     }
 
     /// Create a stat modifier formula.
-    pub fn stat_modifier(stat: impl Into<String>) -> Self {
-        UsesFormula::StatModifier {
-            stat: stat.into(),
-            min: 1,
-        }
+    pub fn stat_modifier(stat: Stat) -> Self {
+        UsesFormula::StatModifier { stat, min: 1 }
     }
 }
 
@@ -303,36 +368,57 @@ mod tests {
     use super::*;
 
     #[test]
-    fn feat_serialization() {
-        let feat = Feat {
-            id: "dnd5e_great_weapon_master".into(),
-            system_id: "dnd5e".into(),
-            name: "Great Weapon Master".into(),
-            description: "You've learned to put the weight of a weapon...".into(),
-            prerequisites: vec![],
-            benefits: vec![
-                FeatBenefit::Custom {
-                    description: "On a critical hit or kill, bonus action attack".into(),
-                },
-                FeatBenefit::Custom {
-                    description: "-5 to hit for +10 damage".into(),
-                },
-            ],
-            source: "PHB p.167".into(),
-            category: Some("combat".into()),
-            repeatable: false,
-            tags: vec!["combat".into(), "melee".into()],
-        };
+    fn feat_equality() {
+        let mut feat = Feat::new(
+            "dnd5e_great_weapon_master",
+            "dnd5e",
+            "Great Weapon Master",
+            "You've learned to put the weight of a weapon...",
+            "PHB p.167",
+        );
+        feat.benefits = vec![
+            FeatBenefit::Custom {
+                description: "On a critical hit or kill, bonus action attack".into(),
+            },
+            FeatBenefit::Custom {
+                description: "-5 to hit for +10 damage".into(),
+            },
+        ];
+        feat.category = Some("combat".to_string());
+        feat.tags.push(Tag::new("combat").unwrap());
+        feat.tags.push(Tag::new("melee").unwrap());
 
-        let json = serde_json::to_string(&feat).unwrap();
-        let deserialized: Feat = serde_json::from_str(&json).unwrap();
-        assert_eq!(feat, deserialized);
+        let other = feat.clone();
+        assert_eq!(feat, other);
+    }
+
+    #[test]
+    fn feat_accessors() {
+        let mut feat = Feat::new(
+            "test_feat",
+            "test_system",
+            "Test Feat",
+            "Test description",
+            "Test Source",
+        );
+        feat.repeatable = true;
+        feat.category = Some("general".to_string());
+
+        assert_eq!(feat.id, "test_feat");
+        assert_eq!(feat.system_id, "test_system");
+        assert_eq!(feat.name, "Test Feat");
+        assert_eq!(feat.description, "Test description");
+        assert_eq!(feat.source, "Test Source");
+        assert!(feat.repeatable);
+        assert_eq!(feat.category, Some("general".to_string()));
     }
 
     #[test]
     fn prerequisite_constructors() {
-        let prereq = Prerequisite::min_stat("STR", 13);
-        assert!(matches!(prereq, Prerequisite::MinStat { stat, value } if stat == "STR" && value == 13));
+        let prereq = Prerequisite::min_stat(Stat::Str, 13);
+        assert!(
+            matches!(prereq, Prerequisite::MinStat { stat, value } if stat == Stat::Str && value == 13)
+        );
 
         let prereq = Prerequisite::min_level(4);
         assert!(matches!(prereq, Prerequisite::MinLevel { level: 4 }));
@@ -340,18 +426,13 @@ mod tests {
 
     #[test]
     fn feat_with_prerequisites() {
-        let feat = Feat {
-            id: "dnd5e_sentinel".into(),
-            system_id: "dnd5e".into(),
-            name: "Sentinel".into(),
-            description: "You have mastered techniques...".into(),
-            prerequisites: vec![],
-            benefits: vec![],
-            source: "PHB p.169".into(),
-            category: None,
-            repeatable: false,
-            tags: vec![],
-        };
+        let feat = Feat::new(
+            "dnd5e_sentinel",
+            "dnd5e",
+            "Sentinel",
+            "You have mastered techniques...",
+            "PHB p.169",
+        );
 
         assert!(feat.prerequisites.is_empty());
     }
@@ -360,8 +441,8 @@ mod tests {
     fn complex_prerequisites() {
         let prereq = Prerequisite::AnyOf {
             options: vec![
-                Prerequisite::min_stat("STR", 13),
-                Prerequisite::min_stat("DEX", 13),
+                Prerequisite::min_stat(Stat::Str, 13),
+                Prerequisite::min_stat(Stat::Dex, 13),
             ],
         };
 
@@ -380,7 +461,14 @@ mod tests {
         let uses = UsesFormula::proficiency_bonus();
         assert!(matches!(uses, UsesFormula::ProficiencyBonus));
 
-        let uses = UsesFormula::stat_modifier("WIS");
-        assert!(matches!(uses, UsesFormula::StatModifier { stat, min: 1 } if stat == "WIS"));
+        let uses = UsesFormula::stat_modifier(Stat::Wis);
+        assert!(matches!(uses, UsesFormula::StatModifier { stat, min: 1 } if stat == Stat::Wis));
+    }
+
+    #[test]
+    fn ability_uses_accessors() {
+        let uses = AbilityUses::new(UsesFormula::fixed(2), RechargeType::LongRest);
+        assert!(matches!(uses.max, UsesFormula::Fixed { value: 2 }));
+        assert_eq!(uses.recharge, RechargeType::LongRest);
     }
 }

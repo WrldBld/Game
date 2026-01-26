@@ -1,9 +1,11 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::apply_pagination_limits;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, InteractionTarget, InteractionType};
-use wrldbldr_protocol::{ActRequest, ErrorCode, InteractionRequest, ResponseResult, SceneRequest};
+use wrldbldr_shared::{ActRequest, ErrorCode, InteractionRequest, ResponseResult, SceneRequest};
 
 pub(super) async fn handle_act_request(
     state: &WsState,
@@ -23,13 +25,12 @@ pub(super) async fn handle_act_request(
                 .await
             {
                 Ok(acts) => {
-                    let data: Vec<serde_json::Value> =
-                        acts.iter().map(act_to_json).collect();
+                    let data: Vec<serde_json::Value> = acts.iter().map(act_to_json).collect();
                     Ok(ResponseResult::success(json!(data)))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing acts"),
                 )),
             }
         }
@@ -50,7 +51,7 @@ pub(super) async fn handle_act_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating act"),
                 )),
             }
         }
@@ -64,24 +65,37 @@ pub(super) async fn handle_scene_request(
     request: SceneRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        SceneRequest::ListScenes { act_id } => {
+        SceneRequest::ListScenes { act_id, limit, offset } => {
             let act_id_typed = parse_act_id_for_request(&act_id, request_id)?;
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list scenes, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
             match state
                 .app
                 .use_cases
                 .management
                 .scene
-                .list_for_act(act_id_typed)
+                .list_for_act(act_id_typed, Some(limit), offset)
                 .await
             {
                 Ok(scenes) => {
-                    let data: Vec<serde_json::Value> =
-                        scenes.iter().map(scene_to_json).collect();
+                    let mut data = Vec::with_capacity(scenes.len());
+                    for scene in &scenes {
+                        data.push(scene_to_json(state, scene).await);
+                    }
                     Ok(ResponseResult::success(json!(data)))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing scenes"),
                 )),
             }
         }
@@ -95,14 +109,14 @@ pub(super) async fn handle_scene_request(
                 .get(scene_id_typed)
                 .await
             {
-                Ok(Some(scene)) => Ok(ResponseResult::success(scene_to_json(&scene))),
+                Ok(Some(scene)) => Ok(ResponseResult::success(scene_to_json(state, &scene).await)),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Scene not found",
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "getting scene"),
                 )),
             }
         }
@@ -121,13 +135,13 @@ pub(super) async fn handle_scene_request(
                 .create(act_id_typed, data.name, data.description, location_id)
                 .await
             {
-                Ok(scene) => Ok(ResponseResult::success(scene_to_json(&scene))),
+                Ok(scene) => Ok(ResponseResult::success(scene_to_json(state, &scene).await)),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating scene"),
                 )),
             }
         }
@@ -146,8 +160,8 @@ pub(super) async fn handle_scene_request(
                 .update(scene_id_typed, data.name, data.description, location_id)
                 .await
             {
-                Ok(scene) => Ok(ResponseResult::success(scene_to_json(&scene))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Ok(scene) => Ok(ResponseResult::success(scene_to_json(state, &scene).await)),
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Scene not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -155,7 +169,7 @@ pub(super) async fn handle_scene_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "updating scene"),
                 )),
             }
         }
@@ -171,12 +185,12 @@ pub(super) async fn handle_scene_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Scene not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "deleting scene"),
                 )),
             }
         }
@@ -207,7 +221,7 @@ pub(super) async fn handle_interaction_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing interactions"),
                 )),
             }
         }
@@ -222,16 +236,16 @@ pub(super) async fn handle_interaction_request(
                 .get(interaction_id_typed)
                 .await
             {
-                Ok(Some(interaction)) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
+                Ok(Some(interaction)) => {
+                    Ok(ResponseResult::success(interaction_to_json(&interaction)))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Interaction not found",
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "getting interaction"),
                 )),
             }
         }
@@ -252,15 +266,13 @@ pub(super) async fn handle_interaction_request(
                 )
                 .await
             {
-                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
+                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating interaction"),
                 )),
             }
         }
@@ -285,10 +297,8 @@ pub(super) async fn handle_interaction_request(
                 )
                 .await
             {
-                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -296,7 +306,7 @@ pub(super) async fn handle_interaction_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "updating interaction"),
                 )),
             }
         }
@@ -313,12 +323,12 @@ pub(super) async fn handle_interaction_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "deleting interaction"),
                 )),
             }
         }
@@ -337,15 +347,13 @@ pub(super) async fn handle_interaction_request(
                 .update(interaction_id_typed, None, None, None, Some(available))
                 .await
             {
-                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "setting interaction availability"),
                 )),
             }
         }
@@ -354,55 +362,80 @@ pub(super) async fn handle_interaction_request(
 
 fn act_to_json(act: &domain::Act) -> serde_json::Value {
     json!({
-        "id": act.id.to_string(),
-        "world_id": act.world_id.to_string(),
-        "name": act.name,
-        "stage": act.stage.to_string(),
-        "description": act.description,
-        "order": act.order,
+        "id": act.id().to_string(),
+        "world_id": act.world_id().to_string(),
+        "name": act.name(),
+        "stage": act.stage().to_string(),
+        "description": act.description(),
+        "order": act.order(),
     })
 }
 
-fn scene_to_json(scene: &domain::Scene) -> serde_json::Value {
+async fn scene_to_json(state: &WsState, scene: &domain::Scene) -> serde_json::Value {
     let entry_conditions = scene
-        .entry_conditions
+        .entry_conditions()
         .iter()
         .map(|condition| format!("{:?}", condition))
         .collect::<Vec<_>>();
 
+    // Get location_id via graph edge
+    let location_id = state
+        .app
+        .repositories
+        .scene
+        .get_location(scene.id())
+        .await
+        .ok()
+        .flatten()
+        .map(|id| id.to_string())
+        .unwrap_or_default();
+
+    // Get featured_characters via graph edge
+    let featured_characters: Vec<String> = state
+        .app
+        .repositories
+        .scene
+        .get_featured_characters(scene.id())
+        .await
+        .ok()
+        .unwrap_or_default()
+        .iter()
+        .map(|sc| sc.character_id.to_string())
+        .collect();
+
     json!({
-        "id": scene.id.to_string(),
-        "act_id": scene.act_id.to_string(),
-        "name": scene.name,
-        "location_id": scene.location_id.to_string(),
-        "time_context": format!("{:?}", scene.time_context),
-        "backdrop_override": scene.backdrop_override,
-        "featured_characters": scene.featured_characters.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-        "directorial_notes": scene.directorial_notes,
+        "id": scene.id().to_string(),
+        "act_id": scene.act_id().to_string(),
+        "name": scene.name(),
+        "location_id": location_id,
+        "time_context": format!("{:?}", scene.time_context()),
+        "backdrop_override": scene.backdrop_override(),
+        "featured_characters": featured_characters,
+        "directorial_notes": scene.directorial_notes(),
         "entry_conditions": entry_conditions,
-        "order": scene.order,
+        "order": scene.order(),
     })
 }
 
 fn interaction_to_json(interaction: &domain::InteractionTemplate) -> serde_json::Value {
-    let interaction_type = interaction_type_to_string(&interaction.interaction_type);
-    let target_name = interaction_target_name(&interaction.target);
+    let interaction_type = interaction_type_to_string(interaction.interaction_type());
+    let target_name = interaction_target_name(interaction.target());
     let conditions = interaction
-        .conditions
+        .conditions()
         .iter()
         .map(|condition| format!("{:?}", condition))
         .collect::<Vec<_>>();
 
     json!({
-        "id": interaction.id.to_string(),
-        "scene_id": interaction.scene_id.to_string(),
-        "name": interaction.name,
+        "id": interaction.id().to_string(),
+        "scene_id": interaction.scene_id().to_string(),
+        "name": interaction.name(),
         "interaction_type": interaction_type,
         "target_name": target_name,
-        "is_available": interaction.is_available,
-        "prompt_hints": if interaction.prompt_hints.is_empty() { None } else { Some(interaction.prompt_hints.clone()) },
+        "is_available": interaction.is_available(),
+        "prompt_hints": if interaction.prompt_hints().is_empty() { None } else { Some(interaction.prompt_hints().to_string()) },
         "conditions": conditions,
-        "order": interaction.order,
+        "order": interaction.order(),
     })
 }
 

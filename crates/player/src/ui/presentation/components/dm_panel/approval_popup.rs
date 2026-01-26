@@ -107,7 +107,7 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
         let text = edited_dialogue.read();
         let parsed = parse_dialogue(&text);
         let config = ExpressionConfig::default();
-        let warnings = validate_markers(&parsed.markers, &config.expressions, &config.actions);
+        let warnings = validate_markers(&parsed.markers, config.expressions(), config.actions());
         (parsed, warnings)
     });
 
@@ -179,13 +179,13 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                     let (parsed, _) = &*dialogue_validation.read();
                     let marker_displays: Vec<(String, bool)> = parsed.markers.iter()
                         .filter_map(|marker| {
-                            let display = match (&marker.action, &marker.expression) {
+                            let display = match (marker.action_value(), marker.expression_value()) {
                                 (Some(action), Some(expr)) => format!("{}|{}", action, expr),
                                 (Some(action), None) => format!("[{}]", action),
-                                (None, Some(expr)) => expr.clone(),
+                                (None, Some(expr)) => expr.to_string(),
                                 (None, None) => return None,
                             };
-                            let is_action_only = marker.expression.is_none() && marker.action.is_some();
+                            let is_action_only = marker.expression_value().is_none() && marker.action_value().is_some();
                             Some((display, is_action_only))
                         })
                         .collect();
@@ -923,8 +923,8 @@ fn DialogueWithMarkers(text: String) -> Element {
         // Add the marker itself
         segments.push(DialogueSegment::Marker {
             content: marker.raw.clone(),
-            has_action: marker.action.is_some(),
-            has_expr: marker.expression.is_some(),
+            has_action: marker.action_value().is_some(),
+            has_expr: marker.expression_value().is_some(),
         });
 
         last_end = marker.end_offset;

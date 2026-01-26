@@ -1,9 +1,10 @@
 use super::*;
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_domain::{DiceRollInput, OutcomeType};
-use wrldbldr_protocol::{ChallengeRequest, ErrorCode, ResponseResult};
-use wrldbldr_protocol::types::ProposedToolInfo;
+use wrldbldr_domain::{ConnectionId, DiceRollInput, OutcomeType};
+use wrldbldr_shared::types::ProposedToolInfo;
+use wrldbldr_shared::{ChallengeRequest, ErrorCode, ResponseResult};
 
 pub(super) async fn handle_challenge_request(
     state: &WsState,
@@ -18,13 +19,20 @@ pub(super) async fn handle_challenge_request(
                 Ok(challenges) => Ok(ResponseResult::success(json!(challenges))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list challenges"),
                 )),
             }
         }
         ChallengeRequest::GetChallenge { challenge_id } => {
             let challenge_id_typed = parse_challenge_id_for_request(&challenge_id, request_id)?;
-            match state.app.use_cases.challenge.ops.get(challenge_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .challenge
+                .ops
+                .get(challenge_id_typed)
+                .await
+            {
                 Ok(Some(challenge)) => Ok(ResponseResult::success(json!(challenge))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -32,46 +40,60 @@ pub(super) async fn handle_challenge_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get challenge"),
                 )),
             }
         }
         ChallengeRequest::CreateChallenge { world_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
+            let input = crate::use_cases::challenge::CreateChallengeInput {
+                name: data.name,
+                difficulty: data.difficulty,
+                description: data.description,
+                success_outcome: data.success_outcome,
+                failure_outcome: data.failure_outcome,
+            };
             match state
                 .app
                 .use_cases
                 .challenge
                 .ops
-                .create(world_id_typed, data)
+                .create(world_id_typed, input)
                 .await
             {
                 Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create challenge"),
                 )),
             }
         }
         ChallengeRequest::UpdateChallenge { challenge_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let challenge_id_typed = parse_challenge_id_for_request(&challenge_id, request_id)?;
+            let input = crate::use_cases::challenge::UpdateChallengeInput {
+                name: data.name,
+                description: data.description,
+                difficulty: data.difficulty,
+                success_outcome: data.success_outcome,
+                failure_outcome: data.failure_outcome,
+            };
             match state
                 .app
                 .use_cases
                 .challenge
                 .ops
-                .update(challenge_id_typed, data)
+                .update(challenge_id_typed, input)
                 .await
             {
                 Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),
-                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Challenge not found"))
-                }
+                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update challenge"),
                 )),
             }
         }
@@ -89,7 +111,7 @@ pub(super) async fn handle_challenge_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete challenge"),
                 )),
             }
         }
@@ -108,12 +130,12 @@ pub(super) async fn handle_challenge_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Challenge not found"))
-                }
+                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set challenge active"),
                 )),
             }
         }
@@ -132,12 +154,12 @@ pub(super) async fn handle_challenge_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Challenge not found"))
-                }
+                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set challenge favorite"),
                 )),
             }
         }
@@ -146,7 +168,7 @@ pub(super) async fn handle_challenge_request(
 
 pub(super) async fn handle_challenge_roll(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     challenge_id: String,
     roll: i32,
 ) -> Option<ServerMessage> {
@@ -159,36 +181,56 @@ pub(super) async fn handle_challenge_roll(
     // Get connection info to verify authorization
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to roll challenges")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must have a PC to roll challenges",
+            ))
+        }
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
     // Validate challenge belongs to this world and is active
-    let challenge = match state.app.entities.challenge.get(challenge_uuid).await {
+    let challenge = match state.app.repositories.challenge.get(challenge_uuid).await {
         Ok(Some(c)) => c,
-        Ok(None) => return Some(error_response("NOT_FOUND", "Challenge not found")),
-        Err(e) => return Some(error_response("CHALLENGE_ERROR", &e.to_string())),
+        Ok(None) => return Some(error_response(ErrorCode::NotFound, "Challenge not found")),
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "get challenge"),
+            ))
+        }
     };
 
-    if challenge.world_id != world_id {
+    if challenge.world_id() != world_id {
         return Some(error_response(
-            "INVALID_WORLD",
+            ErrorCode::BadRequest,
             "Challenge does not belong to this world",
         ));
     }
 
-    if !challenge.active {
+    if !challenge.active() {
         return Some(error_response(
-            "CHALLENGE_INACTIVE",
+            ErrorCode::BadRequest,
             "Challenge is not currently active",
         ));
     }
@@ -201,13 +243,13 @@ pub(super) async fn handle_challenge_roll(
     // - Percentile: skill value (for CoC 7e)
     // - LadderRating: ladder position (for FATE)
     // - Resource: current value
-    let skill_modifier = if let Some(ref stat_name) = challenge.check_stat {
+    let skill_modifier = if let Some(stat) = challenge.check_stat() {
         // Get the PC's sheet_data to look up stats
-        match state.app.entities.player_character.get(pc_id).await {
+        match state.app.repositories.player_character.get(pc_id).await {
             Ok(Some(pc)) => {
                 // Look up the stat value from sheet_data using unified numeric extraction
-                if let Some(ref sheet_data) = pc.sheet_data {
-                    sheet_data.get_numeric_value(stat_name).unwrap_or(0)
+                if let Some(sheet_data) = pc.sheet_data() {
+                    sheet_data.get_numeric_value(stat.as_str()).unwrap_or(0)
                 } else {
                     0
                 }
@@ -220,7 +262,7 @@ pub(super) async fn handle_challenge_roll(
 
     tracing::debug!(
         challenge_id = %challenge_id,
-        check_stat = ?challenge.check_stat,
+        check_stat = ?challenge.check_stat(),
         skill_modifier = skill_modifier,
         "Challenge roll with modifier"
     );
@@ -239,7 +281,7 @@ pub(super) async fn handle_challenge_roll(
                     Some(id) => id.to_string(),
                     None => {
                         return Some(error_response(
-                            "APPROVAL_ERROR",
+                            ErrorCode::InternalError,
                             "Missing challenge approval request",
                         ))
                     }
@@ -299,24 +341,32 @@ pub(super) async fn handle_challenge_roll(
                 None
             }
         }
-        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
-            Some(error_response("NOT_FOUND", "Challenge not found"))
+        Err(crate::use_cases::challenge::ChallengeError::NotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("Challenge not found: {}", id),
+        )),
+        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound(id)) => {
+            Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Player character not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound) => {
-            Some(error_response("NOT_FOUND", "Player character not found"))
-        }
-        Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => {
-            Some(error_response("INVALID_DICE_INPUT", "Invalid dice input"))
-        }
-        Err(e) => Some(error_response("ROLL_ERROR", &e.to_string())),
+        Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => Some(error_response(
+            ErrorCode::ValidationError,
+            "Invalid dice input",
+        )),
+        Err(e) => Some(error_response(
+            ErrorCode::InternalError,
+            &sanitize_repo_error(&e, "process challenge roll"),
+        )),
     }
 }
 
 pub(super) async fn handle_challenge_roll_input(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     challenge_id: String,
-    input_type: wrldbldr_protocol::DiceInputType,
+    input_type: wrldbldr_shared::DiceInputType,
 ) -> Option<ServerMessage> {
     // Parse challenge ID
     let challenge_uuid = match parse_challenge_id(&challenge_id) {
@@ -327,24 +377,101 @@ pub(super) async fn handle_challenge_roll_input(
     // Get connection info to verify authorization
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to roll challenges")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must have a PC to roll challenges",
+            ))
+        }
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
+    // Get challenge to find the skill/check_stat for modifier lookup
+    let challenge = match state.app.repositories.challenge.get(challenge_uuid).await {
+        Ok(Some(c)) => c,
+        Ok(None) => return Some(error_response(ErrorCode::NotFound, "Challenge not found")),
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "get challenge"),
+            ))
+        }
+    };
+
+    // Validate challenge belongs to this world and is active
+    if challenge.world_id() != world_id {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            "Challenge does not belong to this world",
+        ));
+    }
+
+    if !challenge.active() {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            "Challenge is not currently active",
+        ));
+    }
+
+    // Calculate skill modifier from character stats if check_stat is specified
+    // Uses get_numeric_value() which handles all field types:
+    // - Number: direct modifier
+    // - SkillEntry: bonus value
+    // - DicePool: dice count (for Blades)
+    // - Percentile: skill value (for CoC 7e)
+    // - LadderRating: ladder position (for FATE)
+    // - Resource: current value
+    let skill_modifier = if let Some(stat) = challenge.check_stat() {
+        // Get the PC's sheet_data to look up stats
+        match state.app.repositories.player_character.get(pc_id).await {
+            Ok(Some(pc)) => {
+                // Look up the stat value from sheet_data using unified numeric extraction
+                if let Some(sheet_data) = pc.sheet_data() {
+                    sheet_data.get_numeric_value(stat.as_str()).unwrap_or(0)
+                } else {
+                    0
+                }
+            }
+            _ => 0,
+        }
+    } else {
+        0
+    };
+
+    tracing::debug!(
+        challenge_id = %challenge_id,
+        check_stat = ?challenge.check_stat(),
+        skill_modifier = skill_modifier,
+        "Challenge roll with modifier"
+    );
+
     let input = match input_type {
-        wrldbldr_protocol::DiceInputType::Formula(formula) => DiceRollInput::Formula(formula),
-        wrldbldr_protocol::DiceInputType::Manual(value) => DiceRollInput::ManualResult(value),
-        wrldbldr_protocol::DiceInputType::Unknown => {
-            return Some(error_response("INVALID_DICE_INPUT", "Unknown dice input type"))
+        wrldbldr_shared::DiceInputType::Formula(formula) => DiceRollInput::Formula(formula),
+        wrldbldr_shared::DiceInputType::Manual(value) => DiceRollInput::ManualResult(value),
+        wrldbldr_shared::DiceInputType::Unknown => {
+            return Some(error_response(
+                ErrorCode::ValidationError,
+                "Unknown dice input type",
+            ))
         }
     };
 
@@ -353,7 +480,7 @@ pub(super) async fn handle_challenge_roll_input(
         .use_cases
         .challenge
         .roll
-        .execute_with_input(world_id, challenge_uuid, pc_id, input)
+        .execute_with_input(world_id, challenge_uuid, pc_id, input, skill_modifier)
         .await
     {
         Ok(result) => {
@@ -362,7 +489,7 @@ pub(super) async fn handle_challenge_roll_input(
                     Some(id) => id.to_string(),
                     None => {
                         return Some(error_response(
-                            "APPROVAL_ERROR",
+                            ErrorCode::InternalError,
                             "Missing challenge approval request",
                         ))
                     }
@@ -421,29 +548,42 @@ pub(super) async fn handle_challenge_roll_input(
                 None
             }
         }
-        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
-            Some(error_response("NOT_FOUND", "Challenge not found"))
+        Err(crate::use_cases::challenge::ChallengeError::NotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("Challenge not found: {}", id),
+        )),
+        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound(id)) => {
+            Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Player character not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound) => {
-            Some(error_response("NOT_FOUND", "Player character not found"))
-        }
-        Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => {
-            Some(error_response("INVALID_DICE_INPUT", "Invalid dice input"))
-        }
-        Err(e) => Some(error_response("ROLL_ERROR", &e.to_string())),
+        Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => Some(error_response(
+            ErrorCode::ValidationError,
+            "Invalid dice input",
+        )),
+        Err(e) => Some(error_response(
+            ErrorCode::InternalError,
+            &sanitize_repo_error(&e, "process challenge roll input"),
+        )),
     }
 }
 
 pub(super) async fn handle_trigger_challenge(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     challenge_id: String,
     target_character_id: String,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can trigger challenges
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -465,7 +605,7 @@ pub(super) async fn handle_trigger_challenge(
         .use_cases
         .challenge
         .trigger_prompt
-        .execute(challenge_uuid)
+        .execute(challenge_uuid, Some(target_uuid))
         .await
     {
         Ok(prompt) => {
@@ -482,16 +622,20 @@ pub(super) async fn handle_trigger_challenge(
             state.connections.send_to_pc(target_uuid, msg).await;
             None
         }
-        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
-            Some(error_response("NOT_FOUND", "Challenge not found"))
-        }
-        Err(e) => Some(error_response("CHALLENGE_ERROR", &e.to_string())),
+        Err(crate::use_cases::challenge::ChallengeError::NotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("Challenge not found: {}", id),
+        )),
+        Err(e) => Some(error_response(
+            ErrorCode::InternalError,
+            &sanitize_repo_error(&e, "trigger challenge"),
+        )),
     }
 }
 
 pub(super) async fn handle_challenge_suggestion_decision(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     request_id: String,
     approved: bool,
     _modified_difficulty: Option<String>,
@@ -499,7 +643,12 @@ pub(super) async fn handle_challenge_suggestion_decision(
     // Get connection info - only DMs can make decisions
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -513,9 +662,9 @@ pub(super) async fn handle_challenge_suggestion_decision(
     };
 
     let decision = if approved {
-        wrldbldr_domain::DmApprovalDecision::Accept
+        crate::queue_types::DmApprovalDecision::Accept
     } else {
-        wrldbldr_domain::DmApprovalDecision::Reject {
+        crate::queue_types::DmApprovalDecision::Reject {
             feedback: "Challenge rejected by DM".to_string(),
         }
     };
@@ -525,7 +674,7 @@ pub(super) async fn handle_challenge_suggestion_decision(
         .use_cases
         .approval
         .approve_suggestion
-        .execute(approval_id, decision)
+        .execute(approval_id.into(), decision)
         .await
     {
         Ok(_) => {
@@ -535,23 +684,28 @@ pub(super) async fn handle_challenge_suggestion_decision(
                 None
             }
         }
-        Err(e) => {
-            tracing::error!(error = %e, "Challenge suggestion decision failed");
-            Some(error_response("APPROVAL_ERROR", &e.to_string()))
-        }
+        Err(e) => Some(error_response(
+            ErrorCode::InternalError,
+            &sanitize_repo_error(&e, "process challenge suggestion decision"),
+        )),
     }
 }
 
 pub(super) async fn handle_challenge_outcome_decision(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     resolution_id: String,
-    decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+    decision: wrldbldr_shared::ChallengeOutcomeDecisionData,
 ) -> Option<ServerMessage> {
     // Only DMs can approve challenge outcomes
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -560,7 +714,23 @@ pub(super) async fn handle_challenge_outcome_decision(
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
+    };
+
+    // Convert protocol decision to domain decision at the API boundary
+    let domain_decision: wrldbldr_domain::ChallengeOutcomeDecision = match decision.try_into() {
+        Ok(d) => d,
+        Err(_) => {
+            return Some(error_response(
+                ErrorCode::ValidationError,
+                "Unknown challenge outcome decision type",
+            ))
+        }
     };
 
     match state
@@ -568,7 +738,7 @@ pub(super) async fn handle_challenge_outcome_decision(
         .use_cases
         .challenge
         .outcome_decision
-        .execute(world_id, resolution_id.clone(), decision)
+        .execute(world_id, resolution_id.clone(), domain_decision)
         .await
     {
         Ok(crate::use_cases::challenge::OutcomeDecisionResult::Resolved(payload)) => {
@@ -588,28 +758,28 @@ pub(super) async fn handle_challenge_outcome_decision(
             None
         }
         Ok(crate::use_cases::challenge::OutcomeDecisionResult::Queued) => None,
-        Err(crate::use_cases::challenge::OutcomeDecisionError::ApprovalNotFound) => {
-            Some(error_response("NOT_FOUND", "Approval request not found"))
-        }
+        Err(crate::use_cases::challenge::OutcomeDecisionError::ApprovalNotFound) => Some(
+            error_response(ErrorCode::NotFound, "Approval request not found"),
+        ),
         Err(crate::use_cases::challenge::OutcomeDecisionError::MissingOutcomeData) => {
             Some(error_response(
-                "INVALID_DATA",
+                ErrorCode::ValidationError,
                 "No challenge outcome data in approval request",
             ))
         }
         Err(crate::use_cases::challenge::OutcomeDecisionError::MissingPcId) => {
             Some(error_response(
-                "MISSING_PC_ID",
+                ErrorCode::ValidationError,
                 "Challenge outcome is missing target PC context",
             ))
         }
-        Err(crate::use_cases::challenge::OutcomeDecisionError::InvalidResolutionId) => {
-            Some(error_response("INVALID_ID", "Invalid resolution ID format"))
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Challenge outcome decision failed");
-            Some(error_response("RESOLVE_ERROR", &e.to_string()))
-        }
+        Err(crate::use_cases::challenge::OutcomeDecisionError::InvalidResolutionId(_)) => Some(
+            error_response(ErrorCode::ValidationError, "Invalid resolution ID format"),
+        ),
+        Err(e) => Some(error_response(
+            ErrorCode::InternalError,
+            &sanitize_repo_error(&e, "process challenge outcome decision"),
+        )),
     }
 }
 

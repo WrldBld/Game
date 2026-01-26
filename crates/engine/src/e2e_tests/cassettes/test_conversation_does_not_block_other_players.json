@@ -1,0 +1,40 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-19T13:54:03.445754+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "81c45524ca1c398fbf2a6060b106830b28848bd3bbaadda251f4b4e554f0b31b": [
+      {
+        "fingerprint": "81c45524ca1c398fbf2a6060b106830b28848bd3bbaadda251f4b4e554f0b31b",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if NPC's response is relevant and appropriate to what the player asked. Player asked: \"Hello Marta! How are you today?\" NPC responded: \"*smiles* 'Hello there, traveler! I'm in good spirits, thank you. How may I assist you today?'\" The NPC's response acknowledges greeting, says \"I'm in good spirits, thank you\" which addresses \"How are you today?\" and then offers assistance. That is relevant and appropriate. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T13:54:38.601640+00:00"
+      }
+    ],
+    "49b6cf940ccc7e3fbb24cc32276d782a8cad7826b533f9fe7223194772094632": [
+      {
+        "fingerprint": "49b6cf940ccc7e3fbb24cc32276d782a8cad7826b533f9fe7223194772094632",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to answer YES or NO. The text: \"*smiles* \"Hello there, traveler! I'm in good spirits, thank you. How may I assist you today?\" This sounds like a friendly greeting, could be a tavern keeper or innkeeper. Yes. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T13:54:42.214114+00:00"
+      }
+    ],
+    "0d54f6baf08a3c7496864e4d070ad9f03cc39569a343def25d7f6ed59952345a": [
+      {
+        "fingerprint": "0d54f6baf08a3c7496864e4d070ad9f03cc39569a343def25d7f6ed59952345a",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 3...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to produce response in required format. Need to include reasoning, dialogue, topics, suggested beats, challenge analysis, event analysis. Also note the NPC name \"Marta Hearthwood\". She is a mentor, friendly, calm. The player says \"Hello Marta! How are you today?\" So we need to respond friendly, calm. No specific keywords triggering challenges or events. Check triggers:\n\nChallenges: triggers based on pc_mentions or interacts_with. Player says \"Hello Marta! How are you today?\" No keywords like Vera, merchant, suspicious, questions, mill, etc. No mention of 'mill', 'old mill', 'what happened', 'twenty years', 'adventure', 'past', 'shadow', 'cavern', 'party', 'loss', 'rumors', 'gossip', 'strange happenings', 'news', 'heard anything'. So none trigger. So all challenges: trigger NO.\n\nEvents: triggered by pc_mentions: \"rumors\", \"gossip\", \"strange happenings\", \"news\", \"heard anything\" for EVT_2. \"mill\", \"old mill\", \"what happened\", \"twenty years\" for EVT_1. \"Brother Aldric receives the party at the temple and shares his vision of coming darkness\" for EVT_0. Player says none of those. So all events: NO.\n\nThus we need to produce <challenge_analysis> and <event> blocks for each with NO.\n\nAlso we need to include <dialogue> with 1-3 sentences friendly. Use expression markers. E.g. *smiles* \"Greetings, traveler! I'm well, thank you. How may I help you today?\"\n\nWe also need <topics> list 1-3: maybe greeting, general conversation. Could include \"greeting\" but must choose from list: quest_information, local_history, directions, trade_negotiation, rumors, personal_story, threat_warning, request_for_help. Here greeting may correspond to 'personal_story'? No. Maybe 'personal_story' or 'request_for_help' - but currently not request. Could choose 'personal_story' as friendly chat. But we can also interpret as 'greeting', but list doesn't contain. We can choose 'personal_story' or 'request_for_help' maybe. But we can also choose none? The format says list 1-3 key topics. Choose specific meaningful topics. For greeting, maybe 'personal_story' as they might share. Let's choose 'personal_story'.\n\nSuggested beats: optional narrative suggestions for GM. Maybe \"Offer a drink\" or \"Mention upcoming tavern event\".\n\nWe also include <reasoning> section hidden from player but shown to GM. We'll write reasoning. Then <dialogue> with expression markers. Then <topics>, <suggested_beats>.\n\nThen challenge analysis and event analysis.\n\nNeed to output XML tags accordingly. Ensure formatting. Let's craft.\n\nCheck expression markers: available expressions list? Not provided. Use typical: *smiles*, *nods*, *sits*, etc. We'll use *smiles*.\n\nDialogue: \"*smiles* 'Hello there, traveler! I'm in good spirits, thank you. How may I assist you today?'\" That's 3 sentences. Good.\n\nNow produce final answer.<|end|><|start|>assistant<|channel|>final<|message|><reasoning>\nMarta is a calm mentor who greets warmly. She has no pressing agenda from this greeting, so I’ll keep the response friendly and open. No challenge or event is triggered by the simple greeting, so I’ll simply acknowledge the player and invite them to continue the conversation or ask for help.\n</reasoning>\n\n<dialogue>\n*smiles* \"Hello there, traveler! I'm in good spirits, thank you. How may I assist you today?\"\n</dialogue>\n\n<topics>\npersonal_story\n</topics>\n\n<suggested_beats>\nOffer a complimentary pint of ale to welcome the visitor.  \nInvite the player to sit at the hearth for a moment of rest before discussing any quests.  \nMention the town’s upcoming festival as a light diversion.\n</suggested_beats>\n\n<challenge_analysis>\n<challenge name=\"Investigate the Mill Basement\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Expose Vera's True Intentions\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Decipher the Ritual Journal\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Calm Old Tom's Ravings\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Convince Grom to Share His Past\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n</challenge_analysis>\n\n<event_analysis>\n<event name=\"The Stranger's Warning\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta's Knowledge\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta Shares Local Rumors\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n</event_analysis>",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T13:54:34.548594+00:00"
+      }
+    ]
+  }
+}

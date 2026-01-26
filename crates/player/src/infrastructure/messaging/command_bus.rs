@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use wrldbldr_protocol::{ClientMessage, RequestError, RequestPayload, ResponseResult};
+use wrldbldr_shared::{ClientMessage, RequestError, RequestPayload, ResponseResult};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
@@ -33,6 +33,7 @@ pub enum BusMessage {
 
 /// Pending request tracker for request-response correlation
 #[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
 pub struct PendingRequests {
     inner: HashMap<String, oneshot::Sender<ResponseResult>>,
 }
@@ -40,14 +41,6 @@ pub struct PendingRequests {
 #[cfg(target_arch = "wasm32")]
 pub struct PendingRequests {
     inner: HashMap<String, oneshot::Sender<ResponseResult>>,
-}
-
-impl Default for PendingRequests {
-    fn default() -> Self {
-        Self {
-            inner: HashMap::new(),
-        }
-    }
 }
 
 impl PendingRequests {
@@ -133,7 +126,9 @@ impl CommandBus {
         let (id, result) = self.request_internal(payload).await?;
         // Request completed normally, id cleanup handled by resolve()
         let _ = id;
-        result.await.map_err(|_| RequestError::Cancelled)
+        result
+            .await
+            .map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e)))
     }
 
     /// Internal request that returns the request ID for cleanup purposes.
@@ -157,7 +152,7 @@ impl CommandBus {
                 payload,
             })
             .await
-            .map_err(|_| RequestError::SendFailed("channel closed".into()))?;
+            .map_err(|e| RequestError::SendFailed(format!("channel closed: {}", e)))?;
 
         Ok((id, response_rx))
     }
@@ -173,13 +168,10 @@ impl CommandBus {
     ) -> Result<ResponseResult, RequestError> {
         let (id, response_rx) = self.request_internal(payload).await?;
 
-        match tokio::time::timeout(
-            std::time::Duration::from_millis(timeout_ms),
-            response_rx,
-        )
-        .await
+        match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), response_rx).await
         {
-            Ok(result) => result.map_err(|_| RequestError::Cancelled),
+            Ok(result) => result
+                .map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e))),
             Err(_) => {
                 // Timeout occurred - clean up the pending request to prevent memory leak
                 {
@@ -205,7 +197,10 @@ impl CommandBus {
 #[cfg(target_arch = "wasm32")]
 impl CommandBus {
     /// Create a new CommandBus with the given channel sender.
-    pub fn new(tx: mpsc::UnboundedSender<BusMessage>, pending: Rc<RefCell<PendingRequests>>) -> Self {
+    pub fn new(
+        tx: mpsc::UnboundedSender<BusMessage>,
+        pending: Rc<RefCell<PendingRequests>>,
+    ) -> Self {
         Self {
             tx: SendWrapper::new(tx),
             pending: SendWrapper::new(pending),
@@ -242,14 +237,13 @@ impl CommandBus {
         self.pending.borrow_mut().insert(id.clone(), response_tx);
 
         // Send the request - bridge will create ClientMessage::Request
-        let send_result = self.tx.unbounded_send(BusMessage::Request {
-            id,
-            payload,
-        });
+        let send_result = self.tx.unbounded_send(BusMessage::Request { id, payload });
 
         async move {
-            send_result.map_err(|_| RequestError::SendFailed("channel closed".into()))?;
-            response_rx.await.map_err(|_| RequestError::Cancelled)
+            send_result.map_err(|e| RequestError::SendFailed(format!("channel closed: {}", e)))?;
+            response_rx
+                .await
+                .map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e)))
         }
     }
 
@@ -302,6 +296,9 @@ mod tests {
         bus.send(msg).unwrap();
 
         let received = rx.recv().await.unwrap();
-        assert!(matches!(received, BusMessage::Send(ClientMessage::Heartbeat)));
+        assert!(matches!(
+            received,
+            BusMessage::Send(ClientMessage::Heartbeat)
+        ));
     }
 }

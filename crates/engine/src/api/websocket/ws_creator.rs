@@ -3,9 +3,27 @@ use super::*;
 use std::collections::{HashMap, HashSet};
 
 use crate::api::connections::ConnectionInfo;
-use wrldbldr_domain::{LlmRequestType, WorldId};
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::use_cases::ai::{ActantialRole, SuggestionContextInput};
+use wrldbldr_domain::WorldId;
 
-use wrldbldr_protocol::{AiRequest, ExpressionRequest, GenerationRequest};
+use crate::queue_types::LlmRequestType;
+
+use wrldbldr_shared::{ActantialRoleData, AiRequest, ExpressionRequest, GenerationRequest};
+
+/// Maximum grid dimensions to prevent unbounded rendering.
+const MAX_GRID_SIZE: u32 = 100;
+
+/// Convert protocol ActantialRoleData to domain ActantialRole.
+fn proto_role_to_domain(role: ActantialRoleData) -> ActantialRole {
+    match role {
+        ActantialRoleData::Helper => ActantialRole::Helper,
+        ActantialRoleData::Opponent => ActantialRole::Opponent,
+        ActantialRoleData::Sender => ActantialRole::Sender,
+        ActantialRoleData::Receiver => ActantialRole::Receiver,
+        ActantialRoleData::Unknown => ActantialRole::Unknown,
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct GenerationReadState {
@@ -42,7 +60,7 @@ pub(super) async fn handle_generation_request(
     request: GenerationRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        GenerationRequest::GetGenerationQueue { world_id, user_id } => {
+        GenerationRequest::GetGenerationQueue { world_id, user_id: _ } => {
             let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => WorldId::from_uuid(u),
                 Err(_) => {
@@ -53,18 +71,13 @@ pub(super) async fn handle_generation_request(
                 }
             };
 
-            // Prefer explicit user_id (for forward compatibility), fallback to connection user_id.
-            let effective_user_id = user_id
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| conn_info.user_id.clone());
+            // Always use connection user_id - never trust client-provided user_id
+            let effective_user_id = conn_info.user_id.to_string();
 
             let read_key = format!("{}:{}", effective_user_id, world_uuid);
 
             // Read-through cache: check memory first, then fall back to persisted state.
-            let mut read_state = {
-                let read_map = state.generation_read_state.read().await;
-                read_map.get(&read_key).cloned()
-            };
+            let mut read_state = state.generation_read_state.get(&read_key).await;
 
             if read_state.is_none() {
                 let persisted = state
@@ -74,7 +87,10 @@ pub(super) async fn handle_generation_request(
                     .await
                     .map_err(|e| ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "load generation read state"),
+                        ),
                     })?;
 
                 if let Some((read_batches, read_suggestions)) = persisted {
@@ -85,8 +101,10 @@ pub(super) async fn handle_generation_request(
                 }
 
                 // Populate cache even if empty, to avoid repeated DB reads.
-                let mut map = state.generation_read_state.write().await;
-                map.insert(read_key.clone(), read_state.clone().unwrap_or_default());
+                state
+                    .generation_read_state
+                    .insert(read_key.clone(), read_state.clone().unwrap_or_default())
+                    .await;
             }
 
             let read_state = read_state.unwrap_or_default();
@@ -99,7 +117,10 @@ pub(super) async fn handle_generation_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "list asset generation queue"),
+                    ),
                 })?;
 
             let mut pending_asset_ids_in_order: Vec<String> = asset_items
@@ -165,7 +186,10 @@ pub(super) async fn handle_generation_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "list LLM request queue"),
+                    ),
                 })?;
 
             let suggestions: Vec<serde_json::Value> = llm_items
@@ -240,7 +264,7 @@ pub(super) async fn handle_generation_request(
                 .app
                 .queue
                 .upsert_generation_read_state(
-                    &conn_info.user_id,
+                    conn_info.user_id.as_str(),
                     world_uuid,
                     &read_batches,
                     &read_suggestions,
@@ -248,20 +272,30 @@ pub(super) async fn handle_generation_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "save generation read state"),
+                    ),
                 })?;
 
             let read_key = format!("{}:{}", conn_info.user_id, world_uuid);
-            let mut map = state.generation_read_state.write().await;
-            let entry = map.entry(read_key).or_default();
+            let mut entry = state
+                .generation_read_state
+                .get(&read_key)
+                .await
+                .unwrap_or_default();
 
             entry.read_batches = read_batches.iter().cloned().collect();
             entry.read_suggestions = read_suggestions.iter().cloned().collect();
 
+            state.generation_read_state.insert(read_key, entry).await;
+
             Ok(ResponseResult::success_empty())
         }
 
-        GenerationRequest::DismissSuggestion { request_id: suggestion_request_id } => {
+        GenerationRequest::DismissSuggestion {
+            request_id: suggestion_request_id,
+        } => {
             tracing::info!(
                 request_id = %suggestion_request_id,
                 user_id = %conn_info.user_id,
@@ -291,17 +325,13 @@ pub(super) async fn handle_generation_request(
                     }
                     Ok(ResponseResult::success_empty())
                 }
-                Err(e) => {
-                    tracing::error!(
-                        request_id = %suggestion_request_id,
-                        error = %e,
-                        "Failed to dismiss suggestion - database error"
-                    );
-                    Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                    })
-                }
+                Err(e) => Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "dismiss suggestion"),
+                    ),
+                }),
             }
         }
     }
@@ -329,16 +359,29 @@ pub(super) async fn handle_ai_request(
                 }
             };
 
+            // Convert protocol context to domain input
+            let domain_context = SuggestionContextInput {
+                entity_type: context.entity_type,
+                entity_name: context.entity_name,
+                world_setting: context.world_setting,
+                hints: context.hints,
+                additional_context: context.additional_context,
+                world_id: context.world_id,
+            };
+
             let result = state
                 .app
                 .use_cases
                 .ai
                 .suggestions
-                .enqueue_content_suggestion(world_uuid, suggestion_type.to_string(), context)
+                .enqueue_content_suggestion(world_uuid, suggestion_type.to_string(), domain_context)
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "enqueue content suggestion"),
+                    ),
                 })?;
 
             // Best-effort broadcast to world so the queue UI can update.
@@ -370,7 +413,10 @@ pub(super) async fn handle_ai_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "cancel content suggestion"),
+                    ),
                 })?;
 
             Ok(ResponseResult::success(serde_json::json!({
@@ -383,9 +429,7 @@ pub(super) async fn handle_ai_request(
         | AiRequest::SuggestDeflectionBehavior { .. }
         | AiRequest::SuggestBehavioralTells { .. } => {
             // These are legacy/creator utilities; gate behind DM for now.
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let Some(world_uuid) = conn_info.world_id else {
                 return Err(ServerMessage::Response {
@@ -453,6 +497,8 @@ pub(super) async fn handle_ai_request(
                     role,
                 } => {
                     let npc_id_typed = parse_character_id(&npc_id)?;
+                    // Convert protocol role to domain role
+                    let domain_role = proto_role_to_domain(role);
                     state
                         .app
                         .use_cases
@@ -463,15 +509,18 @@ pub(super) async fn handle_ai_request(
                             npc_id_typed,
                             want_id,
                             target_id,
-                            role,
+                            domain_role,
                         )
                         .await
                 }
-                _ => unreachable!(),
+                _ => unreachable!("outer match arm only matches suggestion variants"),
             }
             .map_err(|e| ServerMessage::Response {
                 request_id: request_id.to_string(),
-                result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                result: ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "suggest AI content"),
+                ),
             })?;
 
             // Best-effort broadcast to world so the queue UI can update.
@@ -492,11 +541,6 @@ pub(super) async fn handle_ai_request(
                 "status": "queued",
             })))
         }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-        }
     }
 }
 
@@ -515,9 +559,7 @@ pub(super) async fn handle_expression_request(
             style_prompt,
         } => {
             // DM-only for now.
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_uuid = match Uuid::parse_str(&character_id) {
                 Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
@@ -535,13 +577,63 @@ pub(super) async fn handle_expression_request(
             let (cols, rows) = match grid_layout {
                 Some(s) if !s.trim().is_empty() => {
                     let parts: Vec<&str> = s.split('x').collect();
-                    if parts.len() == 2 {
-                        let c = parts[0].trim().parse::<u32>().unwrap_or(4);
-                        let r = parts[1].trim().parse::<u32>().unwrap_or(4);
-                        (c.max(1), r.max(1))
-                    } else {
-                        (4, 4)
+                    if parts.len() != 2 {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                format!("Invalid grid_layout format '{}': expected 'COLSxROWS' (e.g., '4x4')", s),
+                            ),
+                        });
                     }
+                    let c =
+                        parts[0]
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|e| ServerMessage::Response {
+                                request_id: request_id.to_string(),
+                                result: ResponseResult::error(
+                                    ErrorCode::BadRequest,
+                                    format!(
+                                        "Invalid grid_layout columns '{}': must be a positive integer: {}",
+                                        parts[0].trim(), e
+                                    ),
+                                ),
+                            })?;
+                    let r =
+                        parts[1]
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|e| ServerMessage::Response {
+                                request_id: request_id.to_string(),
+                                result: ResponseResult::error(
+                                    ErrorCode::BadRequest,
+                                    format!(
+                                    "Invalid grid_layout rows '{}': must be a positive integer: {}",
+                                    parts[1].trim(),
+                                    e
+                                ),
+                                ),
+                            })?;
+                    if c == 0 || r == 0 {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                "Invalid grid_layout: columns and rows must be at least 1",
+                            ),
+                        });
+                    }
+                    if c > MAX_GRID_SIZE || r > MAX_GRID_SIZE {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                format!("Grid size exceeds maximum (max {}x{})", MAX_GRID_SIZE, MAX_GRID_SIZE),
+                            ),
+                        });
+                    }
+                    (c, r)
                 }
                 _ => (4, 4),
             };
@@ -571,7 +663,10 @@ pub(super) async fn handle_expression_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "queue expression sheet generation"),
+                    ),
                 })?;
 
             Ok(ResponseResult::success(serde_json::json!({

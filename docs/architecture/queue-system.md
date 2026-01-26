@@ -266,7 +266,7 @@ SQLite persistence enables recovery after restart:
 
 | File                                            | Purpose                                                              |
 | ----------------------------------------------- | -------------------------------------------------------------------- |
-| `crates/domain/src/value_objects/queue_data.rs` | Queue payload value objects (PlayerActionData, LlmRequestData, etc.) |
+| `crates/engine/src/queue_types.rs` | Queue payload DTOs (PlayerActionData, LlmRequestData, etc.) |
 
 ### Engine Layer
 

@@ -1,28 +1,34 @@
+// Join world - types for future join flow
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
-use serde_json::Value;
+use crate::infrastructure::ports::{
+    CharacterRepo, LocationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
+};
+use wrldbldr_domain::{PlayerCharacterId, SceneId, WorldId, WorldRole};
 
-use crate::entities::{Character, Location, PlayerCharacter, Scene, World};
-use crate::infrastructure::ports::RepoError;
-use wrldbldr_protocol::WorldRole as ProtoWorldRole;
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use super::types::{
+    CharacterSummary, LocationSummary, PlayerCharacterSummary, SceneSummary, WorldSnapshot,
+    WorldSummary,
+};
 
 /// Use case for joining a world and building the session snapshot.
 pub struct JoinWorld {
-    world: Arc<World>,
-    location: Arc<Location>,
-    character: Arc<Character>,
-    scene: Arc<Scene>,
-    player_character: Arc<PlayerCharacter>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    scene: Arc<dyn SceneRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
 }
 
 impl JoinWorld {
     pub fn new(
-        world: Arc<World>,
-        location: Arc<Location>,
-        character: Arc<Character>,
-        scene: Arc<Scene>,
-        player_character: Arc<PlayerCharacter>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        scene: Arc<dyn SceneRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
     ) -> Self {
         Self {
             world,
@@ -43,77 +49,114 @@ impl JoinWorld {
             .world
             .get(world_id)
             .await?
-            .ok_or(JoinWorldError::WorldNotFound)?;
+            .ok_or(JoinWorldError::WorldNotFound(world_id))?;
 
-        let locations = self
-            .location
-            .list_in_world(world_id)
-            .await
-            .unwrap_or_default();
-        let characters = self
-            .character
-            .list_in_world(world_id)
-            .await
-            .unwrap_or_default();
-        let current_scene = self.scene.get_current(world_id).await.unwrap_or(None);
+        let locations = self.location.list_locations_in_world(world_id, None, None).await?;
+        let characters = self.character.list_in_world(world_id, None, None).await?;
+        let current_scene = self.scene.get_current(world_id).await?;
 
-        let current_scene_json = current_scene.as_ref().map(|scene| {
-            let featured = scene
-                .featured_characters
+        // Build scene summary
+        let current_scene_summary = if let Some(scene) = current_scene.as_ref() {
+            // Get location via graph edge
+            let location_id = self
+                .scene
+                .get_location(scene.id())
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        scene_id = ?scene.id(),
+                        error = %e,
+                        "Failed to fetch scene location"
+                    );
+                    JoinWorldError::Repo(e)
+                })?
+                .ok_or_else(|| {
+                    tracing::error!(
+                        scene_id = ?scene.id(),
+                        "Scene has no location - data integrity error"
+                    );
+                    JoinWorldError::SceneHasNoLocation(scene.id())
+                })?;
+
+            // Get featured characters via graph edge
+            let featured_characters: Vec<String> = self
+                .scene
+                .get_featured_characters(scene.id())
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::warn!(
+                        scene_id = ?scene.id(),
+                        error = %e,
+                        "Failed to fetch featured characters, using empty list"
+                    );
+                    Vec::new()
+                })
                 .iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>();
+                .map(|sc| sc.character_id.to_string())
+                .collect();
 
-            serde_json::json!({
-                "id": scene.id.to_string(),
-                "name": scene.name,
-                "location_id": scene.location_id.to_string(),
-                "time_context": format!("{:?}", scene.time_context),
-                "backdrop_override": scene.backdrop_override,
-                "featured_characters": featured,
-                "directorial_notes": scene.directorial_notes,
+            Some(SceneSummary {
+                id: scene.id(),
+                name: scene.name().to_string(),
+                location_id,
+                time_context: format!("{:?}", scene.time_context()),
+                backdrop_override: scene.backdrop_override().map(|s| s.to_string()),
+                featured_characters,
+                directorial_notes: {
+                    let notes = scene.directorial_notes();
+                    if notes.is_empty() {
+                        None
+                    } else {
+                        Some(notes.to_string())
+                    }
+                },
             })
-        });
+        } else {
+            None
+        };
 
-        let scenes_json = current_scene_json
-            .as_ref()
-            .map(|s| vec![s.clone()])
-            .unwrap_or_else(Vec::new);
+        let scenes = current_scene_summary
+            .clone()
+            .map(|s| vec![s])
+            .unwrap_or_default();
 
-        let snapshot = serde_json::json!({
-            "world": {
-                "id": world.id.to_string(),
-                "name": world.name,
-                "description": world.description,
-                "rule_system": world.rule_system,
-                "created_at": world.created_at.to_rfc3339(),
-                "updated_at": world.updated_at.to_rfc3339(),
+        // Build typed snapshot
+        let snapshot = WorldSnapshot {
+            world: WorldSummary {
+                id: world.id(),
+                name: world.name().as_str().to_string(),
+                description: world.description().as_str().to_string(),
+                rule_system: world.rule_system().name.clone(),
+                created_at: world.created_at(),
+                updated_at: world.updated_at(),
             },
-            "locations": locations.into_iter().map(|loc| {
-                serde_json::json!({
-                    "id": loc.id.to_string(),
-                    "name": loc.name,
-                    "description": loc.description,
-                    "location_type": format!("{:?}", loc.location_type),
-                    "backdrop_asset": loc.backdrop_asset,
-                    "parent_id": null,
+            locations: locations
+                .into_iter()
+                .map(|loc| LocationSummary {
+                    id: loc.id(),
+                    name: loc.name().as_str().to_string(),
+                    description: loc.description().as_str().to_string(),
+                    location_type: format!("{:?}", loc.location_type()),
+                    backdrop_asset: loc.backdrop_asset().map(|s| s.to_string()),
+                    parent_id: None,
                 })
-            }).collect::<Vec<_>>(),
-            "characters": characters.into_iter().map(|c| {
-                serde_json::json!({
-                    "id": c.id.to_string(),
-                    "name": c.name,
-                    "description": c.description,
-                    "archetype": format!("{:?}", c.current_archetype),
-                    "sprite_asset": c.sprite_asset,
-                    "portrait_asset": c.portrait_asset,
-                    "is_alive": c.is_alive,
-                    "is_active": c.is_active,
+                .collect(),
+            characters: characters
+                .into_iter()
+                .map(|c| CharacterSummary {
+                    id: c.id(),
+                    name: c.name().to_string(),
+                    description: c.description().as_str().to_string(),
+                    archetype: format!("{:?}", c.current_archetype()),
+                    sprite_asset: c.sprite_asset().map(|s| s.to_string()),
+                    portrait_asset: c.portrait_asset().map(|s| s.to_string()),
+                    is_alive: c.is_alive(),
+                    is_active: c.is_active(),
                 })
-            }).collect::<Vec<_>>(),
-            "scenes": scenes_json,
-            "current_scene": current_scene_json,
-        });
+                .collect(),
+            scenes,
+            current_scene: current_scene_summary,
+        };
 
         let your_pc = if include_pc {
             self.load_pc(pc_id).await
@@ -131,27 +174,30 @@ impl JoinWorld {
     pub async fn execute_with_role(
         &self,
         world_id: WorldId,
-        role: ProtoWorldRole,
+        role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
     ) -> Result<JoinWorldResult, JoinWorldError> {
-        let include_pc = matches!(role, ProtoWorldRole::Player);
+        let include_pc = matches!(role, WorldRole::Player);
         self.execute(world_id, pc_id, include_pc).await
     }
 
-    async fn load_pc(&self, pc_id: Option<PlayerCharacterId>) -> Option<Value> {
+    async fn load_pc(&self, pc_id: Option<PlayerCharacterId>) -> Option<PlayerCharacterSummary> {
         let pc_id = pc_id?;
         match self.player_character.get(pc_id).await {
-            Ok(Some(pc)) => Some(serde_json::json!({
-                "id": pc.id.to_string(),
-                "name": pc.name,
-                "description": pc.description,
-                "portrait_asset": pc.portrait_asset,
-                "sprite_asset": pc.sprite_asset,
-                "current_location_id": pc.current_location_id.to_string(),
-                "current_region_id": pc.current_region_id.map(|id| id.to_string()),
-            })),
+            Ok(Some(pc)) => Some(PlayerCharacterSummary {
+                id: pc.id(),
+                name: pc.name().to_string(),
+                description: pc.description().map(|s| s.to_string()),
+                portrait_asset: pc.portrait_asset().map(|s| s.to_string()),
+                sprite_asset: pc.sprite_asset().map(|s| s.to_string()),
+                current_location_id: pc.current_location_id(),
+                current_region_id: pc.current_region_id(),
+            }),
             Ok(None) => None,
-            Err(_) => None,
+            Err(e) => {
+                tracing::warn!(pc_id = ?pc_id, error = %e, "Failed to load PC for session");
+                None
+            }
         }
     }
 }
@@ -159,14 +205,16 @@ impl JoinWorld {
 #[derive(Debug, Clone)]
 pub struct JoinWorldResult {
     pub world_id: WorldId,
-    pub snapshot: Value,
-    pub your_pc: Option<Value>,
+    pub snapshot: WorldSnapshot,
+    pub your_pc: Option<PlayerCharacterSummary>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum JoinWorldError {
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
+    #[error("Scene has no location: {0}")]
+    SceneHasNoLocation(SceneId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

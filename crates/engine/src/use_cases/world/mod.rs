@@ -1,3 +1,6 @@
+// World management - variants for future export features
+#![allow(dead_code)]
+
 //! World management use cases.
 //!
 //! Handles world export and import for backup/sharing.
@@ -5,8 +8,8 @@
 use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
-use crate::entities::{Character, Inventory, Location, Narrative, World};
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{CharacterRepo, ItemRepo, LocationRepo, RepoError, WorldRepo};
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Container for world use cases.
 pub struct WorldUseCases {
@@ -43,20 +46,20 @@ pub struct WorldExport {
 ///
 /// Exports a world and all its contents to a portable format.
 pub struct ExportWorld {
-    world: Arc<World>,
-    location: Arc<Location>,
-    character: Arc<Character>,
-    inventory: Arc<Inventory>,
-    narrative: Arc<Narrative>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    inventory: Arc<dyn ItemRepo>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl ExportWorld {
     pub fn new(
-        world: Arc<World>,
-        location: Arc<Location>,
-        character: Arc<Character>,
-        inventory: Arc<Inventory>,
-        narrative: Arc<Narrative>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        inventory: Arc<dyn ItemRepo>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             world,
@@ -84,17 +87,17 @@ impl ExportWorld {
             .ok_or(WorldError::NotFound)?;
 
         // Get all locations
-        let locations = self.location.list_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id, None, None).await?;
 
         // Get all regions
         let mut regions = Vec::new();
         for loc in &locations {
-            let loc_regions = self.location.list_regions_in_location(loc.id).await?;
+            let loc_regions = self.location.list_regions_in_location(loc.id(), None, None).await?;
             regions.extend(loc_regions);
         }
 
         // Get all characters
-        let characters = self.character.list_in_world(world_id).await?;
+        let characters = self.character.list_in_world(world_id, None, None).await?;
 
         // Get all items
         let items = self.inventory.list_in_world(world_id).await?;
@@ -109,7 +112,7 @@ impl ExportWorld {
             characters,
             items,
             narrative_events,
-            format_version: 1,
+            format_version: 2,
         })
     }
 }
@@ -118,20 +121,20 @@ impl ExportWorld {
 ///
 /// Imports a world from an exported format.
 pub struct ImportWorld {
-    world: Arc<World>,
-    location: Arc<Location>,
-    character: Arc<Character>,
-    inventory: Arc<Inventory>,
-    narrative: Arc<Narrative>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    inventory: Arc<dyn ItemRepo>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl ImportWorld {
     pub fn new(
-        world: Arc<World>,
-        location: Arc<Location>,
-        character: Arc<Character>,
-        inventory: Arc<Inventory>,
-        narrative: Arc<Narrative>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        inventory: Arc<dyn ItemRepo>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             world,
@@ -151,16 +154,16 @@ impl ImportWorld {
     /// * `Ok(WorldId)` - The ID of the imported world
     /// * `Err(WorldError)` - Import failed
     pub async fn execute(&self, data: WorldExport) -> Result<WorldId, WorldError> {
-        // Validate format version
-        if data.format_version > 1 {
-            return Err(WorldError::ImportFailed(format!(
-                "Unsupported format version: {}",
+        // Validate format version - only version 2 is supported
+        if data.format_version != 2 {
+            return Err(WorldError::NotSupported(format!(
+                "Unsupported format version: {}. Only version 2 is supported.",
                 data.format_version
             )));
         }
 
         // Create the world
-        let world_id = data.world.id;
+        let world_id = data.world.id();
         self.world.save(&data.world).await?;
 
         // Create locations
@@ -200,6 +203,8 @@ pub enum WorldError {
     ExportFailed(String),
     #[error("Import failed: {0}")]
     ImportFailed(String),
+    #[error("Unsupported format version: {0}")]
+    NotSupported(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

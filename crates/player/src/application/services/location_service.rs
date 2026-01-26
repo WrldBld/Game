@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{LocationRequest, RegionListItemData, RegionRequest, RequestPayload};
+use wrldbldr_shared::{LocationRequest, RegionListItemData, RegionRequest, RequestPayload};
 
 /// Location summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -24,25 +24,29 @@ pub struct LocationFormData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub location_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub atmosphere: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notable_features: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hidden_secrets: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_location_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub backdrop_asset: Option<String>,
     #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub location_type: Option<String>,
+    /// Setting/atmosphere of the location
+    #[serde(default)]
+    pub atmosphere: Option<String>,
+    #[serde(default)]
+    pub notable_features: Option<String>,
+    #[serde(default)]
+    pub hidden_secrets: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_location_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backdrop_asset: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub backdrop_regions: Vec<serde_json::Value>,
     /// Default TTL in hours for staging cache in this location (default: 4 hours)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub presence_cache_ttl_hours: Option<i32>,
+    /// Whether to use LLM for staging decisions in this location (default: true)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_llm_presence: Option<bool>,
 }
 
 /// Location connection data
@@ -66,26 +70,30 @@ fn default_bidirectional() -> bool {
 
 // From impls for protocol conversion at the boundary
 impl LocationFormData {
-    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationData {
-        wrldbldr_protocol::requests::CreateLocationData {
+    fn to_create_data(&self) -> wrldbldr_shared::requests::CreateLocationData {
+        wrldbldr_shared::requests::CreateLocationData {
             name: self.name.clone(),
             description: self.description.clone(),
             setting: self.atmosphere.clone(),
+            presence_cache_ttl_hours: self.presence_cache_ttl_hours,
+            use_llm_presence: self.use_llm_presence,
         }
     }
 
-    fn to_update_data(&self) -> wrldbldr_protocol::requests::UpdateLocationData {
-        wrldbldr_protocol::requests::UpdateLocationData {
+    fn to_update_data(&self) -> wrldbldr_shared::requests::UpdateLocationData {
+        wrldbldr_shared::requests::UpdateLocationData {
             name: Some(self.name.clone()),
             description: self.description.clone(),
             setting: self.atmosphere.clone(),
+            presence_cache_ttl_hours: self.presence_cache_ttl_hours,
+            use_llm_presence: self.use_llm_presence,
         }
     }
 }
 
 impl ConnectionData {
-    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationConnectionData {
-        wrldbldr_protocol::requests::CreateLocationConnectionData {
+    fn to_create_data(&self) -> wrldbldr_shared::requests::CreateLocationConnectionData {
+        wrldbldr_shared::requests::CreateLocationConnectionData {
             from_id: self.from_location_id.clone(),
             to_id: self.to_location_id.clone(),
             bidirectional: Some(self.bidirectional),
@@ -93,7 +101,7 @@ impl ConnectionData {
     }
 }
 
-// RegionListItemData and MapBoundsData are imported from wrldbldr_protocol
+// RegionListItemData and MapBoundsData are imported from wrldbldr_shared
 
 /// Location service for managing locations
 ///
@@ -121,6 +129,8 @@ impl LocationService {
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::ListLocations {
                     world_id: world_id.to_string(),
+                    limit: None,
+                    offset: None,
                 }),
                 get_request_timeout_ms(),
             )
@@ -204,6 +214,7 @@ impl LocationService {
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::GetLocationConnections {
                     location_id: location_id.to_string(),
+                    limit: None,
                 }),
                 get_request_timeout_ms(),
             )
@@ -235,6 +246,8 @@ impl LocationService {
             .request_with_timeout(
                 RequestPayload::Region(RegionRequest::ListRegions {
                     location_id: location_id.to_string(),
+                    limit: None,
+                    offset: None,
                 }),
                 get_request_timeout_ms(),
             )

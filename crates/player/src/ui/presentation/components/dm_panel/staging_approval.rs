@@ -28,6 +28,10 @@ pub struct StagingApprovalResult {
     pub ttl_hours: i32,
     /// How this was finalized: "rule", "llm", "custom", "previous"
     pub source: String,
+    /// Selected location state ID (None = use default or no override)
+    pub location_state_id: Option<String>,
+    /// Selected region state ID (None = use default or no override)
+    pub region_state_id: Option<String>,
 }
 
 /// Data emitted when regeneration is requested
@@ -53,6 +57,10 @@ pub struct StagingApprovalPopupProps {
 /// StagingApprovalPopup - DM UI for approving NPC presence
 #[component]
 pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
+    // Pre-format game time for display (avoids move issues in rsx!)
+    let game_time_display =
+        crate::presentation::game_time_format::display_date(&props.data.game_time);
+
     // Initialize NPC selections from both rule and LLM sources
     let initial_selections: Vec<NpcSelection> = {
         let mut selections = Vec::new();
@@ -99,6 +107,58 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     let mut regenerate_guidance = use_signal(String::new);
     let mut source_type = use_signal(|| "custom".to_string());
 
+    // Visual state selection - initialize from resolved visual state
+    let initial_location_state_id = props
+        .data
+        .resolved_visual_state
+        .as_ref()
+        .and_then(|v| v.location_state.as_ref())
+        .map(|s| s.id.clone());
+    let initial_region_state_id = props
+        .data
+        .resolved_visual_state
+        .as_ref()
+        .and_then(|v| v.region_state.as_ref())
+        .map(|s| s.id.clone());
+
+    let mut selected_location_state = use_signal(|| initial_location_state_id);
+    let mut selected_region_state = use_signal(|| initial_region_state_id);
+
+    // Clone available states for use in memo (avoid borrow conflicts with rsx)
+    let available_location_states = props.data.available_location_states.clone();
+    let available_region_states = props.data.available_region_states.clone();
+
+    // Validation: Check if selected state IDs are in available options
+    let validation_error = use_memo(move || {
+        let loc_error = selected_location_state.read().as_ref().and_then(|sel_id| {
+            if available_location_states
+                .iter()
+                .any(|opt| opt.id == *sel_id)
+            {
+                None // Valid, no error
+            } else {
+                Some(format!("Invalid location state: {}", sel_id))
+            }
+        });
+
+        let reg_error = selected_region_state.read().as_ref().and_then(|sel_id| {
+            if available_region_states.iter().any(|opt| opt.id == *sel_id) {
+                None // Valid, no error
+            } else {
+                Some(format!("Invalid region state: {}", sel_id))
+            }
+        });
+
+        match (loc_error, reg_error) {
+            (Some(e), None) => Some(e),
+            (None, Some(e)) => Some(e),
+            (Some(e1), Some(e2)) => Some(format!("{}; {}", e1, e2)),
+            (None, None) => None,
+        }
+    });
+
+    let is_selection_valid = validation_error.read().is_none();
+
     // Update selections when data changes (e.g., after regeneration)
     use_effect({
         let llm_npcs = props.data.llm_based_npcs.clone();
@@ -124,7 +184,13 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     let handle_approve = {
         let request_id = props.data.request_id.clone();
         let on_approve = props.on_approve;
+        let selection_valid = is_selection_valid;
         move |_| {
+            // Prevent approval if validation fails
+            if !selection_valid {
+                return;
+            }
+
             let approved: Vec<(String, bool, bool)> = selections
                 .read()
                 .iter()
@@ -142,6 +208,8 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                 approved_npcs: approved,
                 ttl_hours: *ttl_hours.read(),
                 source: source_type.read().clone(),
+                location_state_id: selected_location_state.read().clone(),
+                region_state_id: selected_region_state.read().clone(),
             });
         }
     };
@@ -169,6 +237,8 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                     approved_npcs: approved,
                     ttl_hours: *ttl_hours.read(),
                     source: "previous".to_string(),
+                    location_state_id: selected_location_state.read().clone(),
+                    region_state_id: selected_region_state.read().clone(),
                 });
             }
         }
@@ -215,7 +285,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                             }
                             p {
                                 class: "text-gray-400 text-sm m-0",
-                                "{props.data.location_name} - {crate::presentation::game_time_format::display_date(props.data.game_time)}"
+                                "{props.data.location_name} - {game_time_display}"
                             }
                         }
 
@@ -341,10 +411,139 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                                     "Regenerate"
                                 }
                             }
+                    }
+                }
+
+                // Visual State Selection
+                div {
+                    class: "mb-6",
+
+                    h3 {
+                        class: "text-lg font-semibold text-white mb-4",
+                        "Scene Appearance"
+                    }
+
+                    // Validation error display
+                    if let Some(ref error) = *validation_error.read() {
+                        div {
+                            class: "mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg",
+                            p {
+                                class: "text-red-300 text-sm m-0",
+                                "{error}"
+                            }
                         }
                     }
 
-                    // TTL Selection
+                    // Location State Dropdown
+                    div {
+                        class: "mb-4",
+
+                        label {
+                            class: "block text-gray-400 text-sm mb-2",
+                            "Location State"
+                        }
+
+                        select {
+                            class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                            value: match selected_location_state.read().as_ref() {
+                                Some(id) => id.as_str(),
+                                None => "",
+                            },
+                            onchange: move |e| {
+                                let value = e.value();
+                                selected_location_state.set(if value.is_empty() { None } else { Some(value) });
+                                source_type.set("custom".to_string());
+                            },
+
+                            option { value: "", "Default (auto-resolved)" }
+                            for opt in props.data.available_location_states.iter() {
+                                option {
+                                    value: "{opt.id}",
+                                    selected: selected_location_state.read().as_ref() == Some(&opt.id),
+                                    "{opt.name}"
+                                }
+                            }
+                        }
+
+                        // Match reason for resolved/default state
+                        if let Some(ref resolved) = props.data.resolved_visual_state {
+                            if let Some(ref loc_state) = resolved.location_state {
+                                if let Some(opt) = props.data.available_location_states
+                                    .iter()
+                                    .find(|o| o.id == loc_state.id)
+                                {
+                                    if let Some(ref reason) = opt.match_reason {
+                                        div {
+                                            class: "mt-1 text-xs text-gray-500 italic",
+                                            "{reason}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Region State Dropdown
+                    div {
+                        class: "mb-4",
+
+                        label {
+                            class: "block text-gray-400 text-sm mb-2",
+                            "Region State"
+                        }
+
+                        select {
+                            class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                            value: match selected_region_state.read().as_ref() {
+                                Some(id) => id.as_str(),
+                                None => "",
+                            },
+                            onchange: move |e| {
+                                let value = e.value();
+                                selected_region_state.set(if value.is_empty() { None } else { Some(value) });
+                                source_type.set("custom".to_string());
+                            },
+
+                            option { value: "", "Default (auto-resolved)" }
+                            for opt in props.data.available_region_states.iter() {
+                                option {
+                                    value: "{opt.id}",
+                                    selected: selected_region_state.read().as_ref() == Some(&opt.id),
+                                    "{opt.name}"
+                                }
+                            }
+                        }
+
+                        // Match reason for resolved/default state
+                        if let Some(ref resolved) = props.data.resolved_visual_state {
+                            if let Some(ref reg_state) = resolved.region_state {
+                                if let Some(opt) = props.data.available_region_states
+                                    .iter()
+                                    .find(|o| o.id == reg_state.id)
+                                {
+                                    if let Some(ref reason) = opt.match_reason {
+                                        div {
+                                            class: "mt-1 text-xs text-gray-500 italic",
+                                            "{reason}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Info note
+                    div {
+                        class: "p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg",
+
+                        p {
+                            class: "text-blue-300 text-sm m-0",
+                            "Visual state selection determines the backdrop image and atmosphere effects shown to players. Select 'Default' to use auto-resolved state based on time of day and rules."
+                        }
+                    }
+                }
+
+                // TTL Selection
                     div {
                         class: "mb-4",
 
@@ -396,8 +595,9 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                     // Right side: Approve button
                     button {
                         onclick: handle_approve,
-                        class: "px-6 py-3 bg-gradient-to-br from-green-500 to-green-600 text-white font-semibold rounded-lg hover:from-green-400 hover:to-green-500 transition-all",
-                        "Approve & Continue"
+                        disabled: !is_selection_valid,
+                        class: "px-6 py-3 bg-gradient-to-br from-green-500 to-green-600 text-white font-semibold rounded-lg hover:from-green-400 hover:to-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                        if !is_selection_valid { "Fix Errors to Approve" } else { "Approve & Continue" }
                     }
                 }
             }

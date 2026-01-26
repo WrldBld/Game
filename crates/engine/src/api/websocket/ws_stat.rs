@@ -3,17 +3,18 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
+use wrldbldr_domain::value_objects::{StatModifier, StatValue};
 use wrldbldr_domain::{self as domain, CharacterId, RuleSystemConfig, RuleSystemVariant};
-use wrldbldr_domain::entities::StatModifier;
-use wrldbldr_protocol::{ErrorCode, ResponseResult, StatRequest};
+use wrldbldr_shared::{ErrorCode, ResponseResult, StatRequest};
 
 /// Helper to fetch a character or return an appropriate error response.
 async fn get_character_or_error(
     state: &WsState,
     character_id: CharacterId,
 ) -> Result<domain::Character, ResponseResult> {
-    match state.app.entities.character.get(character_id).await {
+    match state.app.repositories.character.get(character_id).await {
         Ok(Some(character)) => Ok(character),
         Ok(None) => Err(ResponseResult::error(
             ErrorCode::NotFound,
@@ -21,7 +22,7 @@ async fn get_character_or_error(
         )),
         Err(e) => Err(ResponseResult::error(
             ErrorCode::InternalError,
-            e.to_string(),
+            sanitize_repo_error(&e, "getting character"),
         )),
     }
 }
@@ -33,11 +34,16 @@ async fn save_character_or_error(
 ) -> Result<(), ResponseResult> {
     state
         .app
-        .entities
+        .repositories
         .character
         .save(character)
         .await
-        .map_err(|e| ResponseResult::error(ErrorCode::InternalError, e.to_string()))
+        .map_err(|e| {
+            ResponseResult::error(
+                ErrorCode::InternalError,
+                sanitize_repo_error(&e, "saving character"),
+            )
+        })
 }
 
 pub(super) async fn handle_stat_request(
@@ -76,10 +82,10 @@ pub(super) async fn handle_stat_request(
             };
 
             // Validate value against rule system bounds if world has stat definitions
-            let final_value = match state.app.entities.world.get(character.world_id).await {
+            let final_value = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(world)) => {
                     // Find stat definition by name or abbreviation
-                    if let Some(stat_def) = world.rule_system.stat_definitions.iter().find(|s| {
+                    if let Some(stat_def) = world.rule_system().stat_definitions.iter().find(|s| {
                         s.name.eq_ignore_ascii_case(&stat_name)
                             || s.abbreviation.eq_ignore_ascii_case(&stat_name)
                     }) {
@@ -107,7 +113,7 @@ pub(super) async fn handle_stat_request(
                 }
             };
 
-            character.stats.set_stat(&stat_name, final_value);
+            character.set_stats(character.stats().clone().with_stat(&stat_name, final_value));
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -138,8 +144,13 @@ pub(super) async fn handle_stat_request(
             } else {
                 StatModifier::inactive(&data.source, data.value)
             };
-            let modifier_id = modifier.id;
-            character.stats.add_modifier(&data.stat_name, modifier);
+            let modifier_id = modifier.id();
+            character.set_stats(
+                character
+                    .stats()
+                    .clone()
+                    .with_modifier_added(&data.stat_name, modifier),
+            );
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -168,27 +179,33 @@ pub(super) async fn handle_stat_request(
         } => {
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-            let modifier_uuid = match Uuid::parse_str(&modifier_id) {
-                Ok(id) => id,
-                Err(_) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        "Invalid modifier ID format",
-                    ));
-                }
-            };
+            let modifier_id_typed: wrldbldr_domain::StatModifierId =
+                match Uuid::parse_str(&modifier_id) {
+                    Ok(id) => id.into(),
+                    Err(_) => {
+                        return Ok(ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid modifier ID format",
+                        ));
+                    }
+                };
 
             let mut character = match get_character_or_error(state, character_id_typed).await {
                 Ok(c) => c,
                 Err(resp) => return Ok(resp),
             };
 
-            if !character.stats.remove_modifier(&stat_name, modifier_uuid) {
+            let (new_stats, removed) = character
+                .stats()
+                .clone()
+                .with_modifier_removed(&stat_name, modifier_id_typed);
+            if !removed {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Modifier not found",
                 ));
             }
+            character.set_stats(new_stats);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -211,27 +228,33 @@ pub(super) async fn handle_stat_request(
         } => {
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-            let modifier_uuid = match Uuid::parse_str(&modifier_id) {
-                Ok(id) => id,
-                Err(_) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        "Invalid modifier ID format",
-                    ));
-                }
-            };
+            let modifier_id_typed: wrldbldr_domain::StatModifierId =
+                match Uuid::parse_str(&modifier_id) {
+                    Ok(id) => id.into(),
+                    Err(_) => {
+                        return Ok(ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid modifier ID format",
+                        ));
+                    }
+                };
 
             let mut character = match get_character_or_error(state, character_id_typed).await {
                 Ok(c) => c,
                 Err(resp) => return Ok(resp),
             };
 
-            if !character.stats.toggle_modifier(&stat_name, modifier_uuid) {
+            let (new_stats, toggled) = character
+                .stats()
+                .clone()
+                .with_modifier_toggled(&stat_name, modifier_id_typed);
+            if !toggled {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Modifier not found",
                 ));
             }
+            character.set_stats(new_stats);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -259,7 +282,7 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            character.stats.clear_modifiers(&stat_name);
+            character.set_stats(character.stats().clone().with_modifiers_cleared(&stat_name));
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -283,7 +306,7 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            character.stats.clear_all_modifiers();
+            character.set_stats(character.stats().clone().with_all_modifiers_cleared());
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -355,9 +378,11 @@ pub(super) async fn handle_stat_request(
             };
 
             // Initialize stats from the template defaults
+            let mut new_stats = character.stats().clone();
             for stat_def in &config.stat_definitions {
-                character.stats.set_stat(&stat_def.name, stat_def.default_value);
+                new_stats = new_stats.with_stat(&stat_def.name, stat_def.default_value);
             }
+            character.set_stats(new_stats);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -381,35 +406,35 @@ pub(super) async fn handle_stat_request(
 
 /// Convert character stats to JSON format for API response
 fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
-    let all_stats = character.stats.get_all_stats();
+    let all_stats = character.stats().get_all_stats();
     let stats_json: serde_json::Map<String, serde_json::Value> = all_stats
         .iter()
-        .map(|(name, value)| {
+        .map(|(name, value): (&String, &StatValue)| {
             (
                 name.clone(),
                 json!({
-                    "base": value.base,
-                    "modifier_total": value.modifier_total,
-                    "effective": value.effective,
+                    "base": value.base(),
+                    "modifier_total": value.modifier_total(),
+                    "effective": value.effective(),
                 }),
             )
         })
         .collect();
 
     let modifiers_json: serde_json::Map<String, serde_json::Value> = character
-        .stats
-        .modifiers
+        .stats()
+        .modifiers()
         .iter()
-        .map(|(stat_name, mods)| {
+        .map(|(stat_name, mods): (&String, &Vec<StatModifier>)| {
             (
                 stat_name.clone(),
                 json!(mods
                     .iter()
                     .map(|m| json!({
-                        "id": m.id.to_string(),
-                        "source": m.source,
-                        "value": m.value,
-                        "active": m.active,
+                        "id": m.id().to_string(),
+                        "source": m.source(),
+                        "value": m.value(),
+                        "active": m.is_active(),
                     }))
                     .collect::<Vec<_>>()),
             )
@@ -419,19 +444,19 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
     // Build HP info with base, modifiers, and effective values
     let hp_info = json!({
         "current_hp": {
-            "base": character.stats.get_base_current_hp(),
-            "modifier_total": character.stats.get_modifier_total("current_hp"),
-            "effective": character.stats.get_current_hp(),
+            "base": character.stats().get_base_current_hp(),
+            "modifier_total": character.stats().get_modifier_total("current_hp"),
+            "effective": character.stats().get_current_hp(),
         },
         "max_hp": {
-            "base": character.stats.get_base_max_hp(),
-            "modifier_total": character.stats.get_modifier_total("max_hp"),
-            "effective": character.stats.get_max_hp(),
+            "base": character.stats().get_base_max_hp(),
+            "modifier_total": character.stats().get_modifier_total("max_hp"),
+            "effective": character.stats().get_max_hp(),
         },
     });
 
     json!({
-        "character_id": character.id.to_string(),
+        "character_id": character.id().to_string(),
         "stats": stats_json,
         "modifiers": modifiers_json,
         "hp": hp_info,

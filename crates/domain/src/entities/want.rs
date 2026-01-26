@@ -37,7 +37,7 @@ pub enum WantVisibility {
 
 impl WantVisibility {
     /// Convert from legacy known_to_player bool
-    pub fn from_known_to_player(known: bool) -> Self {
+    pub fn from_storage(known: bool) -> Self {
         if known {
             WantVisibility::Known
         } else {
@@ -65,32 +65,52 @@ impl WantVisibility {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Want {
-    pub id: WantId,
+    id: WantId,
     /// Description of what the character wants
-    pub description: String,
+    description: String,
     /// Intensity of the want (0.0 = mild interest, 1.0 = obsession)
-    pub intensity: f32,
+    intensity: f32,
     /// How much the player knows about this want
-    pub visibility: WantVisibility,
+    visibility: WantVisibility,
     /// When this want was created
-    pub created_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
 
     // === Behavioral Guidance for Secret Wants ===
     /// How the NPC should behave when probed about this want (for Hidden/Suspected)
     /// Example: "Deflect with a sad smile; change subject to present dangers"
-    pub deflection_behavior: Option<String>,
+    deflection_behavior: Option<String>,
 
     /// Subtle behavioral tells that hint at this want
     /// Example: ["Avoids eye contact when past is mentioned", "Tenses at the word 'village'"]
-    pub tells: Vec<String>,
+    tells: Vec<String>,
 }
 
 impl Want {
-    pub fn new(description: impl Into<String>, now: DateTime<Utc>) -> Self {
+    /// Create a Want with explicit intensity.
+    ///
+    /// The intensity is clamped to the range 0.0..=1.0 where 0.0 represents
+    /// mild interest and 1.0 represents obsession.
+    ///
+    /// # Arguments
+    /// * `description` - A description of what the character wants
+    /// * `intensity` - How strongly the character wants this (0.0 to 1.0)
+    /// * `now` - The current timestamp for created_at
+    ///
+    /// # Example
+    /// ```ignore
+    /// use chrono::TimeZone;
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let want = Want::new_with_intensity("Avenge my father", 0.9, now);
+    /// ```
+    pub fn new_with_intensity(
+        description: impl Into<String>,
+        intensity: f32,
+        now: DateTime<Utc>,
+    ) -> Self {
         Self {
             id: WantId::new(),
             description: description.into(),
-            intensity: 0.5,
+            intensity: intensity.clamp(0.0, 1.0),
             visibility: WantVisibility::Hidden,
             created_at: now,
             deflection_behavior: None,
@@ -98,33 +118,109 @@ impl Want {
         }
     }
 
+    /// Create a new Want with default intensity (0.5).
+    ///
+    /// # Arguments
+    /// * `description` - A description of what the character wants
+    /// * `now` - The current timestamp for created_at
+    ///
+    /// # Example
+    /// ```ignore
+    /// use chrono::TimeZone;
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let want = Want::new("Find the ancient artifact", now);
+    /// ```
+    pub fn new(description: impl Into<String>, now: DateTime<Utc>) -> Self {
+        Self::new_with_intensity(description, 0.5, now)
+    }
+
+    // === Accessors ===
+
+    pub fn id(&self) -> WantId {
+        self.id
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn intensity(&self) -> f32 {
+        self.intensity
+    }
+
+    pub fn visibility(&self) -> WantVisibility {
+        self.visibility
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn deflection_behavior(&self) -> Option<&str> {
+        self.deflection_behavior.as_deref()
+    }
+
+    pub fn tells(&self) -> &[String] {
+        &self.tells
+    }
+
+    // === Builder Methods ===
+
+    /// Set the intensity of this want using builder pattern.
+    ///
+    /// The intensity is clamped to 0.0..=1.0.
     pub fn with_intensity(mut self, intensity: f32) -> Self {
         self.intensity = intensity.clamp(0.0, 1.0);
         self
     }
 
+    /// Set the visibility of this want using builder pattern.
     pub fn with_visibility(mut self, visibility: WantVisibility) -> Self {
         self.visibility = visibility;
         self
     }
 
+    /// Mark this want as known to the player using builder pattern.
     pub fn known(mut self) -> Self {
         self.visibility = WantVisibility::Known;
         self
     }
 
+    /// Set the deflection behavior for when the NPC is probed about this want.
+    ///
+    /// This is used for Hidden/Suspected wants to guide NPC behavior.
     pub fn with_deflection(mut self, behavior: impl Into<String>) -> Self {
         self.deflection_behavior = Some(behavior.into());
         self
     }
 
+    /// Set the behavioral tells that hint at this want.
     pub fn with_tells(mut self, tells: Vec<String>) -> Self {
         self.tells = tells;
         self
     }
 
+    /// Add a single behavioral tell to this want.
     pub fn add_tell(mut self, tell: impl Into<String>) -> Self {
         self.tells.push(tell.into());
+        self
+    }
+
+    /// Set the ID of this want (for reconstitution from storage).
+    pub fn with_id(mut self, id: WantId) -> Self {
+        self.id = id;
+        self
+    }
+
+    /// Set the description of this want.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    /// Set the created_at timestamp (for reconstitution from storage).
+    pub fn with_created_at(mut self, created_at: DateTime<Utc>) -> Self {
+        self.created_at = created_at;
         self
     }
 
@@ -168,14 +264,21 @@ impl CharacterWant {
         }
     }
 
+    // === Builder Methods ===
+
+    pub fn with_priority(mut self, priority: u32) -> Self {
+        self.priority = priority;
+        self
+    }
+
     /// Check if this want is visible to player
     pub fn is_known(&self) -> bool {
-        self.want.visibility.is_known()
+        self.want.visibility().is_known()
     }
 
     /// Check if player has some awareness
     pub fn is_at_least_suspected(&self) -> bool {
-        self.want.visibility.is_at_least_suspected()
+        self.want.visibility().is_at_least_suspected()
     }
 }
 
@@ -227,5 +330,12 @@ impl ActantialView {
             reason: reason.into(),
             assigned_at: now,
         }
+    }
+
+    // === Builder Methods ===
+
+    pub fn with_reason(mut self, reason: impl Into<String>) -> Self {
+        self.reason = reason.into();
+        self
     }
 }

@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-19T14:10:32.240256+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "de40cd3f155a3bf0a04ff16d89a388319d68affdfbb9028c8a8b5d7ce4706efa": [
+      {
+        "fingerprint": "de40cd3f155a3bf0a04ff16d89a388319d68affdfbb9028c8a8b5d7ce4706efa",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if NPC's response is relevant and appropriate to what the player asked. Player asked: \"Please give me that old map you mentioned. I really need it.\" NPC responded: \"*calm* 'Here you go, dear. This map should guide you straight to the Old Mill.' *hand over*\"\n\nThe NPC gave the map, presumably the old map. The response is relevant and appropriate. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T14:11:09.802965+00:00"
+      }
+    ],
+    "2bc051590ff110c2c96ad8797d9d49e87e3a3fd6227bd8440a32f6f6d2c8fc0c": [
+      {
+        "fingerprint": "2bc051590ff110c2c96ad8797d9d49e87e3a3fd6227bd8440a32f6f6d2c8fc0c",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 2...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to respond as Marta Hearthwood. She is a mentor, friendly, calm. Player: No Items Player asks for old map. We need to give the map presumably. We need to consider challenges and events triggered.\n\nCheck challenges:\n\n- Investigate the Mill Basement [CHAL_0] triggered by nothing: player didn't mention any keywords. So NO.\n\n- Expose Vera's True Intentions [CHAL_1] triggered by pc_mentions: [\"Vera\", \"merchant\", \"suspicious\", \"questions\", \"mill\"]. Player didn't mention. So NO.\n\n- Decipher the Ritual Journal [CHAL_2] triggered by interacts_with: [\"journal\", \"book\", \"tome\", \"ritual journal\"]. Player didn't interact. NO.\n\n- Calm Old Tom's Ravings [CHAL_3] triggered by pc_mentions: [\"mill\", \"family\", \"accident\", \"twenty years\", \"what happened\"]. No mention. NO.\n\n- Convince Grom to Share His Past [CHAL_4] triggered by pc_mentions: [\"adventure\", \"past\", \"shadow\", \"cavern\", \"party\", \"loss\"]. No mention. NO.\n\nSo no challenge triggered.\n\nEvents:\n\n- The Stranger's Warning [EVT_0]: triggered_by: none? Actually it's triggered by ... not listed. No mention. So NO.\n\n- Marta's Knowledge [EVT_1]: triggered_by: pc_mentions: [\"mill\", \"old mill\", \"what happened\", \"twenty years\"], custom: [\"flag set: accepted_shadow_quest\"]. Player didn't mention any of those. So NO.\n\n- Marta Shares Local Rumors [EVT_2]: triggered_by: pc_mentions: [\"rumors\", \"gossip\", \"strange happenings\", \"news\", \"heard anything\"]. Player didn't mention. So NO.\n\nThus no event triggered.\n\nWe will give the map.\n\nWe need to produce <dialogue> with expression markers? Use *expression* maybe *calm*. Use *action* maybe *hand over*.\n\nWe can also use tool call give_item to give map.\n\nWe need to keep response concise 1-3 sentences. Use expression markers.\n\nWe need to include <challenge_analysis> and <event> blocks for each active challenge and event. All show trigger NO.\n\nWe need to include <topics> with key topics like request_for_help, quest_information.\n\nAlso <suggested_beats> optional.\n\nOk.\n\nWrite <reasoning> first.\n\nThen <dialogue>.\n\nThen <topics>.\n\nThen <suggested_beats>.\n\nThen <challenge_analysis> blocks for each challenge.\n\nThen <event> blocks for each event.\n\nWe need to include tool call give_item.\n\nWe should include maybe <tool name=\"give_item\">{\"item_name\":\"Old Map\",\"description\":\"A faded parchment showing the route to the Old Mill\"} </tool>.\n\nOk. Let's do.\n\nCheck expression list: We can use *calm*.\n\nAdd *hand over* action.\n\nLet's produce.<|end|><|start|>assistant<|channel|>final<|message|><reasoning>\nMarta is a calm mentor who always helps those in need. The player simply requests the old map she mentioned, so she will comply and hand it over. No challenges or events are triggered by this request. The response should be friendly, brief, and include a tool call to give the item.\n</reasoning>\n\n<dialogue>\n*calm* \"Here you go, dear. This map should guide you straight to the Old Mill.\" *hand over*\n</dialogue>\n\n<topics>\nrequest_for_help\nquest_information\n</topics>\n\n<suggested_beats>\n* Prepare the player for a potential investigation of the mill once they use the map. *\n* Hint at hidden dangers or secrets that may lie beyond the obvious path. *\n</suggested_beats>\n\n<challenge_analysis>\n<challenge name=\"Investigate the Mill Basement\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Expose Vera's True Intentions\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Decipher the Ritual Journal\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Calm Old Tom's Ravings\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Convince Grom to Share His Past\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n</challenge_analysis>\n\n<event>\n<event name=\"The Stranger's Warning\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta's Knowledge\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta Shares Local Rumors\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n</event>\n\n<tool name=\"give_item\">{\"item_name\":\"Old Map\",\"description\":\"A faded parchment depicting the route to the Old Mill\"}</tool>",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T14:11:06.435239+00:00"
+      }
+    ]
+  }
+}

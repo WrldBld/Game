@@ -1,11 +1,20 @@
 //! Staging context - Data passed to LLM for staging decisions
 //!
 //! This captures the story context needed for intelligent NPC presence decisions.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - Most types in this module are
+//!   simple data structs with public fields for LLM context.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use crate::CharacterId;
 
 /// Complete context for staging decisions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,7 +45,7 @@ pub struct ActiveEventContext {
 /// Context about recent dialogues with an NPC
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NpcDialogueContext {
-    pub character_id: Uuid,
+    pub character_id: CharacterId,
     pub character_name: String,
     pub last_dialogue_summary: String,
     pub game_time_of_dialogue: String,
@@ -46,7 +55,7 @@ pub struct NpcDialogueContext {
 /// Rule-based NPC presence suggestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleBasedSuggestion {
-    pub character_id: Uuid,
+    pub character_id: CharacterId,
     pub character_name: String,
     pub is_present: bool,
     pub reasoning: String,
@@ -59,6 +68,17 @@ pub struct RollResult {
     pub chance_percent: u8,
     pub rolled: u8,
     pub passed: bool,
+}
+
+impl RollResult {
+    /// Create a new roll result
+    pub fn new(chance_percent: u8, rolled: u8) -> Self {
+        Self {
+            chance_percent,
+            rolled,
+            passed: rolled <= chance_percent,
+        }
+    }
 }
 
 impl StagingContext {
@@ -81,17 +101,24 @@ impl StagingContext {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Set the active events
     pub fn with_active_events(mut self, events: Vec<ActiveEventContext>) -> Self {
         self.active_events = events;
         self
     }
 
+    /// Set the NPC dialogues
     pub fn with_npc_dialogues(mut self, dialogues: Vec<NpcDialogueContext>) -> Self {
         self.npc_dialogues = dialogues;
         self
     }
 
-    pub fn add_context(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+    /// Add additional context
+    pub fn with_context(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.additional_context.insert(key.into(), value.into());
         self
     }
@@ -113,7 +140,7 @@ impl ActiveEventContext {
 
 impl NpcDialogueContext {
     pub fn new(
-        character_id: Uuid,
+        character_id: CharacterId,
         character_name: impl Into<String>,
         last_dialogue_summary: impl Into<String>,
         game_time_of_dialogue: impl Into<String>,
@@ -127,6 +154,11 @@ impl NpcDialogueContext {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Set the mentioned locations
     pub fn with_mentioned_locations(mut self, locations: Vec<String>) -> Self {
         self.mentioned_locations = locations;
         self
@@ -135,7 +167,7 @@ impl NpcDialogueContext {
 
 impl RuleBasedSuggestion {
     pub fn present(
-        character_id: Uuid,
+        character_id: CharacterId,
         character_name: impl Into<String>,
         reasoning: impl Into<String>,
     ) -> Self {
@@ -149,7 +181,7 @@ impl RuleBasedSuggestion {
     }
 
     pub fn absent(
-        character_id: Uuid,
+        character_id: CharacterId,
         character_name: impl Into<String>,
         reasoning: impl Into<String>,
     ) -> Self {
@@ -162,12 +194,13 @@ impl RuleBasedSuggestion {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Add a roll result
     pub fn with_roll(mut self, chance_percent: u8, rolled: u8) -> Self {
-        self.roll_result = Some(RollResult {
-            chance_percent,
-            rolled,
-            passed: rolled <= chance_percent,
-        });
+        self.roll_result = Some(RollResult::new(chance_percent, rolled));
         self
     }
 }

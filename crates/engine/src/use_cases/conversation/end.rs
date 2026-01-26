@@ -1,3 +1,6 @@
+// End conversation - methods for future use
+#![allow(dead_code)]
+
 //! End conversation use case.
 //!
 //! Handles ending a conversation between a player character and an NPC.
@@ -5,11 +8,10 @@
 //! is responsible for broadcasting to clients.
 
 use std::sync::Arc;
-use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId};
+use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId};
 
-use crate::entities::{Character, Narrative, PlayerCharacter};
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{CharacterRepo, PlayerCharacterRepo, RepoError};
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Result of ending a conversation.
 #[derive(Debug, Clone)]
@@ -23,7 +25,7 @@ pub struct ConversationEnded {
     /// Optional summary of the conversation
     pub summary: Option<String>,
     /// The conversation ID that was ended (if any)
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 /// End conversation use case.
@@ -37,16 +39,16 @@ pub struct ConversationEnded {
 /// - Notify any listeners/subscribers that the conversation has ended
 /// - Update NPC disposition based on conversation outcome
 pub struct EndConversation {
-    character: Arc<Character>,
-    player_character: Arc<PlayerCharacter>,
-    narrative: Arc<Narrative>,
+    character: Arc<dyn CharacterRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl EndConversation {
     pub fn new(
-        character: Arc<Character>,
-        player_character: Arc<PlayerCharacter>,
-        narrative: Arc<Narrative>,
+        character: Arc<dyn CharacterRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             character,
@@ -76,22 +78,19 @@ impl EndConversation {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(EndConversationError::PlayerCharacterNotFound)?;
+            .ok_or(EndConversationError::PlayerCharacterNotFound(pc_id))?;
 
         // 2. Get the NPC
         let npc = self
             .character
             .get(npc_id)
             .await?
-            .ok_or(EndConversationError::NpcNotFound)?;
+            .ok_or(EndConversationError::NpcNotFound(npc_id))?;
 
         // 3. End the active conversation tracking (clear active conversation state)
         // This atomically finds and ends the active conversation between PC and NPC
-        let ended_conversation_id = match self
-            .narrative
-            .end_active_conversation(pc_id, npc_id)
-            .await
-        {
+        // Fail-fast: propagate errors to ensure consistent state
+        let ended_conversation_id = match self.narrative.end_active_conversation(pc_id, npc_id).await {
             Ok(id) => {
                 if let Some(conv_id) = &id {
                     tracing::info!(
@@ -110,32 +109,25 @@ impl EndConversation {
                 id
             }
             Err(e) => {
-                // Log but don't fail - the conversation end should still succeed
-                // even if we can't update the tracking state
-                tracing::warn!(
-                    error = %e,
-                    pc_id = %pc_id,
-                    npc_id = %npc_id,
-                    "Failed to end active conversation tracking, proceeding anyway"
-                );
-                None
+                // Fail-fast: don't allow conversation to proceed if tracking update fails
+                return Err(EndConversationError::Repo(e));
             }
         };
 
         tracing::info!(
             pc_id = %pc_id,
-            pc_name = %pc.name,
+            pc_name = %pc.name().as_str(),
             npc_id = %npc_id,
-            npc_name = %npc.name,
+            npc_name = %npc.name(),
             conversation_id = ?ended_conversation_id,
             "Conversation ended"
         );
 
         Ok(ConversationEnded {
             npc_id,
-            npc_name: npc.name,
+            npc_name: npc.name().to_string(),
             pc_id,
-            pc_name: pc.name,
+            pc_name: pc.name().to_string(),
             summary,
             conversation_id: ended_conversation_id,
         })
@@ -144,10 +136,10 @@ impl EndConversation {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EndConversationError {
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
-    #[error("NPC not found")]
-    NpcNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
+    #[error("NPC not found: {0}")]
+    NpcNotFound(CharacterId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -157,15 +149,17 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
-    use uuid::Uuid;
-    use wrldbldr_domain::{CampbellArchetype, Character, CharacterId, LocationId, PlayerCharacterId, WorldId};
+    use wrldbldr_domain::{
+        CampbellArchetype, Character, CharacterId, CharacterName, ConversationId, LocationId,
+        PlayerCharacterId, UserId, WorldId,
+    };
 
-    use crate::entities;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockWorldRepo,
     };
+    use crate::use_cases::NarrativeOps;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -175,10 +169,15 @@ mod tests {
         }
     }
 
-    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<entities::Narrative> {
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> Arc<dyn ClockPort> {
+        Arc::new(FixedClock(now))
+    }
+
+    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<NarrativeOps> {
         let now = Utc::now();
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        Arc::new(entities::Narrative::new(
+        let clock = build_clock(now);
+
+        Arc::new(NarrativeOps::new(
             Arc::new(narrative_repo),
             Arc::new(MockLocationRepo::new()),
             Arc::new(MockWorldRepo::new()),
@@ -205,17 +204,17 @@ mod tests {
             .returning(|_| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(entities::Character::new(Arc::new(MockCharacterRepo::new()))),
-            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(pc_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
-        let err = use_case
-            .execute(pc_id, npc_id, None)
-            .await
-            .unwrap_err();
+        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
 
-        assert!(matches!(err, super::EndConversationError::PlayerCharacterNotFound));
+        assert!(matches!(
+            err,
+            super::EndConversationError::PlayerCharacterNotFound(_)
+        ));
     }
 
     #[tokio::test]
@@ -226,9 +225,14 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            UserId::new("user").unwrap(),
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -244,17 +248,14 @@ mod tests {
             .returning(|_| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
-            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
-        let err = use_case
-            .execute(pc_id, npc_id, None)
-            .await
-            .unwrap_err();
+        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
 
-        assert!(matches!(err, super::EndConversationError::NpcNotFound));
+        assert!(matches!(err, super::EndConversationError::NpcNotFound(_)));
     }
 
     #[tokio::test]
@@ -264,17 +265,23 @@ mod tests {
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            UserId::new("user").unwrap(),
+            world_id,
+            CharacterName::new("TestPC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
-        let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor);
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("TestNPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -298,8 +305,8 @@ mod tests {
             .returning(move |_, _| Ok(Some(conversation_id)));
 
         let use_case = super::EndConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
-            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(narrative_repo),
         );
 
@@ -325,15 +332,21 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            UserId::new("user").unwrap(),
+            world_id,
+            CharacterName::new("TestPC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
-        let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor);
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("TestNPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -357,8 +370,8 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
-            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(narrative_repo),
         );
 
@@ -373,22 +386,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_narrative_repo_fails_then_still_succeeds_with_none_conversation_id() {
+    async fn when_narrative_repo_fails_then_returns_repo_error_fail_fast() {
         let now = Utc::now();
         let world_id = WorldId::new();
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            UserId::new("user").unwrap(),
+            world_id,
+            CharacterName::new("TestPC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
-        let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor);
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("TestNPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -410,25 +429,24 @@ mod tests {
             .expect_end_active_conversation()
             .withf(move |p, n| *p == pc_id && *n == npc_id)
             .returning(|_, _| {
-                Err(crate::infrastructure::ports::RepoError::Database(
-                    "Database connection lost".to_string(),
+                Err(crate::infrastructure::ports::RepoError::database(
+                    "end_conversation",
+                    "Database connection lost",
                 ))
             });
 
         let use_case = super::EndConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
-            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(narrative_repo),
         );
 
-        // Should still succeed - repo failure is logged but not propagated
-        let result = use_case
-            .execute(pc_id, npc_id, None)
-            .await
-            .expect("EndConversation should succeed even if narrative repo fails");
+        // Should fail-fast - repo error is propagated, not swallowed
+        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
 
-        assert_eq!(result.pc_id, pc_id);
-        assert_eq!(result.npc_id, npc_id);
-        assert_eq!(result.conversation_id, None); // None because repo failed
+        assert!(matches!(
+            err,
+            super::EndConversationError::Repo(_)
+        ));
     }
 }

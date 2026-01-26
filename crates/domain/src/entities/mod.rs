@@ -4,6 +4,7 @@ mod challenge;
 mod character;
 mod character_content;
 mod class_feature;
+mod content_types;
 mod event_chain;
 mod feat;
 mod gallery_asset;
@@ -18,17 +19,14 @@ mod location_state;
 mod lore;
 mod narrative_event;
 mod observation;
-mod player_character;
 mod region;
 mod region_state;
 mod scene;
-mod sheet_template;
 mod skill;
 mod spell;
 mod staging;
 mod story_event;
 mod want;
-mod workflow_config;
 mod world;
 
 pub use challenge::{
@@ -36,12 +34,14 @@ pub use challenge::{
     ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Difficulty, DifficultyDescriptor,
     Outcome, OutcomeTrigger, OutcomeType, TriggerCondition, TriggerType,
 };
-pub use character::{Character, StatBlock, StatModifier, StatValue};
+// Note: Character is now exported from aggregates
+// StatBlock, StatModifier, StatValue are now exported from value_objects
 pub use character_content::{
     AcquiredFeat, ActiveFeature, CharacterFeats, CharacterFeatures, CharacterIdentity,
     CharacterSpells, ClassLevel, KnownSpell, SpellSlotPool,
 };
 pub use class_feature::{BackgroundFeature, ClassFeature, FeatureUses, RacialTrait};
+pub use content_types::{ContentSource, ContentType, SourceType};
 pub use event_chain::{ChainStatus, EventChain};
 pub use feat::{AbilityUses, Feat, FeatBenefit, Prerequisite, RechargeType, UsesFormula};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
@@ -54,30 +54,29 @@ pub use interaction::{
     InteractionTemplate, InteractionType,
 };
 pub use item::{AcquisitionMethod, FrequencyLevel, InventoryItem, Item};
-pub use location::{Location, LocationConnection, LocationType};
+// Note: Location is now exported from aggregates
+pub use location::{ConnectionType, LocationConnection, LocationType};
 pub use location_state::{LocationState, LocationStateSummary};
 pub use lore::{Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge};
+// Note: NarrativeEvent is now exported from aggregates
 pub use narrative_event::{
-    ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeEvent,
-    NarrativeTrigger, NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation,
-    TriggerLogic,
+    ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeTrigger,
+    NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation, TriggerLogic,
 };
 pub use observation::{NpcObservation, ObservationSummary, ObservationType};
-pub use player_character::PlayerCharacter;
+// Note: PlayerCharacter is now exported from aggregates
 pub use region::{MapBounds, Region, RegionConnection, RegionExit};
 pub use region_state::{RegionState, RegionStateSummary};
-pub use scene::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
-pub use sheet_template::{
-    CharacterSheetData, CharacterSheetTemplate, FieldType, FieldValue, ItemListType, SectionLayout,
-    SelectOption, SheetField, SheetSection, SheetTemplateId,
-};
+// Note: Scene is now exported from aggregates
+pub use scene::{SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
 pub use skill::{default_skills_for_variant, Skill, SkillCategory};
 pub use spell::{
     CastingTime, CastingTimeUnit, DurationUnit, MaterialComponent, Spell, SpellComponents,
     SpellDuration, SpellLevel, SpellRange,
 };
 pub use staging::{
-    ResolvedStateInfo, ResolvedVisualState, StagedNpc, Staging, StagingSource, VisualStateSource,
+    NpcPresence, ResolvedStateInfo, ResolvedVisualState, StagedNpc, Staging, StagingSource,
+    VisualStateSource,
 };
 pub use story_event::InfoImportance as StoryEventInfoImportance;
 pub use story_event::{
@@ -85,8 +84,5 @@ pub use story_event::{
     InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventType,
 };
 pub use want::{ActantialRole, ActantialView, CharacterWant, Want, WantTargetType, WantVisibility};
-pub use workflow_config::{
-    InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
-    WorkflowConfiguration, WorkflowInput, WorkflowSlot,
-};
-pub use world::{Act, MonomythStage, TimeAdvanceResult, World};
+// Note: World is now exported from aggregates
+pub use world::{Act, MonomythStage, TimeAdvanceResult};

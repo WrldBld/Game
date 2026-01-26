@@ -84,10 +84,7 @@ pub fn SuggestionButton(
         let all_suggestions = generation_state.get_suggestions();
 
         // Find the most recent Ready suggestion for this field_type
-        if let Some(task) = all_suggestions
-            .iter()
-            .find(|s| s.field_type == field_type)
-        {
+        if let Some(task) = all_suggestions.iter().find(|s| s.field_type == field_type) {
             match &task.status {
                 crate::presentation::state::SuggestionStatus::Ready { suggestions } => {
                     if !suggestions.is_empty() && !*show_dropdown.read() {

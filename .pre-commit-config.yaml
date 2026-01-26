@@ -1,0 +1,79 @@
+# Pre-commit hooks for WrldBldr
+# See docs/development/pre-commit-hooks.md for documentation
+
+repos:
+  # Rust-specific hooks
+  - repo: local
+    hooks:
+      # Architecture validation - check layer violations and architectural rules
+      - id: arch-check
+        name: Architecture validation
+        entry: cargo xtask arch-check
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Rust formatting check
+      - id: cargo-fmt
+        name: Cargo format check
+        entry: cargo fmt -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # Cargo quick check (syntax, dependencies, type errors)
+      - id: cargo-check
+        name: Cargo check
+        entry: cargo check --workspace
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # Clippy lints
+      - id: clippy
+        name: Clippy
+        entry: cargo clippy --workspace -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Trim trailing whitespace
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        exclude: '\.md$|\.txt$'
+
+      # End files with newline
+      - id: end-of-file-fixer
+        name: Fix end of files
+
+      # Check for large files
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=1000']
+
+      # Check YAML syntax
+      - id: check-yaml
+        name: Check YAML syntax
+
+      # Check TOML syntax (Cargo.toml, etc.)
+      - id: check-toml
+        name: Check TOML syntax
+
+      # Check JSON syntax
+      - id: check-json
+        name: Check JSON syntax
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com
+
+  autofix_prs: true
+
+  skip: []
+  # Submodules to skip
+  submodules: false

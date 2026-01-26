@@ -11,21 +11,19 @@ use serde_json::Value as JsonValue;
 use crate::infrastructure::spawn_task;
 use crate::presentation::components::common::CharacterPicker;
 use crate::presentation::Services;
-use wrldbldr_protocol::{NarrativeEventRequest, RequestPayload};
+use wrldbldr_shared::{NarrativeEventRequest, RequestPayload};
 
 // =============================================================================
 // Schema Types (mirrors protocol types for local use)
 // =============================================================================
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerSchema {
     pub trigger_types: Vec<TriggerTypeSchema>,
     pub logic_options: Vec<TriggerLogicOption>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerTypeSchema {
     pub type_name: String,
     pub label: String,
@@ -35,7 +33,6 @@ pub struct TriggerTypeSchema {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerFieldSchema {
     pub name: String,
     pub label: String,
@@ -48,7 +45,6 @@ pub struct TriggerFieldSchema {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerLogicOption {
     pub value: String,
     pub label: String,
@@ -62,7 +58,6 @@ pub struct TriggerLogicOption {
 
 /// A single trigger condition being built
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerCondition {
     /// Unique ID for this condition
     pub id: String,
@@ -160,7 +155,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     RequestPayload::NarrativeEvent(NarrativeEventRequest::GetTriggerSchema);
                 match commands.request(payload).await {
                     Ok(response) => match response {
-                        wrldbldr_protocol::ResponseResult::Success { data } => {
+                        wrldbldr_shared::ResponseResult::Success { data } => {
                             if let Some(json_data) = data {
                                 match serde_json::from_value::<TriggerSchema>(json_data) {
                                     Ok(s) => schema.set(Some(s)),
@@ -171,10 +166,10 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                                 schema_error.set(Some("Empty response".to_string()));
                             }
                         }
-                        wrldbldr_protocol::ResponseResult::Error { message, .. } => {
+                        wrldbldr_shared::ResponseResult::Error { message, .. } => {
                             schema_error.set(Some(message));
                         }
-                        wrldbldr_protocol::ResponseResult::Unknown => {
+                        wrldbldr_shared::ResponseResult::Unknown => {
                             schema_error.set(Some("Unknown response type".to_string()));
                         }
                     },
@@ -229,7 +224,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Notify parent of changes
     let notify_change = {
-        let on_change = props.on_change.clone();
+        let on_change = props.on_change;
         move || {
             let conds: Vec<JsonValue> = conditions
                 .read()
@@ -244,7 +239,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Add a new condition
     let add_condition = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |type_name: String| {
             let mut conds = conditions.write();
             let new_cond = TriggerCondition::new(&type_name);
@@ -258,7 +253,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Remove a condition
     let remove_condition = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |id: String| {
             let mut conds = conditions.write();
             conds.retain(|c| c.id != id);
@@ -269,7 +264,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Update a condition field
     let update_field = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |cond_id: String, field_name: String, value: JsonValue| {
             let mut conds = conditions.write();
             if let Some(cond) = conds.iter_mut().find(|c| c.id == cond_id) {
@@ -282,7 +277,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Update condition description
     let update_description = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |cond_id: String, desc: String| {
             let mut conds = conditions.write();
             if let Some(cond) = conds.iter_mut().find(|c| c.id == cond_id) {
@@ -295,7 +290,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Toggle is_required
     let toggle_required = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |cond_id: String| {
             let mut conds = conditions.write();
             if let Some(cond) = conds.iter_mut().find(|c| c.id == cond_id) {
@@ -306,47 +301,38 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
         }
     };
 
-    // Loading state
-    if *schema_loading.read() {
-        return rsx! {
+    let world_id = props.world_id.clone();
+
+    // Use conditional rendering instead of early returns to avoid hook ordering issues
+    rsx! {
+        if *schema_loading.read() {
+            // Loading state
             div { class: "flex items-center justify-center p-8",
                 div { class: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" }
                 span { class: "ml-3 text-gray-400", "Loading trigger schema..." }
             }
-        };
-    }
-
-    // Error state
-    if let Some(err) = schema_error.read().as_ref() {
-        return rsx! {
+        } else if let Some(err) = schema_error.read().as_ref() {
+            // Error state
             div { class: "p-4 bg-red-900/20 border border-red-500 rounded-lg",
                 p { class: "text-red-400", "{err}" }
             }
-        };
-    }
+        } else if let Some(schema_data) = schema.read().as_ref() {
+            // Main content - schema is available
+            {
+                // Group trigger types by category
+                let categories: Vec<String> = {
+                    let mut cats: Vec<String> = schema_data
+                        .trigger_types
+                        .iter()
+                        .map(|t| t.category.clone())
+                        .collect::<std::collections::HashSet<_>>()
+                        .into_iter()
+                        .collect();
+                    cats.sort();
+                    cats
+                };
 
-    // Get schema
-    let schema_data = match schema.read().as_ref() {
-        Some(s) => s.clone(),
-        None => return rsx! { div { "No schema available" } },
-    };
-
-    // Group trigger types by category
-    let categories: Vec<String> = {
-        let mut cats: Vec<String> = schema_data
-            .trigger_types
-            .iter()
-            .map(|t| t.category.clone())
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect();
-        cats.sort();
-        cats
-    };
-
-    let world_id = props.world_id.clone();
-
-    rsx! {
+                rsx! {
         div { class: "space-y-4",
             // Logic selector
             div { class: "flex items-center gap-4 p-4 bg-gray-800 rounded-lg",
@@ -355,7 +341,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     class: "bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white",
                     value: "{logic}",
                     onchange: {
-                        let notify = notify_change.clone();
+                        let notify = notify_change;
                         move |e: Event<FormData>| {
                             logic.set(e.value().clone());
                             notify();
@@ -377,7 +363,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                         value: "{at_least_count}",
                         min: "1",
                         onchange: {
-                            let notify = notify_change.clone();
+                            let notify = notify_change;
                             move |e: Event<FormData>| {
                                 if let Ok(n) = e.value().parse::<u32>() {
                                     at_least_count.set(n);
@@ -419,22 +405,22 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                                     }
                                 },
                                 on_remove: {
-                                    let mut remove = remove_condition.clone();
+                                    let mut remove = remove_condition;
                                     let id = cond.id.clone();
                                     move |_| remove(id.clone())
                                 },
                                 on_update_field: {
-                                    let mut update = update_field.clone();
+                                    let mut update = update_field;
                                     let id = cond.id.clone();
                                     move |(field, value): (String, JsonValue)| update(id.clone(), field, value)
                                 },
                                 on_update_description: {
-                                    let mut update = update_description.clone();
+                                    let mut update = update_description;
                                     let id = cond.id.clone();
                                     move |desc: String| update(id.clone(), desc)
                                 },
                                 on_toggle_required: {
-                                    let mut toggle = toggle_required.clone();
+                                    let mut toggle = toggle_required;
                                     let id = cond.id.clone();
                                     move |_| toggle(id.clone())
                                 },
@@ -474,7 +460,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                                     for trigger_type in schema_data.trigger_types.iter().filter(|t| t.category == *category) {
                                         {
                                             let type_name = trigger_type.type_name.clone();
-                                            let mut add = add_condition.clone();
+                                            let mut add = add_condition;
                                             rsx! {
                                                 button {
                                                     class: "text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm text-gray-200 transition-colors",
@@ -499,6 +485,12 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     p { class: "text-sm mt-1", "Click \"Add Condition\" to create trigger rules." }
                 }
             }
+        }
+                }
+            }
+        } else {
+            // No schema available
+            div { "No schema available" }
         }
     }
 }

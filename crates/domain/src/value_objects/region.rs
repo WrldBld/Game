@@ -10,7 +10,6 @@ use crate::error::DomainError;
 
 /// Work shift for a region (when NPC works there)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum RegionShift {
     Day,
     Night,
@@ -42,8 +41,8 @@ impl std::str::FromStr for RegionShift {
 
 /// How often an NPC visits a region
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum RegionFrequency {
+    Always,
     Often,
     Sometimes,
     Rarely,
@@ -52,6 +51,7 @@ pub enum RegionFrequency {
 impl std::fmt::Display for RegionFrequency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            RegionFrequency::Always => write!(f, "always"),
             RegionFrequency::Often => write!(f, "often"),
             RegionFrequency::Sometimes => write!(f, "sometimes"),
             RegionFrequency::Rarely => write!(f, "rarely"),
@@ -64,6 +64,7 @@ impl std::str::FromStr for RegionFrequency {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            "always" => Ok(RegionFrequency::Always),
             "often" => Ok(RegionFrequency::Often),
             "sometimes" | "" => Ok(RegionFrequency::Sometimes),
             "rarely" => Ok(RegionFrequency::Rarely),
@@ -77,7 +78,7 @@ impl std::str::FromStr for RegionFrequency {
 
 /// Type of relationship between character and region
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum RegionRelationshipType {
     Home,
     WorksAt { shift: RegionShift },
@@ -106,6 +107,7 @@ impl RegionRelationshipType {
                 RegionShift::Night => matches!(time_of_day, TimeOfDay::Evening | TimeOfDay::Night),
             },
             RegionRelationshipType::Frequents { frequency } => match frequency {
+                RegionFrequency::Always => true,
                 RegionFrequency::Often => true,
                 RegionFrequency::Sometimes => {
                     matches!(time_of_day, TimeOfDay::Afternoon | TimeOfDay::Evening)
@@ -152,4 +154,19 @@ pub struct RegionRelationship {
     pub region_id: wrldbldr_domain::RegionId,
     pub region_name: String,
     pub relationship_type: RegionRelationshipType,
+}
+
+impl RegionRelationship {
+    /// Create a new region relationship
+    pub fn new(
+        region_id: wrldbldr_domain::RegionId,
+        region_name: impl Into<String>,
+        relationship_type: RegionRelationshipType,
+    ) -> Self {
+        Self {
+            region_id,
+            region_name: region_name.into(),
+            relationship_type,
+        }
+    }
 }

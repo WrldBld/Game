@@ -10,9 +10,17 @@
 //! - Deterministic testing with fixed/mock RNG
 //! - Clean separation from I/O (RNG accesses system entropy)
 //! - Dependency injection at the call site
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - `DiceFormula`, `DiceRollResult` are
+//!   simple data structs with public fields.
+//! - **Tier 2: Validated Enum** - `DiceParseError` represents parsing outcomes.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use thiserror::Error;
 
 use super::DiceSystem;
@@ -39,14 +47,13 @@ pub enum DiceParseError {
 
 /// A parsed dice formula like "2d6+3"
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DiceFormula {
     /// Number of dice to roll (X in XdY)
-    pub dice_count: u8,
+    dice_count: u8,
     /// Size of each die (Y in XdY)
-    pub die_size: u8,
+    die_size: u8,
     /// Modifier to add/subtract after rolling (+Z or -Z)
-    pub modifier: i32,
+    modifier: i32,
 }
 
 impl DiceFormula {
@@ -63,6 +70,43 @@ impl DiceFormula {
             die_size,
             modifier,
         })
+    }
+
+    /// Create a manual/unrolled formula marker (for manual input results)
+    fn manual() -> Self {
+        Self {
+            dice_count: 0,
+            die_size: 0,
+            modifier: 0,
+        }
+    }
+
+    /// Get the number of dice to roll
+    pub fn dice_count(&self) -> u8 {
+        self.dice_count
+    }
+
+    /// Get the size of each die
+    pub fn die_size(&self) -> u8 {
+        self.die_size
+    }
+
+    /// Get the modifier
+    pub fn modifier(&self) -> i32 {
+        self.modifier
+    }
+
+    /// Create a new formula with an updated modifier (builder pattern)
+    pub fn with_modifier(self, modifier: i32) -> Self {
+        Self { modifier, ..self }
+    }
+
+    /// Create a new formula with the modifier adjusted by the given amount
+    pub fn with_modifier_adjusted(self, adjustment: i32) -> Self {
+        Self {
+            modifier: self.modifier + adjustment,
+            ..self
+        }
     }
 
     /// Parse a dice formula string like "1d20+5", "2d6-1", "1d100"
@@ -230,13 +274,13 @@ impl DiceFormula {
         let dice_total: i32 = individual_rolls.iter().sum();
         let total = dice_total + self.modifier;
 
-        DiceRollResult {
-            formula: self.clone(),
+        DiceRollResult::new(
+            self.clone(),
             individual_rolls,
             dice_total,
-            modifier_applied: self.modifier,
+            self.modifier,
             total,
-        }
+        )
     }
 
     /// Get the minimum possible roll
@@ -261,42 +305,86 @@ impl DiceFormula {
     }
 }
 
-impl fmt::Display for DiceFormula {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display())
+impl TryFrom<String> for DiceFormula {
+    type Error = DiceParseError;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::parse(&s)
+    }
+}
+
+impl From<DiceFormula> for String {
+    fn from(formula: DiceFormula) -> String {
+        formula.display()
     }
 }
 
 /// Result of rolling dice
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DiceRollResult {
     /// The formula that was rolled
-    pub formula: DiceFormula,
+    formula: DiceFormula,
     /// Individual die results
-    pub individual_rolls: Vec<i32>,
+    individual_rolls: Vec<i32>,
     /// Sum of dice before modifier
-    pub dice_total: i32,
+    dice_total: i32,
     /// Modifier that was applied
-    pub modifier_applied: i32,
+    modifier_applied: i32,
     /// Final total (dice_total + modifier)
-    pub total: i32,
+    total: i32,
 }
 
 impl DiceRollResult {
+    /// Create a new dice roll result
+    pub fn new(
+        formula: DiceFormula,
+        individual_rolls: Vec<i32>,
+        dice_total: i32,
+        modifier_applied: i32,
+        total: i32,
+    ) -> Self {
+        Self {
+            formula,
+            individual_rolls,
+            dice_total,
+            modifier_applied,
+            total,
+        }
+    }
+
     /// Create a result from a manual input (no actual dice rolled)
     pub fn from_manual(total: i32) -> Self {
         Self {
-            formula: DiceFormula {
-                dice_count: 0,
-                die_size: 0,
-                modifier: 0,
-            },
+            formula: DiceFormula::manual(),
             individual_rolls: vec![],
             dice_total: total,
             modifier_applied: 0,
             total,
         }
+    }
+
+    /// Get the formula that was rolled
+    pub fn formula(&self) -> &DiceFormula {
+        &self.formula
+    }
+
+    /// Get the individual die results
+    pub fn individual_rolls(&self) -> &[i32] {
+        &self.individual_rolls
+    }
+
+    /// Get the sum of dice before modifier
+    pub fn dice_total(&self) -> i32 {
+        self.dice_total
+    }
+
+    /// Get the modifier that was applied
+    pub fn modifier_applied(&self) -> i32 {
+        self.modifier_applied
+    }
+
+    /// Get the final total (dice_total + modifier)
+    pub fn total(&self) -> i32 {
+        self.total
     }
 
     /// Check if this was a manual roll
@@ -385,7 +473,6 @@ impl DiceRollResult {
 
 /// Input for a dice roll - either a formula to roll or a manual result
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum DiceRollInput {
     /// Roll dice using a formula string like "1d20+5"
     Formula(String),
@@ -428,8 +515,8 @@ impl DiceRollInput {
     {
         match self {
             Self::Formula(formula_str) => {
-                let mut formula = DiceFormula::parse(formula_str)?;
-                formula.modifier += skill_modifier;
+                let formula =
+                    DiceFormula::parse(formula_str)?.with_modifier_adjusted(skill_modifier);
                 Ok(formula.roll(rng))
             }
             Self::ManualResult(total) => {
@@ -447,65 +534,65 @@ mod tests {
     #[test]
     fn test_parse_simple_d20() {
         let formula = DiceFormula::parse("1d20").unwrap();
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 20);
-        assert_eq!(formula.modifier, 0);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 20);
+        assert_eq!(formula.modifier(), 0);
     }
 
     #[test]
     fn test_parse_shorthand_d20() {
         let formula = DiceFormula::parse("d20").unwrap();
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 20);
-        assert_eq!(formula.modifier, 0);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 20);
+        assert_eq!(formula.modifier(), 0);
     }
 
     #[test]
     fn test_parse_with_positive_modifier() {
         let formula = DiceFormula::parse("1d20+5").unwrap();
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 20);
-        assert_eq!(formula.modifier, 5);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 20);
+        assert_eq!(formula.modifier(), 5);
     }
 
     #[test]
     fn test_parse_with_negative_modifier() {
         let formula = DiceFormula::parse("1d20-3").unwrap();
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 20);
-        assert_eq!(formula.modifier, -3);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 20);
+        assert_eq!(formula.modifier(), -3);
     }
 
     #[test]
     fn test_parse_multiple_dice() {
         let formula = DiceFormula::parse("2d6+3").unwrap();
-        assert_eq!(formula.dice_count, 2);
-        assert_eq!(formula.die_size, 6);
-        assert_eq!(formula.modifier, 3);
+        assert_eq!(formula.dice_count(), 2);
+        assert_eq!(formula.die_size(), 6);
+        assert_eq!(formula.modifier(), 3);
     }
 
     #[test]
     fn test_parse_d100() {
         let formula = DiceFormula::parse("1d100").unwrap();
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 100);
-        assert_eq!(formula.modifier, 0);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 100);
+        assert_eq!(formula.modifier(), 0);
     }
 
     #[test]
     fn test_parse_case_insensitive() {
         let formula = DiceFormula::parse("1D20+5").unwrap();
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 20);
-        assert_eq!(formula.modifier, 5);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 20);
+        assert_eq!(formula.modifier(), 5);
     }
 
     #[test]
     fn test_parse_with_whitespace() {
         let formula = DiceFormula::parse("  1d20+5  ").unwrap();
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 20);
-        assert_eq!(formula.modifier, 5);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 20);
+        assert_eq!(formula.modifier(), 5);
     }
 
     #[test]
@@ -542,8 +629,8 @@ mod tests {
         let formula = DiceFormula::parse("1d20").unwrap();
         // Fixed RNG that always returns 10
         let result = formula.roll(|_, _| 10);
-        assert_eq!(result.total, 10);
-        assert_eq!(result.individual_rolls, vec![10]);
+        assert_eq!(result.total(), 10);
+        assert_eq!(result.individual_rolls(), &[10]);
     }
 
     #[test]
@@ -551,8 +638,8 @@ mod tests {
         let formula = DiceFormula::parse("1d20+5").unwrap();
         // Fixed RNG that returns 14
         let result = formula.roll(|_, _| 14);
-        assert_eq!(result.total, 19); // 14 + 5
-        assert_eq!(result.modifier_applied, 5);
+        assert_eq!(result.total(), 19); // 14 + 5
+        assert_eq!(result.modifier_applied(), 5);
     }
 
     #[test]
@@ -563,32 +650,20 @@ mod tests {
             call_count += 1;
             call_count + 1 // Returns 2, 3, 4
         });
-        assert_eq!(result.individual_rolls, vec![2, 3, 4]);
-        assert_eq!(result.dice_total, 9);
-        assert_eq!(result.total, 9);
+        assert_eq!(result.individual_rolls(), &[2, 3, 4]);
+        assert_eq!(result.dice_total(), 9);
+        assert_eq!(result.total(), 9);
     }
 
     #[test]
     fn test_breakdown_single_die() {
-        let result = DiceRollResult {
-            formula: DiceFormula::new(1, 20, 5).unwrap(),
-            individual_rolls: vec![14],
-            dice_total: 14,
-            modifier_applied: 5,
-            total: 19,
-        };
+        let result = DiceRollResult::new(DiceFormula::new(1, 20, 5).unwrap(), vec![14], 14, 5, 19);
         assert_eq!(result.breakdown(), "1d20(14) + 5 = 19");
     }
 
     #[test]
     fn test_breakdown_multiple_dice() {
-        let result = DiceRollResult {
-            formula: DiceFormula::new(2, 6, 3).unwrap(),
-            individual_rolls: vec![4, 5],
-            dice_total: 9,
-            modifier_applied: 3,
-            total: 12,
-        };
+        let result = DiceRollResult::new(DiceFormula::new(2, 6, 3).unwrap(), vec![4, 5], 9, 3, 12);
         assert_eq!(result.breakdown(), "2d6[4, 5] + 3 = 12");
     }
 
@@ -601,26 +676,14 @@ mod tests {
 
     #[test]
     fn test_natural_20() {
-        let result = DiceRollResult {
-            formula: DiceFormula::new(1, 20, 0).unwrap(),
-            individual_rolls: vec![20],
-            dice_total: 20,
-            modifier_applied: 0,
-            total: 20,
-        };
+        let result = DiceRollResult::new(DiceFormula::new(1, 20, 0).unwrap(), vec![20], 20, 0, 20);
         assert!(result.is_natural_20());
         assert!(!result.is_natural_1());
     }
 
     #[test]
     fn test_natural_1() {
-        let result = DiceRollResult {
-            formula: DiceFormula::new(1, 20, 0).unwrap(),
-            individual_rolls: vec![1],
-            dice_total: 1,
-            modifier_applied: 0,
-            total: 1,
-        };
+        let result = DiceRollResult::new(DiceFormula::new(1, 20, 0).unwrap(), vec![1], 1, 0, 1);
         assert!(result.is_natural_1());
         assert!(!result.is_natural_20());
     }
@@ -630,7 +693,7 @@ mod tests {
         let input = DiceRollInput::Formula("1d20+5".to_string());
         let result = input.resolve(|_, _| 10).unwrap();
         assert!(!result.is_manual());
-        assert_eq!(result.total, 15); // 10 + 5
+        assert_eq!(result.total(), 15); // 10 + 5
     }
 
     #[test]
@@ -641,31 +704,31 @@ mod tests {
             .resolve(|_, _| panic!("should not be called"))
             .unwrap();
         assert!(result.is_manual());
-        assert_eq!(result.total, 18);
+        assert_eq!(result.total(), 18);
     }
 
     #[test]
     fn test_resolve_with_modifier() {
         let input = DiceRollInput::Formula("1d20".to_string());
         let result = input.resolve_with_modifier(5, |_, _| 10).unwrap();
-        assert_eq!(result.total, 15); // 10 + 5
-        assert_eq!(result.modifier_applied, 5);
+        assert_eq!(result.total(), 15); // 10 + 5
+        assert_eq!(result.modifier_applied(), 5);
     }
 
     #[test]
     fn test_default_for_d20_system() {
         let formula = DiceFormula::default_for_system(&DiceSystem::D20);
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 20);
-        assert_eq!(formula.modifier, 0);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 20);
+        assert_eq!(formula.modifier(), 0);
     }
 
     #[test]
     fn test_default_for_d100_system() {
         let formula = DiceFormula::default_for_system(&DiceSystem::D100);
-        assert_eq!(formula.dice_count, 1);
-        assert_eq!(formula.die_size, 100);
-        assert_eq!(formula.modifier, 0);
+        assert_eq!(formula.dice_count(), 1);
+        assert_eq!(formula.die_size(), 100);
+        assert_eq!(formula.modifier(), 0);
     }
 
     #[test]

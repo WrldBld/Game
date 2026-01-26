@@ -1,8 +1,12 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use wrldbldr_shared::ErrorCode;
 
 pub(super) async fn handle_player_action(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     action_type: String,
     target: Option<String>,
     dialogue: Option<String>,
@@ -10,17 +14,32 @@ pub(super) async fn handle_player_action(
     // Get connection info
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to perform actions")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must have a PC to perform actions",
+            ))
+        }
     };
 
     let target_npc = if action_type == "talk" {
@@ -43,7 +62,7 @@ pub(super) async fn handle_player_action(
         .execute(
             world_id,
             pc_id,
-            conn_info.user_id.clone(),
+            conn_info.user_id.to_string(),
             action_type.clone(),
             target_npc,
             dialogue.clone(),
@@ -53,17 +72,21 @@ pub(super) async fn handle_player_action(
         Ok(result) => result,
         Err(crate::use_cases::player_action::PlayerActionError::MissingTalkTarget) => {
             return Some(error_response(
-                "MISSING_PARAMS",
+                ErrorCode::ValidationError,
                 "Talk action requires target NPC ID",
             ))
         }
         Err(crate::use_cases::player_action::PlayerActionError::Conversation(e)) => {
-            tracing::error!(error = %e, "Failed to start conversation");
-            return Some(error_response("CONVERSATION_ERROR", &e.to_string()));
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "starting conversation"),
+            ));
         }
         Err(crate::use_cases::player_action::PlayerActionError::Queue(e)) => {
-            tracing::error!(error = %e, "Failed to enqueue player action");
-            return Some(error_response("QUEUE_ERROR", &e));
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "enqueuing player action"),
+            ));
         }
     };
 

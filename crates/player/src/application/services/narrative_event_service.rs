@@ -4,7 +4,7 @@
 //! updating, and managing narrative events (future story events). It uses
 //! WebSocket for real-time communication with the Engine.
 
-use wrldbldr_protocol::{NarrativeEventRequest, RequestPayload};
+use wrldbldr_shared::{NarrativeEventRequest, RequestPayload};
 
 use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
@@ -118,7 +118,7 @@ impl NarrativeEventService {
             _ => None,
         };
 
-        let data = wrldbldr_protocol::CreateNarrativeEventData {
+        let data = wrldbldr_shared::CreateNarrativeEventData {
             name: request.name,
             description: Some(request.description),
             trigger_conditions,

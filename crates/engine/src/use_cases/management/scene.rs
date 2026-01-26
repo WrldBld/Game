@@ -1,0 +1,104 @@
+//! Scene management operations.
+
+use std::sync::Arc;
+
+use wrldbldr_domain::{ActId, DomainError, LocationId, SceneId, SceneName};
+
+use crate::infrastructure::ports::SceneRepo;
+
+use super::ManagementError;
+
+pub struct SceneManagement {
+    scene: Arc<dyn SceneRepo>,
+}
+
+impl SceneManagement {
+    pub fn new(scene: Arc<dyn SceneRepo>) -> Self {
+        Self { scene }
+    }
+
+    pub async fn list_for_act(
+        &self,
+        act_id: ActId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<wrldbldr_domain::Scene>, ManagementError> {
+        Ok(self.scene.list_for_act(act_id, limit, offset).await?)
+    }
+
+    pub async fn get(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Option<wrldbldr_domain::Scene>, ManagementError> {
+        Ok(self.scene.get(scene_id).await?)
+    }
+
+    pub async fn create(
+        &self,
+        act_id: ActId,
+        name: String,
+        description: Option<String>,
+        location_id: Option<LocationId>,
+    ) -> Result<wrldbldr_domain::Scene, ManagementError> {
+        let name = SceneName::new(name)?;
+
+        let location_id = location_id.ok_or_else(|| {
+            ManagementError::Domain(DomainError::validation("Scene location_id is required"))
+        })?;
+
+        let mut scene = wrldbldr_domain::Scene::new(act_id, name);
+        if let Some(description) = description {
+            let notes = wrldbldr_domain::Description::new(description)
+                .map_err(ManagementError::Domain)?;
+            scene = scene.with_directorial_notes(notes);
+        }
+
+        // Save the scene first
+        self.scene.save(&scene).await?;
+
+        // Then set the location via graph edge
+        self.scene.set_location(scene.id(), location_id).await?;
+
+        Ok(scene)
+    }
+
+    pub async fn update(
+        &self,
+        scene_id: SceneId,
+        name: Option<String>,
+        description: Option<String>,
+        location_id: Option<LocationId>,
+    ) -> Result<wrldbldr_domain::Scene, ManagementError> {
+        let mut scene = self
+            .scene
+            .get(scene_id)
+            .await?
+            .ok_or(ManagementError::NotFound {
+                entity_type: "Scene",
+                id: scene_id.to_string(),
+            })?;
+
+        if let Some(name) = name {
+            let name = SceneName::new(name)?;
+            scene.set_name(name);
+        }
+        if let Some(description) = description {
+            let notes = wrldbldr_domain::Description::new(description)?;
+            scene.set_directorial_notes(notes);
+        }
+
+        self.scene.save(&scene).await?;
+
+        // Update location via graph edge if provided
+        if let Some(location_id) = location_id {
+            self.scene.set_location(scene_id, location_id).await?;
+        }
+
+        Ok(scene)
+    }
+
+    pub async fn delete(&self, scene_id: SceneId) -> Result<(), ManagementError> {
+        self.scene.delete(scene_id).await?;
+        Ok(())
+    }
+}

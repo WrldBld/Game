@@ -24,7 +24,7 @@ use serde::Deserialize;
 use crate::application::dto::requests::SuggestionContext;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{AiRequest, RequestPayload};
+use wrldbldr_shared::{AiRequest, RequestPayload};
 
 /// Response from queued suggestion (immediate response, results via events)
 #[derive(Clone, Debug, Deserialize)]

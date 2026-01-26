@@ -2,19 +2,20 @@
 //!
 //! Handles Goal persistence and usage counts.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph};
-use wrldbldr_domain::{Goal, GoalId, WorldId};
+use neo4rs::query;
+use wrldbldr_domain::{Goal, GoalId, GoalName, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{GoalDetails, GoalRepo, RepoError};
 
 pub struct Neo4jGoalRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jGoalRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 }
@@ -33,32 +34,26 @@ impl GoalRepo for Neo4jGoalRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
-            let node: neo4rs::Node = row
-                .get("g")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let node: neo4rs::Node = row.get("g").map_err(|e| RepoError::database("query", e))?;
 
             let goal_id: GoalId =
-                parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+                parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
             let world_id: WorldId =
-                parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-            let name: String = node.get_string_or("name", "");
+                parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
+            let name_str: String = node.get_string_or("name", "");
+            let name = GoalName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
             let description = node.get_optional_string("description");
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);
 
             Ok(Some(GoalDetails {
-                goal: Goal {
-                    id: goal_id,
-                    world_id,
-                    name,
-                    description,
-                },
+                goal: Goal::from_storage(goal_id, world_id, name, description),
                 usage_count: usage_count.max(0) as u32,
             }))
         } else {
@@ -76,15 +71,18 @@ impl GoalRepo for Neo4jGoalRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:CONTAINS_GOAL]->(g)",
         )
-        .param("id", goal.id.to_string())
-        .param("world_id", goal.world_id.to_string())
-        .param("name", goal.name.clone())
-        .param("description", goal.description.clone().unwrap_or_default());
+        .param("id", goal.id().to_string())
+        .param("world_id", goal.world_id().to_string())
+        .param("name", goal.name().to_string())
+        .param(
+            "description",
+            goal.description().unwrap_or_default().to_string(),
+        );
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -99,7 +97,7 @@ impl GoalRepo for Neo4jGoalRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted goal: {}", id);
         Ok(())
@@ -118,33 +116,27 @@ impl GoalRepo for Neo4jGoalRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut goals = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
-            let node: neo4rs::Node = row
-                .get("g")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let node: neo4rs::Node = row.get("g").map_err(|e| RepoError::database("query", e))?;
 
             let goal_id: GoalId =
-                parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+                parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
             let world_id: WorldId =
-                parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-            let name: String = node.get_string_or("name", "");
+                parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
+            let name_str: String = node.get_string_or("name", "");
+            let name = GoalName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
             let description = node.get_optional_string("description");
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);
 
             goals.push(GoalDetails {
-                goal: Goal {
-                    id: goal_id,
-                    world_id,
-                    name,
-                    description,
-                },
+                goal: Goal::from_storage(goal_id, world_id, name, description),
                 usage_count: usage_count.max(0) as u32,
             });
         }

@@ -2,23 +2,28 @@
 //!
 //! Handles NarrativeEvents, EventChains, and StoryEvents.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use chrono::{DateTime, Timelike, Utc};
-use neo4rs::{query, Graph, Node, Row};
+use chrono::{DateTime, Utc};
+use neo4rs::{query, Node, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
-use crate::infrastructure::ports::{ClockPort, ConversationTurnRecord, NarrativeRepo, RepoError};
+use crate::infrastructure::ports::{
+    ActiveConversationRecord, ClockPort, ConversationDetails, ConversationLocationContext,
+    ConversationParticipantDetail, ConversationSceneContext, ConversationTurnRecord,
+    DialogueTurnDetail, NarrativeRepo, ParticipantType, RepoError,
+};
 
 pub struct Neo4jNarrativeRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: std::sync::Arc<dyn ClockPort>,
 }
 
 impl Neo4jNarrativeRepo {
-    pub fn new(graph: Graph, clock: std::sync::Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: std::sync::Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 }
@@ -36,12 +41,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_narrative_event(row, self.clock.now())?))
         } else {
@@ -50,16 +55,20 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn save_event(&self, event: &NarrativeEvent) -> Result<(), RepoError> {
-        let stored_triggers: Vec<StoredNarrativeTrigger> =
-            event.trigger_conditions.iter().map(|t| t.into()).collect();
+        let stored_triggers: Vec<StoredNarrativeTrigger> = event
+            .trigger_conditions()
+            .iter()
+            .map(|t| t.into())
+            .collect();
         let triggers_json = serde_json::to_string(&stored_triggers)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let stored_outcomes: Vec<StoredEventOutcome> =
-            event.outcomes.iter().map(|o| o.into()).collect();
+            event.outcomes().iter().map(|o| o.into()).collect();
         let outcomes_json = serde_json::to_string(&stored_outcomes)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let tags_json = serde_json::to_string(&event.tags)
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let tags: Vec<String> = event.tags().iter().map(|t| t.to_string()).collect();
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
             "MERGE (e:NarrativeEvent {id: $id})
@@ -111,52 +120,61 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:HAS_NARRATIVE_EVENT]->(e)",
         )
-        .param("id", event.id.to_string())
-        .param("world_id", event.world_id.to_string())
-        .param("name", event.name.clone())
-        .param("description", event.description.clone())
+        .param("id", event.id().to_string())
+        .param("world_id", event.world_id().to_string())
+        .param("name", event.name().to_string())
+        .param("description", event.description().to_string())
         .param("tags_json", tags_json)
         .param("triggers_json", triggers_json)
-        .param("trigger_logic", format!("{:?}", event.trigger_logic))
-        .param("scene_direction", event.scene_direction.clone())
+        .param("trigger_logic", format!("{:?}", event.trigger_logic()))
+        .param("scene_direction", event.scene_direction().to_string())
         .param(
             "suggested_opening",
-            event.suggested_opening.clone().unwrap_or_default(),
+            event
+                .suggested_opening()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
         .param("outcomes_json", outcomes_json)
         .param(
             "default_outcome",
-            event.default_outcome.clone().unwrap_or_default(),
+            event
+                .default_outcome()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
-        .param("is_active", event.is_active)
-        .param("is_triggered", event.is_triggered)
+        .param("is_active", event.is_active())
+        .param("is_triggered", event.is_triggered())
         .param(
             "triggered_at",
             event
-                .triggered_at
+                .triggered_at()
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
         )
         .param(
             "selected_outcome",
-            event.selected_outcome.clone().unwrap_or_default(),
+            event
+                .selected_outcome()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
-        .param("is_repeatable", event.is_repeatable)
-        .param("trigger_count", event.trigger_count as i64)
-        .param("delay_turns", event.delay_turns as i64)
+        .param("is_repeatable", event.is_repeatable())
+        .param("trigger_count", event.trigger_count() as i64)
+        .param("delay_turns", event.delay_turns() as i64)
         .param(
             "expires_after_turns",
-            event.expires_after_turns.map(|t| t as i64).unwrap_or(-1),
+            event.expires_after_turns().map(|t| t as i64).unwrap_or(-1),
         )
-        .param("priority", event.priority as i64)
-        .param("is_favorite", event.is_favorite)
-        .param("created_at", event.created_at.to_rfc3339())
-        .param("updated_at", event.updated_at.to_rfc3339());
+        .param("priority", event.priority() as i64)
+        .param("is_favorite", event.is_favorite())
+        .param("created_at", event.created_at().to_rfc3339())
+        .param("updated_at", event.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -175,13 +193,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_narrative_event(row, self.clock.now())?);
         }
@@ -199,7 +217,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted narrative event: {}", id);
         Ok(())
@@ -216,12 +234,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_event_chain(row, self.clock.now())?))
         } else {
@@ -230,14 +248,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn save_chain(&self, chain: &EventChain) -> Result<(), RepoError> {
-        let events_json: Vec<String> = chain.events.iter().map(|id| id.to_string()).collect();
+        let events_json: Vec<String> = chain.events().iter().map(|id| id.to_string()).collect();
         let completed_json: Vec<String> = chain
-            .completed_events
+            .completed_events()
             .iter()
             .map(|id| id.to_string())
             .collect();
-        let tags_json = serde_json::to_string(&chain.tags)
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let tags: Vec<String> = chain.tags().iter().map(|t| t.to_string()).collect();
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
             "MERGE (c:EventChain {id: $id})
@@ -271,28 +290,31 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:HAS_EVENT_CHAIN]->(c)",
         )
-        .param("id", chain.id.to_string())
-        .param("world_id", chain.world_id.to_string())
-        .param("name", chain.name.clone())
-        .param("description", chain.description.clone())
+        .param("id", chain.id().to_string())
+        .param("world_id", chain.world_id().to_string())
+        .param("name", chain.name().to_string())
+        .param("description", chain.description().to_string())
         .param("events", events_json)
-        .param("is_active", chain.is_active)
-        .param("current_position", chain.current_position as i64)
+        .param("is_active", chain.is_active())
+        .param("current_position", chain.current_position() as i64)
         .param("completed_events", completed_json)
         .param(
             "act_id",
-            chain.act_id.map(|a| a.to_string()).unwrap_or_default(),
+            chain.act_id().map(|a| a.to_string()).unwrap_or_default(),
         )
         .param("tags_json", tags_json)
-        .param("color", chain.color.clone().unwrap_or_default())
-        .param("is_favorite", chain.is_favorite)
-        .param("created_at", chain.created_at.to_rfc3339())
-        .param("updated_at", chain.updated_at.to_rfc3339());
+        .param(
+            "color",
+            chain.color().map(|s| s.to_string()).unwrap_or_default(),
+        )
+        .param("is_favorite", chain.is_favorite())
+        .param("created_at", chain.created_at().to_rfc3339())
+        .param("updated_at", chain.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -306,7 +328,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted event chain: {}", id);
         Ok(())
@@ -324,14 +346,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut chains = Vec::new();
         let now = self.clock.now();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             chains.push(row_to_event_chain(row, now)?);
         }
@@ -350,12 +372,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_story_event(row, self.clock.now())?))
         } else {
@@ -364,11 +386,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn save_story_event(&self, event: &StoryEvent) -> Result<(), RepoError> {
-        let stored_event_type: StoredStoryEventType = (&event.event_type).into();
+        let stored_event_type: StoredStoryEventType = event.event_type().into();
         let event_type_json = serde_json::to_string(&stored_event_type)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let tags_json = serde_json::to_string(&event.tags)
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let tags: Vec<String> = event.tags().iter().map(|t| t.to_string()).collect();
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
             "MERGE (e:StoryEvent {id: $id})
@@ -391,19 +414,22 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:HAS_STORY_EVENT]->(e)",
         )
-        .param("id", event.id.to_string())
-        .param("world_id", event.world_id.to_string())
+        .param("id", event.id().to_string())
+        .param("world_id", event.world_id().to_string())
         .param("event_type_json", event_type_json)
-        .param("timestamp", event.timestamp.to_rfc3339())
-        .param("game_time", event.game_time.clone().unwrap_or_default())
-        .param("summary", event.summary.clone())
-        .param("is_hidden", event.is_hidden)
+        .param("timestamp", event.timestamp().to_rfc3339())
+        .param(
+            "game_time",
+            event.game_time().map(|s| s.to_string()).unwrap_or_default(),
+        )
+        .param("summary", event.summary().to_string())
+        .param("is_hidden", event.is_hidden())
         .param("tags_json", tags_json);
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -417,7 +443,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted story event: {}", id);
         Ok(())
@@ -442,13 +468,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_story_event(row, self.clock.now())?);
         }
@@ -483,14 +509,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
         let now = self.clock.now();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_narrative_event(row, now)?);
         }
@@ -502,7 +528,10 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
         // Fallback: check trigger_conditions JSON (slower - requires fetching all events)
         // This handles legacy events that don't have TIED_TO_LOCATION edges
-        // TODO: Migration to add TIED_TO_LOCATION edges for all location-based triggers
+        // TODO(deferred): Add TIED_TO_LOCATION edges migration for location triggers
+        // This optimization would improve query performance by avoiding full-world scans
+        // in trigger evaluation. Currently not a bottleneck, safe to defer until needed.
+        // See get_triggers_for_region() above for the optimized edge-based query path.
         let q_fallback = query(
             "MATCH (w:World {id: $world_id})-[:HAS_NARRATIVE_EVENT]->(e:NarrativeEvent)
                         WHERE e.is_active = true
@@ -518,19 +547,19 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q_fallback)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let region_id_str = region_id.to_string();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let event = row_to_narrative_event(row, now)?;
             // Filter events that have a trigger condition for this region/location
             let has_region_trigger =
                 event
-                    .trigger_conditions
+                    .trigger_conditions()
                     .iter()
                     .any(|t| match &t.trigger_type {
                         NarrativeTriggerType::PlayerEntersLocation { location_id, .. } => {
@@ -579,13 +608,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_story_event(row, self.clock.now())?);
         }
@@ -623,7 +652,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -671,14 +700,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
-            let id: String = row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+            let id: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
             conversation_id = Some(id);
         }
 
@@ -698,7 +727,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             existing_id
         } else {
@@ -730,7 +759,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             new_id
         };
@@ -747,7 +776,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if !location_id_str.is_empty() {
@@ -762,7 +791,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if !region_id_str.is_empty() {
@@ -777,7 +806,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         let mut time_node_id = None;
@@ -785,13 +814,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
         if let Some(gt) = game_time {
             let time_id = Uuid::new_v4().to_string();
-            let current = gt.current();
             let day = gt.day_ordinal() as i64;
-            let hour = current.hour() as i64;
-            let minute = current.minute() as i64;
+            let hour = gt.hour() as i64;
+            let minute = gt.minute() as i64;
             let period = gt.time_of_day().display_name().to_string();
             let label = format!("Day {}, {} ({:02}:{:02})", day, period, hour, minute);
-            turn_game_time = current.to_rfc3339();
+            // Store total_seconds for time reference (not DateTime anymore)
+            turn_game_time = gt.total_seconds().to_string();
 
             let q = query(
                 "MERGE (t:GameTime {world_id: $world_id, day: $day, hour: $hour, minute: $minute})
@@ -816,15 +845,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .graph
                 .execute(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             if let Some(row) = result
                 .next()
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
             {
-                let id: String =
-                    row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+                let id: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
                 time_node_id = Some(id);
             }
         }
@@ -841,7 +869,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         let last_order = {
@@ -855,15 +883,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .graph
                 .execute(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             if let Some(row) = result
                 .next()
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
             {
                 row.get("last_order")
-                    .map_err(|e| RepoError::Database(e.to_string()))?
+                    .map_err(|e| RepoError::database("query", e))?
             } else {
                 0
             }
@@ -915,7 +943,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if !scene_id_str.is_empty() {
             let q = query(
@@ -932,7 +960,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if let Some(ref time_id) = time_node_id {
@@ -950,7 +978,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         let q = query(
@@ -964,7 +992,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if !scene_id_str.is_empty() {
             let q = query(
@@ -978,7 +1006,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if !location_id_str.is_empty() {
@@ -993,7 +1021,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if let Some(ref time_id) = time_node_id {
@@ -1008,7 +1036,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         Ok(())
@@ -1026,7 +1054,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             event_id = %id,
@@ -1040,25 +1068,26 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         &self,
         world_id: WorldId,
     ) -> Result<Vec<NarrativeEventId>, RepoError> {
-        // Get all completed event IDs from event chains in this world
-        let q = query(
+        let mut completed_events = Vec::new();
+
+        // 1. Get completed events from EventChain nodes
+        let chain_query = query(
             "MATCH (c:EventChain {world_id: $world_id})
             WHERE c.completed_events IS NOT NULL
             RETURN c.completed_events AS completed",
         )
         .param("world_id", world_id.to_string());
 
-        let mut result = self
+        let mut chain_result = self
             .graph
-            .execute(q)
+            .execute(chain_query)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let mut completed_events = Vec::new();
+            .map_err(|e| RepoError::database("query", e))?;
 
-        while let Some(row) = result
+        while let Some(row) = chain_result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let completed_strs: Vec<String> = row.get("completed").unwrap_or_default();
             for id_str in completed_strs {
@@ -1068,11 +1097,79 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             }
         }
 
-        // Deduplicate (in case same event is in multiple chains)
+        // 2. Also get NarrativeEvent nodes where is_triggered = true
+        // An event marked as triggered is considered "completed" for EventCompleted triggers
+        let triggered_query = query(
+            "MATCH (e:NarrativeEvent {world_id: $world_id})
+            WHERE e.is_triggered = true
+            RETURN e.id AS event_id",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut triggered_result = self
+            .graph
+            .execute(triggered_query)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        while let Some(row) = triggered_result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row
+                .get("event_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            if let Ok(id) = id_str.parse::<uuid::Uuid>() {
+                completed_events.push(NarrativeEventId::from(id));
+            }
+        }
+
+        // Deduplicate (in case same event is in multiple chains or both is_triggered and in chain)
         let mut seen = std::collections::HashSet::new();
         completed_events.retain(|id| seen.insert(*id));
 
         Ok(completed_events)
+    }
+
+    async fn get_event_outcomes(
+        &self,
+        world_id: WorldId,
+    ) -> Result<std::collections::HashMap<NarrativeEventId, String>, RepoError> {
+        // Get all triggered events with their selected_outcome
+        let q = query(
+            "MATCH (e:NarrativeEvent {world_id: $world_id})
+            WHERE e.is_triggered = true AND e.selected_outcome IS NOT NULL
+            RETURN e.id AS event_id, e.selected_outcome AS outcome",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut outcomes = std::collections::HashMap::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row
+                .get("event_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            let outcome: String = row
+                .get("outcome")
+                .map_err(|e| RepoError::database("query", e))?;
+
+            if let Ok(id) = id_str.parse::<uuid::Uuid>() {
+                outcomes.insert(NarrativeEventId::from(id), outcome);
+            }
+        }
+
+        Ok(outcomes)
     }
 
     async fn get_conversation_turns(
@@ -1106,13 +1203,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut turns = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let speaker: String = row
                 .get("speaker_name")
@@ -1134,7 +1231,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<Uuid>, RepoError> {
+    ) -> Result<Option<ConversationId>, RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
             RETURN c.id AS conversation_id
@@ -1148,24 +1245,29 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let id_str: String = row
                 .get("conversation_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::Database(e.to_string()))?;
-            Ok(Some(uuid))
+                .map_err(|e| RepoError::database("query", e))?;
+
+            let uuid = Uuid::parse_str(&id_str)
+                .map_err(|e| RepoError::database("query", format!("Invalid conversation_id UUID '{}': {}", id_str, e)))?;
+            Ok(Some(ConversationId::from(uuid)))
         } else {
             Ok(None)
         }
     }
 
-    async fn is_conversation_active(&self, conversation_id: Uuid) -> Result<bool, RepoError> {
+    async fn is_conversation_active(
+        &self,
+        conversation_id: ConversationId,
+    ) -> Result<bool, RepoError> {
         let q = query(
             "MATCH (c:Conversation {id: $conversation_id})
             RETURN c.is_active AS is_active",
@@ -1176,12 +1278,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let is_active: bool = row.get("is_active").unwrap_or(false);
             Ok(is_active)
@@ -1191,7 +1293,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         }
     }
 
-    async fn end_conversation(&self, conversation_id: Uuid) -> Result<bool, RepoError> {
+    async fn end_conversation(&self, conversation_id: ConversationId) -> Result<bool, RepoError> {
         let q = query(
             "MATCH (c:Conversation {id: $conversation_id, is_active: true})
             SET c.is_active = false, c.ended_at = datetime()
@@ -1203,13 +1305,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // If we got a result, the conversation was found and ended
         let ended = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_some();
 
         Ok(ended)
@@ -1219,8 +1321,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<Uuid>, RepoError> {
-        // Find and end the active conversation between PC and NPC atomically
+    ) -> Result<Option<ConversationId>, RepoError> {
+        // Find and end active conversation between PC and NPC atomically
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
             SET c.is_active = false, c.ended_at = datetime()
@@ -1233,21 +1335,452 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let id_str: String = row
                 .get("conversation_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::Database(e.to_string()))?;
-            Ok(Some(uuid))
+                .map_err(|e| RepoError::database("query", e))?;
+
+            let uuid = Uuid::parse_str(&id_str)
+                .map_err(|e| RepoError::database("query", format!("Invalid conversation_id UUID '{}': {}", id_str, e)))?;
+            Ok(Some(ConversationId::from(uuid)))
         } else {
             Ok(None)
         }
+    }
+
+    // =========================================================================
+    // Conversation Management (for DM monitoring)
+    // =========================================================================
+
+    async fn list_active_conversations(
+        &self,
+        world_id: WorldId,
+        include_ended: bool,
+    ) -> Result<Vec<ActiveConversationRecord>, RepoError> {
+        // Build query with optional is_active filter
+        let (is_active_filter, is_active_param) = if include_ended {
+            // No filter - return all conversations
+            ("".to_string(), None)
+        } else {
+            // Only active conversations
+            (" {is_active: $is_active}".to_string(), Some(true))
+        };
+
+        let query_str = format!(
+            "MATCH (w:World {{id: $world_id}})-[:HAS_CONVERSATION]->(c:Conversation{})
+            MATCH (pc:PlayerCharacter)-[:PARTICIPATED_IN]->(c)
+            MATCH (npc:Character)-[:PARTICIPATED_IN]->(c)
+            OPTIONAL MATCH (c)-[:IN_SCENE]->(s:Scene)
+            OPTIONAL MATCH (c)-[:AT_LOCATION]->(l:Location)-[:IN_REGION]->(r:Region)
+            OPTIONAL MATCH (c)-[:AT_REGION]->(r2:Region)
+            OPTIONAL MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+            WITH c, pc, npc, s, l, coalesce(r, r2) as region, count(t) as turn_count
+            // Check for pending approval - look for story events in this conversation
+            OPTIONAL MATCH (e:StoryEvent)-[:PART_OF_CONVERSATION]->(c)
+            WITH c, pc, npc, s, l, region, turn_count, count(e) as pending_count
+            RETURN
+                c.id AS id,
+                pc.id AS pc_id,
+                pc.name AS pc_name,
+                npc.id AS npc_id,
+                npc.name AS npc_name,
+                c.topic_hint AS topic_hint,
+                c.started_at AS started_at,
+                c.last_updated_at AS last_updated_at,
+                c.is_active AS is_active,
+                s.id AS scene_id,
+                s.name AS scene_name,
+                l.id AS location_id,
+                l.name AS location_name,
+                region.name AS region_name,
+                turn_count AS turn_count,
+                (CASE WHEN pending_count > 0 THEN true ELSE false END) AS pending_approval
+            ORDER BY c.last_updated_at DESC",
+            is_active_filter
+        );
+
+        let mut q = query(&query_str)
+            .param("world_id", world_id.to_string());
+
+        // Add is_active parameter only if filtering
+        if let Some(is_active) = is_active_param {
+            q = q.param("is_active", is_active);
+        }
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut conversations = Vec::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
+
+            let uuid = Uuid::parse_str(&id_str)
+                .map_err(|e| RepoError::database("query", format!("Invalid conversation_id UUID '{}': {}", id_str, e)))?;
+
+            let pc_id_str: String = row
+                .get("pc_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            let pc_uuid = Uuid::parse_str(&pc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+            let npc_id_str: String = row
+                .get("npc_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            let npc_uuid = Uuid::parse_str(&npc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+            // Turn count is now aggregated in the main query (N+1 fix)
+            let turn_count: i64 = row.get("turn_count").unwrap_or(0);
+
+            conversations.push(ActiveConversationRecord {
+                id: ConversationId::from(uuid),
+                pc_id: PlayerCharacterId::from(pc_uuid),
+                npc_id: CharacterId::from(npc_uuid),
+                pc_name: row.get("pc_name").unwrap_or_default(),
+                npc_name: row.get("npc_name").unwrap_or_default(),
+                topic_hint: row.get("topic_hint").ok(),
+                started_at: row
+                    .get::<chrono::DateTime<Utc>>("started_at")
+                    .map_err(|e| RepoError::database("query", e))?,
+                last_updated_at: row
+                    .get::<chrono::DateTime<Utc>>("last_updated_at")
+                    .map_err(|e| RepoError::database("query", e))?,
+                is_active: row.get("is_active").unwrap_or(true),
+                turn_count: turn_count as u32,
+                pending_approval: row.get("pending_approval").unwrap_or(false),
+                location: row
+                    .get::<Option<String>>("location_id")
+                    .ok()
+                    .flatten()
+                    .and_then(|loc_id| {
+                        Uuid::parse_str(&loc_id).ok().map(|l| {
+                            Some(ConversationLocationContext {
+                                location_id: LocationId::from(l),
+                                location_name: row.get("location_name").unwrap_or_default(),
+                                region_name: row.get("region_name").unwrap_or_default(),
+                            })
+                        })
+                    })
+                    .flatten(),
+                scene: row
+                    .get::<Option<String>>("scene_id")
+                    .ok()
+                    .flatten()
+                    .and_then(|scene_id| {
+                        Uuid::parse_str(&scene_id).ok().map(|s| {
+                            Some(ConversationSceneContext {
+                                scene_id: SceneId::from(s),
+                                scene_name: row.get("scene_name").unwrap_or_default(),
+                            })
+                        })
+                    })
+                    .flatten(),
+            });
+        }
+
+        Ok(conversations)
+    }
+
+    async fn get_conversation_details(
+        &self,
+        conversation_id: ConversationId,
+        world_id: WorldId,
+    ) -> Result<Option<ConversationDetails>, RepoError> {
+        // First get conversation record with world scoping
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})
+            MATCH (pc:PlayerCharacter)-[:PARTICIPATED_IN]->(c)
+            MATCH (npc:Character)-[:PARTICIPATED_IN]->(c)
+            OPTIONAL MATCH (c)-[:IN_SCENE]->(s:Scene)
+            OPTIONAL MATCH (c)-[:AT_LOCATION]->(l:Location)-[:IN_REGION]->(r:Region)
+            OPTIONAL MATCH (c)-[:AT_REGION]->(r2:Region)
+            WITH c, pc, npc, s, l, coalesce(r, r2) as region
+            // SPOKE_TO is now optional - participants without relationship still appear
+            OPTIONAL MATCH (pc)-[spt:SPOKE_TO]->(npc)
+            RETURN
+                c.id AS id,
+                pc.id AS pc_id,
+                pc.name AS pc_name,
+                npc.id AS npc_id,
+                npc.name AS npc_name,
+                c.topic_hint AS topic_hint,
+                c.started_at AS started_at,
+                c.last_updated_at AS last_updated_at,
+                c.is_active AS is_active,
+                s.id AS scene_id,
+                s.name AS scene_name,
+                l.id AS location_id,
+                l.name AS location_name,
+                region.name AS region_name",
+        )
+        .param("conversation_id", conversation_id.to_string())
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let conv = match result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            Some(row) => {
+                let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
+                let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
+
+                let pc_id_str: String = row
+                    .get("pc_id")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let pc_uuid = Uuid::parse_str(&pc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+                let npc_id_str: String = row
+                    .get("npc_id")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let npc_uuid = Uuid::parse_str(&npc_id_str).map_err(|e| RepoError::database("query", e))?;
+
+                // Count turns in the same query (N+1 fix)
+                let turn_count: i64 = {
+                    let q = query(
+                        "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                        RETURN count(t) AS turn_count",
+                    )
+                    .param("conversation_id", id_str.clone())
+                    .param("world_id", world_id.to_string());
+
+                    let mut turn_result = self
+                        .graph
+                        .execute(q)
+                        .await
+                        .map_err(|e| RepoError::database("query", e))?;
+
+                    if let Some(row) = turn_result
+                        .next()
+                        .await
+                        .map_err(|e| RepoError::database("query", e))?
+                    {
+                        row.get("turn_count").unwrap_or(0)
+                    } else {
+                        0
+                    }
+                };
+
+                ActiveConversationRecord {
+                    id: ConversationId::from(uuid),
+                    pc_id: PlayerCharacterId::from(pc_uuid),
+                    npc_id: CharacterId::from(npc_uuid),
+                    pc_name: row.get("pc_name").unwrap_or_default(),
+                    npc_name: row.get("npc_name").unwrap_or_default(),
+                    topic_hint: row.get("topic_hint").ok(),
+                    started_at: row
+                        .get::<chrono::DateTime<Utc>>("started_at")
+                        .map_err(|e| RepoError::database("query", e))?,
+                    last_updated_at: row
+                        .get::<chrono::DateTime<Utc>>("last_updated_at")
+                        .map_err(|e| RepoError::database("query", e))?,
+                    is_active: row.get("is_active").unwrap_or(true),
+                    turn_count: turn_count as u32,
+                    pending_approval: false, // Not tracked in details view
+                    location: row
+                        .get::<Option<String>>("location_id")
+                        .ok()
+                        .flatten()
+                        .and_then(|loc_id| {
+                            Uuid::parse_str(&loc_id).ok().map(|l| {
+                                Some(ConversationLocationContext {
+                                    location_id: LocationId::from(l),
+                                    location_name: row.get("location_name").unwrap_or_default(),
+                                    region_name: row.get("region_name").unwrap_or_default(),
+                                })
+                            })
+                        })
+                        .flatten(),
+                    scene: row
+                        .get::<Option<String>>("scene_id")
+                        .ok()
+                        .flatten()
+                        .and_then(|scene_id| {
+                            Uuid::parse_str(&scene_id).ok().map(|s| {
+                                Some(ConversationSceneContext {
+                                    scene_id: SceneId::from(s),
+                                    scene_name: row.get("scene_name").unwrap_or_default(),
+                                })
+                            })
+                        })
+                        .flatten(),
+                }
+            }
+            None => return Ok(None),
+        };
+
+        // Get participants with turn counts
+        let participants = {
+            let q = query(
+                "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})<-[:PARTICIPATED_IN]-(p)
+                OPTIONAL MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+                WHERE t.speaker_id = p.id
+                WITH p, count(t) as turn_count, max(t.order) as last_order
+                // SPOKE_TO is now optional - participants without relationship still appear
+                OPTIONAL MATCH (c)-[:HAS_TURN]->(last_t:DialogueTurn {speaker_id: p.id, order: last_order})
+                OPTIONAL MATCH (p)-[spt:SPOKE_TO]->(npc:Character)
+                OPTIONAL MATCH (p)<-[w:WANTS]-(want:Want)
+                OPTIONAL MATCH (p)-[rel:HAS_RELATIONSHIP]->(target)
+                RETURN
+                    p.id AS character_id,
+                    p.name AS name,
+                    CASE WHEN p:PlayerCharacter THEN 'pc' ELSE 'npc' END AS participant_type,
+                    turn_count,
+                    CASE WHEN last_t.game_time IS NOT NULL THEN datetime({epochSeconds: toInteger(last_t.game_time)}) ELSE c.last_updated_at END AS last_spoke_at,
+                    last_t.text AS last_spoke,
+                    want.description AS want_description,
+                    rel.type AS relationship_type",
+            )
+            .param("conversation_id", conversation_id.to_string())
+            .param("world_id", world_id.to_string());
+
+            let mut result = self
+                .graph
+                .execute(q)
+                .await
+                .map_err(|e| RepoError::database("query", e))?;
+
+            let mut parts = Vec::new();
+            while let Some(row) = result
+                .next()
+                .await
+                .map_err(|e| RepoError::database("query", e))?
+            {
+                let char_id_str: String = row
+                    .get("character_id")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let char_uuid = Uuid::parse_str(&char_id_str).map_err(|e| RepoError::database("query", e))?;
+
+                let participant_type_str: String = row
+                    .get("participant_type")
+                    .map_err(|e| RepoError::database("query", e))?;
+                let participant_type = if participant_type_str == "pc" {
+                    ParticipantType::Pc
+                } else {
+                    ParticipantType::Npc
+                };
+
+                parts.push(ConversationParticipantDetail {
+                    character_id: CharacterId::from(char_uuid),
+                    name: row.get("name").unwrap_or_default(),
+                    participant_type,
+                    turn_count: row.get("turn_count").unwrap_or(0) as u32,
+                    last_spoke_at: row.get("last_spoke_at").ok(),
+                    last_spoke: row.get("last_spoke").ok(),
+                    want: row.get("want_description").ok(),
+                    relationship: row.get("relationship_type").ok(),
+                });
+            }
+            parts
+        };
+
+        // Get recent turns - scoped to conversation (fix)
+        let recent_turns = {
+            let q = query(
+                "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                OPTIONAL MATCH (pc:PlayerCharacter {id: t.speaker_id})
+                OPTIONAL MATCH (npc:Character {id: t.speaker_id})
+                RETURN
+                    coalesce(pc.name, npc.name, 'Unknown') AS speaker_name,
+                    t.text AS text,
+                    coalesce(datetime({epochSeconds: toInteger(t.game_time)}), c.last_updated_at) AS timestamp,
+                    t.is_dm_override AS is_dm_override
+                ORDER BY t.order DESC
+                LIMIT 20",
+            )
+            .param("conversation_id", conversation_id.to_string())
+            .param("world_id", world_id.to_string());
+
+            let mut result = self
+                .graph
+                .execute(q)
+                .await
+                .map_err(|e| RepoError::database("query", e))?;
+
+            let mut turns = Vec::new();
+            while let Some(row) = result
+                .next()
+                .await
+                .map_err(|e| RepoError::database("query", e))?
+            {
+                turns.push(DialogueTurnDetail {
+                    speaker_name: row.get("speaker_name").unwrap_or_default(),
+                    text: row.get("text").unwrap_or_default(),
+                    timestamp: row
+                        .get::<chrono::DateTime<Utc>>("timestamp")
+                        .map_err(|e| RepoError::database("query", e))?,
+                    is_dm_override: row.get("is_dm_override").unwrap_or(false),
+                });
+            }
+            // Reverse to get chronological order
+            turns.reverse();
+            turns
+        };
+
+        Ok(Some(ConversationDetails {
+            conversation: conv,
+            participants,
+            recent_turns,
+        }))
+    }
+
+    async fn end_conversation_by_id(
+        &self,
+        conversation_id: ConversationId,
+        world_id: WorldId,
+        ended_by: Option<CharacterId>,
+        reason: Option<String>,
+    ) -> Result<bool, RepoError> {
+        // End conversation by ID, tracking who ended it and why
+        // World scoping enforced via World relationship
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id, is_active: true})
+            SET c.is_active = false,
+                c.ended_at = datetime(),
+                c.ended_by = $ended_by,
+                c.ended_reason = $reason
+            RETURN c.id AS conversation_id",
+        )
+        .param("world_id", world_id.to_string())
+        .param("conversation_id", conversation_id.to_string())
+        .param(
+            "ended_by",
+            ended_by.map(|id| id.to_string()).unwrap_or_default(),
+        )
+        .param("reason", reason.unwrap_or_default());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // If we got a result, conversation was found and ended
+        let ended = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+            .is_some();
+
+        Ok(ended)
     }
 }
 
@@ -1256,17 +1789,23 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 // =============================================================================
 
 fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<NarrativeEvent, RepoError> {
-    let node: Node = row
-        .get("e")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let node: Node = row.get("e").map_err(|e| RepoError::database("query", e))?;
 
-    let id: NarrativeEventId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let name: String = node
-        .get("name")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let id: NarrativeEventId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse NarrativeEventId: {}", e))
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse world_id for NarrativeEvent {}: {}", id, e),
+        )
+    })?;
+    let name: String = node.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'name' for NarrativeEvent {}: {}", id, e),
+        )
+    })?;
 
     let description = node.get_string_or("description", "");
     let scene_direction = node.get_string_or("scene_direction", "");
@@ -1274,10 +1813,33 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
     let default_outcome = node.get_optional_string("default_outcome");
     let selected_outcome = node.get_optional_string("selected_outcome");
 
-    let tags: Vec<String> = node.get_json_or_default("tags_json");
-    let stored_triggers: Vec<StoredNarrativeTrigger> = node.get_json_or_default("triggers_json");
-    let stored_outcomes: Vec<StoredEventOutcome> = node.get_json_or_default("outcomes_json");
-    let trigger_logic_str = node.get_string_or("trigger_logic", "All");
+    let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
+    let stored_triggers: Vec<StoredNarrativeTrigger> =
+        node.get_json_strict("triggers_json").map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Failed to parse triggers_json for NarrativeEvent {}: {}",
+                    id, e
+                ),
+            )
+        })?;
+    let stored_outcomes: Vec<StoredEventOutcome> =
+        node.get_json_strict("outcomes_json").map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Failed to parse outcomes_json for NarrativeEvent {}: {}",
+                    id, e
+                ),
+            )
+        })?;
+    let trigger_logic_str = node.get_string_strict("trigger_logic").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing trigger_logic for NarrativeEvent {}: {}", id, e),
+        )
+    })?;
 
     let is_active = node.get_bool_or("is_active", true);
     let is_triggered = node.get_bool_or("is_triggered", false);
@@ -1297,9 +1859,16 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
-    let trigger_conditions: Vec<NarrativeTrigger> =
-        stored_triggers.into_iter().map(|t| t.into()).collect();
-    let outcomes: Vec<EventOutcome> = stored_outcomes.into_iter().map(|o| o.into()).collect();
+    let trigger_conditions: Vec<NarrativeTrigger> = stored_triggers
+        .into_iter()
+        .map(NarrativeTrigger::try_from)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| RepoError::database("parse", e.to_string()))?;
+    let outcomes: Vec<EventOutcome> = stored_outcomes
+        .into_iter()
+        .map(EventOutcome::try_from)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| RepoError::database("parse", e.to_string()))?;
 
     let trigger_logic = match trigger_logic_str.as_str() {
         "Any" => TriggerLogic::Any,
@@ -1314,54 +1883,108 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         _ => TriggerLogic::All,
     };
 
-    Ok(NarrativeEvent {
-        id,
-        world_id,
-        name,
-        description,
-        tags,
-        trigger_conditions,
-        trigger_logic,
-        scene_direction,
-        suggested_opening,
-        outcomes,
-        default_outcome,
-        is_active,
-        is_triggered,
-        triggered_at,
-        selected_outcome,
-        is_repeatable,
-        trigger_count,
-        delay_turns,
-        expires_after_turns,
-        priority,
-        is_favorite,
-        created_at,
-        updated_at,
-    })
+    let name =
+        NarrativeEventName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
+
+    // Build event with explicit trigger state
+    let mut event = if is_triggered {
+        let triggered_time = triggered_at.unwrap_or(created_at);
+        NarrativeEvent::new(world_id, name, created_at)
+            .with_id(id)
+            .with_description(description)
+            .with_trigger_conditions(trigger_conditions)
+            .with_trigger_logic(trigger_logic)
+            .with_scene_direction(
+                Description::new(scene_direction)
+                    .map_err(|e| RepoError::database("query", e.to_string()))?,
+            )
+            .with_outcomes(outcomes)
+            .with_active(is_active)
+            .with_repeatable(is_repeatable)
+            .with_delay_turns(delay_turns)
+            .with_priority(priority)
+            .with_favorite(is_favorite)
+            .with_triggered(triggered_time, selected_outcome, trigger_count)
+            .with_updated_at(updated_at)
+    } else {
+        NarrativeEvent::new(world_id, name, created_at)
+            .with_id(id)
+            .with_description(description)
+            .with_trigger_conditions(trigger_conditions)
+            .with_trigger_logic(trigger_logic)
+            .with_scene_direction(
+                Description::new(scene_direction)
+                    .map_err(|e| RepoError::database("query", e.to_string()))?,
+            )
+            .with_outcomes(outcomes)
+            .with_active(is_active)
+            .with_repeatable(is_repeatable)
+            .with_delay_turns(delay_turns)
+            .with_priority(priority)
+            .with_favorite(is_favorite)
+            .with_not_triggered(trigger_count)
+            .with_updated_at(updated_at)
+    };
+
+    if let Some(opening) = suggested_opening {
+        event = event.with_suggested_opening(opening);
+    }
+    if let Some(outcome) = default_outcome {
+        event = event.with_default_outcome(outcome);
+    }
+    if let Some(turns) = expires_after_turns {
+        event = event.with_expires_after_turns(turns);
+    }
+
+    for tag_str in tags_raw {
+        let tag =
+            wrldbldr_domain::Tag::new(&tag_str).map_err(|e| RepoError::database("parse", e))?;
+        event = event.with_tag(tag);
+    }
+
+    Ok(event)
 }
 
 fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, RepoError> {
-    let node: Node = row
-        .get("c")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let node: Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
-    let id: EventChainId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let name: String = node
-        .get("name")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let id: EventChainId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse EventChainId: {}", e))
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse world_id for EventChain {}: {}", id, e),
+        )
+    })?;
+    let name: String = node.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'name' for EventChain {}: {}", id, e),
+        )
+    })?;
 
     let description: String = node.get_string_or("description", "");
-    let events_strs: Vec<String> = node.get("events").unwrap_or_default();
+    let events_strs: Vec<String> = node.get("events").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Missing required 'events' for EventChain {}: {}", id, e),
+        )
+    })?;
     let is_active: bool = node.get_bool_or("is_active", true);
     let current_position: i64 = node.get_i64_or("current_position", 0);
-    let completed_strs: Vec<String> = node.get("completed_events").unwrap_or_default();
+    let completed_strs: Vec<String> = node.get("completed_events").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Missing required 'completed_events' for EventChain {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let act_id: Option<ActId> =
-        parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let tags: Vec<String> = node.get_json_or_default("tags_json");
+        parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
+    let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
     let color: Option<String> = node.get_optional_string("color");
     let is_favorite: bool = node.get_bool_or("is_favorite", false);
     let created_at: DateTime<Utc> = node.get_datetime_or("created_at", fallback);
@@ -1369,22 +1992,41 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
 
     let events: Vec<NarrativeEventId> = events_strs
         .iter()
-        .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
-        .collect();
+        .map(|s| {
+            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid event UUID in chain: {} - {}", s, e),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let completed_events: Vec<NarrativeEventId> = completed_strs
         .iter()
-        .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
-        .collect();
+        .map(|s| {
+            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid completed event UUID in chain: {} - {}", s, e),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(EventChain {
+    let tags: Vec<wrldbldr_domain::Tag> = tags_raw
+        .into_iter()
+        .map(|s| wrldbldr_domain::Tag::new(&s).map_err(|e| RepoError::database("parse", e)))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(EventChain::from_storage(
         id,
         world_id,
         name,
         description,
         events,
         is_active,
-        current_position: current_position as u32,
+        current_position as u32,
         completed_events,
         act_id,
         tags,
@@ -1392,58 +2034,85 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         is_favorite,
         created_at,
         updated_at,
-    })
+    ))
 }
 
 fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, RepoError> {
-    let node: Node = row
-        .get("e")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let node: Node = row.get("e").map_err(|e| RepoError::database("query", e))?;
 
-    let id: StoryEventId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let event_type_json: String = node
-        .get("event_type_json")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let id: StoryEventId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse StoryEventId: {}", e))
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse world_id for StoryEvent {}: {}", id, e),
+        )
+    })?;
+    let event_type_json: String = node.get("event_type_json").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'event_type_json' for StoryEvent {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let timestamp = node.get_datetime_or("timestamp", fallback);
     let game_time = node.get_optional_string("game_time");
-    let summary: String = node
-        .get("summary")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let summary: String = node.get("summary").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'summary' for StoryEvent {}: {}", id, e),
+        )
+    })?;
     let is_hidden = node.get_bool_or("is_hidden", false);
-    let tags: Vec<String> = node.get_json_or_default("tags_json");
+    let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
+
+    let tags: Vec<wrldbldr_domain::Tag> = tags_raw
+        .into_iter()
+        .map(|s| wrldbldr_domain::Tag::new(&s).map_err(|e| RepoError::database("parse", e)))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let stored_event_type: StoredStoryEventType = serde_json::from_str(&event_type_json)
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
-    let event_type: StoryEventType = stored_event_type.into();
+    let event_type: StoryEventType = stored_event_type
+        .try_into()
+        .map_err(|e: StoredTypeParseError| RepoError::database("parse", e.to_string()))?;
 
-    Ok(StoryEvent {
-        id,
-        world_id,
-        event_type,
-        timestamp,
-        game_time,
-        summary,
-        is_hidden,
-        tags,
-    })
+    Ok(StoryEvent::from_storage(
+        id, world_id, event_type, timestamp, game_time, summary, is_hidden, tags,
+    ))
 }
 
 // =============================================================================
 // Stored types for JSON serialization
 // =============================================================================
 
-/// Parse a UUID string, returning nil UUID on error
-fn parse_uuid_or_nil(s: &str, field: &str) -> Uuid {
-    match Uuid::parse_str(s) {
-        Ok(uuid) => uuid,
-        Err(e) => {
-            tracing::warn!(field = %field, input = %s, error = %e, "Failed to parse UUID, using nil");
-            Uuid::nil()
-        }
+/// Error type for stored type parsing failures
+#[derive(Debug)]
+struct StoredTypeParseError(String);
+
+impl std::fmt::Display for StoredTypeParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
+}
+
+impl std::error::Error for StoredTypeParseError {}
+
+impl StoredTypeParseError {
+    fn invalid_uuid(field: &str, value: &str, err: uuid::Error) -> Self {
+        Self(format!(
+            "Invalid UUID for field '{}': {} (value: '{}')",
+            field, err, value
+        ))
+    }
+}
+
+/// Parse a UUID string, returning error on failure (fail-fast)
+fn parse_uuid(s: &str, field: &str) -> Result<Uuid, StoredTypeParseError> {
+    Uuid::parse_str(s).map_err(|e| StoredTypeParseError::invalid_uuid(field, s, e))
 }
 
 // ---------------------------------------------------------------------------
@@ -1529,6 +2198,28 @@ enum StoredNarrativeTriggerType {
     Custom {
         description: String,
         llm_evaluation: bool,
+    },
+    // Compendium-based triggers
+    KnowsSpell {
+        spell_id: String,
+        spell_name: String,
+    },
+    HasFeat {
+        feat_id: String,
+        feat_name: String,
+    },
+    HasClass {
+        class_id: String,
+        class_name: String,
+        min_level: Option<u8>,
+    },
+    HasOrigin {
+        origin_id: String,
+        origin_name: String,
+    },
+    KnowsCreature {
+        creature_id: String,
+        creature_name: String,
     },
 }
 
@@ -1777,7 +2468,7 @@ enum StoredStoryEventType {
         event_subtype: String,
         title: String,
         description: String,
-        data: serde_json::Value,
+        data: Option<String>,
     },
 }
 
@@ -1998,6 +2689,43 @@ impl From<&NarrativeTriggerType> for StoredNarrativeTriggerType {
             } => StoredNarrativeTriggerType::Custom {
                 description: description.clone(),
                 llm_evaluation: *llm_evaluation,
+            },
+            // Compendium-based triggers
+            NarrativeTriggerType::KnowsSpell {
+                spell_id,
+                spell_name,
+            } => StoredNarrativeTriggerType::KnowsSpell {
+                spell_id: spell_id.clone(),
+                spell_name: spell_name.clone(),
+            },
+            NarrativeTriggerType::HasFeat { feat_id, feat_name } => {
+                StoredNarrativeTriggerType::HasFeat {
+                    feat_id: feat_id.clone(),
+                    feat_name: feat_name.clone(),
+                }
+            }
+            NarrativeTriggerType::HasClass {
+                class_id,
+                class_name,
+                min_level,
+            } => StoredNarrativeTriggerType::HasClass {
+                class_id: class_id.clone(),
+                class_name: class_name.clone(),
+                min_level: *min_level,
+            },
+            NarrativeTriggerType::HasOrigin {
+                origin_id,
+                origin_name,
+            } => StoredNarrativeTriggerType::HasOrigin {
+                origin_id: origin_id.clone(),
+                origin_name: origin_name.clone(),
+            },
+            NarrativeTriggerType::KnowsCreature {
+                creature_id,
+                creature_name,
+            } => StoredNarrativeTriggerType::KnowsCreature {
+                creature_id: creature_id.clone(),
+                creature_name: creature_name.clone(),
             },
         }
     }
@@ -2549,27 +3277,29 @@ impl From<DmMarkerType> for StoredDmMarkerType {
 // Stored -> Domain conversions
 // =============================================================================
 
-impl From<StoredNarrativeTrigger> for NarrativeTrigger {
-    fn from(s: StoredNarrativeTrigger) -> Self {
-        Self {
-            trigger_type: NarrativeTriggerType::from(s.trigger_type),
-            description: s.description,
-            is_required: s.is_required,
-            trigger_id: s.trigger_id,
-        }
+impl TryFrom<StoredNarrativeTrigger> for NarrativeTrigger {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredNarrativeTrigger) -> Result<Self, Self::Error> {
+        let trigger_type = s.trigger_type.try_into()?;
+        let mut trigger = NarrativeTrigger::new(trigger_type, s.description, s.trigger_id);
+        trigger.is_required = s.is_required;
+        Ok(trigger)
     }
 }
 
-impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
-    fn from(s: StoredNarrativeTriggerType) -> Self {
-        match s {
+impl TryFrom<StoredNarrativeTriggerType> for NarrativeTriggerType {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredNarrativeTriggerType) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredNarrativeTriggerType::NpcAction {
                 npc_id,
                 npc_name,
                 action_keywords,
                 action_description,
             } => NarrativeTriggerType::NpcAction {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "npc_id")),
+                npc_id: CharacterId::from(parse_uuid(&npc_id, "npc_id")?),
                 npc_name,
                 action_keywords,
                 action_description,
@@ -2578,7 +3308,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 location_id,
                 location_name,
             } => NarrativeTriggerType::PlayerEntersLocation {
-                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "location_id")),
+                location_id: LocationId::from(parse_uuid(&location_id, "location_id")?),
                 location_name,
             },
             StoredNarrativeTriggerType::TimeAtLocation {
@@ -2586,7 +3316,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 location_name,
                 time_context,
             } => NarrativeTriggerType::TimeAtLocation {
-                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "location_id")),
+                location_id: LocationId::from(parse_uuid(&location_id, "location_id")?),
                 location_name,
                 time_context,
             },
@@ -2596,6 +3326,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 npc_name,
             } => NarrativeTriggerType::DialogueTopic {
                 keywords,
+                // Optional field - use lenient parsing
                 with_npc: with_npc.and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
                 npc_name,
             },
@@ -2604,7 +3335,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 challenge_name,
                 requires_success,
             } => NarrativeTriggerType::ChallengeCompleted {
-                challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "challenge_id")),
+                challenge_id: ChallengeId::from(parse_uuid(&challenge_id, "challenge_id")?),
                 challenge_name,
                 requires_success,
             },
@@ -2616,12 +3347,9 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 min_sentiment,
                 max_sentiment,
             } => NarrativeTriggerType::RelationshipThreshold {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 character_name,
-                with_character: CharacterId::from(parse_uuid_or_nil(
-                    &with_character,
-                    "with_character",
-                )),
+                with_character: CharacterId::from(parse_uuid(&with_character, "with_character")?),
                 with_character_name,
                 min_sentiment,
                 max_sentiment,
@@ -2641,13 +3369,14 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 event_name,
                 outcome_name,
             } => NarrativeTriggerType::EventCompleted {
-                event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "event_id")),
+                event_id: NarrativeEventId::from(parse_uuid(&event_id, "event_id")?),
                 event_name,
                 outcome_name,
             },
             StoredNarrativeTriggerType::TurnCount { turns, since_event } => {
                 NarrativeTriggerType::TurnCount {
                     turns,
+                    // Optional field - use lenient parsing
                     since_event: since_event
                         .and_then(|id| Uuid::parse_str(&id).ok().map(NarrativeEventId::from)),
                 }
@@ -2664,7 +3393,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 min_value,
                 max_value,
             } => NarrativeTriggerType::StatThreshold {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 stat_name,
                 min_value,
                 max_value,
@@ -2674,6 +3403,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 involved_npc,
             } => NarrativeTriggerType::CombatResult {
                 victory,
+                // Optional field - use lenient parsing
                 involved_npc: involved_npc
                     .and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
             },
@@ -2684,21 +3414,62 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 description,
                 llm_evaluation,
             },
-        }
+            // Compendium-based triggers (no UUIDs)
+            StoredNarrativeTriggerType::KnowsSpell {
+                spell_id,
+                spell_name,
+            } => NarrativeTriggerType::KnowsSpell {
+                spell_id,
+                spell_name,
+            },
+            StoredNarrativeTriggerType::HasFeat { feat_id, feat_name } => {
+                NarrativeTriggerType::HasFeat { feat_id, feat_name }
+            }
+            StoredNarrativeTriggerType::HasClass {
+                class_id,
+                class_name,
+                min_level,
+            } => NarrativeTriggerType::HasClass {
+                class_id,
+                class_name,
+                min_level,
+            },
+            StoredNarrativeTriggerType::HasOrigin {
+                origin_id,
+                origin_name,
+            } => NarrativeTriggerType::HasOrigin {
+                origin_id,
+                origin_name,
+            },
+            StoredNarrativeTriggerType::KnowsCreature {
+                creature_id,
+                creature_name,
+            } => NarrativeTriggerType::KnowsCreature {
+                creature_id,
+                creature_name,
+            },
+        })
     }
 }
 
-impl From<StoredEventOutcome> for EventOutcome {
-    fn from(s: StoredEventOutcome) -> Self {
-        Self {
-            name: s.name,
-            label: s.label,
-            description: s.description,
-            condition: s.condition.map(OutcomeCondition::from),
-            effects: s.effects.into_iter().map(EventEffect::from).collect(),
-            chain_events: s.chain_events.into_iter().map(ChainedEvent::from).collect(),
-            timeline_summary: s.timeline_summary,
-        }
+impl TryFrom<StoredEventOutcome> for EventOutcome {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredEventOutcome) -> Result<Self, Self::Error> {
+        let mut outcome = EventOutcome::new(s.name, s.label, s.description);
+        outcome.effects = s
+            .effects
+            .into_iter()
+            .map(EventEffect::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        outcome.chain_events = s
+            .chain_events
+            .into_iter()
+            .map(ChainedEvent::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        outcome.condition = s.condition.map(OutcomeCondition::from);
+        outcome.timeline_summary = s.timeline_summary;
+        Ok(outcome)
     }
 }
 
@@ -2733,9 +3504,11 @@ impl From<StoredOutcomeCondition> for OutcomeCondition {
     }
 }
 
-impl From<StoredEventEffect> for EventEffect {
-    fn from(s: StoredEventEffect) -> Self {
-        match s {
+impl TryFrom<StoredEventEffect> for EventEffect {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredEventEffect) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredEventEffect::ModifyRelationship {
                 from_character,
                 from_name,
@@ -2744,12 +3517,9 @@ impl From<StoredEventEffect> for EventEffect {
                 sentiment_change,
                 reason,
             } => EventEffect::ModifyRelationship {
-                from_character: CharacterId::from(parse_uuid_or_nil(
-                    &from_character,
-                    "from_character",
-                )),
+                from_character: CharacterId::from(parse_uuid(&from_character, "from_character")?),
                 from_name,
-                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "to_character")),
+                to_character: CharacterId::from(parse_uuid(&to_character, "to_character")?),
                 to_name,
                 sentiment_change,
                 reason,
@@ -2788,56 +3558,64 @@ impl From<StoredEventEffect> for EventEffect {
                 challenge_id,
                 challenge_name,
             } => EventEffect::EnableChallenge {
-                challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "challenge_id")),
+                challenge_id: ChallengeId::from(parse_uuid(&challenge_id, "challenge_id")?),
                 challenge_name,
             },
             StoredEventEffect::DisableChallenge {
                 challenge_id,
                 challenge_name,
             } => EventEffect::DisableChallenge {
-                challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "challenge_id")),
+                challenge_id: ChallengeId::from(parse_uuid(&challenge_id, "challenge_id")?),
                 challenge_name,
             },
             StoredEventEffect::EnableEvent {
                 event_id,
                 event_name,
             } => EventEffect::EnableEvent {
-                event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "event_id")),
+                event_id: NarrativeEventId::from(parse_uuid(&event_id, "event_id")?),
                 event_name,
             },
             StoredEventEffect::DisableEvent {
                 event_id,
                 event_name,
             } => EventEffect::DisableEvent {
-                event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "event_id")),
+                event_id: NarrativeEventId::from(parse_uuid(&event_id, "event_id")?),
                 event_name,
             },
             StoredEventEffect::TriggerScene {
                 scene_id,
                 scene_name,
             } => EventEffect::TriggerScene {
-                scene_id: SceneId::from(parse_uuid_or_nil(&scene_id, "scene_id")),
+                scene_id: SceneId::from(parse_uuid(&scene_id, "scene_id")?),
                 scene_name,
             },
             StoredEventEffect::StartCombat {
                 participants,
                 participant_names,
                 combat_description,
-            } => EventEffect::StartCombat {
-                participants: participants
-                    .into_iter()
-                    .filter_map(|id| Uuid::parse_str(&id).ok().map(CharacterId::from))
-                    .collect(),
-                participant_names,
-                combat_description,
-            },
+            } => {
+                // Parse all participant UUIDs, fail if any are invalid
+                let parsed_participants: Result<Vec<CharacterId>, StoredTypeParseError> =
+                    participants
+                        .iter()
+                        .enumerate()
+                        .map(|(i, id)| {
+                            parse_uuid(id, &format!("participants[{}]", i)).map(CharacterId::from)
+                        })
+                        .collect();
+                EventEffect::StartCombat {
+                    participants: parsed_participants?,
+                    participant_names,
+                    combat_description,
+                }
+            }
             StoredEventEffect::ModifyStat {
                 character_id,
                 character_name,
                 stat_name,
                 modifier,
             } => EventEffect::ModifyStat {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 character_name,
                 stat_name,
                 modifier,
@@ -2858,35 +3636,44 @@ impl From<StoredEventEffect> for EventEffect {
                 description,
                 requires_dm_action,
             },
-        }
+        })
     }
 }
 
-impl From<StoredChainedEvent> for ChainedEvent {
-    fn from(s: StoredChainedEvent) -> Self {
-        Self {
-            event_id: NarrativeEventId::from(parse_uuid_or_nil(&s.event_id, "event_id")),
-            event_name: s.event_name,
-            delay_turns: s.delay_turns,
-            additional_trigger: s.additional_trigger.map(|t| NarrativeTriggerType::from(*t)),
-            chain_reason: s.chain_reason,
-        }
+impl TryFrom<StoredChainedEvent> for ChainedEvent {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredChainedEvent) -> Result<Self, Self::Error> {
+        let mut chained = ChainedEvent::new(
+            NarrativeEventId::from(parse_uuid(&s.event_id, "event_id")?),
+            s.event_name,
+        );
+        chained.delay_turns = s.delay_turns;
+        chained.additional_trigger = s
+            .additional_trigger
+            .map(|t| NarrativeTriggerType::try_from(*t))
+            .transpose()?;
+        chained.chain_reason = s.chain_reason;
+        Ok(chained)
     }
 }
 
-impl From<StoredStoryEventType> for StoryEventType {
-    fn from(s: StoredStoryEventType) -> Self {
-        match s {
+impl TryFrom<StoredStoryEventType> for StoryEventType {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredStoryEventType) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredStoryEventType::LocationChange {
                 from_location,
                 to_location,
                 character_id,
                 travel_method,
             } => StoryEventType::LocationChange {
+                // Optional field - use lenient parsing
                 from_location: from_location
                     .and_then(|id| Uuid::parse_str(&id).ok().map(LocationId::from)),
-                to_location: LocationId::from(parse_uuid_or_nil(&to_location, "to_location")),
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                to_location: LocationId::from(parse_uuid(&to_location, "to_location")?),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 travel_method,
             },
             StoredStoryEventType::DialogueExchange {
@@ -2897,7 +3684,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 topics_discussed,
                 tone,
             } => StoryEventType::DialogueExchange {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "npc_id")),
+                npc_id: CharacterId::from(parse_uuid(&npc_id, "npc_id")?),
                 npc_name,
                 player_dialogue,
                 npc_response,
@@ -2911,17 +3698,25 @@ impl From<StoredStoryEventType> for StoryEventType {
                 outcome,
                 location_id,
                 rounds,
-            } => StoryEventType::CombatEvent {
-                combat_type: combat_type.into(),
-                participants: participants
-                    .into_iter()
-                    .filter_map(|id| Uuid::parse_str(&id).ok().map(CharacterId::from))
-                    .collect(),
-                enemies,
-                outcome: outcome.map(|o| o.into()),
-                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "location_id")),
-                rounds,
-            },
+            } => {
+                // Parse all participant UUIDs, fail if any are invalid
+                let parsed_participants: Result<Vec<CharacterId>, StoredTypeParseError> =
+                    participants
+                        .iter()
+                        .enumerate()
+                        .map(|(i, id)| {
+                            parse_uuid(id, &format!("participants[{}]", i)).map(CharacterId::from)
+                        })
+                        .collect();
+                StoryEventType::CombatEvent {
+                    combat_type: combat_type.into(),
+                    participants: parsed_participants?,
+                    enemies,
+                    outcome: outcome.map(|o| o.into()),
+                    location_id: LocationId::from(parse_uuid(&location_id, "location_id")?),
+                    rounds,
+                }
+            }
             StoredStoryEventType::ChallengeAttempted {
                 challenge_id,
                 challenge_name,
@@ -2932,10 +3727,11 @@ impl From<StoredStoryEventType> for StoryEventType {
                 modifier,
                 outcome,
             } => StoryEventType::ChallengeAttempted {
+                // Optional field - use lenient parsing
                 challenge_id: challenge_id
                     .and_then(|id| Uuid::parse_str(&id).ok().map(ChallengeId::from)),
                 challenge_name,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 skill_used,
                 difficulty,
                 roll_result,
@@ -2951,8 +3747,8 @@ impl From<StoredStoryEventType> for StoryEventType {
             } => StoryEventType::ItemAcquired {
                 item_name,
                 item_description,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
-                source: source.into(),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
+                source: source.try_into()?,
                 quantity,
             },
             StoredStoryEventType::ItemTransferred {
@@ -2963,9 +3759,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 reason,
             } => StoryEventType::ItemTransferred {
                 item_name,
+                // Optional field - use lenient parsing
                 from_character: from_character
                     .and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
-                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "to_character")),
+                to_character: CharacterId::from(parse_uuid(&to_character, "to_character")?),
                 quantity,
                 reason,
             },
@@ -2977,7 +3774,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 consumed,
             } => StoryEventType::ItemUsed {
                 item_name,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 target,
                 effect,
                 consumed,
@@ -2990,11 +3787,8 @@ impl From<StoredStoryEventType> for StoryEventType {
                 sentiment_change,
                 reason,
             } => StoryEventType::RelationshipChanged {
-                from_character: CharacterId::from(parse_uuid_or_nil(
-                    &from_character,
-                    "from_character",
-                )),
-                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "to_character")),
+                from_character: CharacterId::from(parse_uuid(&from_character, "from_character")?),
+                to_character: CharacterId::from(parse_uuid(&to_character, "to_character")?),
                 previous_sentiment,
                 new_sentiment,
                 sentiment_change,
@@ -3007,8 +3801,9 @@ impl From<StoredStoryEventType> for StoryEventType {
                 to_scene_name,
                 trigger_reason,
             } => StoryEventType::SceneTransition {
+                // Optional field - use lenient parsing
                 from_scene: from_scene.and_then(|id| Uuid::parse_str(&id).ok().map(SceneId::from)),
-                to_scene: SceneId::from(parse_uuid_or_nil(&to_scene, "to_scene")),
+                to_scene: SceneId::from(parse_uuid(&to_scene, "to_scene")?),
                 from_scene_name,
                 to_scene_name,
                 trigger_reason,
@@ -3024,6 +3819,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 info_type: info_type.into(),
                 title,
                 content,
+                // Optional field - use lenient parsing
                 source: source.and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
                 importance: importance.into(),
                 persist_to_journal,
@@ -3036,7 +3832,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 dm_approved,
                 dm_modified,
             } => StoryEventType::NpcAction {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "npc_id")),
+                npc_id: CharacterId::from(parse_uuid(&npc_id, "npc_id")?),
                 npc_name,
                 action_type,
                 description,
@@ -3060,10 +3856,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 outcome_branch,
                 effects_applied,
             } => StoryEventType::NarrativeEventTriggered {
-                narrative_event_id: NarrativeEventId::from(parse_uuid_or_nil(
+                narrative_event_id: NarrativeEventId::from(parse_uuid(
                     &narrative_event_id,
                     "narrative_event_id",
-                )),
+                )?),
                 narrative_event_name,
                 outcome_branch,
                 effects_applied,
@@ -3075,7 +3871,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 new_value,
                 reason,
             } => StoryEventType::StatModified {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 stat_name,
                 previous_value,
                 new_value,
@@ -3117,7 +3913,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 description,
                 data,
             },
-        }
+        })
     }
 }
 
@@ -3158,20 +3954,22 @@ impl From<StoredChallengeEventOutcome> for ChallengeEventOutcome {
     }
 }
 
-impl From<StoredItemSource> for ItemSource {
-    fn from(s: StoredItemSource) -> Self {
-        match s {
+impl TryFrom<StoredItemSource> for ItemSource {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredItemSource) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredItemSource::Found { location } => ItemSource::Found { location },
             StoredItemSource::Purchased { from, cost } => ItemSource::Purchased { from, cost },
             StoredItemSource::Gifted { from } => ItemSource::Gifted {
-                from: CharacterId::from(parse_uuid_or_nil(&from, "from")),
+                from: CharacterId::from(parse_uuid(&from, "from")?),
             },
             StoredItemSource::Looted { from } => ItemSource::Looted { from },
             StoredItemSource::Crafted => ItemSource::Crafted,
             StoredItemSource::Reward { for_what } => ItemSource::Reward { for_what },
             StoredItemSource::Stolen { from } => ItemSource::Stolen { from },
             StoredItemSource::Custom { description } => ItemSource::Custom { description },
-        }
+        })
     }
 }
 

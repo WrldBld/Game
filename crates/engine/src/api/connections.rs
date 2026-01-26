@@ -1,3 +1,6 @@
+// Connection manager - some methods prepared for future use
+#![allow(dead_code)]
+
 //! Connection management for WebSocket clients.
 //!
 //! Tracks connected clients and their world associations.
@@ -7,32 +10,27 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::timeout;
-use uuid::Uuid;
 
 /// Timeout for critical message sends (5 seconds)
 const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_protocol::{DirectorialContext, ServerMessage};
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, UserId, WorldId, WorldRole};
+use wrldbldr_shared::ServerMessage;
 
-/// Represents a connected client's role in a world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorldRole {
-    /// Dungeon Master - can approve suggestions, control NPCs
-    Dm,
-    /// Player - controls a player character
-    Player,
-    /// Spectator - can view but not interact
-    Spectator,
-}
+use crate::infrastructure::correlation::CorrelationId;
+use crate::infrastructure::ports::{
+    ConnectionInfo as PortConnectionInfo, DirectorialContext, SessionError,
+};
 
 /// Information about a connected client.
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
     /// Unique ID for this connection
-    pub connection_id: Uuid,
-    /// User identifier (may be anonymous)
-    pub user_id: String,
+    pub connection_id: ConnectionId,
+    /// Correlation ID for request tracing
+    pub correlation_id: CorrelationId,
+    /// User identifier (typed wrapper for validation)
+    pub user_id: UserId,
     /// The world this connection is associated with (if joined)
     pub world_id: Option<WorldId>,
     /// The role in the world
@@ -53,7 +51,7 @@ impl ConnectionInfo {
 /// Manages all active WebSocket connections.
 pub struct ConnectionManager {
     /// Map of connection_id -> (ConnectionInfo, sender channel)
-    connections: RwLock<HashMap<Uuid, (ConnectionInfo, mpsc::Sender<ServerMessage>)>>,
+    connections: RwLock<HashMap<ConnectionId, (ConnectionInfo, mpsc::Sender<ServerMessage>)>>,
     /// Per-world directorial context (scene notes, NPC motivations, etc.)
     directorial_contexts: DashMap<WorldId, DirectorialContext>,
 }
@@ -70,12 +68,14 @@ impl ConnectionManager {
     /// Register a new connection.
     pub async fn register(
         &self,
-        connection_id: Uuid,
-        user_id: String,
+        connection_id: ConnectionId,
+        user_id: UserId,
         sender: mpsc::Sender<ServerMessage>,
     ) {
+        let correlation_id = CorrelationId::new();
         let info = ConnectionInfo {
             connection_id,
+            correlation_id,
             user_id,
             world_id: None,
             role: WorldRole::Spectator,
@@ -84,11 +84,16 @@ impl ConnectionManager {
         };
         let mut connections = self.connections.write().await;
         connections.insert(connection_id, (info, sender));
-        tracing::debug!(connection_id = %connection_id, "Connection registered");
+        tracing::debug!(
+            connection_id = %connection_id,
+            correlation_id = %correlation_id,
+            correlation_id_short = %correlation_id.short(),
+            "Connection registered"
+        );
     }
 
     /// Unregister a connection.
-    pub async fn unregister(&self, connection_id: Uuid) {
+    pub async fn unregister(&self, connection_id: ConnectionId) {
         let mut connections = self.connections.write().await;
         if connections.remove(&connection_id).is_some() {
             tracing::debug!(connection_id = %connection_id, "Connection unregistered");
@@ -96,7 +101,7 @@ impl ConnectionManager {
     }
 
     /// Get connection info by ID.
-    pub async fn get(&self, connection_id: Uuid) -> Option<ConnectionInfo> {
+    pub async fn get(&self, connection_id: ConnectionId) -> Option<ConnectionInfo> {
         let connections = self.connections.read().await;
         connections
             .get(&connection_id)
@@ -107,7 +112,7 @@ impl ConnectionManager {
     ///
     /// This is used when a client provides a stable user identifier
     /// (e.g., from browser storage) during JoinWorld.
-    pub async fn set_user_id(&self, connection_id: Uuid, user_id: String) {
+    pub async fn set_user_id(&self, connection_id: ConnectionId, user_id: UserId) {
         let mut connections = self.connections.write().await;
         if let Some((info, _)) = connections.get_mut(&connection_id) {
             tracing::debug!(
@@ -123,7 +128,7 @@ impl ConnectionManager {
     /// Join a world.
     pub async fn join_world(
         &self,
-        connection_id: Uuid,
+        connection_id: ConnectionId,
         world_id: WorldId,
         role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
@@ -145,7 +150,7 @@ impl ConnectionManager {
                 {
                     // If same user is reconnecting, allow takeover
                     if let Some(ref joining_uid) = joining_user_id {
-                        if &info.user_id == joining_uid || info.user_id.is_empty() {
+                        if &info.user_id == joining_uid {
                             tracing::info!(
                                 old_connection_id = %id,
                                 new_connection_id = %connection_id,
@@ -193,12 +198,12 @@ impl ConnectionManager {
             );
             Ok(())
         } else {
-            Err(ConnectionError::NotFound)
+            Err(ConnectionError::NotFound(connection_id.to_string()))
         }
     }
 
     /// Leave the current world.
-    pub async fn leave_world(&self, connection_id: Uuid) {
+    pub async fn leave_world(&self, connection_id: ConnectionId) {
         let mut connections = self.connections.write().await;
         if let Some((info, _)) = connections.get_mut(&connection_id) {
             let old_world = info.world_id.take();
@@ -245,7 +250,7 @@ impl ConnectionManager {
     pub async fn broadcast_to_world_except(
         &self,
         world_id: WorldId,
-        exclude_connection_id: Uuid,
+        exclude_connection_id: ConnectionId,
         message: ServerMessage,
     ) {
         let connections = self.connections.read().await;
@@ -300,25 +305,32 @@ impl ConnectionManager {
     /// Use for messages that must not be dropped: state changes, approvals, errors.
     pub async fn send_critical(
         &self,
-        connection_id: Uuid,
+        connection_id: ConnectionId,
         message: ServerMessage,
     ) -> Result<(), CriticalSendError> {
-        let connections = self.connections.read().await;
-        if let Some((_, sender)) = connections.get(&connection_id) {
-            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message)).await {
-                Ok(Ok(())) => Ok(()),
+        let senders = {
+            let connections = self.connections.read().await;
+            connections
+                .get(&connection_id)
+                .map(|(_, sender)| sender.clone())
+                .into_iter()
+                .collect::<Vec<_>>()
+        }; // Lock released here
+
+        let mut errors = Vec::new();
+        for sender in senders {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => return Ok(()),
                 Ok(Err(_)) => {
-                    tracing::error!(connection_id = %connection_id, "Channel closed for critical message");
-                    Err(CriticalSendError::ChannelClosed)
+                    errors.push(CriticalSendError::ChannelClosed);
                 }
                 Err(_) => {
-                    tracing::error!(connection_id = %connection_id, "Timeout sending critical message");
-                    Err(CriticalSendError::Timeout)
+                    errors.push(CriticalSendError::Timeout);
                 }
             }
-        } else {
-            Err(CriticalSendError::ConnectionNotFound)
         }
+
+        Err(CriticalSendError::ConnectionNotFound)
     }
 
     /// Broadcast a critical message to all connections in a world.
@@ -326,23 +338,29 @@ impl ConnectionManager {
     /// Waits with timeout for each send. Logs errors but continues to other connections.
     /// Use for messages that must not be dropped.
     pub async fn broadcast_critical_to_world(&self, world_id: WorldId, message: ServerMessage) {
-        let connections = self.connections.read().await;
-        for (info, sender) in connections.values() {
-            if info.world_id == Some(world_id) {
-                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(_)) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Channel closed during critical broadcast"
-                        );
-                    }
-                    Err(_) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Timeout during critical broadcast (slow client?)"
-                        );
-                    }
+        let connections: Vec<_> = {
+            let connections = self.connections.read().await;
+            connections
+                .values()
+                .filter(|(info, _)| info.world_id == Some(world_id))
+                .map(|(info, sender)| (info.clone(), sender.clone()))
+                .collect()
+        }; // Lock released here
+
+        for (info, sender) in connections {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Channel closed during critical broadcast"
+                    );
+                }
+                Err(_) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Timeout during critical broadcast (slow client?)"
+                    );
                 }
             }
         }
@@ -350,23 +368,29 @@ impl ConnectionManager {
 
     /// Broadcast a critical message to all DMs in a world.
     pub async fn broadcast_critical_to_dms(&self, world_id: WorldId, message: ServerMessage) {
-        let connections = self.connections.read().await;
-        for (info, sender) in connections.values() {
-            if info.world_id == Some(world_id) && info.is_dm() {
-                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(_)) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Channel closed during critical DM broadcast"
-                        );
-                    }
-                    Err(_) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Timeout during critical DM broadcast"
-                        );
-                    }
+        let connections: Vec<_> = {
+            let connections = self.connections.read().await;
+            connections
+                .values()
+                .filter(|(info, _)| info.world_id == Some(world_id) && info.is_dm())
+                .map(|(info, sender)| (info.clone(), sender.clone()))
+                .collect()
+        }; // Lock released here
+
+        for (info, sender) in connections {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Channel closed during critical DM broadcast"
+                    );
+                }
+                Err(_) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Timeout during critical DM broadcast"
+                    );
                 }
             }
         }
@@ -374,25 +398,31 @@ impl ConnectionManager {
 
     /// Send a critical message to a specific PC's player.
     pub async fn send_critical_to_pc(&self, pc_id: PlayerCharacterId, message: ServerMessage) {
-        let connections = self.connections.read().await;
-        for (info, sender) in connections.values() {
-            if info.pc_id == Some(pc_id) || info.spectate_pc_id == Some(pc_id) {
-                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(_)) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            pc_id = %pc_id,
-                            "Channel closed during critical PC send"
-                        );
-                    }
-                    Err(_) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            pc_id = %pc_id,
-                            "Timeout during critical PC send"
-                        );
-                    }
+        let connections: Vec<_> = {
+            let connections = self.connections.read().await;
+            connections
+                .values()
+                .filter(|(info, _)| info.pc_id == Some(pc_id) || info.spectate_pc_id == Some(pc_id))
+                .map(|(info, sender)| (info.clone(), sender.clone()))
+                .collect()
+        }; // Lock released here
+
+        for (info, sender) in connections {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        pc_id = %pc_id,
+                        "Channel closed during critical PC send"
+                    );
+                }
+                Err(_) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        pc_id = %pc_id,
+                        "Timeout during critical PC send"
+                    );
                 }
             }
         }
@@ -428,8 +458,8 @@ impl Default for ConnectionManager {
 /// Errors that can occur during connection operations.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ConnectionError {
-    #[error("Connection not found")]
-    NotFound,
+    #[error("Connection not found: {0}")]
+    NotFound(String),
     #[error("DM already connected to this world")]
     DmAlreadyConnected,
     #[error("World not found")]
@@ -447,4 +477,43 @@ pub enum CriticalSendError {
     ChannelClosed,
     #[error("Send timeout - client may be slow or unresponsive")]
     Timeout,
+}
+
+// =============================================================================
+// Conversions
+// =============================================================================
+
+impl From<&ConnectionInfo> for PortConnectionInfo {
+    fn from(info: &ConnectionInfo) -> Self {
+        PortConnectionInfo {
+            connection_id: info.connection_id,
+            user_id: info.user_id.clone(),
+            world_id: info.world_id,
+            role: info.role,
+            pc_id: info.pc_id,
+        }
+    }
+}
+
+impl From<ConnectionInfo> for PortConnectionInfo {
+    fn from(info: ConnectionInfo) -> Self {
+        PortConnectionInfo {
+            connection_id: info.connection_id,
+            user_id: info.user_id,
+            world_id: info.world_id,
+            role: info.role,
+            pc_id: info.pc_id,
+        }
+    }
+}
+
+impl From<ConnectionError> for SessionError {
+    fn from(err: ConnectionError) -> Self {
+        match err {
+            ConnectionError::NotFound(id) => SessionError::NotFound(id),
+            ConnectionError::DmAlreadyConnected => SessionError::DmAlreadyConnected,
+            ConnectionError::Unauthorized => SessionError::Unauthorized,
+            ConnectionError::WorldNotFound => SessionError::NotFound("world".to_string()),
+        }
+    }
 }

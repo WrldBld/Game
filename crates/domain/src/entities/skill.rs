@@ -6,10 +6,15 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::value_objects::RuleSystemVariant;
-use wrldbldr_domain::{SkillId, WorldId};
+use crate::value_objects::{RuleSystemVariant, Stat};
+use wrldbldr_domain::{DomainError, SkillId, WorldId};
 
-/// A skill that characters can use for challenges
+/// A skill that characters can use for challenges.
+///
+/// ADR-008 Tier 4: Simple data struct with public fields because:
+/// - No invariants to protect
+/// - No validation required between fields
+/// - Just groups related data for persistence and transfer
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Skill {
@@ -19,9 +24,9 @@ pub struct Skill {
     pub description: String,
     /// Category for UI grouping (e.g., "Physical", "Mental", "Social")
     pub category: SkillCategory,
-    /// The base attribute this skill derives from (e.g., "DEX", "INT")
-    pub base_attribute: Option<String>,
-    /// Whether this is a custom skill (not from the preset)
+    /// The base attribute this skill derives from (e.g., Dex, Int)
+    pub base_attribute: Option<Stat>,
+    /// Whether this is a custom skill (not from preset)
     pub is_custom: bool,
     /// Whether to hide this skill from players
     pub is_hidden: bool,
@@ -50,19 +55,30 @@ impl Skill {
         skill
     }
 
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
-        self
-    }
-
-    pub fn with_base_attribute(mut self, attribute: impl Into<String>) -> Self {
-        self.base_attribute = Some(attribute.into());
-        self
-    }
-
-    pub fn with_order(mut self, order: u32) -> Self {
-        self.order = order;
-        self
+    /// Reconstruct a Skill from storage
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_storage(
+        id: SkillId,
+        world_id: WorldId,
+        name: String,
+        description: String,
+        category: SkillCategory,
+        base_attribute: Option<Stat>,
+        is_custom: bool,
+        is_hidden: bool,
+        order: u32,
+    ) -> Self {
+        Self {
+            id,
+            world_id,
+            name,
+            description,
+            category,
+            base_attribute,
+            is_custom,
+            is_hidden,
+            order,
+        }
     }
 }
 
@@ -122,7 +138,7 @@ impl std::fmt::Display for SkillCategory {
 }
 
 impl std::str::FromStr for SkillCategory {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -138,7 +154,7 @@ impl std::str::FromStr for SkillCategory {
             "aspect" => Ok(Self::Aspect),
             "other" => Ok(Self::Other),
             "custom" => Ok(Self::Custom),
-            _ => Err(format!("Unknown skill category: {}", s)),
+            _ => Err(DomainError::parse(format!("Unknown skill category: {}", s))),
         }
     }
 }
@@ -164,160 +180,463 @@ pub fn default_skills_for_variant(world_id: WorldId, variant: &RuleSystemVariant
 fn dnd5e_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
         // STR skills
-        Skill::new(world_id, "Athletics", SkillCategory::Physical)
-            .with_base_attribute("STR")
-            .with_description("Climbing, swimming, jumping, and physical exertion")
-            .with_order(1),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Athletics".to_string(),
+            description: "Climbing, swimming, jumping, and physical exertion".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Str),
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
         // DEX skills
-        Skill::new(world_id, "Acrobatics", SkillCategory::Physical)
-            .with_base_attribute("DEX")
-            .with_description("Balance, tumbling, and aerial maneuvers")
-            .with_order(2),
-        Skill::new(world_id, "Sleight of Hand", SkillCategory::Physical)
-            .with_base_attribute("DEX")
-            .with_description("Pickpocketing, concealing objects, manual trickery")
-            .with_order(3),
-        Skill::new(world_id, "Stealth", SkillCategory::Physical)
-            .with_base_attribute("DEX")
-            .with_description("Moving silently and hiding")
-            .with_order(4),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Acrobatics".to_string(),
+            description: "Balance, tumbling, and aerial maneuvers".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Dex),
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Sleight of Hand".to_string(),
+            description: "Pickpocketing, concealing objects, manual trickery".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Dex),
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Stealth".to_string(),
+            description: "Moving silently and hiding".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Dex),
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
         // INT skills
-        Skill::new(world_id, "Arcana", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_description("Knowledge of spells, magic items, and magical traditions")
-            .with_order(5),
-        Skill::new(world_id, "History", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_description("Knowledge of historical events, people, and legends")
-            .with_order(6),
-        Skill::new(world_id, "Investigation", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_description("Deduction, searching for clues, making inferences")
-            .with_order(7),
-        Skill::new(world_id, "Nature", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_description("Knowledge of terrain, plants, animals, and weather")
-            .with_order(8),
-        Skill::new(world_id, "Religion", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_description("Knowledge of deities, rites, and religious traditions")
-            .with_order(9),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Arcana".to_string(),
+            description: "Knowledge of spells, magic items, and magical traditions".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "History".to_string(),
+            description: "Knowledge of historical events, people, and legends".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Investigation".to_string(),
+            description: "Deduction, searching for clues, making inferences".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Nature".to_string(),
+            description: "Knowledge of terrain, plants, animals, and weather".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Religion".to_string(),
+            description: "Knowledge of deities, rites, and religious traditions".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 9,
+        },
         // WIS skills
-        Skill::new(world_id, "Animal Handling", SkillCategory::Social)
-            .with_base_attribute("WIS")
-            .with_description("Calming, training, and directing animals")
-            .with_order(10),
-        Skill::new(world_id, "Insight", SkillCategory::Social)
-            .with_base_attribute("WIS")
-            .with_description("Reading body language, detecting lies, understanding motivations")
-            .with_order(11),
-        Skill::new(world_id, "Medicine", SkillCategory::Mental)
-            .with_base_attribute("WIS")
-            .with_description("Diagnosing illnesses, stabilizing the dying, treating wounds")
-            .with_order(12),
-        Skill::new(world_id, "Perception", SkillCategory::Mental)
-            .with_base_attribute("WIS")
-            .with_description("Noticing threats, spotting hidden objects, general awareness")
-            .with_order(13),
-        Skill::new(world_id, "Survival", SkillCategory::Physical)
-            .with_base_attribute("WIS")
-            .with_description("Tracking, foraging, navigating wilderness")
-            .with_order(14),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Animal Handling".to_string(),
+            description: "Calming, training, and directing animals".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Insight".to_string(),
+            description: "Reading body language, detecting lies, understanding motivations"
+                .to_string(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Medicine".to_string(),
+            description: "Diagnosing illnesses, stabilizing the dying, treating wounds".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Perception".to_string(),
+            description: "Noticing threats, spotting hidden objects, general awareness".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 13,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Survival".to_string(),
+            description: "Tracking, foraging, navigating wilderness".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 14,
+        },
         // CHA skills
-        Skill::new(world_id, "Deception", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_description("Lying, misleading, disguising intentions")
-            .with_order(15),
-        Skill::new(world_id, "Intimidation", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_description("Threatening, coercing, inspiring fear")
-            .with_order(16),
-        Skill::new(world_id, "Performance", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_description("Acting, music, storytelling, entertainment")
-            .with_order(17),
-        Skill::new(world_id, "Persuasion", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_description("Convincing, negotiating, influencing through tact")
-            .with_order(18),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Deception".to_string(),
+            description: "Lying, misleading, disguising intentions".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 15,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Intimidation".to_string(),
+            description: "Threatening, coercing, inspiring fear".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 16,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Performance".to_string(),
+            description: "Acting, music, storytelling, entertainment".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 17,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Persuasion".to_string(),
+            description: "Convincing, negotiating, influencing through tact".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 18,
+        },
     ]
 }
 
 // Pathfinder 2e Skills
 fn pathfinder2e_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
-        Skill::new(world_id, "Acrobatics", SkillCategory::Physical)
-            .with_base_attribute("DEX")
-            .with_order(1),
-        Skill::new(world_id, "Arcana", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_order(2),
-        Skill::new(world_id, "Athletics", SkillCategory::Physical)
-            .with_base_attribute("STR")
-            .with_order(3),
-        Skill::new(world_id, "Crafting", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_order(4),
-        Skill::new(world_id, "Deception", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_order(5),
-        Skill::new(world_id, "Diplomacy", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_order(6),
-        Skill::new(world_id, "Intimidation", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_order(7),
-        Skill::new(world_id, "Medicine", SkillCategory::Mental)
-            .with_base_attribute("WIS")
-            .with_order(8),
-        Skill::new(world_id, "Nature", SkillCategory::Mental)
-            .with_base_attribute("WIS")
-            .with_order(9),
-        Skill::new(world_id, "Occultism", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_order(10),
-        Skill::new(world_id, "Performance", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_order(11),
-        Skill::new(world_id, "Religion", SkillCategory::Mental)
-            .with_base_attribute("WIS")
-            .with_order(12),
-        Skill::new(world_id, "Society", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_order(13),
-        Skill::new(world_id, "Stealth", SkillCategory::Physical)
-            .with_base_attribute("DEX")
-            .with_order(14),
-        Skill::new(world_id, "Survival", SkillCategory::Physical)
-            .with_base_attribute("WIS")
-            .with_order(15),
-        Skill::new(world_id, "Thievery", SkillCategory::Physical)
-            .with_base_attribute("DEX")
-            .with_order(16),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Acrobatics".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Dex),
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Arcana".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Athletics".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Str),
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Crafting".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Deception".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Diplomacy".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Intimidation".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Medicine".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Nature".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 9,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Occultism".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Performance".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Religion".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Society".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 13,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Stealth".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Dex),
+            is_custom: false,
+            is_hidden: false,
+            order: 14,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Survival".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 15,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Thievery".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Dex),
+            is_custom: false,
+            is_hidden: false,
+            order: 16,
+        },
     ]
 }
 
 // Generic D20 (simplified)
 fn generic_d20_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
-        Skill::new(world_id, "Athletics", SkillCategory::Physical)
-            .with_base_attribute("STR")
-            .with_order(1),
-        Skill::new(world_id, "Agility", SkillCategory::Physical)
-            .with_base_attribute("DEX")
-            .with_order(2),
-        Skill::new(world_id, "Endurance", SkillCategory::Physical)
-            .with_base_attribute("CON")
-            .with_order(3),
-        Skill::new(world_id, "Knowledge", SkillCategory::Mental)
-            .with_base_attribute("INT")
-            .with_order(4),
-        Skill::new(world_id, "Awareness", SkillCategory::Mental)
-            .with_base_attribute("WIS")
-            .with_order(5),
-        Skill::new(world_id, "Influence", SkillCategory::Social)
-            .with_base_attribute("CHA")
-            .with_order(6),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Athletics".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Str),
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Agility".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Dex),
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Endurance".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: Some(Stat::Con),
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Knowledge".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Int),
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Awareness".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: Some(Stat::Wis),
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Influence".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: Some(Stat::Cha),
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
     ]
 }
 
@@ -325,223 +644,1107 @@ fn generic_d20_skills(world_id: WorldId) -> Vec<Skill> {
 fn coc7e_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
         // Interpersonal
-        Skill::new(world_id, "Charm", SkillCategory::Interpersonal)
-            .with_description("Physical attraction, seduction, flattery")
-            .with_order(1),
-        Skill::new(world_id, "Fast Talk", SkillCategory::Interpersonal)
-            .with_description("Con, deceive, lie, misdirect")
-            .with_order(2),
-        Skill::new(world_id, "Intimidate", SkillCategory::Interpersonal)
-            .with_description("Threats, physical coercion")
-            .with_order(3),
-        Skill::new(world_id, "Persuade", SkillCategory::Interpersonal)
-            .with_description("Reasoned argument, debate")
-            .with_order(4),
-        Skill::new(world_id, "Psychology", SkillCategory::Interpersonal)
-            .with_description("Understand motives, see through lies")
-            .with_order(5),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Charm".to_string(),
+            description: "Physical attraction, seduction, flattery".to_string(),
+            category: SkillCategory::Interpersonal,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Fast Talk".to_string(),
+            description: "Con, deceive, lie, misdirect".to_string(),
+            category: SkillCategory::Interpersonal,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Intimidate".to_string(),
+            description: "Threats, physical coercion".to_string(),
+            category: SkillCategory::Interpersonal,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Persuade".to_string(),
+            description: "Reasoned argument, debate".to_string(),
+            category: SkillCategory::Interpersonal,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Psychology".to_string(),
+            description: "Understand motives, see through lies".to_string(),
+            category: SkillCategory::Interpersonal,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
         // Investigation
-        Skill::new(world_id, "Library Use", SkillCategory::Investigation)
-            .with_description("Navigate libraries, find information in documents")
-            .with_order(6),
-        Skill::new(world_id, "Spot Hidden", SkillCategory::Investigation)
-            .with_description("Spot concealed objects, notice things")
-            .with_order(7),
-        Skill::new(world_id, "Listen", SkillCategory::Investigation)
-            .with_description("Hear sounds, eavesdrop")
-            .with_order(8),
-        Skill::new(world_id, "Track", SkillCategory::Investigation)
-            .with_description("Follow tracks, signs of passage")
-            .with_order(9),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Library Use".to_string(),
+            description: "Navigate libraries, find information in documents".to_string(),
+            category: SkillCategory::Investigation,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Spot Hidden".to_string(),
+            description: "Spot concealed objects, notice things".to_string(),
+            category: SkillCategory::Investigation,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Listen".to_string(),
+            description: "Hear sounds, eavesdrop".to_string(),
+            category: SkillCategory::Investigation,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Track".to_string(),
+            description: "Follow tracks, signs of passage".to_string(),
+            category: SkillCategory::Investigation,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 9,
+        },
         // Academic
-        Skill::new(world_id, "Accounting", SkillCategory::Academic).with_order(10),
-        Skill::new(world_id, "Anthropology", SkillCategory::Academic).with_order(11),
-        Skill::new(world_id, "Archaeology", SkillCategory::Academic).with_order(12),
-        Skill::new(world_id, "History", SkillCategory::Academic).with_order(13),
-        Skill::new(world_id, "Law", SkillCategory::Academic).with_order(14),
-        Skill::new(world_id, "Medicine", SkillCategory::Academic).with_order(15),
-        Skill::new(world_id, "Natural World", SkillCategory::Academic).with_order(16),
-        Skill::new(world_id, "Occult", SkillCategory::Academic)
-            .with_description("Knowledge of the Mythos and supernatural")
-            .with_order(17),
-        Skill::new(world_id, "Science", SkillCategory::Academic).with_order(18),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Accounting".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Anthropology".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Archaeology".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "History".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 13,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Law".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 14,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Medicine".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 15,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Natural World".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 16,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Occult".to_string(),
+            description: "Knowledge of the Mythos and supernatural".to_string(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 17,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Science".to_string(),
+            description: String::new(),
+            category: SkillCategory::Academic,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 18,
+        },
         // Practical
-        Skill::new(world_id, "Art/Craft", SkillCategory::Practical).with_order(19),
-        Skill::new(world_id, "Disguise", SkillCategory::Practical).with_order(20),
-        Skill::new(world_id, "Drive Auto", SkillCategory::Practical).with_order(21),
-        Skill::new(world_id, "Electrical Repair", SkillCategory::Practical).with_order(22),
-        Skill::new(world_id, "First Aid", SkillCategory::Practical).with_order(23),
-        Skill::new(world_id, "Locksmith", SkillCategory::Practical).with_order(24),
-        Skill::new(world_id, "Mechanical Repair", SkillCategory::Practical).with_order(25),
-        Skill::new(world_id, "Navigate", SkillCategory::Practical).with_order(26),
-        Skill::new(world_id, "Sleight of Hand", SkillCategory::Practical).with_order(27),
-        Skill::new(world_id, "Stealth", SkillCategory::Practical).with_order(28),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Art/Craft".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 19,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Disguise".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 20,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Drive Auto".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 21,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Electrical Repair".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 22,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "First Aid".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 23,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Locksmith".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 24,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Mechanical Repair".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 25,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Navigate".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 26,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Sleight of Hand".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 27,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Stealth".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 28,
+        },
         // Combat
-        Skill::new(world_id, "Dodge", SkillCategory::Combat).with_order(29),
-        Skill::new(world_id, "Fighting (Brawl)", SkillCategory::Combat).with_order(30),
-        Skill::new(world_id, "Firearms (Handgun)", SkillCategory::Combat).with_order(31),
-        Skill::new(world_id, "Firearms (Rifle/Shotgun)", SkillCategory::Combat).with_order(32),
-        Skill::new(world_id, "Throw", SkillCategory::Combat).with_order(33),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Dodge".to_string(),
+            description: String::new(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 29,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Fighting (Brawl)".to_string(),
+            description: String::new(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 30,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Firearms (Handgun)".to_string(),
+            description: String::new(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 31,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Firearms (Rifle/Shotgun)".to_string(),
+            description: String::new(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 32,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Throw".to_string(),
+            description: String::new(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 33,
+        },
     ]
 }
 
 // RuneQuest (simplified)
 fn runequest_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
-        Skill::new(world_id, "Athletics", SkillCategory::Physical).with_order(1),
-        Skill::new(world_id, "Brawn", SkillCategory::Physical).with_order(2),
-        Skill::new(world_id, "Endurance", SkillCategory::Physical).with_order(3),
-        Skill::new(world_id, "Evade", SkillCategory::Combat).with_order(4),
-        Skill::new(world_id, "Perception", SkillCategory::Mental).with_order(5),
-        Skill::new(world_id, "Stealth", SkillCategory::Physical).with_order(6),
-        Skill::new(world_id, "Willpower", SkillCategory::Mental).with_order(7),
-        Skill::new(world_id, "Deceit", SkillCategory::Social).with_order(8),
-        Skill::new(world_id, "Influence", SkillCategory::Social).with_order(9),
-        Skill::new(world_id, "Insight", SkillCategory::Social).with_order(10),
-        Skill::new(world_id, "Locale", SkillCategory::Mental).with_order(11),
-        Skill::new(world_id, "Customs", SkillCategory::Mental).with_order(12),
-        Skill::new(world_id, "First Aid", SkillCategory::Practical).with_order(13),
-        Skill::new(world_id, "Craft", SkillCategory::Practical).with_order(14),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Athletics".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Brawn".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Endurance".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Evade".to_string(),
+            description: String::new(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Perception".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Stealth".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Willpower".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Deceit".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Influence".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 9,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Insight".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Locale".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Customs".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "First Aid".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 13,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Craft".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 14,
+        },
     ]
 }
 
 // Generic D100
 fn generic_d100_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
-        Skill::new(world_id, "Athletics", SkillCategory::Physical).with_order(1),
-        Skill::new(world_id, "Perception", SkillCategory::Mental).with_order(2),
-        Skill::new(world_id, "Stealth", SkillCategory::Physical).with_order(3),
-        Skill::new(world_id, "Investigation", SkillCategory::Mental).with_order(4),
-        Skill::new(world_id, "Persuasion", SkillCategory::Social).with_order(5),
-        Skill::new(world_id, "Deception", SkillCategory::Social).with_order(6),
-        Skill::new(world_id, "Combat", SkillCategory::Combat).with_order(7),
-        Skill::new(world_id, "First Aid", SkillCategory::Practical).with_order(8),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Athletics".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Perception".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Stealth".to_string(),
+            description: String::new(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Investigation".to_string(),
+            description: String::new(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Persuasion".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Deception".to_string(),
+            description: String::new(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Combat".to_string(),
+            description: String::new(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "First Aid".to_string(),
+            description: String::new(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
     ]
 }
 
 // Kids on Bikes (stats as "skills")
 fn kids_on_bikes_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
-        Skill::new(world_id, "Brains", SkillCategory::Approach)
-            .with_description("Book smarts, problem solving, trivia")
-            .with_order(1),
-        Skill::new(world_id, "Brawn", SkillCategory::Approach)
-            .with_description("Physical strength, endurance, toughness")
-            .with_order(2),
-        Skill::new(world_id, "Fight", SkillCategory::Approach)
-            .with_description("Combat ability, self-defense")
-            .with_order(3),
-        Skill::new(world_id, "Flight", SkillCategory::Approach)
-            .with_description("Running away, escaping, hiding")
-            .with_order(4),
-        Skill::new(world_id, "Charm", SkillCategory::Approach)
-            .with_description("Social graces, persuasion, likability")
-            .with_order(5),
-        Skill::new(world_id, "Grit", SkillCategory::Approach)
-            .with_description("Willpower, courage, determination")
-            .with_order(6),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Brains".to_string(),
+            description: "Book smarts, problem solving, trivia".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Brawn".to_string(),
+            description: "Physical strength, endurance, toughness".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Fight".to_string(),
+            description: "Combat ability, self-defense".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Flight".to_string(),
+            description: "Running away, escaping, hiding".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Charm".to_string(),
+            description: "Social graces, persuasion, likability".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Grit".to_string(),
+            description: "Willpower, courage, determination".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
     ]
 }
 
 // FATE Core Skills
 fn fate_core_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
-        Skill::new(world_id, "Athletics", SkillCategory::Physical)
-            .with_description("Running, jumping, climbing, general physical activity")
-            .with_order(1),
-        Skill::new(world_id, "Burglary", SkillCategory::Practical)
-            .with_description("Bypassing security, lockpicking, sleight of hand")
-            .with_order(2),
-        Skill::new(world_id, "Contacts", SkillCategory::Social)
-            .with_description("Knowing people, gathering information through networks")
-            .with_order(3),
-        Skill::new(world_id, "Crafts", SkillCategory::Practical)
-            .with_description("Making and breaking things")
-            .with_order(4),
-        Skill::new(world_id, "Deceive", SkillCategory::Social)
-            .with_description("Lying, misdirection, creating false impressions")
-            .with_order(5),
-        Skill::new(world_id, "Drive", SkillCategory::Practical)
-            .with_description("Operating vehicles")
-            .with_order(6),
-        Skill::new(world_id, "Empathy", SkillCategory::Social)
-            .with_description("Reading people's emotions and intentions")
-            .with_order(7),
-        Skill::new(world_id, "Fight", SkillCategory::Combat)
-            .with_description("Close quarters combat")
-            .with_order(8),
-        Skill::new(world_id, "Investigate", SkillCategory::Mental)
-            .with_description("Finding clues, solving mysteries")
-            .with_order(9),
-        Skill::new(world_id, "Lore", SkillCategory::Mental)
-            .with_description("Specialized knowledge")
-            .with_order(10),
-        Skill::new(world_id, "Notice", SkillCategory::Mental)
-            .with_description("Spotting things, general awareness")
-            .with_order(11),
-        Skill::new(world_id, "Physique", SkillCategory::Physical)
-            .with_description("Raw strength, endurance")
-            .with_order(12),
-        Skill::new(world_id, "Provoke", SkillCategory::Social)
-            .with_description("Intimidation, getting emotional reactions")
-            .with_order(13),
-        Skill::new(world_id, "Rapport", SkillCategory::Social)
-            .with_description("Building trust, making friends")
-            .with_order(14),
-        Skill::new(world_id, "Resources", SkillCategory::Practical)
-            .with_description("Wealth and material assets")
-            .with_order(15),
-        Skill::new(world_id, "Shoot", SkillCategory::Combat)
-            .with_description("Ranged attacks")
-            .with_order(16),
-        Skill::new(world_id, "Stealth", SkillCategory::Physical)
-            .with_description("Staying unseen, tailing people")
-            .with_order(17),
-        Skill::new(world_id, "Will", SkillCategory::Mental)
-            .with_description("Mental fortitude, resisting influence")
-            .with_order(18),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Athletics".to_string(),
+            description: "Running, jumping, climbing, general physical activity".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Burglary".to_string(),
+            description: "Bypassing security, lockpicking, sleight of hand".to_string(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Contacts".to_string(),
+            description: "Knowing people, gathering information through networks".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Crafts".to_string(),
+            description: "Making and breaking things".to_string(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Deceive".to_string(),
+            description: "Lying, misdirection, creating false impressions".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Drive".to_string(),
+            description: "Operating vehicles".to_string(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Empathy".to_string(),
+            description: "Reading people's emotions and intentions".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Fight".to_string(),
+            description: "Close quarters combat".to_string(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Investigate".to_string(),
+            description: "Finding clues, solving mysteries".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 9,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Lore".to_string(),
+            description: "Specialized knowledge".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Notice".to_string(),
+            description: "Spotting things, general awareness".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Physique".to_string(),
+            description: "Raw strength, endurance".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Provoke".to_string(),
+            description: "Intimidation, getting emotional reactions".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 13,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Rapport".to_string(),
+            description: "Building trust, making friends".to_string(),
+            category: SkillCategory::Social,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 14,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Resources".to_string(),
+            description: "Wealth and material assets".to_string(),
+            category: SkillCategory::Practical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 15,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Shoot".to_string(),
+            description: "Ranged attacks".to_string(),
+            category: SkillCategory::Combat,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 16,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Stealth".to_string(),
+            description: "Staying unseen, tailing people".to_string(),
+            category: SkillCategory::Physical,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 17,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Will".to_string(),
+            description: "Mental fortitude, resisting influence".to_string(),
+            category: SkillCategory::Mental,
+            base_attribute: None,
+            is_custom: false,
+            is_hidden: false,
+            order: 18,
+        },
     ]
 }
 
 // Powered by the Apocalypse (basic moves as "skills")
 fn pbta_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
-        Skill::new(world_id, "Act Under Pressure", SkillCategory::Approach)
-            .with_base_attribute("Cool")
-            .with_description("Stay calm, keep your head when things go south")
-            .with_order(1),
-        Skill::new(world_id, "Help/Interfere", SkillCategory::Approach)
-            .with_base_attribute("Bond")
-            .with_description("Aid or hinder another character's action")
-            .with_order(2),
-        Skill::new(world_id, "Go Aggro", SkillCategory::Approach)
-            .with_base_attribute("Hard")
-            .with_description("Threaten violence to get what you want")
-            .with_order(3),
-        Skill::new(world_id, "Seize by Force", SkillCategory::Approach)
-            .with_base_attribute("Hard")
-            .with_description("Take something through direct violence")
-            .with_order(4),
-        Skill::new(world_id, "Read a Sitch", SkillCategory::Approach)
-            .with_base_attribute("Sharp")
-            .with_description("Assess a dangerous situation")
-            .with_order(5),
-        Skill::new(world_id, "Read a Person", SkillCategory::Approach)
-            .with_base_attribute("Sharp")
-            .with_description("Figure out what someone is really about")
-            .with_order(6),
-        Skill::new(world_id, "Manipulate", SkillCategory::Approach)
-            .with_base_attribute("Hot")
-            .with_description("Get someone to do what you want")
-            .with_order(7),
-        Skill::new(world_id, "Seduce", SkillCategory::Approach)
-            .with_base_attribute("Hot")
-            .with_description("Use attraction to influence")
-            .with_order(8),
-        Skill::new(world_id, "Open Your Brain", SkillCategory::Approach)
-            .with_base_attribute("Weird")
-            .with_description("Tap into the psychic maelstrom")
-            .with_order(9),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Act Under Pressure".to_string(),
+            description: "Stay calm, keep your head when things go south".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not the Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Help/Interfere".to_string(),
+            description: "Aid or hinder another character's action".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not the Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Go Aggro".to_string(),
+            description: "Threaten violence to get what you want".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not the Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Seize by Force".to_string(),
+            description: "Take something through direct violence".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not the Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Read a Sitch".to_string(),
+            description: "Assess a dangerous situation".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not the Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Read a Person".to_string(),
+            description: "Figure out what someone is really about".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not the Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Manipulate".to_string(),
+            description: "Get someone to do what you want".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not the Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Help/Interfere".to_string(),
+            description: "Aid or hinder another character's action".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Go Aggro".to_string(),
+            description: "Threaten violence to get what you want".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Seize by Force".to_string(),
+            description: "Take something through direct violence".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Read a Sitch".to_string(),
+            description: "Assess a dangerous situation".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Read a Person".to_string(),
+            description: "Figure out what someone is really about".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Manipulate".to_string(),
+            description: "Get someone to do what you want".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // PbtA uses custom stats, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 7,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Seduce".to_string(),
+            description: "Use attraction to influence".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Open Your Brain".to_string(),
+            description: "Tap into psychic maelstrom".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 9,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Read a Sitch".to_string(),
+            description: "Assess a dangerous situation".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Skirmish".to_string(),
+            description: "Close-quarters combat, melee fighting".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Wreck".to_string(),
+            description: "Smash, breach, destroy with brute force".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
     ]
 }
 
@@ -549,55 +1752,172 @@ fn pbta_skills(world_id: WorldId) -> Vec<Skill> {
 fn blades_skills(world_id: WorldId) -> Vec<Skill> {
     vec![
         // Insight actions
-        Skill::new(world_id, "Hunt", SkillCategory::Approach)
-            .with_base_attribute("Insight")
-            .with_description("Track, ambush, or shoot from a distance")
-            .with_order(1),
-        Skill::new(world_id, "Study", SkillCategory::Approach)
-            .with_base_attribute("Insight")
-            .with_description("Scrutinize details, research, analyze")
-            .with_order(2),
-        Skill::new(world_id, "Survey", SkillCategory::Approach)
-            .with_base_attribute("Insight")
-            .with_description("Observe, spot trouble, gather information")
-            .with_order(3),
-        Skill::new(world_id, "Tinker", SkillCategory::Approach)
-            .with_base_attribute("Insight")
-            .with_description("Fiddle with devices, mechanisms, pick locks")
-            .with_order(4),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Hunt".to_string(),
+            description: "Track, ambush, or shoot from a distance".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 1,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Study".to_string(),
+            description: "Scrutinize details, research, analyze".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 2,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Survey".to_string(),
+            description: "Observe, spot trouble, gather information".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 3,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Tinker".to_string(),
+            description: "Fiddle with devices, mechanisms, pick locks".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 4,
+        },
         // Prowess actions
-        Skill::new(world_id, "Finesse", SkillCategory::Approach)
-            .with_base_attribute("Prowess")
-            .with_description("Delicate manipulation, subtle misdirection")
-            .with_order(5),
-        Skill::new(world_id, "Prowl", SkillCategory::Approach)
-            .with_base_attribute("Prowess")
-            .with_description("Move stealthily, infiltrate, climb")
-            .with_order(6),
-        Skill::new(world_id, "Skirmish", SkillCategory::Approach)
-            .with_base_attribute("Prowess")
-            .with_description("Close-quarters combat, melee fighting")
-            .with_order(7),
-        Skill::new(world_id, "Wreck", SkillCategory::Approach)
-            .with_base_attribute("Prowess")
-            .with_description("Smash, breach, destroy with brute force")
-            .with_order(8),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Finesse".to_string(),
+            description: "Delicate manipulation, subtle misdirection".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 5,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Prowl".to_string(),
+            description: "Move stealthily, infiltrate, climb".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 6,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Skirmish".to_string(),
+            description: "Close-quarters combat, melee fighting".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Wreck".to_string(),
+            description: "Smash, breach, destroy with brute force".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 8,
+        },
         // Resolve actions
-        Skill::new(world_id, "Attune", SkillCategory::Approach)
-            .with_base_attribute("Resolve")
-            .with_description("Connect with the supernatural, channel spirits")
-            .with_order(9),
-        Skill::new(world_id, "Command", SkillCategory::Approach)
-            .with_base_attribute("Resolve")
-            .with_description("Order, compel obedience, intimidate")
-            .with_order(10),
-        Skill::new(world_id, "Consort", SkillCategory::Approach)
-            .with_base_attribute("Resolve")
-            .with_description("Socialize, gain access through connections")
-            .with_order(11),
-        Skill::new(world_id, "Sway", SkillCategory::Approach)
-            .with_base_attribute("Resolve")
-            .with_description("Influence through charm, reason, or deception")
-            .with_order(12),
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Attune".to_string(),
+            description: "Connect with supernatural, channel spirits".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 9,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Command".to_string(),
+            description: "Order, compel obedience, intimidate".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Consort".to_string(),
+            description: "Socialize, gain access through connections".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Sway".to_string(),
+            description: "Influence through charm, reason, or deception".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Command".to_string(),
+            description: "Order, compel obedience, intimidate".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 10,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Consort".to_string(),
+            description: "Socialize, gain access through connections".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 11,
+        },
+        Skill {
+            id: SkillId::new(),
+            world_id,
+            name: "Sway".to_string(),
+            description: "Influence through charm, reason, or deception".to_string(),
+            category: SkillCategory::Approach,
+            base_attribute: None, // Blades uses custom attributes, not Stat enum
+            is_custom: false,
+            is_hidden: false,
+            order: 12,
+        },
     ]
 }

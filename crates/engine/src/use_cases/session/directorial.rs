@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use crate::api::connections::ConnectionManager;
+use crate::infrastructure::ports::{DirectorialContext, NpcMotivation};
+use crate::stores::DirectorialContextStore;
 use wrldbldr_domain::WorldId;
-use wrldbldr_protocol::DirectorialContext;
 
 /// IO dependencies for directorial updates (WS-state owned).
 pub struct DirectorialUpdateContext<'a> {
-    pub connections: &'a ConnectionManager,
+    pub context_store: &'a DirectorialContextStore,
 }
 
 /// Input for storing directorial context.
@@ -15,21 +15,52 @@ pub struct DirectorialUpdateInput {
     pub context: DirectorialContext,
 }
 
+impl DirectorialUpdateInput {
+    /// Create input from protocol types (API layer conversion helper).
+    pub fn from_protocol(
+        world_id: WorldId,
+        proto_context: wrldbldr_shared::DirectorialContext,
+    ) -> Self {
+        Self {
+            world_id,
+            context: DirectorialContext {
+                scene_notes: proto_context.scene_notes,
+                tone: proto_context.tone,
+                npc_motivations: proto_context
+                    .npc_motivations
+                    .into_iter()
+                    .map(|m| NpcMotivation {
+                        character_id: m.character_id,
+                        emotional_guidance: m.emotional_guidance,
+                        immediate_goal: m.immediate_goal,
+                        secret_agenda: m.secret_agenda,
+                    })
+                    .collect(),
+                forbidden_topics: proto_context.forbidden_topics,
+            },
+        }
+    }
+}
+
 /// Use case for updating directorial context.
 pub struct DirectorialUpdate {
     _marker: Arc<()>,
 }
 
+impl Default for DirectorialUpdate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DirectorialUpdate {
     pub fn new() -> Self {
-        Self { _marker: Arc::new(()) }
+        Self {
+            _marker: Arc::new(()),
+        }
     }
 
-    pub async fn execute(
-        &self,
-        ctx: &DirectorialUpdateContext<'_>,
-        input: DirectorialUpdateInput,
-    ) {
+    pub async fn execute(&self, ctx: &DirectorialUpdateContext<'_>, input: DirectorialUpdateInput) {
         let context = input.context;
         tracing::info!(
             world_id = %input.world_id,
@@ -59,8 +90,7 @@ impl DirectorialUpdate {
             );
         }
 
-        ctx.connections
-            .set_directorial_context(input.world_id, context);
+        ctx.context_store.set_context(input.world_id, context);
 
         tracing::info!(
             world_id = %input.world_id,

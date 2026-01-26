@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{ObservationRequest, RequestPayload};
+use wrldbldr_shared::{ObservationRequest, RequestPayload};
 
 /// Summary of an NPC observation from the engine
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

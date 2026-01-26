@@ -1,0 +1,40 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-19T13:54:42.291523+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "c8f8440dbef555f1da4d84df1db5c021c6a5e12bc38f88ef97e8795dd14b31e6": [
+      {
+        "fingerprint": "c8f8440dbef555f1da4d84df1db5c021c6a5e12bc38f88ef97e8795dd14b31e6",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to answer YES or NO. The text: \"*smiles* \"Good day, my friend! The inn’s been bustling as usual, with a few new faces and old regulars alike. Keep your ears open—town’s always full of gossip about what’s brewing.\" This discusses tavern business, customers, trade, or running an establishment. It mentions inn bustling, new faces, old regulars, gossip. So yes. Answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T13:55:27.902963+00:00"
+      }
+    ],
+    "d0ac99f15429a424536c881b8ab593539405e550bf6d05bfacf69d1af88aad71": [
+      {
+        "fingerprint": "d0ac99f15429a424536c881b8ab593539405e550bf6d05bfacf69d1af88aad71",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 7...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to produce output with reasoning block, dialogue, topics, suggested beats, challenge analysis for 5 challenges, event analysis for 3 events. We must analyze triggers.\n\nPlayer's words: \"Good day, Marta! How goes the tavern business?\"\n\nCheck for pc_mentions and interacts_with.\n\nChallenges:\n\n- CHAL_0 Investigate the Mill Basement: no mention of mill or basement. No triggers.\n\n- CHAL_1 Expose Vera's True Intentions: triggers if pc_mentions contains \"Vera\", \"merchant\", \"suspicious\", \"questions\", \"mill\". Not present. So NO.\n\n- CHAL_2 Decipher the Ritual Journal: triggers if interacts_with includes \"journal\", \"book\", \"tome\", \"ritual journal\". Player didn't interact. NO.\n\n- CHAL_3 Calm Old Tom's Ravings: triggers if pc_mentions contains \"mill\", \"family\", \"accident\", \"twenty years\", \"what happened\". Not present. NO.\n\n- CHAL_4 Convince Grom: triggers if pc_mentions contains \"adventure\", \"past\", \"shadow\", \"cavern\", \"party\", \"loss\". Not present. NO.\n\nEvents:\n\n- EVT_0 The Stranger's Warning: triggers if pc_mentions contains keywords? Actually no mention; only triggered by the stranger, not the player. So NO.\n\n- EVT_1 Marta's Knowledge: triggered if pc_mentions contains \"mill\", \"old mill\", \"what happened\", \"twenty years\", custom flag. Player didn't mention. NO.\n\n- EVT_2 Marta Shares Local Rumors: triggered if pc_mentions contains \"rumors\", \"gossip\", \"strange happenings\", \"news\", \"heard anything\". Not present. NO.\n\nThus all triggers are NO.\n\nWe need to produce dialogue: Marta Hearthwood is a friendly mentor, calm mood. She responds to greeting. 1-3 sentences. The context: tavern business. She might say something like: *smiles* \"Ah, good day to you, friend! The inn's been a steady hum, though a few new faces have drifted in. Keep an eye on the tavern's bell.\"\n\nWe must include expression markers. Use *smiles* maybe. Expression list? We don't know but we can use *smiles*.\n\nAlso include <topics> list: likely local_history? Actually tavern business, but maybe trade_negotiation? Rumors? We can say \"trade_negotiation\" or \"local_history\". Let's pick trade_negotiation, local_history maybe. But we need 1-3 topics. \"trade_negotiation\", \"local_history\", maybe \"rumors\" but not sure. But it's a greeting about tavern business; maybe topic \"trade_negotiation\". We'll pick trade_negotiation.\n\nSuggested beats: maybe \"offer a drink\", \"share gossip\", \"ask about the mill\".\n\nBut we should keep suggestions minimal.\n\nNow include challenge analysis: 5 blocks.\n\nEvent analysis: 3 blocks.\n\nAlso include tool calls? None. No dramatic tool needed.\n\nWe must keep concise.\n\nLet's craft.\n\n<|end|><|start|>assistant<|channel|>final<|message|><reasoning>\nMarta Hearthwood is a calm, friendly mentor. The player has simply greeted her; no mention of any quest keywords or interactions that would trigger any of the active challenges or narrative events. She should respond warmly, mentioning the tavern’s current state and perhaps hinting at the bustling nature of Thornhaven. No tool calls are necessary at this moment.\n</reasoning>\n\n<dialogue>\n*smiles* \"Good day, my friend! The inn’s been bustling as usual, with a few new faces and old regulars alike. Keep your ears open—town’s always full of gossip about what’s brewing.\"\n</dialogue>\n\n<topics>\ntrade_negotiation\nlocal_history\n</topics>\n\n<suggested_beats>\n- Offer a complimentary drink to the player to build rapport.\n- Drop a subtle hint about rumors that may lead to future quests.\n- Invite the player to sit at the bar and chat about town happenings. \n</suggested_beats>\n\n<challenge name=\"Investigate the Mill Basement\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Expose Vera's True Intentions\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Decipher the Ritual Journal\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Calm Old Tom's Ravings\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Convince Grom to Share His Past\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n\n<event name=\"The Stranger's Warning\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta's Knowledge\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta Shares Local Rumors\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T13:55:19.594065+00:00"
+      }
+    ],
+    "ec8725cd2bed6eb1cee00bd97c87039c2268f927bfd98327fe681d806bbe96d2": [
+      {
+        "fingerprint": "ec8725cd2bed6eb1cee00bd97c87039c2268f927bfd98327fe681d806bbe96d2",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if NPC's response is relevant and appropriate to what the player asked. Player asked: \"Good day, Marta! How goes the tavern business?\" NPC responded: \"*smiles* 'Good day, my friend! The inn’s been bustling as usual, with a few new faces and old regulars alike. Keep your ears open—town’s always full of gossip about what’s brewing.'\"\n\nThe NPC's response addresses the tavern business: says it's bustling, new faces, old regulars, gossip. That is relevant. It's appropriate. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T13:55:23.854043+00:00"
+      }
+    ]
+  }
+}

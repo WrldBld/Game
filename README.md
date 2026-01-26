@@ -143,7 +143,7 @@ WrldBldr uses a **simplified hexagonal architecture**: we keep port traits only 
 │  ┌────────────────────────────────────────────────────────────────────────────┐ │
 │  │                           SHARED KERNEL                                     │ │
 │  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │  protocol (wrldbldr-protocol)                                        │   │ │
+│  │  │  protocol (wrldbldr-shared)                                        │   │ │
 │  │  │  ├── Wire-format DTOs (REST + WebSocket)                             │   │ │
 │  │  │  ├── ClientMessage / ServerMessage enums                             │   │ │
 │  │  │  └── RequestPayload / ResponseResult                                 │   │ │
@@ -179,7 +179,7 @@ WrldBldr uses a **simplified hexagonal architecture**: we keep port traits only 
 | Crate               | Layer         | Purpose                                                        |
 | ------------------- | ------------- | -------------------------------------------------------------- |
 | `wrldbldr-domain`   | Domain        | Pure business types (entities, value objects, typed IDs)       |
-| `wrldbldr-protocol` | Shared Kernel | Wire-format types for Engine↔Player communication              |
+| `wrldbldr-shared` | Shared Kernel | Wire-format types for Engine↔Player communication              |
 | `wrldbldr-engine`   | Engine        | Server-side code (entities/use_cases/api + infra behind ports) |
 | `wrldbldr-player`   | Player        | Client UI + application + infrastructure (web/WASM + desktop)  |
 
@@ -271,15 +271,40 @@ task desktop:dev   # Player desktop application
 
 ## Environment Variables
 
-| Variable           | Default                     | Description                  |
-| ------------------ | --------------------------- | ---------------------------- |
-| `NEO4J_URI`        | `bolt://localhost:7687`     | Neo4j connection             |
-| `NEO4J_USER`       | `neo4j`                     | Database username            |
-| `NEO4J_PASSWORD`   | -                           | Database password (required) |
-| `OLLAMA_BASE_URL`  | `http://localhost:11434/v1` | LLM API endpoint             |
-| `OLLAMA_MODEL`     | `qwen3-vl:30b`              | LLM model name               |
-| `COMFYUI_BASE_URL` | `http://localhost:8188`     | Image generation endpoint    |
-| `SERVER_PORT`      | `3000`                      | Engine HTTP port             |
+| Variable                    | Default                     | Description                  |
+| --------------------------- | --------------------------- | ---------------------------- |
+| `NEO4J_URI`               | `bolt://localhost:7687`     | Neo4j connection             |
+| `NEO4J_USER`              | `neo4j`                     | Database username            |
+| `NEO4J_PASSWORD`          | -                           | Database password (required) |
+| `OLLAMA_BASE_URL`         | `http://localhost:11434/v1` | LLM API endpoint             |
+| `OLLAMA_MODEL`            | `qwen3-vl:30b`              | LLM model name               |
+| `COMFYUI_BASE_URL`        | `http://localhost:8188`     | Image generation endpoint    |
+| `SERVER_PORT`             | `3000`                      | Engine HTTP port             |
+| `WRLDBLDR_LIST_DEFAULT_PAGE_SIZE` | `50`  | Default list page size (10-200)  |
+| `WRLDBLDR_LIST_MAX_PAGE_SIZE`     | `200` | Maximum list page size (50-1000) |
+
+### List Limit Configuration
+
+The server supports configurable list pagination limits to prevent DoS attacks while allowing flexibility.
+
+**Three-Tier Configuration:**
+
+1. **Per-World Settings** (highest priority) - Configure via Settings API
+2. **Environment Variables** (medium priority) - Set globally for deployment
+3. **Code Defaults** (fallback) - 50 default, 200 maximum
+
+**Examples:**
+```bash
+# Set custom defaults (within valid ranges)
+export WRLDBLDR_LIST_DEFAULT_PAGE_SIZE=100
+export WRLDBLDR_LIST_MAX_PAGE_SIZE=500
+
+# Client requests can specify their own limit:
+GET /api/worlds/{id}/characters?limit=100&offset=50
+
+# Client limits are capped at the configured maximum
+# If client requests limit=1000 but max=500, they get 500 items
+```
 
 ---
 

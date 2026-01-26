@@ -3,12 +3,15 @@
 //! Provides persistent queue storage for player actions, LLM requests,
 //! DM approvals, and asset generation jobs.
 
+use crate::queue_types::{
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData};
+use wrldbldr_domain::QueueItemId;
 
 use crate::infrastructure::ports::{
     ClockPort, QueueError, QueueItem, QueueItemData, QueueItemStatus, QueuePort,
@@ -100,7 +103,7 @@ impl SqliteQueue {
         &self,
         queue_type: &str,
         data: &T,
-    ) -> Result<Uuid, QueueError> {
+    ) -> Result<QueueItemId, QueueError> {
         let id = Uuid::new_v4();
         let payload_json =
             serde_json::to_string(data).map_err(|e| QueueError::Error(e.to_string()))?;
@@ -121,7 +124,7 @@ impl SqliteQueue {
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;
 
-        Ok(id)
+        Ok(QueueItemId::from_uuid(id))
     }
 
     /// Dequeue an item from a specific queue type
@@ -211,7 +214,7 @@ impl SqliteQueue {
         };
 
         Ok(QueueItem {
-            id,
+            id: QueueItemId::from(id),
             data,
             created_at,
             status,
@@ -224,7 +227,10 @@ impl SqliteQueue {
 #[async_trait]
 impl QueuePort for SqliteQueue {
     // Player action queue
-    async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(
+        &self,
+        data: &PlayerActionData,
+    ) -> Result<QueueItemId, QueueError> {
         self.enqueue_item("player_action", data).await
     }
 
@@ -233,7 +239,7 @@ impl QueuePort for SqliteQueue {
     }
 
     // LLM request queue
-    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
         // Specialized insert that stores callback_id in indexed column for fast lookup
         let id = Uuid::new_v4();
         let payload_json =
@@ -256,7 +262,7 @@ impl QueuePort for SqliteQueue {
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;
 
-        Ok(id)
+        Ok(QueueItemId::from_uuid(id))
     }
 
     async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -264,7 +270,10 @@ impl QueuePort for SqliteQueue {
     }
 
     // DM approval queue
-    async fn enqueue_dm_approval(&self, data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(
+        &self,
+        data: &ApprovalRequestData,
+    ) -> Result<QueueItemId, QueueError> {
         self.enqueue_item("dm_approval", data).await
     }
 
@@ -276,7 +285,7 @@ impl QueuePort for SqliteQueue {
     async fn enqueue_asset_generation(
         &self,
         data: &AssetGenerationData,
-    ) -> Result<Uuid, QueueError> {
+    ) -> Result<QueueItemId, QueueError> {
         self.enqueue_item("asset_generation", data).await
     }
 
@@ -285,7 +294,7 @@ impl QueuePort for SqliteQueue {
     }
 
     // Common operations
-    async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError> {
+    async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError> {
         let now = self.clock.now().to_rfc3339();
 
         let result = sqlx::query(
@@ -296,7 +305,7 @@ impl QueuePort for SqliteQueue {
             "#,
         )
         .bind(&now)
-        .bind(id.to_string())
+        .bind(id.to_uuid().to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;
@@ -308,7 +317,7 @@ impl QueuePort for SqliteQueue {
         Ok(())
     }
 
-    async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError> {
+    async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError> {
         let now = self.clock.now().to_rfc3339();
 
         let result = sqlx::query(
@@ -320,7 +329,7 @@ impl QueuePort for SqliteQueue {
         )
         .bind(&now)
         .bind(error)
-        .bind(id.to_string())
+        .bind(id.to_uuid().to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;
@@ -359,7 +368,7 @@ impl QueuePort for SqliteQueue {
         Ok(out)
     }
 
-    async fn set_result_json(&self, id: Uuid, result_json: &str) -> Result<(), QueueError> {
+    async fn set_result_json(&self, id: QueueItemId, result_json: &str) -> Result<(), QueueError> {
         let now = self.clock.now().to_rfc3339();
 
         let result = sqlx::query(
@@ -371,7 +380,7 @@ impl QueuePort for SqliteQueue {
         )
         .bind(result_json)
         .bind(&now)
-        .bind(id.to_string())
+        .bind(id.to_uuid().to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;
@@ -423,7 +432,7 @@ impl QueuePort for SqliteQueue {
 
     async fn get_approval_request(
         &self,
-        id: Uuid,
+        id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
         let result = sqlx::query(
             r#"
@@ -431,7 +440,7 @@ impl QueuePort for SqliteQueue {
             WHERE id = ? AND queue_type = 'dm_approval'
             "#,
         )
-        .bind(id.to_string())
+        .bind(id.to_uuid().to_string())
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;

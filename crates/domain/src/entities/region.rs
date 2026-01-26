@@ -15,43 +15,44 @@
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, RegionId};
 
+use crate::value_objects::{AssetPath, Atmosphere, Description, RegionName};
+
 /// A region within a location - represents a distinct "screen" or area
 ///
 /// Regions are the leaf nodes of the location hierarchy. Players navigate
 /// between regions, and scenes are derived from the current region's backdrop
 /// plus any NPCs present.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Region {
-    pub id: RegionId,
-    pub location_id: LocationId,
-    pub name: String,
-    pub description: String,
+    id: RegionId,
+    location_id: LocationId,
+    name: RegionName,
+    description: Description,
 
     // Scene display (visual novel view)
     /// Path to backdrop image for this region's scene
-    pub backdrop_asset: Option<String>,
+    backdrop_asset: Option<AssetPath>,
     /// Sensory/emotional description of the region's atmosphere
-    pub atmosphere: Option<String>,
+    atmosphere: Option<Atmosphere>,
 
     // Position on parent location's map (clickable area)
     /// Bounds defining where this region is on the parent location's map
-    pub map_bounds: Option<MapBounds>,
+    map_bounds: Option<MapBounds>,
 
     /// Whether players can spawn here when creating a new PC
-    pub is_spawn_point: bool,
+    is_spawn_point: bool,
     /// Display order within the location
-    pub order: u32,
+    order: u32,
 }
 
 impl Region {
     /// Create a new region within a location
-    pub fn new(location_id: LocationId, name: impl Into<String>) -> Self {
+    pub fn new(location_id: LocationId, name: RegionName) -> Self {
         Self {
             id: RegionId::new(),
             location_id,
-            name: name.into(),
-            description: String::new(),
+            name,
+            description: Description::default(),
             backdrop_asset: None,
             atmosphere: None,
             map_bounds: None,
@@ -60,18 +61,83 @@ impl Region {
         }
     }
 
+    /// Reconstruct a region from storage
+    pub fn from_storage(
+        id: RegionId,
+        location_id: LocationId,
+        name: RegionName,
+        description: Description,
+        backdrop_asset: Option<AssetPath>,
+        atmosphere: Option<Atmosphere>,
+        map_bounds: Option<MapBounds>,
+        is_spawn_point: bool,
+        order: u32,
+    ) -> Self {
+        Self {
+            id,
+            location_id,
+            name,
+            description,
+            backdrop_asset,
+            atmosphere,
+            map_bounds,
+            is_spawn_point,
+            order,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn id(&self) -> RegionId {
+        self.id
+    }
+
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    pub fn name(&self) -> &RegionName {
+        &self.name
+    }
+
+    pub fn description(&self) -> &str {
+        self.description.as_str()
+    }
+
+    pub fn backdrop_asset(&self) -> Option<&AssetPath> {
+        self.backdrop_asset.as_ref()
+    }
+
+    pub fn atmosphere(&self) -> Option<&Atmosphere> {
+        self.atmosphere.as_ref()
+    }
+
+    pub fn map_bounds(&self) -> Option<&MapBounds> {
+        self.map_bounds.as_ref()
+    }
+
+    pub fn is_spawn_point(&self) -> bool {
+        self.is_spawn_point
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
+    }
+
+    // Builder methods
+
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+        self.description = Description::new(description).unwrap_or_default();
         self
     }
 
-    pub fn with_backdrop(mut self, asset_path: impl Into<String>) -> Self {
-        self.backdrop_asset = Some(asset_path.into());
+    pub fn with_backdrop(mut self, asset_path: AssetPath) -> Self {
+        self.backdrop_asset = Some(asset_path);
         self
     }
 
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere = Some(atmosphere.into());
+    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
+        self.atmosphere = Some(atmosphere);
         self
     }
 
@@ -101,8 +167,9 @@ impl Region {
 }
 
 /// Bounds defining a rectangular area on a map image
+///
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MapBounds {
     /// X coordinate of the region's top-left corner
     pub x: u32,
@@ -130,18 +197,6 @@ impl MapBounds {
         })
     }
 
-    /// Create new map bounds without validation (for deserialization)
-    ///
-    /// Prefer `new()` for programmatic creation.
-    pub fn new_unchecked(x: u32, y: u32, width: u32, height: u32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-
     /// Check if a pixel position is within these bounds
     ///
     /// Uses saturating arithmetic to prevent integer overflow.
@@ -161,13 +216,13 @@ impl MapBounds {
 /// A connection between two regions
 ///
 /// Stored as a `CONNECTED_TO_REGION` edge in Neo4j with properties.
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionConnection {
     pub from_region: RegionId,
     pub to_region: RegionId,
     /// Description of the path/transition (e.g., "A door leads to...")
-    pub description: Option<String>,
+    pub description: Option<Description>,
     /// Whether this connection works both ways
     pub bidirectional: bool,
     /// Whether this connection is currently locked
@@ -177,37 +232,23 @@ pub struct RegionConnection {
 }
 
 impl RegionConnection {
-    /// Create a new connection between two regions
-    ///
-    /// Returns `None` if `from` and `to` are the same region (self-loop).
-    pub fn new(from: RegionId, to: RegionId) -> Option<Self> {
-        if from == to {
-            return None;
+    /// Reconstruct a connection from storage
+    pub fn from_storage(
+        from_region: RegionId,
+        to_region: RegionId,
+        description: Option<Description>,
+        bidirectional: bool,
+        is_locked: bool,
+        lock_description: Option<String>,
+    ) -> Self {
+        Self {
+            from_region,
+            to_region,
+            description,
+            bidirectional,
+            is_locked,
+            lock_description,
         }
-        Some(Self {
-            from_region: from,
-            to_region: to,
-            description: None,
-            bidirectional: true,
-            is_locked: false,
-            lock_description: None,
-        })
-    }
-
-    pub fn one_way(mut self) -> Self {
-        self.bidirectional = false;
-        self
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    pub fn locked(mut self, description: impl Into<String>) -> Self {
-        self.is_locked = true;
-        self.lock_description = Some(description.into());
-        self
     }
 }
 
@@ -215,38 +256,35 @@ impl RegionConnection {
 ///
 /// Stored as an `EXITS_TO_LOCATION` edge in Neo4j with properties.
 /// Used when leaving a building/area to go to a parent or sibling location.
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionExit {
     pub from_region: RegionId,
     pub to_location: LocationId,
     /// Which region in the target location the player arrives at
     pub arrival_region_id: RegionId,
     /// Description of the exit (e.g., "Step outside into the market")
-    pub description: Option<String>,
+    pub description: Option<Description>,
     /// Whether this exit works both ways (can enter from that location)
     pub bidirectional: bool,
 }
 
 impl RegionExit {
-    pub fn new(from: RegionId, to_location: LocationId, arrival_region: RegionId) -> Self {
+    /// Reconstruct a region exit from storage
+    pub fn from_storage(
+        from_region: RegionId,
+        to_location: LocationId,
+        arrival_region_id: RegionId,
+        description: Option<Description>,
+        bidirectional: bool,
+    ) -> Self {
         Self {
-            from_region: from,
+            from_region,
             to_location,
-            arrival_region_id: arrival_region,
-            description: None,
-            bidirectional: true,
+            arrival_region_id,
+            description,
+            bidirectional,
         }
-    }
-
-    pub fn one_way(mut self) -> Self {
-        self.bidirectional = false;
-        self
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
     }
 }
 
@@ -276,7 +314,12 @@ mod tests {
     #[test]
     fn test_map_bounds_contains_near_max_values() {
         // Test with values near u32::MAX to verify saturating_add works
-        let bounds = MapBounds::new_unchecked(u32::MAX - 10, u32::MAX - 10, 100, 100);
+        let bounds = MapBounds {
+            x: u32::MAX - 10,
+            y: u32::MAX - 10,
+            width: 100,
+            height: 100,
+        };
 
         // Point at the origin of bounds should be contained
         assert!(bounds.contains(u32::MAX - 10, u32::MAX - 10));
@@ -298,7 +341,12 @@ mod tests {
     #[test]
     fn test_map_bounds_overflow_protection() {
         // Create bounds at MAX position with width that would overflow
-        let bounds = MapBounds::new_unchecked(u32::MAX, u32::MAX, 10, 10);
+        let bounds = MapBounds {
+            x: u32::MAX,
+            y: u32::MAX,
+            width: 10,
+            height: 10,
+        };
 
         // This should NOT panic due to overflow - saturating_add prevents it
         // Point at MAX is contained since x >= MAX and x < MAX.saturating_add(10) = MAX
@@ -339,55 +387,60 @@ mod tests {
 
     #[test]
     fn test_map_bounds_contains_returns_false_for_zero_size() {
-        // Even if created via new_unchecked, contains should handle zero-size gracefully
-        let zero_width = MapBounds::new_unchecked(10, 20, 0, 50);
+        // Even with zero-size bounds, contains should handle gracefully
+        let zero_width = MapBounds {
+            x: 10,
+            y: 20,
+            width: 0,
+            height: 50,
+        };
         assert!(!zero_width.contains(10, 20));
 
-        let zero_height = MapBounds::new_unchecked(10, 20, 100, 0);
+        let zero_height = MapBounds {
+            x: 10,
+            y: 20,
+            width: 100,
+            height: 0,
+        };
         assert!(!zero_height.contains(10, 20));
 
-        let zero_both = MapBounds::new_unchecked(10, 20, 0, 0);
+        let zero_both = MapBounds {
+            x: 10,
+            y: 20,
+            width: 0,
+            height: 0,
+        };
         assert!(!zero_both.contains(10, 20));
     }
 
     // ==========================================================================
-    // Issue 6.8: Prevent Self-Loop Connections
+    // RegionConnection tests
     // ==========================================================================
 
     #[test]
-    fn test_region_connection_rejects_self_loop() {
-        let region_id = RegionId::new();
-        let connection = RegionConnection::new(region_id, region_id);
-        assert!(connection.is_none());
-    }
-
-    #[test]
-    fn test_region_connection_accepts_different_regions() {
+    fn test_region_connection_field_access() {
         let from_region = RegionId::new();
         let to_region = RegionId::new();
-        let connection = RegionConnection::new(from_region, to_region);
-        assert!(connection.is_some());
-        let connection = connection.unwrap();
+        let connection = RegionConnection {
+            from_region,
+            to_region,
+            description: Some(Description::new("A narrow passage").unwrap()),
+            bidirectional: false,
+            is_locked: true,
+            lock_description: Some("Requires a key".to_string()),
+        };
+
         assert_eq!(connection.from_region, from_region);
         assert_eq!(connection.to_region, to_region);
-    }
-
-    #[test]
-    fn test_region_connection_builder_methods() {
-        let from_region = RegionId::new();
-        let to_region = RegionId::new();
-        let connection = RegionConnection::new(from_region, to_region)
-            .unwrap()
-            .one_way()
-            .with_description("A narrow passage")
-            .locked("Requires a key");
-
         assert!(!connection.bidirectional);
-        assert_eq!(connection.description, Some("A narrow passage".to_string()));
+        assert_eq!(
+            connection.description.as_ref().map(|d| d.as_str()),
+            Some("A narrow passage")
+        );
         assert!(connection.is_locked);
         assert_eq!(
-            connection.lock_description,
-            Some("Requires a key".to_string())
+            connection.lock_description.as_deref(),
+            Some("Requires a key")
         );
     }
 }

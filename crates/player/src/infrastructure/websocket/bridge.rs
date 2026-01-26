@@ -16,7 +16,7 @@ use crate::infrastructure::messaging::{
     set_connection_state, BusMessage, CommandBus, ConnectionHandle, ConnectionState,
     ConnectionStateObserver, EventBus, PendingRequests,
 };
-use wrldbldr_protocol::ClientMessage;
+use wrldbldr_shared::ClientMessage;
 
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::{mpsc, oneshot, Mutex};
@@ -115,7 +115,7 @@ async fn desktop_bridge_task(
     client
         .set_on_message(move |msg| {
             // Check if it's a response to a pending request
-            if let wrldbldr_protocol::ServerMessage::Response { request_id, result } = &msg {
+            if let wrldbldr_shared::ServerMessage::Response { request_id, result } = &msg {
                 let pending: Arc<Mutex<PendingRequests>> = pending_for_messages.clone();
                 let request_id = request_id.clone();
                 let result = result.clone();
@@ -251,7 +251,7 @@ async fn wasm_bridge_task(
     let pending_for_messages = Rc::clone(&pending);
     client.set_on_message(move |msg| {
         // Check if it's a response to a pending request
-        if let wrldbldr_protocol::ServerMessage::Response { request_id, result } = &msg {
+        if let wrldbldr_shared::ServerMessage::Response { request_id, result } = &msg {
             pending_for_messages
                 .borrow_mut()
                 .resolve(request_id, result.clone());
@@ -281,7 +281,9 @@ async fn wasm_bridge_task(
                 match bus_msg {
                     BusMessage::Send(msg) => {
                         if let Err(e) = client.send(msg) {
-                            web_sys::console::error_1(&format!("Failed to send message: {}", e).into());
+                            web_sys::console::error_1(
+                                &format!("Failed to send message: {}", e).into(),
+                            );
                         }
                     }
                     BusMessage::Request { id, payload } => {
@@ -291,7 +293,9 @@ async fn wasm_bridge_task(
                             payload,
                         };
                         if let Err(e) = client.send(msg) {
-                            web_sys::console::error_1(&format!("Failed to send request: {}", e).into());
+                            web_sys::console::error_1(
+                                &format!("Failed to send request: {}", e).into(),
+                            );
                         }
                     }
                 }

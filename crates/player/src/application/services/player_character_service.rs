@@ -6,10 +6,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::application::dto::CharacterSheetDataApi;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{PlayerCharacterRequest, RequestPayload};
+use wrldbldr_shared::character_sheet::CharacterSheetValues;
+use wrldbldr_shared::{PlayerCharacterRequest, RequestPayload};
 
 /// Full player character data
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -22,7 +22,7 @@ pub struct PlayerCharacterData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sheet_data: Option<CharacterSheetDataApi>,
+    pub sheet_data: Option<CharacterSheetValues>,
     pub current_location_id: String,
     pub starting_location_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -42,7 +42,7 @@ pub struct CreatePlayerCharacterRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub starting_region_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sheet_data: Option<serde_json::Value>,
+    pub sheet_data: Option<CharacterSheetValues>,
 }
 
 /// Request to update a player character
@@ -51,7 +51,7 @@ pub struct UpdatePlayerCharacterRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sheet_data: Option<serde_json::Value>,
+    pub sheet_data: Option<CharacterSheetValues>,
 }
 
 /// Response from location update
@@ -63,7 +63,7 @@ pub struct UpdateLocationResponse {
 }
 
 // From impls for protocol conversion at the boundary
-impl From<&CreatePlayerCharacterRequest> for wrldbldr_protocol::CreatePlayerCharacterData {
+impl From<&CreatePlayerCharacterRequest> for wrldbldr_shared::CreatePlayerCharacterData {
     fn from(req: &CreatePlayerCharacterRequest) -> Self {
         Self {
             name: req.name.clone(),
@@ -74,7 +74,7 @@ impl From<&CreatePlayerCharacterRequest> for wrldbldr_protocol::CreatePlayerChar
     }
 }
 
-impl From<&UpdatePlayerCharacterRequest> for wrldbldr_protocol::UpdatePlayerCharacterData {
+impl From<&UpdatePlayerCharacterRequest> for wrldbldr_shared::UpdatePlayerCharacterData {
     fn from(req: &UpdatePlayerCharacterRequest) -> Self {
         Self {
             name: req.name.clone(),
@@ -160,6 +160,8 @@ impl PlayerCharacterService {
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::ListPlayerCharacters {
                     world_id: world_id.to_string(),
+                    limit: None,
+                    offset: None,
                 }),
                 get_request_timeout_ms(),
             )

@@ -60,20 +60,17 @@ pub use rule_system::{
     SuccessComparison,
 };
 
-// Workflow types
-mod workflow;
-pub use workflow::{
-    // Pure analysis functions
-    analyze_workflow,
-    auto_detect_prompt_mappings,
-    find_nodes_by_type,
-    validate_workflow,
-    // Types
-    InputDefault,
-    InputType,
-    PromptMapping,
-    PromptMappingType,
-    WorkflowAnalysis,
-    WorkflowInput,
-    WorkflowSlot,
-};
+// Session types
+mod session;
+pub use session::WorldRole;
+
+// Decision types (for DM approval workflows)
+mod time_decisions;
+pub use time_decisions::TimeSuggestionDecision;
+
+mod challenge_decisions;
+pub use challenge_decisions::ChallengeOutcomeDecision;
+
+// Character sheet types
+pub mod character_sheet;
+pub use character_sheet::{CharacterSheetValues, SheetValue};

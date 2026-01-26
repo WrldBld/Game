@@ -11,8 +11,7 @@ use wrldbldr_domain::{
     LocationState, NarrativeEventId, RegionId, RegionState, WorldId,
 };
 
-use crate::entities::{Flag, LocationStateEntity, RegionStateEntity};
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{LocationStateRepo, RegionStateRepo, RepoError};
 
 /// Context for evaluating activation rules
 #[derive(Debug, Clone)]
@@ -141,23 +140,24 @@ impl StateResolutionResult {
     }
 }
 
-/// Use case for resolving visual states
+/// Use case for resolving visual states.
+///
+/// Evaluates activation rules against a provided context to determine which
+/// LocationState and RegionState should be active. Flags are passed via
+/// `StateResolutionContext` by the caller, allowing flexible flag sourcing.
 pub struct ResolveVisualState {
-    location_state: Arc<LocationStateEntity>,
-    region_state: Arc<RegionStateEntity>,
-    flag: Arc<Flag>,
+    location_state: Arc<dyn LocationStateRepo>,
+    region_state: Arc<dyn RegionStateRepo>,
 }
 
 impl ResolveVisualState {
     pub fn new(
-        location_state: Arc<LocationStateEntity>,
-        region_state: Arc<RegionStateEntity>,
-        flag: Arc<Flag>,
+        location_state: Arc<dyn LocationStateRepo>,
+        region_state: Arc<dyn RegionStateRepo>,
     ) -> Self {
         Self {
             location_state,
             region_state,
-            flag,
         }
     }
 
@@ -178,11 +178,11 @@ impl ResolveVisualState {
 
         for state in &location_states {
             let (eval, soft_rules) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
 
             for soft in soft_rules {
@@ -197,11 +197,11 @@ impl ResolveVisualState {
 
         for state in &region_states {
             let (eval, soft_rules) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
 
             for soft in soft_rules {
@@ -215,13 +215,13 @@ impl ResolveVisualState {
         let available_location_states: Vec<ResolvedStateInfo> = location_evaluations
             .iter()
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
             .collect();
@@ -229,13 +229,13 @@ impl ResolveVisualState {
         let available_region_states: Vec<ResolvedStateInfo> = region_evaluations
             .iter()
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
             .collect();
@@ -273,11 +273,11 @@ impl ResolveVisualState {
 
         for state in &location_states {
             let (eval, _) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
             evaluations.push((state.clone(), eval));
         }
@@ -297,11 +297,11 @@ impl ResolveVisualState {
 
         for state in &region_states {
             let (eval, _) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
             evaluations.push((state.clone(), eval));
         }
@@ -407,8 +407,10 @@ impl ResolveVisualState {
                     );
                     return false;
                 }
-                let current = context.game_time.current();
-                current.month() as u32 == *month && current.day() as u32 == *day
+                // Use to_datetime() for calendar-based date checks
+                // (in future, this should use calendar integration for proper month/day)
+                let current = context.game_time.to_datetime();
+                current.month() == *month && current.day() == *day
             }
 
             ActivationRule::DateRange {
@@ -435,9 +437,11 @@ impl ResolveVisualState {
                     return false;
                 }
 
-                let current = context.game_time.current();
-                let current_month = current.month() as u32;
-                let current_day = current.day() as u32;
+                // Use to_datetime() for calendar-based date checks
+                // (in future, this should use calendar integration for proper month/day)
+                let current = context.game_time.to_datetime();
+                let current_month = current.month();
+                let current_day = current.day();
 
                 // Simple range check (doesn't handle year wrap-around)
                 let current_ordinal = current_month * 100 + current_day;
@@ -480,7 +484,7 @@ impl ResolveVisualState {
     /// Note: For February, we allow up to 29 days to account for leap years.
     fn is_valid_date(month: u32, day: u32) -> bool {
         // Validate month is 1-12
-        if month < 1 || month > 12 {
+        if !(1..=12).contains(&month) {
             return false;
         }
 
@@ -494,7 +498,7 @@ impl ResolveVisualState {
         let max_days = match month {
             1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
             4 | 6 | 9 | 11 => 30,
-            2 => 29, // Allow 29 for leap years
+            2 => 29,           // Allow 29 for leap years
             _ => return false, // Should never reach here due to check above
         };
 
@@ -526,17 +530,17 @@ impl ResolveVisualState {
         let active_state = evaluations
             .iter()
             .filter(|(_, eval)| eval.is_active)
-            .max_by_key(|(state, _)| state.priority);
+            .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
             return Some(ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             });
         }
@@ -544,15 +548,15 @@ impl ResolveVisualState {
         // Fall back to the default state if no active states found
         evaluations
             .iter()
-            .find(|(state, _)| state.is_default)
+            .find(|(state, _)| state.is_default())
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
     }
@@ -567,17 +571,17 @@ impl ResolveVisualState {
         let active_state = evaluations
             .iter()
             .filter(|(_, eval)| eval.is_active)
-            .max_by_key(|(state, _)| state.priority);
+            .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
             return Some(ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             });
         }
@@ -585,15 +589,15 @@ impl ResolveVisualState {
         // Fall back to the default state if no active states found
         evaluations
             .iter()
-            .find(|(state, _)| state.is_default)
+            .find(|(state, _)| state.is_default())
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
     }
@@ -602,10 +606,9 @@ impl ResolveVisualState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
 
     fn create_test_context() -> StateResolutionContext {
-        let game_time = GameTime::new(Utc::now());
+        let game_time = GameTime::at_epoch();
         StateResolutionContext::new(WorldId::new(), game_time)
     }
 
@@ -682,7 +685,7 @@ mod tests {
 
     // Helper to create a test resolver (would need mock repos in real tests)
     fn create_test_resolve() -> ResolveVisualState {
-        use crate::infrastructure::ports::{FlagRepo, LocationStateRepo, RegionStateRepo};
+        use crate::infrastructure::ports::{LocationStateRepo, RegionStateRepo};
         use async_trait::async_trait;
         use std::sync::Arc;
         use wrldbldr_domain::{LocationStateId, RegionStateId};
@@ -690,7 +693,6 @@ mod tests {
         // Mock implementations for testing
         struct MockLocationStateRepo;
         struct MockRegionStateRepo;
-        struct MockFlagRepo;
 
         #[async_trait]
         impl LocationStateRepo for MockLocationStateRepo {
@@ -774,73 +776,9 @@ mod tests {
             }
         }
 
-        #[async_trait]
-        impl FlagRepo for MockFlagRepo {
-            async fn get_world_flags(&self, _world_id: WorldId) -> Result<Vec<String>, RepoError> {
-                Ok(vec![])
-            }
-            async fn get_pc_flags(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-            ) -> Result<Vec<String>, RepoError> {
-                Ok(vec![])
-            }
-            async fn set_world_flag(
-                &self,
-                _world_id: WorldId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn unset_world_flag(
-                &self,
-                _world_id: WorldId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn set_pc_flag(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn unset_pc_flag(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn is_world_flag_set(
-                &self,
-                _world_id: WorldId,
-                _flag_name: &str,
-            ) -> Result<bool, RepoError> {
-                Ok(false)
-            }
-            async fn is_pc_flag_set(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-                _flag_name: &str,
-            ) -> Result<bool, RepoError> {
-                Ok(false)
-            }
-        }
+        let location_state: Arc<dyn LocationStateRepo> = Arc::new(MockLocationStateRepo);
+        let region_state: Arc<dyn RegionStateRepo> = Arc::new(MockRegionStateRepo);
 
-        let location_state = Arc::new(crate::entities::LocationStateEntity::new(Arc::new(
-            MockLocationStateRepo,
-        )
-            as Arc<dyn LocationStateRepo>));
-        let region_state = Arc::new(crate::entities::RegionStateEntity::new(Arc::new(
-            MockRegionStateRepo,
-        )
-            as Arc<dyn RegionStateRepo>));
-        let flag = Arc::new(crate::entities::Flag::new(
-            Arc::new(MockFlagRepo) as Arc<dyn FlagRepo>
-        ));
-
-        ResolveVisualState::new(location_state, region_state, flag)
+        ResolveVisualState::new(location_state, region_state)
     }
 }

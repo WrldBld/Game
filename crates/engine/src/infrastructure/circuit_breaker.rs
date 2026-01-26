@@ -1,3 +1,6 @@
+// Circuit breaker is infrastructure - prepared for future resilience patterns
+#![allow(dead_code)]
+
 //! Circuit breaker pattern implementation for resilient service calls.
 //!
 //! The circuit breaker prevents cascading failures by temporarily rejecting
@@ -147,7 +150,10 @@ impl CircuitBreaker {
 
     /// Get the current circuit state
     pub fn state(&self) -> CircuitState {
-        let state = self.state.read().unwrap();
+        let state = self
+            .state
+            .read()
+            .expect("Circuit breaker RwLock poisoned during state check");
 
         // Check if we should transition from Open to HalfOpen
         if state.state == CircuitState::Open {
@@ -167,7 +173,10 @@ impl CircuitBreaker {
     fn try_transition_to_half_open(&self) -> CircuitState {
         // Collect state transition info while holding lock, then release before callback
         let (current_state, transition) = {
-            let mut state = self.state.write().unwrap();
+            let mut state = self
+                .state
+                .write()
+                .expect("Circuit breaker RwLock poisoned during state transition");
 
             // Double-check after acquiring write lock
             let transition = if state.state == CircuitState::Open {
@@ -218,9 +227,14 @@ impl CircuitBreaker {
         match current_state {
             CircuitState::Closed => Ok(()),
             CircuitState::Open => {
-                let state = self.state.read().unwrap();
+                let state = self
+                    .state
+                    .read()
+                    .expect("Circuit breaker RwLock poisoned during availability check");
                 let retry_after = if let Some(opened_at) = state.opened_at {
-                    self.config.open_duration.saturating_sub(opened_at.elapsed())
+                    self.config
+                        .open_duration
+                        .saturating_sub(opened_at.elapsed())
                 } else {
                     self.config.open_duration
                 };
@@ -228,7 +242,10 @@ impl CircuitBreaker {
             }
             CircuitState::HalfOpen => {
                 // Check if we can allow another half-open request
-                let mut state = self.state.write().unwrap();
+                let mut state = self
+                    .state
+                    .write()
+                    .expect("Circuit breaker RwLock poisoned during success recording");
                 if state.half_open_requests < self.config.half_open_max_requests {
                     state.half_open_requests += 1;
                     Ok(())
@@ -249,7 +266,10 @@ impl CircuitBreaker {
 
         // Collect state transition info while holding lock, then release before callback
         let transition = {
-            let mut state = self.state.write().unwrap();
+            let mut state = self
+                .state
+                .write()
+                .expect("Circuit breaker RwLock poisoned during failure recording");
 
             match state.state {
                 CircuitState::Closed => None,
@@ -291,7 +311,10 @@ impl CircuitBreaker {
 
         // Collect state transition info while holding lock, then release before callback
         let transition = {
-            let mut state = self.state.write().unwrap();
+            let mut state = self
+                .state
+                .write()
+                .expect("Circuit breaker RwLock poisoned during half-open transition");
 
             match state.state {
                 CircuitState::Closed => {
@@ -320,9 +343,7 @@ impl CircuitBreaker {
                     state.opened_at = Some(Instant::now());
                     self.open_count.fetch_add(1, Ordering::Relaxed);
 
-                    tracing::warn!(
-                        "Circuit breaker re-opening after failure in half-open state"
-                    );
+                    tracing::warn!("Circuit breaker re-opening after failure in half-open state");
 
                     Some((old_state, state.state))
                 }
@@ -344,7 +365,10 @@ impl CircuitBreaker {
 
     /// Get metrics for the circuit breaker
     pub fn metrics(&self) -> CircuitBreakerMetrics {
-        let state = self.state.read().unwrap();
+        let state = self
+            .state
+            .read()
+            .expect("Circuit breaker RwLock poisoned during metrics read");
         CircuitBreakerMetrics {
             state: state.state,
             consecutive_failures: self.consecutive_failures.load(Ordering::Relaxed),
@@ -352,7 +376,9 @@ impl CircuitBreaker {
             total_successes: self.total_successes.load(Ordering::Relaxed),
             open_count: self.open_count.load(Ordering::Relaxed),
             time_until_half_open: if state.state == CircuitState::Open {
-                state.opened_at.map(|t| self.config.open_duration.saturating_sub(t.elapsed()))
+                state
+                    .opened_at
+                    .map(|t| self.config.open_duration.saturating_sub(t.elapsed()))
             } else {
                 None
             },
@@ -363,7 +389,10 @@ impl CircuitBreaker {
     pub fn force_state(&self, new_state: CircuitState) {
         // Collect state transition info while holding lock, then release before callback
         let transition = {
-            let mut state = self.state.write().unwrap();
+            let mut state = self
+                .state
+                .write()
+                .expect("Circuit breaker RwLock poisoned during reset");
             let old_state = state.state;
 
             state.state = new_state;
@@ -406,7 +435,10 @@ impl CircuitBreaker {
     pub fn reset(&self) {
         // Collect state transition info while holding lock, then release before callback
         let transition = {
-            let mut state = self.state.write().unwrap();
+            let mut state = self
+                .state
+                .write()
+                .expect("Circuit breaker RwLock poisoned during force open");
             let old_state = state.state;
 
             state.state = CircuitState::Closed;
@@ -666,10 +698,9 @@ mod tests {
             half_open_max_requests: 1,
         };
 
-        let cb = CircuitBreaker::new(config)
-            .with_state_change_callback(move |_old, _new| {
-                callback_called_clone.store(true, Ordering::Relaxed);
-            });
+        let cb = CircuitBreaker::new(config).with_state_change_callback(move |_old, _new| {
+            callback_called_clone.store(true, Ordering::Relaxed);
+        });
 
         cb.record_failure();
 

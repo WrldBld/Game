@@ -9,76 +9,7 @@
 //! Entry conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
 use serde::{Deserialize, Serialize};
-use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId, TimeOfDay};
-
-/// A scene - a complete unit of storytelling
-///
-/// NOTE: `location_id` and `featured_characters` are kept for backward compatibility
-/// during Phase 0.D migration. New code should use repository edge methods:
-/// - Location: AT_LOCATION edge via `scene_repository.set_location()`
-/// - Characters: FEATURES_CHARACTER edge via `scene_repository.add_featured_character()`
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Scene {
-    pub id: SceneId,
-    pub act_id: ActId,
-    pub name: String,
-    /// DEPRECATED: Use AT_LOCATION edge via repository
-    pub location_id: LocationId,
-    pub time_context: TimeContext,
-    /// Override backdrop (if different from location default)
-    pub backdrop_override: Option<String>,
-    /// Conditions that must be met to enter this scene (stored as JSON)
-    pub entry_conditions: Vec<SceneCondition>,
-    /// DEPRECATED: Use FEATURES_CHARACTER edge via repository
-    pub featured_characters: Vec<CharacterId>,
-    /// DM guidance for LLM responses
-    pub directorial_notes: String,
-    /// Order within the act (for sequential scenes)
-    pub order: u32,
-}
-
-impl Scene {
-    pub fn new(act_id: ActId, name: impl Into<String>, location_id: LocationId) -> Self {
-        Self {
-            id: SceneId::new(),
-            act_id,
-            name: name.into(),
-            location_id,
-            time_context: TimeContext::Unspecified,
-            backdrop_override: None,
-            entry_conditions: Vec::new(),
-            featured_characters: Vec::new(),
-            directorial_notes: String::new(),
-            order: 0,
-        }
-    }
-
-    pub fn with_character(mut self, character_id: CharacterId) -> Self {
-        self.featured_characters.push(character_id);
-        self
-    }
-
-    pub fn with_time(mut self, time_context: TimeContext) -> Self {
-        self.time_context = time_context;
-        self
-    }
-
-    pub fn with_directorial_notes(mut self, notes: impl Into<String>) -> Self {
-        self.directorial_notes = notes.into();
-        self
-    }
-
-    pub fn with_entry_condition(mut self, condition: SceneCondition) -> Self {
-        self.entry_conditions.push(condition);
-        self
-    }
-
-    pub fn with_order(mut self, order: u32) -> Self {
-        self.order = order;
-        self
-    }
-}
+use wrldbldr_domain::{CharacterId, SceneId, TimeOfDay};
 
 /// Time context for a scene
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,6 +44,8 @@ pub enum SceneCondition {
 }
 
 /// Data for the FEATURES_CHARACTER edge between Scene and Character
+///
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneCharacter {
@@ -125,17 +58,17 @@ pub struct SceneCharacter {
 }
 
 impl SceneCharacter {
-    pub fn new(character_id: CharacterId, role: SceneCharacterRole) -> Self {
+    /// Reconstruct a scene character from storage
+    pub fn from_storage(
+        character_id: CharacterId,
+        role: SceneCharacterRole,
+        entrance_cue: Option<String>,
+    ) -> Self {
         Self {
             character_id,
             role,
-            entrance_cue: None,
+            entrance_cue,
         }
-    }
-
-    pub fn with_entrance_cue(mut self, cue: impl Into<String>) -> Self {
-        self.entrance_cue = Some(cue.into());
-        self
     }
 }
 

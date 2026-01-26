@@ -1,0 +1,239 @@
+{
+  "_comment": "Thornhaven Village NPCs - 9 characters with varied archetypes for LLM integration testing",
+  "npcs": [
+    {
+      "id": "00000000-0000-0000-2000-000000000009",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Mira Thornwood",
+      "description": "A young woman with calloused hands and soot-streaked clothes who apprentices at the smithy. She has a natural talent for metalwork and dreams of becoming a master smith.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Hero",
+      "current_archetype": "Hero",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 14, "DEX": 12, "CON": 13, "INT": 11, "WIS": 10, "CHA": 12 },
+        "modifiers": {},
+        "current_hp": 25,
+        "max_hp": 25
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Friendly",
+      "default_mood": "Determined",
+      "expression_config": {
+        "expressions": ["neutral", "happy", "thoughtful", "determined", "surprised"],
+        "actions": ["wipes brow", "examines metalwork", "pumps bellows", "nods approvingly", "adjusts apron"],
+        "default_expression": "neutral"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Marta Hearthwood",
+      "description": "A stout, silver-haired woman in her sixties who runs the Drowsy Dragon with an iron will and a warm heart. She knows everyone's secrets but keeps them all.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Mentor",
+      "current_archetype": "Mentor",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 10, "DEX": 8, "CON": 12, "INT": 14, "WIS": 16, "CHA": 15 },
+        "modifiers": {},
+        "current_hp": 22,
+        "max_hp": 22
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Friendly",
+      "default_mood": "Calm",
+      "expression_config": {
+        "expressions": ["neutral", "happy", "sad", "thoughtful", "suspicious", "amused"],
+        "actions": ["wipes down the bar", "sighs knowingly", "glances at the door", "refills a tankard", "lowers her voice"],
+        "default_expression": "neutral"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000002",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Grom Ironhand",
+      "description": "A massive, scarred dwarf whose arms are as thick as most humans' legs. He speaks little but sees everything. Former adventurer who settled here after losing his party.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "ThresholdGuardian",
+      "current_archetype": "ThresholdGuardian",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 18, "DEX": 10, "CON": 16, "INT": 12, "WIS": 14, "CHA": 8 },
+        "modifiers": {},
+        "current_hp": 45,
+        "max_hp": 45
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Neutral",
+      "default_mood": "Contemplative",
+      "expression_config": {
+        "expressions": ["neutral", "angry", "thoughtful", "suspicious", "sad"],
+        "actions": ["hammers metal", "grunts", "examines weapon", "stares silently", "gestures to forge"],
+        "default_expression": "neutral"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000003",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Pip Quickfingers",
+      "description": "A wiry halfling teenager with perpetually dirty clothes and a mischievous grin. Knows every hiding spot and secret passage in Thornhaven.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Trickster",
+      "current_archetype": "Trickster",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 8, "DEX": 16, "CON": 10, "INT": 13, "WIS": 11, "CHA": 14 },
+        "modifiers": {},
+        "current_hp": 15,
+        "max_hp": 15
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Friendly",
+      "default_mood": "Amused",
+      "expression_config": {
+        "expressions": ["neutral", "happy", "surprised", "afraid", "thoughtful"],
+        "actions": ["winks", "pockets something", "whistles innocently", "glances around nervously", "grins widely"],
+        "default_expression": "happy"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000004",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Brother Aldric",
+      "description": "A young, earnest priest of Lathander with sun-bleached hair and fervent eyes. He recently arrived with warnings of a coming darkness.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Herald",
+      "current_archetype": "Herald",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 10, "DEX": 11, "CON": 12, "INT": 14, "WIS": 16, "CHA": 15 },
+        "modifiers": {},
+        "current_hp": 28,
+        "max_hp": 28
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Respectful",
+      "default_mood": "Hopeful",
+      "expression_config": {
+        "expressions": ["neutral", "happy", "sad", "afraid", "thoughtful", "surprised"],
+        "actions": ["makes holy sign", "consults holy book", "prays quietly", "gazes toward sunrise", "speaks urgently"],
+        "default_expression": "neutral"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000005",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Vera Nightshade",
+      "description": "An elegantly dressed traveling merchant with dark hair streaked with silver. Her cart of curiosities appeared in Thornhaven a month ago, and she always knows exactly what you're looking for.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Shapeshifter",
+      "current_archetype": "Shapeshifter",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 9, "DEX": 14, "CON": 11, "INT": 16, "WIS": 14, "CHA": 17 },
+        "modifiers": {},
+        "current_hp": 20,
+        "max_hp": 20
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Friendly",
+      "default_mood": "Curious",
+      "expression_config": {
+        "expressions": ["neutral", "happy", "thoughtful", "suspicious", "surprised", "amused"],
+        "actions": ["examines an object", "smiles cryptically", "adjusts jewelry", "leans in conspiratorially", "produces item from nowhere"],
+        "default_expression": "thoughtful"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000006",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Old Tom",
+      "description": "A gaunt, hollow-eyed man who was once the village miller. After the 'accident' that killed his family, he lurks at the village edge, muttering about things he saw. Most think him mad.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Shadow",
+      "current_archetype": "Shadow",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 8, "DEX": 10, "CON": 8, "INT": 11, "WIS": 7, "CHA": 6 },
+        "modifiers": {},
+        "current_hp": 12,
+        "max_hp": 18
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Dismissive",
+      "default_mood": "Fearful",
+      "expression_config": {
+        "expressions": ["neutral", "afraid", "angry", "suspicious", "sad"],
+        "actions": ["flinches", "mutters to himself", "stares at nothing", "backs away", "clutches head"],
+        "default_expression": "afraid"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000007",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Captain Elena Stone",
+      "description": "A no-nonsense woman in her thirties who leads Thornhaven's small militia. She wears practical armor and keeps her dark hair cut short. She trusts actions over words.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Ally",
+      "current_archetype": "Ally",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 15, "DEX": 14, "CON": 14, "INT": 12, "WIS": 13, "CHA": 12 },
+        "modifiers": {},
+        "current_hp": 38,
+        "max_hp": 38
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Neutral",
+      "default_mood": "Alert",
+      "expression_config": {
+        "expressions": ["neutral", "angry", "thoughtful", "suspicious", "surprised"],
+        "actions": ["crosses arms", "hand on sword hilt", "scans surroundings", "nods curtly", "stands at attention"],
+        "default_expression": "neutral"
+      }
+    },
+    {
+      "id": "00000000-0000-0000-2000-000000000008",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Rosie Bramblefoot",
+      "description": "A cheerful halfling woman who tends the temple's healing garden and assists Brother Aldric. Her knowledge of herbs rivals any city apothecary.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Ally",
+      "current_archetype": "Ally",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 8, "DEX": 12, "CON": 11, "INT": 15, "WIS": 16, "CHA": 14 },
+        "modifiers": {},
+        "current_hp": 18,
+        "max_hp": 18
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Friendly",
+      "default_mood": "Happy",
+      "expression_config": {
+        "expressions": ["neutral", "happy", "sad", "thoughtful", "surprised", "afraid"],
+        "actions": ["examines plant", "hums while working", "offers tea", "dusts off hands", "smiles warmly"],
+        "default_expression": "happy"
+      }
+    }
+  ]
+}

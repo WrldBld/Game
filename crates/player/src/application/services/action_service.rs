@@ -5,7 +5,7 @@
 //! not the concrete WebSocket implementation.
 
 use anyhow::Result;
-use wrldbldr_protocol::ClientMessage;
+use wrldbldr_shared::ClientMessage;
 
 use crate::application::dto::PlayerAction;
 use crate::infrastructure::messaging::CommandBus;

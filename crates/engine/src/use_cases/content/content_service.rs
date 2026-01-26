@@ -1,20 +1,27 @@
+// Content service - methods for future content provider features
+#![allow(dead_code)]
+
 //! Content service for managing game content.
 //!
-//! Stores and provides access to spells, feats, class features, and other
-//! game content across different game systems.
+//! Provides unified access to game content (spells, feats, classes, races, etc.)
+//! through the CompendiumProvider trait system.
 
-use crate::infrastructure::importers::{FiveToolsImporter, ImportError};
+use crate::infrastructure::content_sources::{Dnd5eContentProvider, FiveToolsImporter, ImportError};
 use dashmap::DashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
-use wrldbldr_domain::{Feat, Spell, WorldId};
+use wrldbldr_shared::game_systems::{
+    CompendiumProvider, ContentFilter as DomainContentFilter, ContentItem, ContentType,
+};
 
 /// Errors that can occur in the content service.
 #[derive(Debug, Error)]
 pub enum ContentError {
     #[error("Import error: {0}")]
     Import(#[from] ImportError),
+    #[error("Provider error: {0}")]
+    ProviderError(String),
     #[error("System not found: {0}")]
     SystemNotFound(String),
     #[error("Content not found: {0}")]
@@ -22,130 +29,16 @@ pub enum ContentError {
 }
 
 /// Configuration for the content service.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ContentServiceConfig {
     /// Path to 5etools data (optional).
     pub fivetools_path: Option<PathBuf>,
-    /// Whether to preload content on startup.
-    pub preload: bool,
 }
 
-impl Default for ContentServiceConfig {
-    fn default() -> Self {
-        Self {
-            fivetools_path: None,
-            preload: false,
-        }
-    }
-}
-
-/// Filter criteria for content queries.
-#[derive(Debug, Clone, Default)]
-pub struct ContentFilter {
-    /// Minimum spell level.
-    pub level_min: Option<u8>,
-    /// Maximum spell level.
-    pub level_max: Option<u8>,
-    /// School of magic (for spells).
-    pub school: Option<String>,
-    /// Class that can use this content.
-    pub class: Option<String>,
-    /// Text search in name/description.
-    pub search: Option<String>,
-    /// Source book filter.
-    pub source: Option<String>,
-    /// Maximum results to return.
-    pub limit: Option<usize>,
-}
-
-impl ContentFilter {
-    /// Check if a spell matches this filter.
-    pub fn matches_spell(&self, spell: &Spell) -> bool {
-        // Level filter
-        let level = spell.level.as_number();
-        if let Some(min) = self.level_min {
-            if level < min {
-                return false;
-            }
-        }
-        if let Some(max) = self.level_max {
-            if level > max {
-                return false;
-            }
-        }
-
-        // School filter
-        if let Some(ref school) = self.school {
-            if let Some(ref spell_school) = spell.school {
-                if !spell_school.eq_ignore_ascii_case(school) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-
-        // Class filter
-        if let Some(ref class) = self.class {
-            let class_lower = class.to_lowercase();
-            if !spell.classes.iter().any(|c| c.to_lowercase() == class_lower) {
-                return false;
-            }
-        }
-
-        // Search filter
-        if let Some(ref search) = self.search {
-            let search_lower = search.to_lowercase();
-            if !spell.name.to_lowercase().contains(&search_lower)
-                && !spell.description.to_lowercase().contains(&search_lower)
-            {
-                return false;
-            }
-        }
-
-        // Source filter
-        if let Some(ref source) = self.source {
-            if !spell.source.to_lowercase().contains(&source.to_lowercase()) {
-                return false;
-            }
-        }
-
-        true
-    }
-
-    /// Check if a feat matches this filter.
-    pub fn matches_feat(&self, feat: &Feat) -> bool {
-        // Search filter
-        if let Some(ref search) = self.search {
-            let search_lower = search.to_lowercase();
-            if !feat.name.to_lowercase().contains(&search_lower)
-                && !feat.description.to_lowercase().contains(&search_lower)
-            {
-                return false;
-            }
-        }
-
-        // Source filter
-        if let Some(ref source) = self.source {
-            if !feat.source.to_lowercase().contains(&source.to_lowercase()) {
-                return false;
-            }
-        }
-
-        true
-    }
-}
-
-/// Service for managing game content (spells, feats, features).
+/// Service for managing game content through CompendiumProviders.
 pub struct ContentService {
-    /// Spells by system ID.
-    spells: DashMap<String, Vec<Spell>>,
-    /// Feats by system ID.
-    feats: DashMap<String, Vec<Feat>>,
-    /// Custom spells by world ID.
-    custom_spells: DashMap<WorldId, Vec<Spell>>,
-    /// Custom feats by world ID.
-    custom_feats: DashMap<WorldId, Vec<Feat>>,
+    /// Registered content providers by system ID.
+    providers: DashMap<String, Arc<dyn CompendiumProvider>>,
     /// Configuration.
     config: ContentServiceConfig,
 }
@@ -154,25 +47,122 @@ impl ContentService {
     /// Create a new content service.
     pub fn new(config: ContentServiceConfig) -> Self {
         Self {
-            spells: DashMap::new(),
-            feats: DashMap::new(),
-            custom_spells: DashMap::new(),
-            custom_feats: DashMap::new(),
+            providers: DashMap::new(),
             config,
         }
     }
 
-    /// Initialize the service, optionally loading content from configured sources.
-    pub async fn initialize(&self) -> Result<(), ContentError> {
-        if self.config.preload {
-            if let Some(ref path) = self.config.fivetools_path {
-                self.load_from_5etools(path).await?;
+    /// Get the service configuration.
+    pub fn config(&self) -> &ContentServiceConfig {
+        &self.config
+    }
+
+    // === Provider Management ===
+
+    /// Register a content provider for a game system.
+    pub fn register_provider(
+        &self,
+        system_id: impl Into<String>,
+        provider: Arc<dyn CompendiumProvider>,
+    ) {
+        self.providers.insert(system_id.into(), provider);
+    }
+
+    /// Get a registered content provider.
+    pub fn get_provider(&self, system_id: &str) -> Option<Arc<dyn CompendiumProvider>> {
+        self.providers.get(system_id).map(|p| Arc::clone(p.value()))
+    }
+
+    /// List all registered system IDs.
+    pub fn registered_systems(&self) -> Vec<String> {
+        self.providers.iter().map(|r| r.key().clone()).collect()
+    }
+
+    /// Get content types supported by a system.
+    pub fn content_types_for_system(&self, system_id: &str) -> Vec<ContentType> {
+        self.providers
+            .get(system_id)
+            .map(|p| p.value().content_types())
+            .unwrap_or_default()
+    }
+
+    // === Content Access ===
+
+    /// Get content of a specific type from a provider.
+    pub fn get_content(
+        &self,
+        system_id: &str,
+        content_type: &ContentType,
+        filter: &DomainContentFilter,
+    ) -> Result<Vec<ContentItem>, ContentError> {
+        let provider = self
+            .providers
+            .get(system_id)
+            .ok_or_else(|| ContentError::SystemNotFound(system_id.to_string()))?;
+
+        provider
+            .value()
+            .load_content(content_type, filter)
+            .map_err(|e| ContentError::ProviderError(e.to_string()))
+    }
+
+    /// Get a single content item by ID.
+    pub fn get_content_by_id(
+        &self,
+        system_id: &str,
+        content_type: &ContentType,
+        id: &str,
+    ) -> Result<Option<ContentItem>, ContentError> {
+        let provider = self
+            .providers
+            .get(system_id)
+            .ok_or_else(|| ContentError::SystemNotFound(system_id.to_string()))?;
+
+        provider
+            .value()
+            .get_content_by_id(content_type, id)
+            .map_err(|e| ContentError::ProviderError(e.to_string()))
+    }
+
+    /// Search content across all types for a system.
+    pub fn search_content(
+        &self,
+        system_id: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<ContentItem>, ContentError> {
+        let provider = self
+            .providers
+            .get(system_id)
+            .ok_or_else(|| ContentError::SystemNotFound(system_id.to_string()))?;
+
+        let filter = DomainContentFilter::new()
+            .with_search(query)
+            .with_limit(limit);
+        let mut results = Vec::new();
+
+        for content_type in provider.value().content_types() {
+            if let Ok(items) = provider.value().load_content(&content_type, &filter) {
+                results.extend(items);
             }
         }
-        Ok(())
+
+        results.truncate(limit);
+        Ok(results)
+    }
+
+    // === 5etools Integration ===
+
+    /// Register the D&D 5e content provider using 5etools data.
+    pub fn register_dnd5e_provider(&self, data_path: impl Into<PathBuf>) {
+        let provider = Arc::new(Dnd5eContentProvider::new(data_path));
+        self.register_provider("dnd5e", provider);
+        tracing::info!("Registered D&D 5e content provider");
     }
 
     /// Load content from 5etools data directory.
+    ///
+    /// Validates the path and registers the D&D 5e provider.
     pub async fn load_from_5etools(&self, path: &PathBuf) -> Result<usize, ContentError> {
         let importer = FiveToolsImporter::new(path);
 
@@ -182,189 +172,44 @@ impl ContentService {
             )));
         }
 
+        // Register the content provider
+        self.register_dnd5e_provider(path);
+
+        // Count content by loading each type through the provider
         let mut total = 0;
-
-        // Import spells
-        match importer.import_spells().await {
-            Ok(spells) => {
-                total += spells.len();
-                self.spells.insert("dnd5e".to_string(), spells);
-            }
-            Err(e) => {
-                tracing::warn!("Failed to import spells: {}", e);
+        if let Some(provider) = self.get_provider("dnd5e") {
+            let filter = DomainContentFilter::default();
+            for ct in provider.content_types() {
+                if let Ok(items) = provider.load_content(&ct, &filter) {
+                    total += items.len();
+                }
             }
         }
 
-        // Import feats
-        match importer.import_feats().await {
-            Ok(feats) => {
-                total += feats.len();
-                self.feats.insert("dnd5e".to_string(), feats);
-            }
-            Err(e) => {
-                tracing::warn!("Failed to import feats: {}", e);
-            }
-        }
-
-        tracing::info!("Loaded {} items from 5etools", total);
+        tracing::info!("Loaded {} total items from 5etools", total);
         Ok(total)
-    }
-
-    // === Spell Methods ===
-
-    /// Get all spells for a system.
-    pub fn get_spells(&self, system_id: &str) -> Vec<Spell> {
-        self.spells
-            .get(system_id)
-            .map(|r| r.value().clone())
-            .unwrap_or_default()
-    }
-
-    /// Get spells matching a filter.
-    pub fn get_spells_filtered(&self, system_id: &str, filter: &ContentFilter) -> Vec<Spell> {
-        let spells = self.spells.get(system_id);
-        let matching: Vec<Spell> = spells
-            .map(|r| {
-                r.value()
-                    .iter()
-                    .filter(|s| filter.matches_spell(s))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        match filter.limit {
-            Some(limit) => matching.into_iter().take(limit).collect(),
-            None => matching,
-        }
-    }
-
-    /// Get a spell by ID.
-    pub fn get_spell(&self, system_id: &str, spell_id: &str) -> Option<Spell> {
-        self.spells.get(system_id).and_then(|spells| {
-            spells
-                .value()
-                .iter()
-                .find(|s| s.id == spell_id)
-                .cloned()
-        })
-    }
-
-    /// Search spells by name.
-    pub fn search_spells(&self, system_id: &str, query: &str, limit: usize) -> Vec<Spell> {
-        let filter = ContentFilter {
-            search: Some(query.to_string()),
-            limit: Some(limit),
-            ..Default::default()
-        };
-        self.get_spells_filtered(system_id, &filter)
-    }
-
-    /// Get spell count for a system.
-    pub fn spell_count(&self, system_id: &str) -> usize {
-        self.spells
-            .get(system_id)
-            .map(|r| r.value().len())
-            .unwrap_or(0)
-    }
-
-    // === Feat Methods ===
-
-    /// Get all feats for a system.
-    pub fn get_feats(&self, system_id: &str) -> Vec<Feat> {
-        self.feats
-            .get(system_id)
-            .map(|r| r.value().clone())
-            .unwrap_or_default()
-    }
-
-    /// Get feats matching a filter.
-    pub fn get_feats_filtered(&self, system_id: &str, filter: &ContentFilter) -> Vec<Feat> {
-        let feats = self.feats.get(system_id);
-        let matching: Vec<Feat> = feats
-            .map(|r| {
-                r.value()
-                    .iter()
-                    .filter(|f| filter.matches_feat(f))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        match filter.limit {
-            Some(limit) => matching.into_iter().take(limit).collect(),
-            None => matching,
-        }
-    }
-
-    /// Get a feat by ID.
-    pub fn get_feat(&self, system_id: &str, feat_id: &str) -> Option<Feat> {
-        self.feats.get(system_id).and_then(|feats| {
-            feats.value().iter().find(|f| f.id == feat_id).cloned()
-        })
-    }
-
-    /// Search feats by name.
-    pub fn search_feats(&self, system_id: &str, query: &str, limit: usize) -> Vec<Feat> {
-        let filter = ContentFilter {
-            search: Some(query.to_string()),
-            limit: Some(limit),
-            ..Default::default()
-        };
-        self.get_feats_filtered(system_id, &filter)
-    }
-
-    /// Get feat count for a system.
-    pub fn feat_count(&self, system_id: &str) -> usize {
-        self.feats
-            .get(system_id)
-            .map(|r| r.value().len())
-            .unwrap_or(0)
-    }
-
-    // === Custom Content Methods ===
-
-    /// Add a custom spell for a world.
-    pub fn add_custom_spell(&self, world_id: WorldId, spell: Spell) {
-        self.custom_spells
-            .entry(world_id)
-            .or_default()
-            .push(spell);
-    }
-
-    /// Get custom spells for a world.
-    pub fn get_custom_spells(&self, world_id: WorldId) -> Vec<Spell> {
-        self.custom_spells
-            .get(&world_id)
-            .map(|r| r.value().clone())
-            .unwrap_or_default()
-    }
-
-    /// Add a custom feat for a world.
-    pub fn add_custom_feat(&self, world_id: WorldId, feat: Feat) {
-        self.custom_feats
-            .entry(world_id)
-            .or_default()
-            .push(feat);
-    }
-
-    /// Get custom feats for a world.
-    pub fn get_custom_feats(&self, world_id: WorldId) -> Vec<Feat> {
-        self.custom_feats
-            .get(&world_id)
-            .map(|r| r.value().clone())
-            .unwrap_or_default()
     }
 
     // === Statistics ===
 
     /// Get statistics about loaded content.
+    ///
+    /// Uses count_content() for efficient counting without loading all data.
     pub fn stats(&self) -> ContentStats {
+        let mut total_items = 0;
+
+        for provider_ref in self.providers.iter() {
+            let provider = provider_ref.value();
+            for ct in provider.content_types() {
+                if let Ok(count) = provider.count_content(&ct) {
+                    total_items += count;
+                }
+            }
+        }
+
         ContentStats {
-            systems: self.spells.len(),
-            total_spells: self.spells.iter().map(|r| r.value().len()).sum(),
-            total_feats: self.feats.iter().map(|r| r.value().len()).sum(),
-            worlds_with_custom: self.custom_spells.len() + self.custom_feats.len(),
+            systems: self.providers.len(),
+            total_items,
         }
     }
 }
@@ -372,17 +217,14 @@ impl ContentService {
 /// Statistics about loaded content.
 #[derive(Debug, Clone)]
 pub struct ContentStats {
-    /// Number of game systems with content.
+    /// Number of registered game systems.
     pub systems: usize,
-    /// Total number of spells.
-    pub total_spells: usize,
-    /// Total number of feats.
-    pub total_feats: usize,
-    /// Number of worlds with custom content.
-    pub worlds_with_custom: usize,
+    /// Total number of content items across all providers.
+    pub total_items: usize,
 }
 
 /// Create a shared content service.
+#[allow(dead_code)]
 pub fn create_content_service(config: ContentServiceConfig) -> Arc<ContentService> {
     Arc::new(ContentService::new(config))
 }
@@ -390,102 +232,368 @@ pub fn create_content_service(config: ContentServiceConfig) -> Arc<ContentServic
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_domain::{CastingTime, SpellComponents, SpellDuration, SpellLevel, SpellRange};
+    use std::sync::Arc;
+    use wrldbldr_shared::game_systems::{
+        CompendiumProvider, ContentError as DomainContentError, ContentItem,
+    };
 
-    fn create_test_spell(name: &str, level: u8, school: &str, classes: Vec<&str>) -> Spell {
-        Spell {
-            id: format!("test_{}", name.to_lowercase().replace(' ', "_")),
-            system_id: "dnd5e".to_string(),
-            name: name.to_string(),
-            level: if level == 0 {
-                SpellLevel::Cantrip
-            } else {
-                SpellLevel::Level(level)
-            },
-            school: Some(school.to_string()),
-            casting_time: CastingTime::action(),
-            range: SpellRange::feet(60),
-            components: SpellComponents::verbal_somatic(),
-            duration: SpellDuration::instantaneous(),
-            description: format!("Test description for {}", name),
-            higher_levels: None,
-            classes: classes.into_iter().map(String::from).collect(),
-            source: "Test".to_string(),
-            tags: vec![],
-            ritual: false,
-            concentration: false,
+    struct MockProvider {
+        items: Vec<ContentItem>,
+    }
+
+    impl MockProvider {
+        fn new(items: Vec<ContentItem>) -> Self {
+            Self { items }
         }
     }
 
-    #[test]
-    fn filter_by_level() {
-        let filter = ContentFilter {
-            level_min: Some(1),
-            level_max: Some(3),
-            ..Default::default()
-        };
+    impl CompendiumProvider for MockProvider {
+        fn content_types(&self) -> Vec<ContentType> {
+            vec![ContentType::Spell]
+        }
 
-        let cantrip = create_test_spell("Fire Bolt", 0, "Evocation", vec!["wizard"]);
-        let level1 = create_test_spell("Magic Missile", 1, "Evocation", vec!["wizard"]);
-        let level3 = create_test_spell("Fireball", 3, "Evocation", vec!["wizard"]);
-        let level5 = create_test_spell("Cone of Cold", 5, "Evocation", vec!["wizard"]);
+        fn load_content(
+            &self,
+            _content_type: &ContentType,
+            filter: &DomainContentFilter,
+        ) -> Result<Vec<ContentItem>, DomainContentError> {
+            let mut results = self.items.clone();
 
-        assert!(!filter.matches_spell(&cantrip));
-        assert!(filter.matches_spell(&level1));
-        assert!(filter.matches_spell(&level3));
-        assert!(!filter.matches_spell(&level5));
+            if let Some(ref search) = filter.search {
+                results.retain(|item| item.name.to_lowercase().contains(&search.to_lowercase()));
+            }
+
+            if let Some(limit) = filter.limit {
+                results.truncate(limit);
+            }
+
+            Ok(results)
+        }
+
+        fn get_content_by_id(
+            &self,
+            _content_type: &ContentType,
+            id: &str,
+        ) -> Result<Option<ContentItem>, DomainContentError> {
+            Ok(self.items.iter().find(|item| item.id == id).cloned())
+        }
+
+        fn filter_schema(
+            &self,
+            _content_type: &ContentType,
+        ) -> Option<wrldbldr_shared::game_systems::FilterSchema> {
+            None
+        }
+    }
+
+    fn create_test_item(id: &str, name: &str) -> ContentItem {
+        ContentItem::new(id, ContentType::Spell, name, "Test")
+            .with_description(format!("Test description for {}", name))
     }
 
     #[test]
-    fn filter_by_school() {
-        let filter = ContentFilter {
-            school: Some("Evocation".to_string()),
-            ..Default::default()
-        };
-
-        let evocation = create_test_spell("Fireball", 3, "Evocation", vec!["wizard"]);
-        let necromancy = create_test_spell("Animate Dead", 3, "Necromancy", vec!["wizard"]);
-
-        assert!(filter.matches_spell(&evocation));
-        assert!(!filter.matches_spell(&necromancy));
-    }
-
-    #[test]
-    fn filter_by_class() {
-        let filter = ContentFilter {
-            class: Some("cleric".to_string()),
-            ..Default::default()
-        };
-
-        let wizard_only = create_test_spell("Fireball", 3, "Evocation", vec!["wizard"]);
-        let cleric = create_test_spell("Cure Wounds", 1, "Evocation", vec!["cleric", "bard"]);
-
-        assert!(!filter.matches_spell(&wizard_only));
-        assert!(filter.matches_spell(&cleric));
-    }
-
-    #[test]
-    fn filter_by_search() {
-        let filter = ContentFilter {
-            search: Some("fire".to_string()),
-            ..Default::default()
-        };
-
-        let fireball = create_test_spell("Fireball", 3, "Evocation", vec!["wizard"]);
-        let magic_missile =
-            create_test_spell("Magic Missile", 1, "Evocation", vec!["wizard"]);
-
-        assert!(filter.matches_spell(&fireball));
-        assert!(!filter.matches_spell(&magic_missile));
-    }
-
-    #[test]
-    fn content_service_stats() {
+    fn test_register_and_get_provider() {
         let service = ContentService::new(ContentServiceConfig::default());
-        let stats = service.stats();
+        let provider = Arc::new(MockProvider::new(vec![]));
 
-        assert_eq!(stats.systems, 0);
-        assert_eq!(stats.total_spells, 0);
-        assert_eq!(stats.total_feats, 0);
+        service.register_provider("test", provider.clone());
+
+        assert!(service.get_provider("test").is_some());
+        assert!(service.get_provider("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_registered_systems() {
+        let service = ContentService::new(ContentServiceConfig::default());
+
+        service.register_provider("system1", Arc::new(MockProvider::new(vec![])));
+        service.register_provider("system2", Arc::new(MockProvider::new(vec![])));
+
+        let systems = service.registered_systems();
+        assert_eq!(systems.len(), 2);
+        assert!(systems.contains(&"system1".to_string()));
+        assert!(systems.contains(&"system2".to_string()));
+    }
+
+    #[test]
+    fn test_get_content() {
+        let service = ContentService::new(ContentServiceConfig::default());
+        let items = vec![
+            create_test_item("fireball", "Fireball"),
+            create_test_item("magic_missile", "Magic Missile"),
+        ];
+        service.register_provider("test", Arc::new(MockProvider::new(items)));
+
+        let filter = DomainContentFilter::default();
+        let result = service
+            .get_content("test", &ContentType::Spell, &filter)
+            .unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_get_content_with_search() {
+        let service = ContentService::new(ContentServiceConfig::default());
+        let items = vec![
+            create_test_item("fireball", "Fireball"),
+            create_test_item("magic_missile", "Magic Missile"),
+        ];
+        service.register_provider("test", Arc::new(MockProvider::new(items)));
+
+        let filter = DomainContentFilter::new().with_search("fire");
+        let result = service
+            .get_content("test", &ContentType::Spell, &filter)
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "Fireball");
+    }
+
+    #[test]
+    fn test_get_content_by_id() {
+        let service = ContentService::new(ContentServiceConfig::default());
+        let items = vec![create_test_item("fireball", "Fireball")];
+        service.register_provider("test", Arc::new(MockProvider::new(items)));
+
+        let result = service
+            .get_content_by_id("test", &ContentType::Spell, "fireball")
+            .unwrap();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().name, "Fireball");
+
+        let missing = service
+            .get_content_by_id("test", &ContentType::Spell, "nonexistent")
+            .unwrap();
+        assert!(missing.is_none());
+    }
+
+    #[test]
+    fn test_search_content() {
+        let service = ContentService::new(ContentServiceConfig::default());
+        let items = vec![
+            create_test_item("fireball", "Fireball"),
+            create_test_item("fire_bolt", "Fire Bolt"),
+            create_test_item("magic_missile", "Magic Missile"),
+        ];
+        service.register_provider("test", Arc::new(MockProvider::new(items)));
+
+        let result = service.search_content("test", "fire", 10).unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_system_not_found() {
+        let service = ContentService::new(ContentServiceConfig::default());
+        let filter = DomainContentFilter::default();
+
+        let result = service.get_content("nonexistent", &ContentType::Spell, &filter);
+        assert!(matches!(result, Err(ContentError::SystemNotFound(_))));
+    }
+
+    #[test]
+    fn test_stats() {
+        let service = ContentService::new(ContentServiceConfig::default());
+        let items = vec![
+            create_test_item("spell1", "Spell 1"),
+            create_test_item("spell2", "Spell 2"),
+        ];
+        service.register_provider("test", Arc::new(MockProvider::new(items)));
+
+        let stats = service.stats();
+        assert_eq!(stats.systems, 1);
+        assert_eq!(stats.total_items, 2);
+    }
+
+    // Integration tests that require actual 5etools data
+    // Run with: cargo test --package wrldbldr-engine content_service::tests::integration -- --ignored --nocapture
+    mod integration {
+        use super::*;
+        use crate::infrastructure::content_sources::Dnd5eContentProvider;
+
+        const FIVETOOLS_PATH: &str = "/Users/otto/repos/WrldBldr/5etools/5etools-src";
+
+        fn skip_if_no_data() -> bool {
+            !std::path::Path::new(FIVETOOLS_PATH).join("data").exists()
+        }
+
+        #[test]
+        #[ignore = "requires 5etools data"]
+        fn content_service_with_dnd5e_provider() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // Verify provider registered
+            assert!(
+                service.get_provider("dnd5e").is_some(),
+                "D&D 5e provider should be registered"
+            );
+            assert!(
+                service.registered_systems().contains(&"dnd5e".to_string()),
+                "dnd5e should be in registered systems"
+            );
+        }
+
+        // These tests need multi_thread runtime because CompendiumProvider uses block_in_place
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_get_content() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // Get backgrounds (spells work too, but backgrounds are simpler)
+            let filter = DomainContentFilter::default();
+            let backgrounds = service
+                .get_content("dnd5e", &ContentType::CharacterBackground, &filter)
+                .expect("Failed to get backgrounds");
+
+            assert!(!backgrounds.is_empty(), "Should get backgrounds");
+            println!("Got {} backgrounds from service", backgrounds.len());
+
+            // Get spells
+            let spells = service
+                .get_content("dnd5e", &ContentType::Spell, &filter)
+                .expect("Failed to get spells");
+
+            assert!(!spells.is_empty(), "Should get spells");
+            println!("Got {} spells from service", spells.len());
+
+            // Get items
+            let items = service
+                .get_content("dnd5e", &ContentType::Item, &filter)
+                .expect("Failed to get items");
+
+            assert!(!items.is_empty(), "Should get items");
+            println!("Got {} items from service", items.len());
+
+            // Get class features
+            let features = service
+                .get_content("dnd5e", &ContentType::ClassFeature, &filter)
+                .expect("Failed to get class features");
+
+            assert!(!features.is_empty(), "Should get class features");
+            println!("Got {} class features from service", features.len());
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_get_content_by_id() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // First get list to find a valid ID
+            let filter = DomainContentFilter::new().with_limit(1);
+            let backgrounds = service
+                .get_content("dnd5e", &ContentType::CharacterBackground, &filter)
+                .expect("Failed to get backgrounds");
+
+            if let Some(first_bg) = backgrounds.first() {
+                println!("Looking up background by ID: {}", first_bg.id);
+
+                let found = service
+                    .get_content_by_id("dnd5e", &ContentType::CharacterBackground, &first_bg.id)
+                    .expect("Failed to get by ID");
+
+                assert!(found.is_some(), "Should find background by ID");
+                assert_eq!(found.unwrap().name, first_bg.name);
+            }
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_search() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // Search for "fireball" across all content
+            let results = service
+                .search_content("dnd5e", "fireball", 500)
+                .expect("Failed to search");
+
+            println!("Found {} items matching 'fireball'", results.len());
+            assert!(
+                !results.is_empty(),
+                "Should find content matching 'fireball'"
+            );
+
+            // Should include Fireball spell
+            let has_fireball = results
+                .iter()
+                .any(|r| r.name == "Fireball" && r.content_type == ContentType::Spell);
+            assert!(has_fireball, "Should find Fireball spell");
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_stats_with_real_data() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            let stats = service.stats();
+
+            println!(
+                "Content stats: {} systems, {} total items",
+                stats.systems, stats.total_items
+            );
+            assert_eq!(stats.systems, 1, "Should have 1 system registered");
+            // At minimum, we have 936 spells + 149 backgrounds = 1085 items
+            assert!(
+                stats.total_items > 1000,
+                "Should have many items (got {}, expected > 1000)",
+                stats.total_items
+            );
+        }
+
+        #[test]
+        #[ignore = "requires 5etools data"]
+        fn content_service_content_types() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            let types = service.content_types_for_system("dnd5e");
+
+            println!("D&D 5e content types: {:?}", types);
+            assert!(types.contains(&ContentType::CharacterOrigin));
+            assert!(types.contains(&ContentType::CharacterSuborigin));
+            assert!(types.contains(&ContentType::CharacterClass));
+            assert!(types.contains(&ContentType::CharacterSubclass));
+            assert!(types.contains(&ContentType::CharacterBackground));
+            assert!(types.contains(&ContentType::ClassFeature));
+            assert!(types.contains(&ContentType::Ability));
+            assert!(types.contains(&ContentType::Weapon));
+            assert!(types.contains(&ContentType::Armor));
+            assert!(types.contains(&ContentType::Item));
+            assert!(types.contains(&ContentType::MagicItem));
+            assert!(types.contains(&ContentType::Spell));
+            assert!(types.contains(&ContentType::Feat));
+        }
     }
 }

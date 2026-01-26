@@ -14,27 +14,92 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let pc_id = PlayerCharacterId::new();
     let npc_id = CharacterId::new();
 
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
-    world.id = world_id;
-    world.set_time_mode(TimeMode::Manual, now);
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
+    let _ = world.set_time_mode(TimeMode::Manual, now);
 
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
+    )
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
+
+    let region = wrldbldr_domain::Region::from_storage(
+        region_id,
+        location_id,
+        wrldbldr_domain::value_objects::RegionName::new("Region").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
     );
-    location.id = location_id;
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Region");
-    region.id = region_id;
+    let pc = wrldbldr_domain::PlayerCharacter::new(
+        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        world_id,
+        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        location_id,
+        now,
+    )
+    .with_id(pc_id);
+    // initial spawn - PC starts with no current_region_id
 
-    let mut pc =
-        wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
-    pc.id = pc_id;
-    pc.current_region_id = None;
+    let mut npc = wrldbldr_domain::Character::new(
+        world_id,
+        wrldbldr_domain::CharacterName::new("NPC").unwrap(),
+        CampbellArchetype::Hero,
+    );
+    npc = npc.with_id(npc_id);
 
-    let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero);
-    npc.id = npc_id;
+    // Visual state fixtures: minimal states to satisfy fail-fast validation
+    let location_state_id = wrldbldr_domain::LocationStateId::new();
+    let location_state = wrldbldr_domain::LocationState::from_storage(
+        location_state_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        None, // map_overlay
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
+        now,
+        now,
+    );
+
+    let region_state_id = wrldbldr_domain::RegionStateId::new();
+    let region_state = wrldbldr_domain::RegionState::from_storage(
+        region_state_id,
+        region_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        None, // generation_prompt
+        None, // workflow_id
+        now,
+        now,
+    );
 
     let mut world_repo = MockWorldRepo::new();
     let world_for_get = world.clone();
@@ -77,17 +142,17 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     repos
         .location_repo
         .expect_get_connections()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     repos
         .location_repo
         .expect_get_location_exits()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     repos
         .location_repo
         .expect_get_region_exits()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     repos
         .item_repo
@@ -128,28 +193,64 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .expect_get_pc_flags()
         .returning(|_| Box::pin(async { Ok(vec![]) }));
 
-    // Visual state resolution: no states.
+    // Visual state resolution: return active states to satisfy fail-fast validation
+    let location_state_for_list = vec![location_state.clone()];
+    let location_state_for_active = location_state.clone();
+    let region_state_for_list = vec![region_state.clone()];
+    let region_state_for_active = region_state.clone();
+
     repos
         .location_state_repo
         .expect_list_for_location()
-        .returning(|_| Ok(vec![]));
+        .times(0..)
+        .returning(move |_| Ok(location_state_for_list.clone()));
     repos
         .region_state_repo
         .expect_list_for_region()
-        .returning(|_| Ok(vec![]));
+        .times(0..)
+        .returning(move |_| Ok(region_state_for_list.clone()));
     repos
         .location_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .times(0..)
+        .returning(move |_| Ok(Some(location_state_for_active.clone())));
     repos
         .region_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .times(0..)
+        .returning(move |_| Ok(Some(region_state_for_active.clone())));
+    // get() is called to build visual state response
+    let location_state_for_get = location_state.clone();
+    let location_state_id_for_get = location_state_id;
+    repos
+        .location_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == location_state_id_for_get {
+                Ok(Some(location_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    let region_state_for_get = region_state.clone();
+    let region_state_id_for_get = region_state_id;
+    repos
+        .region_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == region_state_id_for_get {
+                Ok(Some(region_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
 
     // Character details used by PreStageRegion.
     let npc_for_get = npc.clone();
     repos.character_repo.expect_get().returning(move |id| {
-        if id == npc_for_get.id {
+        if id == npc_for_get.id() {
             Ok(Some(npc_for_get.clone()))
         } else {
             Ok(None)
@@ -159,30 +260,25 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     // Stage activation should influence subsequent get_active_staging.
     #[derive(Default)]
     struct SharedStaging {
-        pending: Option<wrldbldr_domain::Staging>,
-        activated: bool,
+        active: Option<wrldbldr_domain::Staging>,
     }
 
     let shared = Arc::new(Mutex::new(SharedStaging::default()));
 
-    let shared_for_save = shared.clone();
+    let shared_for_save_and_activate = shared.clone();
+    let location_state_id_for_assertion = location_state_id;
+    let region_state_id_for_assertion = region_state_id;
     repos
         .staging_repo
-        .expect_save_pending_staging()
-        .returning(move |s| {
-            let mut guard = shared_for_save.lock().unwrap();
-            guard.pending = Some(s.clone());
-            Ok(())
-        });
-
-    let shared_for_activate = shared.clone();
-    repos
-        .staging_repo
-        .expect_activate_staging()
-        .withf(move |_id, r| *r == region_id)
-        .returning(move |_id, _region| {
-            let mut guard = shared_for_activate.lock().unwrap();
-            guard.activated = true;
+        .expect_save_and_activate_pending_staging_with_states()
+        .withf(move |s, r, loc_state_id, reg_state_id| {
+            *r == region_id
+                && loc_state_id == &Some(location_state_id_for_assertion)
+                && reg_state_id == &Some(region_state_id_for_assertion)
+        })
+        .returning(move |s, _region, _loc_state_id, _reg_state_id| {
+            let mut guard = shared_for_save_and_activate.lock().unwrap();
+            guard.active = Some(s.clone());
             Ok(())
         });
 
@@ -192,17 +288,20 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .expect_get_active_staging()
         .returning(move |rid, _now| {
             let guard = shared_for_get_active.lock().unwrap();
-            if guard.activated {
-                Ok(guard.pending.clone().filter(|s| s.region_id == rid))
-            } else {
-                Ok(None)
-            }
+            Ok(guard.active.clone().filter(|s| s.region_id() == rid))
         });
 
     repos
         .staging_repo
         .expect_get_staged_npcs()
         .returning(|_| Ok(vec![]));
+
+    // Settings: return defaults
+    repos.settings_repo.expect_get_for_world().returning(|_| {
+        Ok(Some(
+            crate::infrastructure::app_settings::AppSettings::default(),
+        ))
+    });
 
     repos
         .character_repo
@@ -215,9 +314,9 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -230,6 +329,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -246,6 +346,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Player,
+            user_id: "player-user".to_string(),
             pc_id: Some(*pc_id.as_uuid()),
             spectate_pc_id: None,
         },
@@ -267,7 +368,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &mut dm_ws,
         &ClientMessage::PreStageRegion {
             region_id: region_id.to_string(),
-            npcs: vec![wrldbldr_protocol::ApprovedNpcInfo {
+            npcs: vec![wrldbldr_shared::ApprovedNpcInfo {
                 character_id: npc_id.to_string(),
                 is_present: true,
                 reasoning: Some("pre-staged".to_string()),

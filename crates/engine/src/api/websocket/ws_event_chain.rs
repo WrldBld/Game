@@ -1,8 +1,10 @@
 use super::*;
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::use_cases::narrative::{CreateEventChainInput, UpdateEventChainInput};
 use serde_json::json;
 use wrldbldr_domain::{ActId, NarrativeEventId};
-use wrldbldr_protocol::{ErrorCode, EventChainRequest, ResponseResult};
+use wrldbldr_shared::{ErrorCode, EventChainRequest, ResponseResult};
 
 pub(super) async fn handle_event_chain_request(
     state: &WsState,
@@ -13,17 +15,31 @@ pub(super) async fn handle_event_chain_request(
     match request {
         EventChainRequest::ListEventChains { world_id } => {
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
-            match state.app.use_cases.narrative.chains.list(world_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .list(world_id_typed)
+                .await
+            {
                 Ok(chains) => Ok(ResponseResult::success(json!(chains))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list event chains"),
                 )),
             }
         }
         EventChainRequest::GetEventChain { chain_id } => {
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.get(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .get(chain_id_typed)
+                .await
+            {
                 Ok(Some(chain)) => Ok(ResponseResult::success(json!(chain))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -31,7 +47,7 @@ pub(super) async fn handle_event_chain_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get event chain"),
                 )),
             }
         }
@@ -40,18 +56,26 @@ pub(super) async fn handle_event_chain_request(
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
             let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
             let events = parse_event_ids(data.events.as_ref(), request_id)?;
+            // Convert protocol data to domain input
+            let input = CreateEventChainInput {
+                name: data.name,
+                description: data.description,
+                tags: data.tags,
+                color: data.color,
+                is_active: data.is_active,
+            };
             match state
                 .app
                 .use_cases
                 .narrative
                 .chains
-                .create(world_id_typed, data, act_id, events)
+                .create(world_id_typed, input, act_id, events)
                 .await
             {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create event chain"),
                 )),
             }
         }
@@ -60,32 +84,47 @@ pub(super) async fn handle_event_chain_request(
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
             let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
             let events = parse_event_ids(data.events.as_ref(), request_id)?;
+            // Convert protocol data to domain input
+            let input = UpdateEventChainInput {
+                name: data.name,
+                description: data.description,
+                tags: data.tags,
+                color: data.color,
+                is_active: data.is_active,
+            };
             match state
                 .app
                 .use_cases
                 .narrative
                 .chains
-                .update(chain_id_typed, data, act_id, events)
+                .update(chain_id_typed, input, act_id, events)
                 .await
             {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update event chain"),
                 )),
             }
         }
         EventChainRequest::DeleteEventChain { chain_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.delete(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .delete(chain_id_typed)
+                .await
+            {
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete event chain"),
                 )),
             }
         }
@@ -101,12 +140,12 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set event chain active"),
                 )),
             }
         }
@@ -122,12 +161,12 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set event chain favorite"),
                 )),
             }
         }
@@ -149,12 +188,12 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "add event to chain"),
                 )),
             }
         }
@@ -171,12 +210,12 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "remove event from chain"),
                 )),
             }
         }
@@ -193,39 +232,53 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "complete chain event"),
                 )),
             }
         }
         EventChainRequest::ResetEventChain { chain_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.reset(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .reset(chain_id_typed)
+                .await
+            {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "reset event chain"),
                 )),
             }
         }
         EventChainRequest::GetEventChainStatus { chain_id } => {
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.status(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .status(chain_id_typed)
+                .await
+            {
                 Ok(status) => Ok(ResponseResult::success(json!(status))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get event chain status"),
                 )),
             }
         }

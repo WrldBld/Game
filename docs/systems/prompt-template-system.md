@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Prompt Template System provides configurable LLM prompts for all AI-powered features in WrldBldr. It enables world-specific customization of NPC dialogue styles, staging decisions, challenge outcome descriptions, and worldbuilding suggestions without code changes.
 
 Templates are resolved with priority: **World DB > Global DB > Environment Variable > Hard-coded Default**
@@ -20,35 +31,62 @@ This system enables:
 
 ## User Stories
 
-### Implemented
+### Planned (Specification)
 
-- [x] **US-PT-001**: As a DM, I can customize NPC dialogue response format so that NPCs speak in my world's style
-  - *Implementation*: `PromptTemplateService` resolves `dialogue.response_format` per world
-  - *Files*: `crates/engine/src/entities/prompt_template.rs`
+- [ ] **US-PT-001**: As a DM, I can customize NPC dialogue response format so that NPCs speak in my world's style
+  - *Design*: Prompt templates resolved at request time using defaults + overrides
+  - *Reference*: `crates/domain/src/value_objects/prompt_templates.rs`
 
-- [x] **US-PT-002**: As a DM, I can customize staging decision prompts so that NPC presence logic matches my world
-  - *Implementation*: `StagingService` resolves staging templates before LLM calls
-  - *Files*: `crates/engine/src/entities/staging.rs`
+- [ ] **US-PT-002**: As a DM, I can customize staging decision prompts so that NPC presence logic matches my world
+  - *Design*: Staging prompts resolved from template metadata + world overrides
+  - *Reference*: `crates/domain/src/value_objects/prompt_templates.rs`
 
-- [x] **US-PT-003**: As a DM, I can customize challenge outcome descriptions so that successes/failures match my tone
-  - *Implementation*: `OutcomeSuggestionService` resolves outcome templates
-  - *Files*: `crates/engine/src/entities/challenge.rs`
+- [ ] **US-PT-003**: As a DM, I can customize challenge outcome descriptions so that successes/failures match my tone
+  - *Design*: Outcome templates resolved when building LLM prompts
+  - *Reference*: `crates/domain/src/value_objects/prompt_templates.rs`
 
-- [x] **US-PT-004**: As a DM, I can customize worldbuilding suggestion prompts for character/location generation
-  - *Implementation*: `SuggestionService` resolves 10 different suggestion templates
-  - *Files*: `crates/engine/src/entities/suggestion.rs`
+- [ ] **US-PT-004**: As a DM, I can customize worldbuilding suggestion prompts for character/location generation
+  - *Design*: Suggestion prompts resolved via template metadata
+  - *Reference*: `crates/domain/src/value_objects/prompt_templates.rs`
 
-- [x] **US-PT-005**: As an admin, I can set global template overrides that apply to all worlds
-  - *Implementation*: REST API for global template CRUD
-  - *Files*: `crates/engine/src/api/http.rs`
+- [ ] **US-PT-005**: As an admin, I can set global template overrides that apply to all worlds
+  - *Design*: REST API for global template CRUD
 
-- [x] **US-PT-006**: As a DM, I can set world-specific template overrides that only apply to my world
-  - *Implementation*: REST API for per-world template CRUD
-  - *Files*: `crates/engine/src/api/http.rs`
+- [ ] **US-PT-006**: As a DM, I can set world-specific template overrides that only apply to my world
+  - *Design*: REST API for per-world template CRUD
 
 ### Pending
 
 - [ ] **US-PT-007**: As a DM, I can view and edit prompt templates through the settings UI
+  - *Design*: Template editor with list + detail panel; includes `dialogue.response_format`
+
+---
+
+## UI Mockups
+
+### Prompt Template List
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Prompt Templates                                                 [+ New]   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  [🔍 Search...]  [Category: Dialogue ▼]                                     │
+│  dialogue.response_format                                  [Edit]          │
+│  Response format instructions for NPC dialogue                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Prompt Template Editor
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  dialogue.response_format                                           [← Back]│
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Template Content                                                        │
+│  You are an RPG storyteller...                                           │
+│  [Save] [Save & Activate]                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -163,15 +201,15 @@ CREATE TABLE world_prompt_templates (
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
 | Domain Types | ✅ | - | `prompt_templates.rs` |
-| Port Trait | ✅ | - | `PromptTemplateRepositoryPort` |
-| SQLite Repository | ✅ | - | `prompt_template_repository.rs` |
-| Service | ✅ | - | `PromptTemplateService` |
-| HTTP Routes | ✅ | - | REST API |
-| Dialogue Integration | ✅ | - | `LLMService`, `PromptBuilder` |
-| Staging Integration | ✅ | - | `StagingService` |
-| Outcome Integration | ✅ | - | `OutcomeSuggestionService` |
-| Suggestion Integration | ✅ | - | `SuggestionService` |
-| Settings UI | - | ⏳ | Pending |
+| Port Trait | ⏳ | - | Planned `PromptTemplateRepo` port |
+| SQLite Repository | ⏳ | - | Planned SQLite implementation |
+| Service | ⏳ | - | Planned template resolver |
+| HTTP Routes | ⏳ | - | Planned REST API for overrides |
+| Dialogue Integration | ⏳ | - | Planned prompt assembly integration |
+| Staging Integration | ⏳ | - | Planned staging prompt integration |
+| Outcome Integration | ⏳ | - | Planned challenge prompt integration |
+| Suggestion Integration | ⏳ | - | Planned suggestion prompt integration |
+| Settings UI | - | ⏳ | Planned settings editor |
 
 ---
 
@@ -182,20 +220,18 @@ CREATE TABLE world_prompt_templates (
 | Layer | File | Purpose |
 |-------|------|---------|
 | Domain | `crates/domain/src/value_objects/prompt_templates.rs` | Template keys, defaults, metadata |
-| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Repository port trait |
-| Entity | `crates/engine/src/entities/prompt_template.rs` | Resolution logic with caching |
-| Infrastructure | `crates/engine/src/infrastructure/sqlite/prompt_template_repo.rs` | SQLite implementation |
-| API | `crates/engine/src/api/http.rs` | REST endpoints |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Planned repository port trait |
+| Infrastructure | Planned (TBD) | SQLite implementation |
+| API | `crates/engine/src/api/http.rs` | Planned REST endpoints |
 
 ### Integrated Services
 
 | Service | File | Templates Used |
 |---------|------|----------------|
-| LLM Entity | `crates/engine/src/entities/llm.rs` | `dialogue.*` |
-| PromptBuilder | `crates/engine/src/use_cases/conversation/prompt_builder.rs` | `dialogue.*` |
-| Staging Entity | `crates/engine/src/entities/staging.rs` | `staging.*` |
-| Challenge Entity | `crates/engine/src/entities/challenge.rs` | `outcome.*` |
-| Suggestion Entity | `crates/engine/src/entities/suggestion.rs` | `suggestion.*` |
+| Dialogue | `crates/engine/src/use_cases/queues/mod.rs` | `dialogue.*` |
+| Staging | `crates/engine/src/use_cases/staging/mod.rs` | `staging.*` |
+| Challenge | `crates/engine/src/use_cases/challenge/mod.rs` | `outcome.*` |
+| Suggestions | `crates/engine/src/use_cases/queues/mod.rs` | `suggestion.*` |
 
 ---
 

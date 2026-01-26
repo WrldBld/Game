@@ -1,20 +1,31 @@
+// Narrative use cases - fields for future event features
+#![allow(dead_code)]
+
 //! Narrative use cases - Event triggering and effect execution.
+
+#[cfg(test)]
+mod challenge_llm_tests;
+
+#[cfg(test)]
+mod llm_tool_tests;
+
+#[cfg(test)]
+mod trigger_integration_tests;
 
 pub mod chains;
 pub mod decision;
-pub mod execute_effects;
 pub mod events;
+pub mod execute_effects;
 
-pub use chains::{EventChainError, EventChainOps};
-pub use decision::{NarrativeDecisionFlow, NarrativeDecisionOutcome, NarrativeTriggeredPayload};
-pub use execute_effects::{
-    EffectExecutionContext, EffectExecutionResult, EffectExecutionSummary, ExecuteEffects,
-};
-pub use events::{NarrativeEventError, NarrativeEventOps, TriggeredNarrativeEvent};
+pub use chains::{CreateEventChainInput, EventChainError, EventChainOps, UpdateEventChainInput};
+pub use decision::NarrativeDecisionFlow;
+pub use events::{NarrativeEventError, NarrativeEventOps};
+pub use execute_effects::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
 
 use std::sync::Arc;
 
 /// Container for narrative-related use cases.
+#[derive(Clone)]
 pub struct NarrativeUseCases {
     pub execute_effects: Arc<ExecuteEffects>,
     pub events: Arc<NarrativeEventOps>,

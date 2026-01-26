@@ -55,59 +55,54 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
     let lore_state = use_context::<LoreState>();
 
     // Set page title
-    {
-        let platform = platform.clone();
-        let title = props.page_title;
-        use_effect(move || {
-            platform.set_page_title(title);
-        });
-    }
+    let title = props.page_title;
+    let platform_for_title = platform.clone();
+    use_effect(move || {
+        platform_for_title.set_page_title(title);
+    });
 
     // Ensure connection on mount
-    {
-        let world_id = props.world_id.clone();
-        let role = props.role;
-        let platform = platform.clone();
-        let session_state = session_state.clone();
-        let game_state = game_state.clone();
-        let dialogue_state = dialogue_state.clone();
-        let generation_state = generation_state;
-        let lore_state = lore_state.clone();
-        use_effect(move || {
-            // If we're already connected to a different world (e.g., deep link without a full reload),
-            // reset the session first so we can join the requested world.
-            let requested_world = Uuid::parse_str(&world_id).ok();
-            let current_world = session_state.world_id().read().clone();
+    let world_id = props.world_id.clone();
+    let role = props.role;
+    let platform_for_connection = platform.clone();
+    let session_state_for_effect = session_state.clone();
+    let game_state_for_effect = game_state.clone();
+    let dialogue_state_for_effect = dialogue_state.clone();
+    let lore_state_for_effect = lore_state.clone();
+    use_effect(move || {
+        // If we're already connected to a different world (e.g., deep link without a full reload),
+        // reset the session first so we can join to the requested world.
+        let requested_world = Uuid::parse_str(&world_id).ok();
+        let current_world = *session_state_for_effect.world_id().read();
 
-            if *session_state.connection_status().read() == ConnectionStatus::Connected
-                && requested_world.is_some()
-                && current_world.is_some()
-                && current_world != requested_world
-            {
-                handle_disconnect(
-                    session_state.clone(),
-                    game_state.clone(),
-                    dialogue_state.clone(),
-                    lore_state.clone(),
-                );
-            }
-
-            ensure_connection(
-                &world_id,
-                role,
-                session_state.clone(),
-                game_state.clone(),
-                dialogue_state.clone(),
-                generation_state,
-                lore_state.clone(),
-                platform.clone(),
+        if *session_state_for_effect.connection_status().read() == ConnectionStatus::Connected
+            && requested_world.is_some()
+            && current_world.is_some()
+            && current_world != requested_world
+        {
+            handle_disconnect(
+                session_state_for_effect.clone(),
+                game_state_for_effect.clone(),
+                dialogue_state_for_effect.clone(),
+                lore_state_for_effect.clone(),
             );
-        });
-    }
+        }
+
+        ensure_connection(
+            &world_id,
+            role,
+            session_state_for_effect.clone(),
+            game_state_for_effect.clone(),
+            dialogue_state_for_effect.clone(),
+            generation_state,
+            lore_state_for_effect.clone(),
+            platform_for_connection.clone(),
+        );
+    });
 
     let connection_status = *session_state.connection_status().read();
     let requested_world = Uuid::parse_str(&props.world_id).ok();
-    let current_world = session_state.world_id().read().clone();
+    let current_world = *session_state.world_id().read();
     let is_connected_to_requested_world = connection_status == ConnectionStatus::Connected
         && requested_world.is_some()
         && current_world == requested_world;
@@ -131,7 +126,6 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                         let mut session_state = session_state.clone();
                         let game_state = game_state.clone();
                         let dialogue_state = dialogue_state.clone();
-                        let generation_state = generation_state;
                         let lore_state = lore_state.clone();
                         move |_| {
                             // Force reconnection attempt by setting disconnected first

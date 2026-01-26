@@ -88,13 +88,13 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                     class: "flex justify-between items-center mb-2",
 
                     label {
-                        class: "text-sm text-gray-400",
-                        "Available Expressions"
-                        span {
-                            class: "ml-2 text-gray-600 text-xs",
-                            "({config.expressions.len()})"
+                            class: "text-sm text-gray-400",
+                            "Available Expressions"
+                            span {
+                                class: "ml-2 text-gray-600 text-xs",
+                                "({config.expressions().len()})"
+                            }
                         }
-                    }
 
                     button {
                         class: "text-xs text-purple-400 hover:text-purple-300",
@@ -113,7 +113,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
 
                         for expr in ExpressionConfig::standard_expressions() {
                             {
-                                let has_expr = config.expressions.iter().any(|e| e.eq_ignore_ascii_case(&expr));
+                                let has_expr = config.expressions().iter().any(|e| e.eq_ignore_ascii_case(&expr));
                                 let expr_clone = expr.clone();
                                 let config_clone = config.clone();
                                 rsx! {
@@ -130,8 +130,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                                         disabled: has_expr,
                                         onclick: move |_| {
                                             if !has_expr {
-                                                let mut new_config = config_clone.clone();
-                                                new_config.add_expression(expr_clone.clone());
+                                                let new_config = config_clone.clone().adding_expression(expr_clone.clone());
                                                 props.on_config_change.call(new_config);
                                             }
                                         },
@@ -148,11 +147,11 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                 div {
                     class: "flex flex-wrap gap-1 mb-2",
 
-                    for (idx, expr) in config.expressions.iter().enumerate() {
+                    for (idx, expr) in config.expressions().iter().enumerate() {
                         {
                             let expr_clone = expr.clone();
                             let config_clone = config.clone();
-                            let is_default = expr.eq_ignore_ascii_case(&config.default_expression);
+                            let is_default = expr.eq_ignore_ascii_case(config.default_expression());
                             rsx! {
                                 span {
                                     key: "{idx}-{expr}",
@@ -178,15 +177,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                                     button {
                                         class: "ml-1 text-gray-400 hover:text-red-400",
                                         onclick: move |_| {
-                                            let mut new_config = config_clone.clone();
-                                            new_config.expressions.retain(|e| e != &expr_clone);
-                                            // If removed the default, reset to first available or "neutral"
-                                            if expr_clone.eq_ignore_ascii_case(&new_config.default_expression) {
-                                                new_config.default_expression = new_config.expressions
-                                                    .first()
-                                                    .cloned()
-                                                    .unwrap_or_else(|| "neutral".to_string());
-                                            }
+                                            let new_config = config_clone.clone().removing_expression(&expr_clone);
                                             props.on_config_change.call(new_config);
                                         },
                                         "×"
@@ -213,8 +204,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                                 if e.key() == Key::Enter {
                                     let expr = new_expression.read().trim().to_string();
                                     if !expr.is_empty() && !config_for_add.has_expression(&expr) {
-                                        let mut new_config = config_for_add.clone();
-                                        new_config.add_expression(expr);
+                                        let new_config = config_for_add.clone().adding_expression(expr);
                                         props.on_config_change.call(new_config);
                                         new_expression.set(String::new());
                                     }
@@ -230,8 +220,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                             move |_| {
                                 let expr = new_expression.read().trim().to_string();
                                 if !expr.is_empty() && !config_for_btn.has_expression(&expr) {
-                                    let mut new_config = config_for_btn.clone();
-                                    new_config.add_expression(expr);
+                                    let new_config = config_for_btn.clone().adding_expression(expr);
                                     props.on_config_change.call(new_config);
                                     new_expression.set(String::new());
                                 }
@@ -242,7 +231,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                 }
 
                 // Default expression selector
-                if !config.expressions.is_empty() {
+                if !config.expressions().is_empty() {
                     div {
                         class: "mt-2",
 
@@ -253,20 +242,19 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
 
                         select {
                             class: "ml-2 px-2 py-1 bg-dark-bg border border-gray-700 rounded text-white text-sm",
-                            value: "{config.default_expression}",
+                            value: "{config.default_expression()}",
                             onchange: {
                                 let config_for_select = config.clone();
                                 move |e| {
-                                    let mut new_config = config_for_select.clone();
-                                    new_config.default_expression = e.value();
+                                    let new_config = config_for_select.clone().with_default_expression(e.value());
                                     props.on_config_change.call(new_config);
                                 }
                             },
 
-                            for expr in config.expressions.iter() {
+                            for expr in config.expressions().iter() {
                                 option {
                                     value: "{expr}",
-                                    selected: expr == &config.default_expression,
+                                    selected: expr == config.default_expression(),
                                     "{expr}"
                                 }
                             }
@@ -287,7 +275,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                         "Available Actions"
                         span {
                             class: "ml-2 text-gray-600 text-xs",
-                            "({config.actions.len()})"
+                            "({config.actions().len()})"
                         }
                     }
 
@@ -308,7 +296,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
 
                         for action in ExpressionConfig::standard_actions() {
                             {
-                                let has_action = config.actions.iter().any(|a| a.eq_ignore_ascii_case(&action));
+                                let has_action = config.actions().iter().any(|a| a.eq_ignore_ascii_case(&action));
                                 let action_clone = action.clone();
                                 let config_clone = config.clone();
                                 rsx! {
@@ -325,8 +313,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                                         disabled: has_action,
                                         onclick: move |_| {
                                             if !has_action {
-                                                let mut new_config = config_clone.clone();
-                                                new_config.add_action(action_clone.clone());
+                                                let new_config = config_clone.clone().adding_action(action_clone.clone());
                                                 props.on_config_change.call(new_config);
                                             }
                                         },
@@ -343,7 +330,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                 div {
                     class: "flex flex-wrap gap-1 mb-2",
 
-                    for (idx, action) in config.actions.iter().enumerate() {
+                    for (idx, action) in config.actions().iter().enumerate() {
                         {
                             let action_clone = action.clone();
                             let config_clone = config.clone();
@@ -358,8 +345,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                                     button {
                                         class: "ml-1 text-amber-400 hover:text-red-400",
                                         onclick: move |_| {
-                                            let mut new_config = config_clone.clone();
-                                            new_config.actions.retain(|a| a != &action_clone);
+                                            let new_config = config_clone.clone().removing_action(&action_clone);
                                             props.on_config_change.call(new_config);
                                         },
                                         "×"
@@ -386,8 +372,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                                 if e.key() == Key::Enter {
                                     let action = new_action.read().trim().to_string();
                                     if !action.is_empty() && !config_for_add.has_action(&action) {
-                                        let mut new_config = config_for_add.clone();
-                                        new_config.add_action(action);
+                                        let new_config = config_for_add.clone().adding_action(action);
                                         props.on_config_change.call(new_config);
                                         new_action.set(String::new());
                                     }
@@ -403,8 +388,7 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                             move |_| {
                                 let action = new_action.read().trim().to_string();
                                 if !action.is_empty() && !config_for_btn.has_action(&action) {
-                                    let mut new_config = config_for_btn.clone();
-                                    new_config.add_action(action);
+                                    let new_config = config_for_btn.clone().adding_action(action);
                                     props.on_config_change.call(new_config);
                                     new_action.set(String::new());
                                 }
@@ -449,14 +433,14 @@ pub fn ExpressionConfigSummary(config: ExpressionConfig, default_mood: MoodState
             // Expression count
             span {
                 class: "px-2 py-1 bg-purple-900/50 text-purple-200 rounded",
-                "{config.expressions.len()} expressions"
+                "{config.expressions().len()} expressions"
             }
 
             // Action count
-            if !config.actions.is_empty() {
+            if !config.actions().is_empty() {
                 span {
                     class: "px-2 py-1 bg-gray-700 text-gray-300 rounded",
-                    "{config.actions.len()} actions"
+                    "{config.actions().len()} actions"
                 }
             }
         }

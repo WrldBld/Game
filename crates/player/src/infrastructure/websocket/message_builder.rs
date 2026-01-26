@@ -5,9 +5,11 @@
 //! construction logic - only the send mechanism differs.
 
 use uuid::Uuid;
-use wrldbldr_protocol::{
+use wrldbldr_domain::DispositionLevel;
+use wrldbldr_shared::messages::DiceInputType;
+use wrldbldr_shared::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
-    DiceInputType, DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
+    DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
 };
 
 /// Builder for ClientMessage variants
@@ -162,14 +164,16 @@ impl ClientMessageBuilder {
         approved_npcs: Vec<ApprovedNpcInfo>,
         ttl_hours: i32,
         source: &str,
+        location_state_id: Option<String>,
+        region_state_id: Option<String>,
     ) -> ClientMessage {
         ClientMessage::StagingApprovalResponse {
             request_id: request_id.to_string(),
             approved_npcs,
             ttl_hours,
             source: source.to_string(),
-            location_state_id: None, // TODO: Visual state selection not yet implemented in UI
-            region_state_id: None,
+            location_state_id,
+            region_state_id,
         }
     }
 
@@ -186,13 +190,15 @@ impl ClientMessageBuilder {
         region_id: &str,
         npcs: Vec<ApprovedNpcInfo>,
         ttl_hours: i32,
+        location_state_id: Option<String>,
+        region_state_id: Option<String>,
     ) -> ClientMessage {
         ClientMessage::PreStageRegion {
             region_id: region_id.to_string(),
             npcs,
             ttl_hours,
-            location_state_id: None, // TODO: Visual state selection not yet implemented in UI
-            region_state_id: None,
+            location_state_id,
+            region_state_id,
         }
     }
 
@@ -275,6 +281,38 @@ impl ClientMessageBuilder {
         }
     }
 
+    /// Create an EndConversation message
+    pub fn end_conversation(npc_id: &str, summary: Option<&str>) -> ClientMessage {
+        ClientMessage::EndConversation {
+            npc_id: npc_id.to_string(),
+            summary: summary.map(|s| s.to_string()),
+        }
+    }
+
+    /// Create a ListActiveConversations message
+    pub fn list_active_conversations(world_id: uuid::Uuid, include_ended: bool) -> ClientMessage {
+        ClientMessage::ListActiveConversations {
+            world_id,
+            include_ended,
+        }
+    }
+
+    /// Create a GetConversationDetails message
+    pub fn get_conversation_details(conversation_id: uuid::Uuid) -> ClientMessage {
+        ClientMessage::GetConversationDetails { conversation_id }
+    }
+
+    /// Create an EndConversationById message
+    pub fn end_conversation_by_id(
+        conversation_id: uuid::Uuid,
+        reason: Option<&str>,
+    ) -> ClientMessage {
+        ClientMessage::EndConversationById {
+            conversation_id,
+            reason: reason.map(|s| s.to_string()),
+        }
+    }
+
     /// Create a PerformInteraction message
     pub fn perform_interaction(interaction_id: &str) -> ClientMessage {
         ClientMessage::PerformInteraction {
@@ -306,7 +344,7 @@ impl ClientMessageBuilder {
     pub fn set_npc_disposition(
         npc_id: &str,
         pc_id: &str,
-        disposition: &str,
+        disposition: DispositionLevel,
         reason: Option<&str>,
     ) -> ClientMessage {
         ClientMessage::Request {
@@ -314,7 +352,7 @@ impl ClientMessageBuilder {
             payload: RequestPayload::Npc(NpcRequest::SetNpcDisposition {
                 npc_id: npc_id.to_string(),
                 pc_id: pc_id.to_string(),
-                disposition: disposition.to_string(),
+                disposition,
                 reason: reason.map(|s| s.to_string()),
             }),
         }
@@ -354,12 +392,17 @@ impl ClientMessageBuilder {
     ///
     /// Note: world_id should be provided by the caller from session state.
     /// Pass empty string if not available - handler should fill from session.
-    pub fn set_game_time(world_id: &str, day: u32, hour: u8) -> ClientMessage {
+    pub fn set_game_time(
+        world_id: &str,
+        day: u32,
+        hour: u8,
+        notify_players: bool,
+    ) -> ClientMessage {
         ClientMessage::SetGameTime {
             world_id: world_id.to_string(),
             day,
             hour,
-            notify_players: true,
+            notify_players,
         }
     }
 
@@ -373,18 +416,28 @@ impl ClientMessageBuilder {
         }
     }
 
+    /// Create a SetTimeMode message
+    ///
+    /// Note: world_id should be provided by caller from session state.
+    pub fn set_time_mode(world_id: &str, mode: wrldbldr_shared::types::TimeMode) -> ClientMessage {
+        ClientMessage::SetTimeMode {
+            world_id: world_id.to_string(),
+            mode,
+        }
+    }
+
     /// Create a RespondToTimeSuggestion message
     pub fn respond_to_time_suggestion(
         suggestion_id: &str,
         decision: &str,
         modified_minutes: Option<u32>,
     ) -> ClientMessage {
-        use wrldbldr_protocol::types::TimeSuggestionDecision;
+        use wrldbldr_shared::types::TimeSuggestionDecision;
 
         let decision = match decision {
             "approve" => TimeSuggestionDecision::Approve,
             "modify" => TimeSuggestionDecision::Modify {
-                minutes: modified_minutes.unwrap_or(0),
+                seconds: modified_minutes.unwrap_or(0),
             },
             "skip" => TimeSuggestionDecision::Skip,
             _ => TimeSuggestionDecision::Skip,
@@ -396,16 +449,16 @@ impl ClientMessageBuilder {
         }
     }
 
-    /// Create an AdvanceGameTimeMinutes request message
+    /// Create an AdvanceGameTimeSeconds request message
     ///
     /// Note: world_id should be provided by the caller from session state.
     /// Pass empty string if not available - handler should fill from session.
-    pub fn advance_time(world_id: &str, minutes: u32, reason: &str) -> ClientMessage {
+    pub fn advance_time(world_id: &str, seconds: u32, reason: &str) -> ClientMessage {
         ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::Time(TimeRequest::AdvanceGameTimeMinutes {
+            payload: RequestPayload::Time(TimeRequest::AdvanceGameTimeSeconds {
                 world_id: world_id.to_string(),
-                minutes,
+                seconds,
                 reason: Some(reason.to_string()),
             }),
         }
@@ -415,7 +468,7 @@ impl ClientMessageBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_protocol::ApprovalDecision;
+    use wrldbldr_shared::ApprovalDecision;
 
     #[test]
     fn test_move_to_region() {
@@ -482,7 +535,12 @@ mod tests {
 
     #[test]
     fn test_set_npc_disposition_generates_request_id() {
-        let msg = ClientMessageBuilder::set_npc_disposition("npc_1", "pc_1", "friendly", None);
+        let msg = ClientMessageBuilder::set_npc_disposition(
+            "npc_1",
+            "pc_1",
+            DispositionLevel::Friendly,
+            None,
+        );
         match msg {
             ClientMessage::Request {
                 request_id,

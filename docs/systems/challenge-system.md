@@ -2,11 +2,22 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Challenge System handles skill checks, ability tests, and other dice-based resolution mechanics. It supports multiple TTRPG rule systems (D20 like D&D, D100 like Call of Cthulhu, Narrative like Fate) and integrates with the LLM to suggest contextually appropriate challenges during gameplay.
 
 ## WebSocket Coverage
 
-- The Engine now routes `wrldbldr_protocol::ChallengeRequest` through `crates/engine/src/api/websocket/ws_challenge.rs`, returning the same shape expected by `ChallengeData`.
+- The Engine now routes `wrldbldr_shared::ChallengeRequest` through `crates/engine/src/api/websocket/ws_challenge.rs`, returning the same shape expected by `ChallengeData`.
 - Supported operations: list/get/create/update/delete challenges plus `SetChallengeActive` and `SetChallengeFavorite`.
 - Responses include serialized outcomes, trigger conditions, and metadata so the Player app can keep the DM library and favorites dashboard in sync.
 
@@ -37,32 +48,32 @@ Challenges create dramatic tension and player agency. Key design principles:
   - *Files*: `crates/domain/src/entities/challenge.rs`
 
 - [x] **US-CHAL-003**: As a player, the LLM suggests challenges during dialogue
-  - *Implementation*: LLM outputs `<challenge_suggestion>` XML tags, parsed by LlmService
-  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
+  - *Implementation*: LLM outputs `<challenge_suggestion>` XML tags, parsed by queue processing
+  - *Files*: `crates/engine/src/use_cases/queues/mod.rs`
 
 - [x] **US-CHAL-004**: As a DM, I can approve or reject challenge suggestions
   - *Implementation*: ChallengeSuggestionDecision WebSocket message, DM approval popup
-  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player/src/ui/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-CHAL-005**: As a player, I can roll dice for challenges
   - *Implementation*: ChallengeRollModal with d20 rolls, platform-specific randomness
-  - *Files*: `crates/player-ui/src/presentation/components/tactical/challenge_roll.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/tactical/challenge_roll.rs`
 
 - [x] **US-CHAL-006**: As a DM, I can manually trigger challenges
   - *Implementation*: TriggerChallengeModal, TriggerChallenge WebSocket message
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/trigger_challenge_modal.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/trigger_challenge_modal.rs`
 
 - [x] **US-CHAL-007**: As a DM, I can approve/edit challenge outcomes before they execute
   - *Implementation*: ChallengeOutcomeApproval component, DM can edit narrative text
-  - *Files*: `crates/engine/src/use_cases/challenge/resolve.rs`
+  - *Files*: `crates/engine/src/use_cases/challenge/mod.rs`
 
 - [x] **US-CHAL-008**: As a DM, I can browse and manage a challenge library
   - *Implementation*: ChallengeLibrary with search, filtering, favorites
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/challenge_library/`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/challenge_library/`
 
 - [x] **US-CHAL-009**: As a player, I can see my character's skill modifiers during rolls
   - *Implementation*: SkillsDisplay component shows all skills with modifiers; ChallengeRollModal displays modifier in header and result breakdown (dice + modifier + skill = total)
-  - *Files*: `crates/player-ui/src/presentation/components/tactical/challenge_roll.rs`, `crates/player-ui/src/presentation/components/tactical/skills_display.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/tactical/challenge_roll.rs`, `crates/player/src/ui/presentation/components/tactical/skills_display.rs`
 
 - [x] **US-CHAL-010**: As a DM, I can bind challenges to specific regions (not just locations)
   - *Implementation*: `AVAILABLE_AT_REGION` edge with `ChallengeRegionAvailability` entity
@@ -71,7 +82,7 @@ Challenges create dramatic tension and player agency. Key design principles:
 
 - [x] **US-CHAL-011**: Character stats are updated when challenge outcomes modify them
   - *Implementation*: `CharacterStatUpdated` message broadcast after approval; handler resolves "active_pc" placeholder
-  - *Files*: `crates/engine/src/use_cases/approval/challenge_outcome.rs`, `crates/protocol/src/messages.rs`
+  - *Files*: `crates/engine/src/use_cases/approval/mod.rs`, `crates/protocol/src/messages.rs`
   - *Completed*: 2025-12-26
 
 ### Future Improvements
@@ -303,9 +314,9 @@ pub enum OutcomeTrigger {
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/challenge.rs` | Challenge entity |
 | Domain | `crates/domain/src/entities/skill.rs` | Skill entity |
-| Entity | `crates/engine/src/entities/challenge.rs` | Challenge operations |
-| Use Case | `crates/engine/src/use_cases/challenge/resolve.rs` | Resolution |
-| Use Case | `crates/engine/src/use_cases/approval/challenge_outcome.rs` | Approval |
+| Repository | `crates/engine/src/repositories/challenge.rs` | Challenge operations |
+| Use Case | `crates/engine/src/use_cases/challenge/mod.rs` | Resolution |
+| Use Case | `crates/engine/src/use_cases/approval/mod.rs` | Approval |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/challenge_repo.rs` | Neo4j persistence |
 | API | `crates/engine/src/api/websocket/mod.rs` | WebSocket handlers |
 

@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
-
-use crate::entities::Narrative;
-use crate::infrastructure::ports::{QueuePort, RepoError};
-use crate::use_cases::approval::{ApproveSuggestion, ApprovalError};
+use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
+use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
-use wrldbldr_domain::{DmApprovalDecision, NarrativeEventId, WorldId};
+use crate::use_cases::narrative_operations::NarrativeOps;
+use wrldbldr_domain::{NarrativeEventId, QueueItemId, WorldId};
+
+use crate::queue_types::DmApprovalDecision;
 
 /// Narrative event suggestion approval flow.
 pub struct NarrativeDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
     queue: Arc<dyn QueuePort>,
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
     execute_effects: Arc<ExecuteEffects>,
 }
 
@@ -20,7 +20,7 @@ impl NarrativeDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
         queue: Arc<dyn QueuePort>,
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
         execute_effects: Arc<ExecuteEffects>,
     ) -> Self {
         Self {
@@ -33,16 +33,15 @@ impl NarrativeDecisionFlow {
 
     pub async fn execute(
         &self,
-        approval_id: Uuid,
+        approval_id: QueueItemId,
         decision: DmApprovalDecision,
         event_id: NarrativeEventId,
         selected_outcome: Option<String>,
     ) -> Result<NarrativeDecisionOutcome, NarrativeDecisionError> {
-        let approval_data = self
+        let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
-            .await
-            .map_err(|e| NarrativeDecisionError::QueueError(e.to_string()))?
+            .await?
             .ok_or(NarrativeDecisionError::ApprovalNotFound)?;
 
         let result = self
@@ -64,7 +63,7 @@ impl NarrativeDecisionFlow {
 
         let event = match self.narrative.get_event(event_id).await? {
             Some(event) => event,
-            None => return Err(NarrativeDecisionError::EventNotFound(event_id.to_string())),
+            None => return Err(NarrativeDecisionError::EventNotFound(event_id)),
         };
 
         let outcome_name = selected_outcome
@@ -74,15 +73,17 @@ impl NarrativeDecisionFlow {
                     .as_ref()
                     .and_then(|s| s.suggested_outcome.clone())
             })
-            .or_else(|| event.default_outcome.clone())
-            .or_else(|| event.outcomes.first().map(|o| o.name.clone()))
+            .or_else(|| event.default_outcome().map(|s| s.to_string()))
+            .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
             .unwrap_or_default();
 
-        let outcome = event.outcomes.iter().find(|o| o.name == outcome_name);
+        let outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
 
         if let Some(outcome) = outcome {
             if !outcome.effects.is_empty() {
-                let pc_id = approval_data.pc_id.ok_or(NarrativeDecisionError::PcContextRequired)?;
+                let pc_id = approval_data
+                    .pc_id
+                    .ok_or(NarrativeDecisionError::PcContextRequired)?;
                 let context = EffectExecutionContext {
                     pc_id,
                     world_id: approval_data.world_id,
@@ -108,11 +109,9 @@ impl NarrativeDecisionFlow {
             world_id: approval_data.world_id,
             triggered: Some(NarrativeTriggeredPayload {
                 event_id: event_id.to_string(),
-                event_name: event.name.clone(),
-                outcome_description: outcome
-                    .map(|o| o.description.clone())
-                    .unwrap_or_default(),
-                scene_direction: event.scene_direction.clone(),
+                event_name: event.name().to_string(),
+                outcome_description: outcome.map(|o| o.description.clone()).unwrap_or_default(),
+                scene_direction: event.scene_direction().to_string(),
             }),
         })
     }
@@ -135,13 +134,13 @@ pub enum NarrativeDecisionError {
     #[error("Approval request not found")]
     ApprovalNotFound,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Approval error: {0}")]
     Approval(#[from] ApprovalError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
     #[error("Event not found: {0}")]
-    EventNotFound(String),
+    EventNotFound(NarrativeEventId),
     #[error("PC context required for effect execution")]
     PcContextRequired,
 }

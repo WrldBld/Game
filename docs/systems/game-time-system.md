@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Game Time System manages in-game time progression for narrative TTRPGs. Unlike real-time systems, game time advances through player actions and DM decisions, creating a "suggested time" model where the system proposes time costs for actions and the DM approves, modifies, or skips them. This enables time-sensitive mechanics (NPC schedules, scene availability, staging TTL) while keeping the DM in control of narrative pacing.
 
 ---
@@ -29,6 +40,45 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 - **Periods**: Morning (5-11), Afternoon (12-17), Evening (18-21), Night (22-4)
 - **Day tracking**: Day counter (Day 1, Day 2, etc.)
 - **Display**: "Day 3, Evening (19:00)" or "Day 3, 7:00 PM"
+
+### Calendar System
+
+#### Calendar-Agnostic Time Tracking
+
+- **Internal representation**: All time is stored as `total_seconds: i64` since epoch
+- **Epoch (second 0)**: Configured per-world to represent any starting point in the campaign
+- **Negative time support**: Historical events before the campaign start can use negative second values
+- **Conversion on display**: Seconds are converted to calendar dates only at display time
+
+#### Built-in Calendars
+
+| Calendar ID | Name | Description |
+|-------------|------|-------------|
+| `gregorian` | Gregorian | Standard real-world calendar (default) |
+| `harptos` | Calendar of Harptos | Forgotten Realms calendar with 12 months of 30 days plus 5 festival days |
+
+**Gregorian**: 12 months (28-31 days), leap years, standard week days.
+
+**Harptos**: 12 months of exactly 30 days (Hammer, Alturiak, Ches, Tarsakh, Mirtul, Kythorn, Flamerule, Eleasis, Eleint, Marpenoth, Uktar, Nightal) plus 5 intercalary festival days (Midwinter, Greengrass, Midsummer, Highharvestide, Feast of the Moon). Shieldmeet occurs every 4 years after Midsummer.
+
+#### Epoch Configuration
+
+DMs configure what "second 0" represents when setting up or importing a world:
+
+- **Purpose**: Anchors abstract time to meaningful campaign dates
+- **Example**: For a Forgotten Realms campaign starting in 1492 DR, configure epoch as "1st of Hammer, 1492 DR, 00:00"
+- **Flexibility**: Can represent any date/time in the chosen calendar system
+
+#### Calendar Display
+
+`GameTime.to_calendar_date(calendar, epoch_config)` converts internal seconds to named dates:
+
+| Format | Example (Gregorian) | Example (Harptos) |
+|--------|---------------------|-------------------|
+| Full date | "March 15, 1492, 2:00 PM" | "15th of Ches, 1492 DR, 14:00" |
+| Short date | "Mar 15, 1492" | "Ches 15, 1492 DR" |
+| Time only | "2:00 PM" or "14:00" | "2:00 PM" or "14:00" |
+| Period | "Afternoon" | "Afternoon" |
 
 ---
 
@@ -74,6 +124,16 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 - [x] **US-TIME-009**: As a player, I can see the current game time so that I can plan time-sensitive actions
   - _Implementation_: `GameTimeDisplay` in player UI + world snapshot
   - _Files_: `crates/player/src/ui/presentation/components/navigation_panel.rs`
+
+### Pending
+
+- [ ] **US-TIME-011**: As a player, I see a time-advance toast with the reason so that time changes feel grounded
+  - _Design_: Toast overlays the scene with reason + delta and auto-dismisses
+  - _Files_: `crates/player/src/ui/presentation/views/pc_view.rs`, `crates/player/src/ui/presentation/state/game_state.rs`
+
+- [ ] **US-TIME-013**: As a system, dialogue approvals emit time suggestions so that conversations can advance time with DM oversight
+  - _Design_: On dialogue approval, emit `TimeSuggestion` when `TimeMode::Suggested`
+  - _Files_: `crates/engine/src/use_cases/queues/mod.rs`, `crates/engine/src/use_cases/time/mod.rs`
 
 ---
 
@@ -131,15 +191,15 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 
 ### Default Time Costs
 
-| Action Type        | Default Cost          | Configurable |
-| ------------------ | --------------------- | ------------ |
-| `travel_location`  | 60 minutes            | Yes          |
-| `travel_region`    | 10 minutes            | Yes          |
-| `rest_short`       | 60 minutes            | Yes          |
-| `rest_long`        | 480 minutes (8 hours) | Yes          |
-| `conversation`     | 0 minutes             | Yes          |
-| `challenge`        | 10 minutes            | Yes          |
-| `scene_transition` | 0 minutes             | Yes          |
+| Action Type        | Default Cost                    | Configurable |
+| ------------------ | ------------------------------- | ------------ |
+| `travel_location`  | 3600 seconds (60 minutes)       | Yes          |
+| `travel_region`    | 600 seconds (10 minutes)        | Yes          |
+| `rest_short`       | 3600 seconds (60 minutes)       | Yes          |
+| `rest_long`        | 28800 seconds (8 hours)        | Yes          |
+| `conversation`     | 0 seconds                       | Yes          |
+| `challenge`        | 600 seconds (10 minutes)        | Yes          |
+| `scene_transition` | 0 seconds                       | Yes          |
 
 ---
 
@@ -233,19 +293,54 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 
 **Status**: ⏳ Pending
 
+### Player Time-Advance Toast
+
+```
+                    ┌────────────────────────────────────────┐
+                    │  ⏰ Time Advanced                      │
+                    │                                        │
+                    │  Resting at camp                       │
+                    │  +8 hours                              │
+                    │                                        │
+                    │  Current time: Day 3, 14:00            │
+                    │                                        │
+                    │  [Dismiss]                             │
+                    └────────────────────────────────────────┘
+
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │                                                                         │
+   │                            [Backdrop Scene]                            │
+   │                                                                         │
+   │                       [Character Sprites]                              │
+   │                                                                         │
+   │   ┌─────────────────────────────────────────────────────────────────┐ │
+   │   │ 🗣️ "Alright, everyone get some rest. We move at dawn."          │ │
+   │   │ [▌]                                                              │ │
+   │   └─────────────────────────────────────────────────────────────────┘ │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐
+│ Talk       │ │ Examine    │ │ Travel     │ │ Character  │
+│ [NPC]      │ │ [Camp]     │ │ [Exit]     │ │ [Sheet]    │
+└────────────┘ └────────────┘ └────────────┘ └────────────┘
+```
+
+**Status**: ⏳ Pending
+
 ---
 
 ## Data Model
 
 ### Neo4j Nodes (GameTime)
 
+`GameTime` now stores time as total seconds since epoch, enabling calendar-agnostic time tracking:
+
 ```cypher
 (:GameTime {
     id: "uuid",
-    day: 3,
-    hour: 19,
-    period: "Evening",
-    label: "Day 3, Evening (19:00)"
+    total_seconds: 250740,        -- Seconds since epoch (replaces day/hour)
+    period: "Evening",            -- Derived from total_seconds
+    label: "Day 3, Evening (19:00)"  -- Cached display string
 })
 ```
 
@@ -260,19 +355,62 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 ### Domain Types
 
 ```rust
-// crates/domain/src/game_time.rs (existing, to be extended)
+// crates/domain/src/game_time.rs
+
+/// Game time - stored as total seconds since epoch
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameTime {
+    /// Total seconds since epoch (can be negative for historical events)
+    total_seconds: i64,
+}
+
+impl GameTime {
+    /// Convert to a calendar date using the specified calendar and epoch
+    pub fn to_calendar_date(&self, calendar: &Calendar, epoch: &EpochConfig) -> CalendarDate { ... }
+}
 
 /// Game time configuration for a world
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameTimeConfig {
     /// How time suggestions are handled
     pub mode: TimeMode,
-    /// Default time costs per action type (minutes)
+    /// Default time costs per action type (seconds)
     pub time_costs: TimeCostConfig,
     /// Whether to show time to players
     pub show_time_to_players: bool,
     /// Time format preference
     pub time_format: TimeFormat,
+    /// Calendar system to use for display
+    pub calendar_id: CalendarId,
+    /// What second 0 represents in the campaign
+    pub epoch_config: EpochConfig,
+}
+
+/// Identifies which calendar system to use
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum CalendarId {
+    #[default]
+    Gregorian,
+    Harptos,
+}
+
+/// Configuration for what "second 0" represents
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EpochConfig {
+    /// Description shown to DM (e.g., "1st of Hammer, 1492 DR")
+    pub epoch_description: String,
+    /// Year in the calendar system
+    pub epoch_year: i32,
+    /// Month (1-12 for Gregorian, 1-12 for Harptos months, 13-17 for festivals)
+    pub epoch_month: u8,
+    /// Day of month (1-31)
+    pub epoch_day: u8,
+    /// Hour (0-23)
+    pub epoch_hour: u8,
+    /// Minute (0-59) - usually 0, but supported for precision
+    pub epoch_minute: u8,
+    /// Second (0-59) - usually 0, but supported for precision
+    pub epoch_second: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
@@ -282,25 +420,23 @@ pub enum TimeMode {
     /// System suggests, DM approves (default)
     #[default]
     Suggested,
-    /// Time advances automatically on actions
-    Auto,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeCostConfig {
-    /// Minutes for travel between locations
+    /// Seconds for travel between locations
     pub travel_location: u32,
-    /// Minutes for travel between regions within a location
+    /// Seconds for travel between regions within a location
     pub travel_region: u32,
-    /// Minutes for short rest
+    /// Seconds for short rest
     pub rest_short: u32,
-    /// Minutes for long rest (typically overnight)
+    /// Seconds for long rest (typically overnight)
     pub rest_long: u32,
-    /// Minutes per conversation exchange (0 = no cost)
+    /// Seconds per conversation exchange (0 = no cost)
     pub conversation: u32,
-    /// Minutes per challenge attempt
+    /// Seconds per challenge attempt
     pub challenge: u32,
-    /// Minutes for scene transitions
+    /// Seconds for scene transitions
     pub scene_transition: u32,
 }
 
@@ -358,7 +494,7 @@ pub enum TimeAdvanceReason {
     pc_id: "uuid",               // Which PC's action triggered this
     action_type: "string",       // "travel_location", "rest_short", etc.
     action_description: "string", // Human-readable description
-    suggested_minutes: 32,       // Suggested time cost
+    suggested_seconds: 1920,     // Suggested time cost (32 minutes = 1920 seconds)
     current_time_json: "{...}",  // GameTime at suggestion creation
     created_at: datetime(),
     status: "pending" | "approved" | "modified" | "skipped"
@@ -378,7 +514,7 @@ pub struct TimeSuggestionData {
     pub pc_name: String,
     pub action_type: String,
     pub action_description: String,
-    pub suggested_minutes: u32,
+    pub suggested_seconds: u32,
     pub current_time: GameTime,
     pub resulting_time: GameTime,
     pub period_change: Option<(String, String)>, // ("Morning", "Afternoon") if period changes
@@ -389,7 +525,7 @@ pub struct TimeSuggestionData {
 pub struct TimeAdvanceData {
     pub previous_time: GameTime,
     pub new_time: GameTime,
-    pub minutes_advanced: u32,
+    pub seconds_advanced: u32,
     pub reason: String,
     pub period_changed: bool,
     pub new_period: Option<String>,
@@ -466,20 +602,21 @@ pub struct TimeAdvanceData {
 
 | Component                 | Status | Notes                           |
 | ------------------------- | ------ | ------------------------------- |
-| `GameTime` struct         | ✅     | Exists in domain                |
+| `GameTime` struct         | ✅     | Uses total_seconds internally   |
 | `TimeOfDay` enum          | ✅     | Exists in domain                |
+| Calendar system           | ✅     | Gregorian + Harptos calendars   |
 | `World.game_time`         | ✅     | Persisted                       |
 | `AdvanceGameTime`         | ✅     | DM can advance hours            |
 | `GameTimeUpdated`         | ✅     | Broadcast exists                |
 | `GameTimeConfig`          | ✅     | Config persisted on World       |
 | `TimeMode` enum           | ✅     | Manual/Suggested modes          |
-| `TimeCostConfig`          | ✅     | Default cost map                |
+| `TimeCostConfig`          | ✅     | Default cost map (seconds)      |
 | `TimeSuggestion` flow     | ✅     | Suggest/approve/advance         |
 | `SetGameTime`             | ✅     | Set day/hour                    |
 | `SkipToPeriod`            | ✅     | Skip to time-of-day period      |
 | Time suggestion UI        | ✅     | DM approval flow in UI          |
 | Time control panel        | ✅     | DM controls in UI               |
-| Integration: Staging      | ✅     | TTL uses game time              |
+| Integration: Staging      | ✅     | TTL uses game time (seconds)    |
 | Integration: Observations | ✅     | Observations record game time   |
 | Integration: Movement     | ✅     | Movement generates suggestions  |
 
@@ -494,7 +631,7 @@ pub struct TimeAdvanceData {
 | Domain    | `crates/domain/src/game_time.rs`                       | GameTime, TimeOfDay, config types |
 | Domain    | `crates/domain/src/entities/world.rs`                  | World with game_time field        |
 | Ports     | `crates/engine/src/infrastructure/ports.rs`            | WorldRepo with time methods       |
-| Entities  | `crates/engine/src/entities/world.rs`                  | World entity operations           |
+| Repository | `crates/engine/src/repositories/world.rs`              | World persistence + time updates |
 | Use Cases | `crates/engine/src/use_cases/time/mod.rs`              | Time suggestion use cases         |
 | API       | `crates/engine/src/api/websocket/mod.rs`               | Time-related handlers             |
 | Neo4j     | `crates/engine/src/infrastructure/neo4j/world_repo.rs` | Persist time config               |
@@ -529,7 +666,7 @@ None - all changes are additive. Existing `GameTime` and `AdvanceGameTime` conti
 When `time_config` is missing from a World:
 
 - `mode`: `Suggested` (safest default - DM sees suggestions)
-- `time_costs`: Use sensible defaults (60/10/60/480/0/10/0 minutes)
+- `time_costs`: Use sensible defaults (3600/600/3600/28800/0/600/0 seconds)
 - `show_time_to_players`: `true`
 - `time_format`: `TwelveHour`
 
@@ -551,17 +688,18 @@ No migration needed - new fields have defaults. Old worlds will use default conf
 ### Not In Scope (v1)
 
 1. **Undo time changes** - Would require event sourcing architecture
-2. **Calendar system** - Named days/months, holidays
-3. **Weather tied to time** - Atmospheric changes
-4. **Automatic long rest** - "Rest until morning" button
-5. **Time-locked items** - Items that only appear at certain times
+2. **Weather tied to time** - Atmospheric changes
+3. **Automatic long rest** - "Rest until morning" button
+4. **Time-locked items** - Items that only appear at certain times
 
 ### Potential v2 Features
 
-1. **Time presets** - DM saves "dawn at the docks" for quick recall
-2. **Scheduled events** - "At midnight, trigger event X"
-3. **Time-based NPC dialogue** - Different greetings by time of day
-4. **Session time tracking** - How much game time passed this session
+1. **Custom calendars** - DMs define their own calendar systems
+2. **Time presets** - DM saves "dawn at the docks" for quick recall
+3. **Scheduled events** - "At midnight, trigger event X"
+4. **Time-based NPC dialogue** - Different greetings by time of day
+5. **Session time tracking** - How much game time passed this session
+6. **Holiday/festival awareness** - Calendar-aware special day detection
 
 ---
 
@@ -569,4 +707,6 @@ No migration needed - new fields have defaults. Old worlds will use default conf
 
 | Date       | Change                  |
 | ---------- | ----------------------- |
+| 2026-01-21 | Updated all references to use seconds-based game time (total_seconds, game_time_seconds, suggested_seconds, seconds_advanced) |
+| 2026-01-18 | Added Calendar System section (Gregorian + Harptos), updated GameTime to use total_seconds, added EpochConfig |
 | 2026-01-04 | Initial design document |

@@ -17,33 +17,31 @@ pub fn PCViewRoute(world_id: String) -> Element {
     let pc_service = crate::presentation::services::use_player_character_service();
 
     // Check for existing PC on mount - redirect to creation if none exists
-    {
-        let world_id_clone = world_id.clone();
-        let user_id = platform.get_user_id();
-        let nav = navigator;
-        let pc_svc = pc_service.clone();
-        use_effect(move || {
-            let wid = world_id_clone.clone();
-            let uid = user_id.clone();
-            let nav_clone = nav;
-            let pc_svc_clone = pc_svc.clone();
-            spawn_task(async move {
-                match pc_svc_clone.get_my_pc(&wid, &uid).await {
-                    Ok(Some(_pc)) => {
-                        // PC exists, continue to PC View
-                    }
-                    Ok(None) => {
-                        // No PC, redirect to creation
-                        nav_clone.push(Route::PCCreationRoute { world_id: wid });
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to check for PC: {}", e);
-                        // On error, still try to show PC view (might be a transient error)
-                    }
+    let world_id_clone = world_id.clone();
+    let user_id = platform.get_user_id();
+    let nav = navigator;
+    let pc_svc = pc_service.clone();
+    use_effect(move || {
+        let wid = world_id_clone.clone();
+        let uid = user_id.clone();
+        let nav_clone = nav;
+        let pc_svc_clone = pc_svc.clone();
+        spawn_task(async move {
+            match pc_svc_clone.get_my_pc(&wid, &uid).await {
+                Ok(Some(_pc)) => {
+                    // PC exists, continue to PC View
                 }
-            });
+                Ok(None) => {
+                    // No PC, redirect to creation
+                    nav_clone.push(Route::PCCreationRoute { world_id: wid });
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to check for PC: {}", e);
+                    // On error, still try to show PC view (might be a transient error)
+                }
+            }
         });
-    }
+    });
 
     rsx! {
         WorldSessionLayout {

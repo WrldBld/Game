@@ -48,7 +48,7 @@ use uuid::Uuid;
 // =============================================================================
 
 // Wire-format types with exact field matches - no translation needed
-pub use wrldbldr_protocol::{
+pub use wrldbldr_shared::{
     // Suggestion types (already re-exported, kept for backward compatibility)
     ChallengeSuggestionInfo,
     ChallengeSuggestionOutcomes,
@@ -246,6 +246,8 @@ pub enum PlayerEvent {
         npcs_present: Vec<NpcPresenceData>,
         navigation: NavigationData,
         region_items: Vec<RegionItemData>,
+        /// Resolved visual state for scene display
+        visual_state: Option<ResolvedVisualStateData>,
     },
 
     /// PC was selected for play
@@ -321,6 +323,20 @@ pub enum PlayerEvent {
         pc_id: String,
         summary: Option<String>,
         conversation_id: Option<String>,
+        /// Who ended the conversation (optional - DM's character ID if applicable)
+        ended_by: Option<String>,
+        /// Reason for ending (optional)
+        reason: Option<String>,
+    },
+
+    /// Active conversations list (response to ListActiveConversations)
+    ActiveConversationsList {
+        conversations: Vec<wrldbldr_shared::ConversationInfo>,
+    },
+
+    /// Conversation details (response to GetConversationDetails)
+    ConversationDetails {
+        details: wrldbldr_shared::ConversationFullDetails,
     },
 
     /// Response was approved and executed
@@ -514,15 +530,23 @@ pub enum PlayerEvent {
         region_name: String,
     },
 
+    /// Visual state changed for a region (broadcast to all)
+    /// Sent when staging approval changes visual state without scene change
+    /// region_id: Some(id) applies to specific region, None applies to all
+    VisualStateChanged {
+        region_id: Option<String>,
+        visual_state: Option<ResolvedVisualStateData>,
+    },
+
     // =========================================================================
     // Lore Events
     // =========================================================================
     /// Character discovered lore
     LoreDiscovered {
         character_id: String,
-        lore: wrldbldr_protocol::types::LoreData,
+        lore: wrldbldr_shared::types::LoreData,
         discovered_chunk_ids: Vec<String>,
-        discovery_source: wrldbldr_protocol::types::LoreDiscoverySourceData,
+        discovery_source: wrldbldr_shared::types::LoreDiscoverySourceData,
     },
 
     /// Lore was revoked from a character
@@ -533,13 +557,13 @@ pub enum PlayerEvent {
 
     /// Lore entry was updated (DM only)
     LoreUpdated {
-        lore: wrldbldr_protocol::types::LoreData,
+        lore: wrldbldr_shared::types::LoreData,
     },
 
     /// Response to GetCharacterLore request
     CharacterLoreResponse {
         character_id: String,
-        known_lore: Vec<wrldbldr_protocol::types::LoreSummaryData>,
+        known_lore: Vec<wrldbldr_shared::types::LoreSummaryData>,
     },
 
     // =========================================================================
@@ -759,7 +783,7 @@ pub enum PlayerEvent {
     GameTimeAdvanced {
         previous_time: GameTime,
         new_time: GameTime,
-        minutes_advanced: u32,
+        seconds_advanced: u32,
         reason: String,
         period_changed: bool,
         new_period: Option<String>,
@@ -772,7 +796,7 @@ pub enum PlayerEvent {
         pc_name: String,
         action_type: String,
         action_description: String,
-        suggested_minutes: u32,
+        suggested_seconds: u32,
         current_time: GameTime,
         resulting_time: GameTime,
         period_change: Option<(String, String)>,
@@ -846,6 +870,8 @@ impl PlayerEvent {
             Self::ConversationStarted { .. } => "ConversationStarted",
             Self::DialogueResponse { .. } => "DialogueResponse",
             Self::ConversationEnded { .. } => "ConversationEnded",
+            Self::ActiveConversationsList { .. } => "ActiveConversationsList",
+            Self::ConversationDetails { .. } => "ConversationDetails",
             Self::ResponseApproved { .. } => "ResponseApproved",
             Self::ApprovalRequired { .. } => "ApprovalRequired",
             Self::ChallengePrompt { .. } => "ChallengePrompt",
@@ -866,6 +892,7 @@ impl PlayerEvent {
             Self::StagingReady { .. } => "StagingReady",
             Self::StagingRegenerated { .. } => "StagingRegenerated",
             Self::StagingTimedOut { .. } => "StagingTimedOut",
+            Self::VisualStateChanged { .. } => "VisualStateChanged",
             Self::LoreDiscovered { .. } => "LoreDiscovered",
             Self::LoreRevoked { .. } => "LoreRevoked",
             Self::LoreUpdated { .. } => "LoreUpdated",

@@ -28,12 +28,13 @@ pub use world_snapshot::{
     ChallengeDifficulty,
     ChallengeOutcomes,
     ChallengeType,
-    // Character sheet data (shared API type)
-    CharacterSheetDataApi,
+    // Character sheet schema types (new format from game systems)
+    CharacterSheetSchema,
     CreateNarrativeEventRequest,
+    CreationStep,
+    DerivationType,
+    DerivedFieldInfo,
     DiceSystem,
-    FieldType,
-    FieldValue,
     InventoryItemData,
     // Inventory types (Phase 23B)
     ItemData,
@@ -47,13 +48,20 @@ pub use world_snapshot::{
     RuleSystemTypeExt,
     RuleSystemVariant,
     RuleSystemVariantExt,
-    SectionLayout,
+    SchemaConditionLevel,
+    SchemaEntityRefType,
+    SchemaFieldDefinition,
+    SchemaFieldLayout,
+    SchemaFieldType,
+    SchemaFieldValidation,
+    SchemaLadderLabel,
+    SchemaProficiencyOption,
+    SchemaResourceColor,
+    SchemaSection,
+    SchemaSectionType,
+    SchemaSelectOption,
     // Session snapshot types (simplified format from Engine)
     SessionWorldSnapshot,
-    SheetField,
-    SheetSection,
-    // Character sheet types
-    SheetTemplate,
     SkillCategory,
     // Skill types
     SkillData,
@@ -122,7 +130,6 @@ pub use player_events::{
     WaitingPcInfo,
     // Actantial model (from player_events for UI)
     WantData as PlayerEventWantData,
-    WantTargetData,
     WorldRole,
 };
 
@@ -132,13 +139,18 @@ pub use player_events::{
 // for all 9 types would require 18+ From impls with no benefit. The protocol types
 // are stable and serialization-ready.
 // See: docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md Appendix B
-pub use wrldbldr_protocol::{
-    ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
-    SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
+//
+// NOTE: WantData and WantTargetData are defined in ports/outbound/player_events.rs
+// as PlayerEvent types with String fields for enums. The enum types themselves
+// are re-exported from shared/messages for use in service request/response types.
+pub use wrldbldr_shared::messages::{
+    ActantialActorData, ActantialRoleData, ActorTypeData, DiceInputType, GoalData,
+    NpcActantialContextData, SocialRelationData, WantData, WantTargetData, WantTargetTypeData,
+    WantVisibilityData,
 };
 
 // Re-export Lore types from protocol (same facade pattern)
-pub use wrldbldr_protocol::types::{
+pub use wrldbldr_shared::types::{
     LoreCategoryData, LoreChunkData, LoreData, LoreDiscoverySourceData, LoreKnowledgeData,
     LoreSummaryData,
 };

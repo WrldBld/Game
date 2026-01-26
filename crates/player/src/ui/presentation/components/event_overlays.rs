@@ -2,6 +2,7 @@
 //!
 //! US-NPC-008: ApproachEventOverlay - NPC approaching player
 //! US-NPC-009: LocationEventBanner - Location-wide events
+//! US-DLG-017: EndConversationConfirmation - End conversation confirmation modal
 
 use dioxus::prelude::*;
 
@@ -159,6 +160,93 @@ pub fn LocationEventBanner(props: LocationEventBannerProps) -> Element {
                 p {
                     class: "text-gray-500 text-xs text-center mt-4 m-0",
                     "Click anywhere to continue"
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// US-DLG-017: End Conversation Confirmation Modal
+// =============================================================================
+
+/// Props for EndConversationConfirmation
+#[derive(Props, Clone, PartialEq)]
+pub struct EndConversationConfirmationProps {
+    /// NPC name for display
+    pub npc_name: String,
+    /// Handler for confirming end conversation
+    pub on_confirm: EventHandler<()>,
+    /// Handler for cancelling
+    pub on_cancel: EventHandler<()>,
+}
+
+/// Confirmation modal for ending a conversation
+///
+/// Shows a dialog asking the player to confirm they want to end
+/// the current conversation with an NPC.
+#[component]
+pub fn EndConversationConfirmation(props: EndConversationConfirmationProps) -> Element {
+    rsx! {
+        // Semi-transparent overlay
+        div {
+            class: "end-conversation-overlay fixed inset-0 bg-black/70 z-[950] flex items-center justify-center p-4 backdrop-blur-sm",
+            onclick: move |_| props.on_cancel.call(()),
+
+            // Confirmation card
+            div {
+                class: "end-conversation-card bg-gradient-to-br from-dark-surface to-dark-bg rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-red-500/30",
+                onclick: move |e| e.stop_propagation(),
+
+                // Header
+                div {
+                    class: "p-6 border-b border-red-500/20",
+
+                    // Icon and title
+                    div {
+                        class: "flex items-center gap-3 mb-3",
+
+                        // Warning icon
+                        span {
+                            class: "text-3xl",
+                            "⚠️"
+                        }
+
+                        h2 {
+                            class: "text-xl font-bold text-red-400 m-0",
+                            "End Conversation?"
+                        }
+                    }
+
+                    // NPC name
+                    p {
+                        class: "text-gray-300 m-0",
+                        "Are you sure you want to end the conversation with "
+                        span {
+                            class: "text-amber-300 font-semibold",
+                            "{props.npc_name}"
+                        }
+                        "?"
+                    }
+                }
+
+                // Action buttons
+                div {
+                    class: "p-6 flex gap-3",
+
+                    // Cancel button
+                    button {
+                        class: "flex-1 p-3 bg-gray-700 hover:bg-gray-600 text-white border-none rounded-lg cursor-pointer font-semibold transition-all",
+                        onclick: move |_| props.on_cancel.call(()),
+                        "Cancel"
+                    }
+
+                    // Confirm button
+                    button {
+                        class: "flex-1 p-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white border-none rounded-lg cursor-pointer font-semibold transition-all",
+                        onclick: move |_| props.on_confirm.call(()),
+                        "End Conversation"
+                    }
                 }
             }
         }

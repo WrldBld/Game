@@ -1,14 +1,23 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
+
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 pub(super) async fn handle_directorial_update(
     state: &WsState,
-    connection_id: Uuid,
-    context: wrldbldr_protocol::DirectorialContext,
+    connection_id: ConnectionId,
+    context: wrldbldr_shared::DirectorialContext,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can update directorial context
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -17,13 +26,19 @@ pub(super) async fn handle_directorial_update(
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
+    let context_store = crate::stores::DirectorialContextStore::new(state.connections.clone());
     let ctx = crate::use_cases::session::DirectorialUpdateContext {
-        connections: &state.connections,
+        context_store: &context_store,
     };
-    let input = crate::use_cases::session::DirectorialUpdateInput { world_id, context };
+    let input = crate::use_cases::session::DirectorialUpdateInput::from_protocol(world_id, context);
 
     // Store directorial context in per-world cache for LLM prompts.
     state
@@ -39,7 +54,7 @@ pub(super) async fn handle_directorial_update(
 
 pub(super) async fn handle_trigger_approach_event(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     npc_id: String,
     target_pc_id: String,
     description: String,
@@ -48,7 +63,12 @@ pub(super) async fn handle_trigger_approach_event(
     // Get connection info - only DMs can trigger approach events
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -77,8 +97,10 @@ pub(super) async fn handle_trigger_approach_event(
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!(error = %e, "Failed to build approach event");
-            return Some(error_response("APPROACH_EVENT_ERROR", &e.to_string()));
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "build approach event"),
+            ));
         }
     };
 
@@ -101,14 +123,19 @@ pub(super) async fn handle_trigger_approach_event(
 
 pub(super) async fn handle_trigger_location_event(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     region_id: String,
     description: String,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can trigger location events
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -130,11 +157,13 @@ pub(super) async fn handle_trigger_location_event(
     {
         Ok(event) => event,
         Err(crate::use_cases::location_events::LocationEventError::RegionNotFound) => {
-            return Some(error_response("NOT_FOUND", "Region not found"))
+            return Some(error_response(ErrorCode::NotFound, "Region not found"))
         }
         Err(e) => {
-            tracing::error!(error = %e, "Failed to trigger location event");
-            return Some(error_response("LOCATION_EVENT_ERROR", &e.to_string()));
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "trigger location event"),
+            ));
         }
     };
 
@@ -152,7 +181,7 @@ pub(super) async fn handle_trigger_location_event(
 
 pub(super) async fn handle_share_npc_location(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     pc_id: String,
     npc_id: String,
     location_id: String,
@@ -162,7 +191,12 @@ pub(super) async fn handle_share_npc_location(
     // Get connection info - only DMs can share NPC locations
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -199,8 +233,10 @@ pub(super) async fn handle_share_npc_location(
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!(error = %e, "Failed to share NPC location");
-            return Some(error_response("NPC_LOCATION_ERROR", &e.to_string()));
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "share NPC location"),
+            ));
         }
     };
 

@@ -10,6 +10,17 @@ use crate::ports::outbound::platform::{
 use crate::state::Platform;
 use std::{future::Future, pin::Pin};
 
+/// No-op runtime guard for WASM (browser handles async runtime).
+pub struct RuntimeGuard;
+
+/// Initialize the async runtime for WASM.
+/// Returns a no-op guard since the browser provides the async runtime.
+///
+/// This function always succeeds on WASM since no runtime initialization is needed.
+pub fn init_async_runtime() -> Result<RuntimeGuard, std::io::Error> {
+    Ok(RuntimeGuard)
+}
+
 /// WASM time provider using js_sys::Date
 #[derive(Clone, Default)]
 pub struct WasmTimeProvider;

@@ -102,6 +102,25 @@ pub struct PreviousStagingData {
     pub npcs: Vec<StagedNpcData>,
 }
 
+/// Time advance data for toast notification
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeAdvanceNotification {
+    /// Time before advancement
+    pub previous_time: GameTime,
+    /// Time after advancement
+    pub new_time: GameTime,
+    /// Seconds that were advanced
+    pub seconds_advanced: u32,
+    /// Human-readable reason
+    pub reason: String,
+    /// Whether time period changed
+    pub period_changed: bool,
+    /// New period name if changed
+    pub new_period: Option<String>,
+    /// When this notification was created (for auto-dismiss)
+    pub created_at_ms: u64,
+}
+
 /// PC waiting for staging approval
 #[derive(Clone, Debug, PartialEq)]
 pub struct WaitingPcData {
@@ -124,7 +143,14 @@ pub struct StagingApprovalData {
     pub llm_based_npcs: Vec<StagedNpcData>,
     pub default_ttl_hours: i32,
     pub waiting_pcs: Vec<WaitingPcData>,
+    // Visual State Fields
+    pub resolved_visual_state: Option<ResolvedVisualStateData>,
+    pub available_location_states: Vec<StateOptionData>,
+    pub available_region_states: Vec<StateOptionData>,
 }
+
+/// Resolved visual state for staging (re-export from shared)
+pub use wrldbldr_shared::types::{ResolvedStateInfoData, ResolvedVisualStateData, StateOptionData};
 
 /// Staging status for a specific region (for DM panel display)
 #[derive(Clone, Debug, PartialEq)]
@@ -150,7 +176,7 @@ pub struct TimeSuggestionData {
     pub pc_name: String,
     pub action_type: String,
     pub action_description: String,
-    pub suggested_minutes: u32,
+    pub suggested_seconds: u32,
     pub current_time: GameTime,
     pub resulting_time: GameTime,
     pub period_change: Option<(String, String)>,
@@ -166,17 +192,21 @@ pub enum TimeMode {
     Suggested,
 }
 
-impl TimeMode {
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
+impl std::str::FromStr for TimeMode {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
             "manual" => TimeMode::Manual,
             "suggested" => TimeMode::Suggested,
             // Auto mode is intentionally treated as Suggested.
             "auto" | "automatic" => TimeMode::Suggested,
             _ => TimeMode::Suggested,
-        }
+        })
     }
+}
 
+impl TimeMode {
     pub fn display_name(&self) -> &'static str {
         match self {
             TimeMode::Manual => "Manual",
@@ -236,11 +266,19 @@ pub struct GameState {
     pub time_mode: Signal<TimeMode>,
     /// Whether game time is currently paused
     pub time_paused: Signal<bool>,
+    /// Time advance notification for player toast (respects show_time_to_players)
+    pub time_advance_notification: Signal<Option<TimeAdvanceNotification>>,
     /// Current moods of NPCs in the scene (npc_id -> mood string)
     /// Updated by NpcMoodChanged events, used for expression/sprite display
     pub npc_moods: Signal<HashMap<String, String>>,
-    /// Whether the backdrop is transitioning (fade effect during scene change)
+    /// Whether to backdrop is transitioning (fade effect during scene change)
     pub backdrop_transitioning: Signal<bool>,
+    /// Resolved visual state override from staging (for backdrop/atmosphere)
+    pub visual_state_override: Signal<Option<ResolvedVisualStateData>>,
+    /// Active conversations list (for DM panel - updated from ActiveConversationsList event)
+    pub active_conversations: Signal<Vec<wrldbldr_shared::ConversationInfo>>,
+    /// Conversation details (for DM panel - updated from ConversationDetails event)
+    pub conversation_details: Signal<Option<wrldbldr_shared::ConversationFullDetails>>,
 }
 
 impl GameState {
@@ -271,8 +309,12 @@ impl GameState {
             pending_time_suggestions: Signal::new(Vec::new()),
             time_mode: Signal::new(TimeMode::default()),
             time_paused: Signal::new(true),
+            time_advance_notification: Signal::new(None),
             npc_moods: Signal::new(HashMap::new()),
             backdrop_transitioning: Signal::new(false),
+            visual_state_override: Signal::new(None),
+            active_conversations: Signal::new(Vec::new()),
+            conversation_details: Signal::new(None),
         }
     }
 
@@ -312,6 +354,8 @@ impl GameState {
         self.region_items.set(region_items);
         // Clear NPC moods when changing scene - they'll be repopulated from staging
         self.clear_npc_moods();
+        // Clear visual state override - new staging will provide fresh overrides
+        self.clear_visual_state_override();
     }
 
     /// Trigger a backdrop fade transition effect
@@ -488,7 +532,17 @@ impl GameState {
         self.npc_moods.write().clear();
     }
 
-    /// Set the staging status for a specific region
+    /// Set visual state override from staging approval
+    pub fn set_visual_state_override(&mut self, visual_state: Option<ResolvedVisualStateData>) {
+        self.visual_state_override.set(visual_state);
+    }
+
+    /// Clear visual state override (when changing scenes)
+    pub fn clear_visual_state_override(&mut self) {
+        self.visual_state_override.set(None);
+    }
+
+    /// Set to staging status for a specific region
     pub fn set_region_staging_status(&mut self, region_id: String, status: RegionStagingStatus) {
         self.region_staging_statuses
             .write()
@@ -540,6 +594,52 @@ impl GameState {
     /// Set whether time is paused
     pub fn set_time_paused(&mut self, paused: bool) {
         self.time_paused.set(paused);
+    }
+
+    /// Set time advance notification (respects show_time_to_players flag)
+    pub fn set_time_advance_notification(
+        &mut self,
+        previous_time: GameTime,
+        new_time: GameTime,
+        seconds_advanced: u32,
+        reason: String,
+        period_changed: bool,
+        new_period: Option<String>,
+        created_at_ms: u64,
+    ) {
+        self.time_advance_notification
+            .set(Some(TimeAdvanceNotification {
+                previous_time,
+                new_time,
+                seconds_advanced,
+                reason,
+                period_changed,
+                new_period,
+                created_at_ms,
+            }));
+    }
+
+    /// Clear time advance notification
+    pub fn clear_time_advance_notification(&mut self) {
+        self.time_advance_notification.set(None);
+    }
+
+    /// Set active conversations list (from ActiveConversationsList event)
+    pub fn set_active_conversations(
+        &mut self,
+        conversations: Vec<wrldbldr_shared::ConversationInfo>,
+    ) {
+        self.active_conversations.set(conversations);
+    }
+
+    /// Set conversation details (from ConversationDetails event)
+    pub fn set_conversation_details(&mut self, details: wrldbldr_shared::ConversationFullDetails) {
+        self.conversation_details.set(Some(details));
+    }
+
+    /// Clear conversation details
+    pub fn clear_conversation_details(&mut self) {
+        self.conversation_details.set(None);
     }
 
     /// Trigger appropriate refresh based on entity change notification
@@ -614,7 +714,23 @@ impl GameState {
 
     /// Get the backdrop URL for the current scene
     pub fn backdrop_url(&self) -> Option<String> {
-        // First check scene override, then location backdrop
+        // Check visual state override first (from staging approval)
+        let visual_override = self.visual_state_override.read();
+        if let Some(ref state) = *visual_override {
+            // Priority: region state > location state
+            if let Some(ref region_state) = state.region_state {
+                if let Some(ref backdrop) = region_state.backdrop_override {
+                    return Some(backdrop.clone());
+                }
+            }
+            if let Some(ref location_state) = state.location_state {
+                if let Some(ref backdrop) = location_state.backdrop_override {
+                    return Some(backdrop.clone());
+                }
+            }
+        }
+
+        // Then check scene override, then location backdrop
         let scene_binding = self.current_scene.read();
         if let Some(scene) = scene_binding.as_ref() {
             if let Some(ref backdrop) = scene.backdrop_asset {
@@ -656,6 +772,10 @@ impl GameState {
         self.pending_time_suggestions.write().clear();
         self.time_mode.set(TimeMode::default());
         self.time_paused.set(true);
+        self.time_advance_notification.set(None);
+        self.clear_visual_state_override();
+        self.active_conversations.set(Vec::new());
+        self.conversation_details.set(None);
     }
 
     /// Clear all state

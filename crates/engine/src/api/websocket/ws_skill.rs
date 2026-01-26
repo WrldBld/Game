@@ -1,9 +1,10 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain as domain;
-use wrldbldr_protocol::{ErrorCode, ResponseResult, SkillRequest};
+use wrldbldr_shared::{ErrorCode, ResponseResult, SkillRequest};
 
 pub(super) async fn handle_skill_request(
     state: &WsState,
@@ -23,13 +24,12 @@ pub(super) async fn handle_skill_request(
                 .await
             {
                 Ok(skills) => {
-                    let data: Vec<serde_json::Value> =
-                        skills.iter().map(skill_to_json).collect();
+                    let data: Vec<serde_json::Value> = skills.iter().map(skill_to_json).collect();
                     Ok(ResponseResult::success(json!(data)))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing skills"),
                 )),
             }
         }
@@ -50,7 +50,7 @@ pub(super) async fn handle_skill_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "getting skill"),
                 )),
             }
         }
@@ -75,12 +75,12 @@ pub(super) async fn handle_skill_request(
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
-                Err(crate::use_cases::management::ManagementError::Domain(msg)) => {
-                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-                }
+                Err(crate::use_cases::management::ManagementError::Domain(err)) => Ok(
+                    ResponseResult::error(ErrorCode::BadRequest, err.to_string()),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating skill"),
                 )),
             }
         }
@@ -103,18 +103,18 @@ pub(super) async fn handle_skill_request(
                 .await
             {
                 Ok(skill) => Ok(ResponseResult::success(skill_to_json(&skill))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Skill not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
-                Err(crate::use_cases::management::ManagementError::Domain(msg)) => {
-                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-                }
+                Err(crate::use_cases::management::ManagementError::Domain(err)) => Ok(
+                    ResponseResult::error(ErrorCode::BadRequest, err.to_string()),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "updating skill"),
                 )),
             }
         }
@@ -130,12 +130,12 @@ pub(super) async fn handle_skill_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Skill not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "deleting skill"),
                 )),
             }
         }

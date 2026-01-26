@@ -152,7 +152,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
                             rsx! {
                                 button {
                                     onclick: {
-                                        let mut state = use_generation_state();
+                                        let mut state = generation_state;
                                         move |_| {
                                             let batches = state.get_batches();
                                             let to_remove: Vec<_> = batches.iter()
@@ -345,7 +345,10 @@ fn QueueItemRow(
     world_id: Option<String>,
     #[props(default)] on_navigate_to_entity: Option<EventHandler<(String, String)>>,
 ) -> Element {
+    // CRITICAL: All hooks must be called unconditionally at the top
     let generation_service = use_generation_service();
+    let asset_service = use_asset_service();
+    let generation_state = use_generation_state();
     let platform = use_platform();
     let mut expanded_error: Signal<bool> = use_signal(|| false);
     let mut expanded_details: Signal<bool> = use_signal(|| false);
@@ -392,12 +395,11 @@ fn QueueItemRow(
                             button {
                                 onclick: {
                                     let batch_id = batch.batch_id.clone();
-                                    let asset_service = use_asset_service();
-                                    let state = use_generation_state();
+                                    let svc = asset_service.clone();
+                                    let mut gen_state = generation_state;
                                     move |_| {
                                         let bid = batch_id.clone();
-                                        let svc = asset_service.clone();
-                                        let mut gen_state = state;
+                                        let svc = svc.clone();
                                         spawn_task(async move {
                                             match svc.cancel_batch(&bid).await {
                                                 Ok(_) => {
@@ -434,12 +436,11 @@ fn QueueItemRow(
                             button {
                                 onclick: {
                                     let batch_id = batch.batch_id.clone();
-                                    let asset_service = use_asset_service();
-                                    let state = use_generation_state();
+                                    let svc = asset_service.clone();
+                                    let mut gen_state = generation_state;
                                     move |_| {
                                         let bid = batch_id.clone();
-                                        let svc = asset_service.clone();
-                                        let mut gen_state = state;
+                                        let svc = svc.clone();
                                         spawn_task(async move {
                                             match svc.cancel_batch(&bid).await {
                                                 Ok(_) => {
@@ -472,7 +473,7 @@ fn QueueItemRow(
                                     let batch_id = batch.batch_id.clone();
                                     let entity_type = batch.entity_type.clone();
                                     let entity_id = batch.entity_id.clone();
-                                    let state = use_generation_state();
+                                    let mut gen_state = generation_state;
                                     let world_id_clone = world_id.clone();
                                     let nav_handler = on_navigate_to_entity;
                                     let gen_svc = generation_service.clone();
@@ -480,7 +481,6 @@ fn QueueItemRow(
                                     move |_| {
                                         let bid = batch_id.clone();
                                         let wid = world_id_clone.clone();
-                                        let mut gen_state = state;
                                         let nav = nav_handler;
                                         let svc = gen_svc.clone();
                                         let plat = plat_clone.clone();
@@ -501,9 +501,9 @@ fn QueueItemRow(
                             button {
                                 onclick: {
                                     let batch_id = batch_id.clone();
+                                    let mut gen_state = generation_state;
                                     move |_| {
-                                        let mut state = use_generation_state();
-                                        state.remove_batch(&batch_id);
+                                        gen_state.remove_batch(&batch_id);
                                     }
                                 },
                                 class: "px-2 py-1 bg-gray-500 text-white border-none rounded cursor-pointer text-xs",
@@ -530,12 +530,11 @@ fn QueueItemRow(
                             button {
                                 onclick: {
                                     let batch_id = batch.batch_id.clone();
-                                    let asset_service = use_asset_service();
-                                    let state = use_generation_state();
+                                    let svc = asset_service.clone();
+                                    let mut gen_state = generation_state;
                                     move |_| {
                                         let bid = batch_id.clone();
-                                        let svc = asset_service.clone();
-                                        let mut gen_state = state;
+                                        let svc = svc.clone();
                                         spawn_task(async move {
                                             match svc.retry_batch(&bid).await {
                                                 Ok(new_batch_id) => {
@@ -558,9 +557,9 @@ fn QueueItemRow(
                             button {
                                 onclick: {
                                     let batch_id_copy = batch_id.clone();
+                                    let mut gen_state = generation_state;
                                     move |_| {
-                                        let mut state = use_generation_state();
-                                        state.remove_batch(&batch_id_copy);
+                                        gen_state.remove_batch(&batch_id_copy);
                                     }
                                 },
                                 class: "px-2 py-1 bg-gray-500 text-white border-none rounded cursor-pointer text-xs",
@@ -910,10 +909,7 @@ fn SuggestionViewModal(
 
     let field_type = suggestion.field_type.clone();
     let request_id = suggestion.request_id.clone();
-    let title = format!(
-        "Suggestions for {}",
-        field_type.replace("_", " ")
-    );
+    let title = format!("Suggestions for {}", field_type.replace("_", " "));
 
     // Determine entity type from field type for navigation
     let entity_type = if field_type.starts_with("character_")
@@ -929,8 +925,11 @@ fn SuggestionViewModal(
         "characters" // Default fallback
     };
 
-    let can_navigate = suggestion.entity_id.is_some() && on_navigate.is_some();
-    let entity_id_for_nav = suggestion.entity_id.clone();
+    let navigate_data = suggestion
+        .entity_id
+        .clone()
+        .zip(on_navigate)
+        .map(|(id, handler)| (id, entity_type.to_string(), handler));
 
     rsx! {
         // Backdrop
@@ -997,16 +996,11 @@ fn SuggestionViewModal(
 
                 div {
                     class: "flex justify-end gap-2 mt-3",
-                    if can_navigate {
+                    if let Some((entity_id, entity_type, handler)) = navigate_data.clone() {
                         button {
-                            onclick: {
-                                let entity_id = entity_id_for_nav.clone().unwrap();
-                                let entity_type = entity_type.to_string();
-                                let handler = on_navigate.unwrap();
-                                move |_| {
-                                    handler.call((entity_type.clone(), entity_id.clone()));
-                                    on_close.call(());
-                                }
+                            onclick: move |_| {
+                                handler.call((entity_type.clone(), entity_id.clone()));
+                                on_close.call(());
                             },
                             class: "px-3 py-1 bg-blue-600 text-white border-none rounded-md text-[0.8rem] cursor-pointer",
                             "Go to Form"

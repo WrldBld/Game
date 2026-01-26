@@ -85,20 +85,56 @@ pub fn handle_server_message(
         }
 
         PlayerEvent::ConversationEnded {
-            npc_id: _,
+            npc_id,
             npc_name,
             pc_id: _,
-            summary,
-            conversation_id: _,
+            summary: _,
+            conversation_id: ended_conversation_id,
+            ended_by,
+            reason,
         } => {
-            // Log the conversation end
-            let msg = match summary {
-                Some(s) => format!("Conversation ended: {}", s),
-                None => "Conversation ended.".to_string(),
+            // Log to conversation log
+            let msg = match (ended_by, reason) {
+                (Some(s), _) => format!("Conversation ended by: {}", s),
+                (None, Some(r)) => format!("Conversation ended: {}", r),
+                (None, None) => "Conversation ended.".to_string(),
             };
             session_state.add_log_entry(npc_name, msg, false, platform);
-            // Clear dialogue state since conversation is over (includes conversation_id)
-            dialogue_state.clear();
+
+            // Only clear dialogue state if this is the active conversation
+            // Don't clear state for unrelated conversations
+            let active_conversation_id = dialogue_state.get_conversation_id();
+
+            match ended_conversation_id {
+                // If conversation_id is provided, clear only if it matches active conversation
+                Some(ref ended_id) => {
+                    if active_conversation_id.as_ref() == Some(ended_id) {
+                        dialogue_state.clear();
+                    }
+                }
+                // If conversation_id is None, clear when NPC matches OR when no active conversation
+                None => {
+                    let current_npc_id = dialogue_state.speaker_id.read().clone();
+                    if active_conversation_id.is_none() || current_npc_id.as_ref() == Some(&npc_id) {
+                        dialogue_state.clear();
+                    }
+                }
+            }
+        }
+
+        PlayerEvent::ActiveConversationsList { conversations } => {
+            tracing::info!("Received {} active conversations", conversations.len());
+            // Store conversations in game state for UI components to access
+            game_state.set_active_conversations(conversations);
+        }
+
+        PlayerEvent::ConversationDetails { details } => {
+            tracing::info!(
+                "Received details for conversation: {}",
+                details.conversation_id
+            );
+            // Store conversation details in game state for UI components to access
+            game_state.set_conversation_details(details);
         }
 
         PlayerEvent::LLMProcessing { action_id } => {
@@ -145,6 +181,8 @@ pub fn handle_server_message(
             let error_msg = format!("Server error [{}]: {}", code, message);
             tracing::error!("{}", error_msg);
             session_state.error_message().set(Some(error_msg));
+            // Clear LLM processing flag on error
+            dialogue_state.is_llm_processing.set(false);
         }
 
         PlayerEvent::Pong => {}
@@ -264,13 +302,14 @@ pub fn handle_server_message(
             roll_breakdown,
             individual_rolls,
         } => {
-            // Clear active challenge if it matches
-            let active = { session_state.active_challenge().read().clone() };
-            if let Some(active_challenge) = active {
-                if active_challenge.challenge_id == challenge_id {
-                    session_state.clear_active_challenge();
-                }
-            }
+            // Keep active challenge open - player needs to acknowledge result
+            // Modal will close when player clicks "Continue" button in ResultDisplayPhase
+
+            // DM queue cleanup: remove pending challenge outcome from approval state
+            // When a challenge is resolved, it's no longer pending DM approval
+            session_state
+                .approval
+                .remove_pending_challenge_outcome_by_challenge(&challenge_id);
 
             let timestamp = platform.now_unix_secs();
             let result = ChallengeResultData {
@@ -349,12 +388,8 @@ pub fn handle_server_message(
                         match outcome_type.as_str() {
                             "success" => outcomes.success = Some(outcome_text),
                             "failure" => outcomes.failure = Some(outcome_text),
-                            "critical_success" => {
-                                outcomes.critical_success = Some(outcome_text)
-                            }
-                            "critical_failure" => {
-                                outcomes.critical_failure = Some(outcome_text)
-                            }
+                            "critical_success" => outcomes.critical_success = Some(outcome_text),
+                            "critical_failure" => outcomes.critical_failure = Some(outcome_text),
                             // "all" or unknown: update success/failure as a minimal default
                             _ => {
                                 outcomes.success = Some(outcome_text.clone());
@@ -434,7 +469,7 @@ pub fn handle_server_message(
         // P3.3/P3.4: Challenge outcome pending DM approval (DM only)
         PlayerEvent::ChallengeOutcomePending {
             resolution_id,
-            challenge_id: _,
+            challenge_id,
             challenge_name,
             character_id,
             character_name,
@@ -459,6 +494,7 @@ pub fn handle_server_message(
             let timestamp = platform.now_unix_secs();
             let pending = PendingChallengeOutcome {
                 resolution_id,
+                challenge_id,
                 challenge_name,
                 character_id,
                 character_name,
@@ -606,16 +642,18 @@ pub fn handle_server_message(
             npcs_present,
             navigation,
             region_items,
+            visual_state,
         } => {
             tracing::info!(
-                "Scene changed for PC {}: {} in {} ({} NPCs, {} regions, {} exits, {} items)",
+                "Scene changed for PC {}: {} in {} ({} NPCs, {} regions, {} exits, {} items, visual state: {})",
                 pc_id,
                 region.name,
                 region.location_name,
                 npcs_present.len(),
                 navigation.connected_regions.len(),
                 navigation.exits.len(),
-                region_items.len()
+                region_items.len(),
+                visual_state.is_some()
             );
 
             // Clear any active dialogue when changing scenes
@@ -630,6 +668,9 @@ pub fn handle_server_message(
                 navigation,
                 region_items,
             );
+
+            // Apply visual state override if provided in SceneChanged
+            game_state.set_visual_state_override(visual_state);
 
             session_state.add_log_entry(
                 "System".to_string(),
@@ -654,8 +695,8 @@ pub fn handle_server_message(
         // =========================================================================
         PlayerEvent::GameTimeUpdated { game_time } => {
             // PlayerEvent already contains application-layer types
-            let time_display = crate::presentation::game_time_format::display_date(game_time);
-            let time_of_day = crate::presentation::game_time_format::time_of_day(game_time);
+            let time_display = crate::presentation::game_time_format::display_date(&game_time);
+            let time_of_day = crate::presentation::game_time_format::time_of_day(&game_time);
 
             tracing::info!(
                 "Game time updated: {} ({}, paused: {})",
@@ -675,13 +716,14 @@ pub fn handle_server_message(
         }
 
         PlayerEvent::GameTimeAdvanced {
+            previous_time,
             new_time,
+            seconds_advanced,
             reason,
             period_changed,
             new_period,
-            ..
         } => {
-            let time_display = crate::presentation::game_time_format::display_date(new_time);
+            let time_display = crate::presentation::game_time_format::display_date(&new_time);
 
             tracing::info!(
                 "Game time advanced: {} (reason: {}, period_changed: {})",
@@ -690,7 +732,23 @@ pub fn handle_server_message(
                 period_changed
             );
 
-            game_state.apply_game_time_update(new_time);
+            // Clone values before using them in methods that take ownership
+            let new_time_for_update = new_time.clone();
+            game_state.apply_game_time_update(new_time_for_update);
+
+            // Set toast notification if show_time_to_players is enabled
+            if *session_state.should_show_time_to_players().read() {
+                let created_at_ms = platform.now_millis();
+                game_state.set_time_advance_notification(
+                    previous_time,
+                    new_time.clone(),
+                    seconds_advanced,
+                    reason.clone(),
+                    period_changed,
+                    new_period.clone(),
+                    created_at_ms,
+                );
+            }
 
             let message = if period_changed {
                 if let Some(ref period) = new_period {
@@ -711,23 +769,24 @@ pub fn handle_server_message(
             pc_name,
             action_type,
             action_description,
-            suggested_minutes,
+            suggested_seconds,
             current_time,
             resulting_time,
             period_change,
         } => {
             // DM-only: show time suggestion for approval
-            let current_display = crate::presentation::game_time_format::display_date(current_time);
+            let current_display =
+                crate::presentation::game_time_format::display_date(&current_time);
             let resulting_display =
-                crate::presentation::game_time_format::display_date(resulting_time);
+                crate::presentation::game_time_format::display_date(&resulting_time);
 
             tracing::info!(
-                "Time suggestion: {} - {} ({} -> {}, +{} min)",
+                "Time suggestion: {} - {} ({} -> {}, +{} sec)",
                 suggestion_id,
                 action_description,
                 current_display,
                 resulting_display,
-                suggested_minutes
+                suggested_seconds
             );
 
             // Add to DM time suggestions queue
@@ -735,9 +794,9 @@ pub fn handle_server_message(
                 suggestion_id: suggestion_id.clone(),
                 pc_id,
                 pc_name: pc_name.clone(),
-                action_type,
+                action_type: action_type.clone(),
                 action_description: action_description.clone(),
-                suggested_minutes,
+                suggested_seconds,
                 current_time,
                 resulting_time,
                 period_change,
@@ -746,10 +805,10 @@ pub fn handle_server_message(
             session_state.add_log_entry(
                 "Time".to_string(),
                 format!(
-                    "{}: {} suggests +{} min ({} -> {})",
+                    "{}: {} suggests +{} sec ({} -> {})",
                     pc_name,
                     action_description,
-                    suggested_minutes,
+                    suggested_seconds,
                     current_display,
                     resulting_display
                 ),
@@ -760,7 +819,7 @@ pub fn handle_server_message(
 
         PlayerEvent::TimeModeChanged { world_id, mode } => {
             tracing::info!("Time mode changed for world {}: {}", world_id, mode);
-            game_state.set_time_mode(crate::presentation::state::TimeMode::from_str(&mode));
+            game_state.set_time_mode(mode.parse().unwrap_or_default());
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Time mode changed to: {}", mode),
@@ -784,9 +843,20 @@ pub fn handle_server_message(
             );
         }
 
-        PlayerEvent::TimeConfigUpdated { mode, .. } => {
-            tracing::info!("Time config updated: mode={}", mode);
-            // DM-only notification
+        PlayerEvent::TimeConfigUpdated {
+            world_id: _,
+            mode,
+            show_time_to_players,
+        } => {
+            tracing::info!(
+                "Time config updated: mode={}, show_time_to_players={}",
+                mode,
+                show_time_to_players
+            );
+            // Update time mode (DM-only, but we track it anyway)
+            game_state.set_time_mode(mode.parse().unwrap_or_default());
+            // Update show_time_to_players flag (for player toast)
+            session_state.set_show_time_to_players(show_time_to_players);
         }
 
         // =========================================================================
@@ -839,7 +909,9 @@ pub fn handle_server_message(
             llm_based_npcs,
             default_ttl_hours,
             waiting_pcs,
-            .. // Visual state fields - TODO: Handle in UI when implemented
+            resolved_visual_state,
+            available_location_states,
+            available_region_states,
         } => {
             tracing::info!(
                 "Staging approval required for region {} ({}): {} rule-based, {} LLM-based NPCs",
@@ -860,11 +932,15 @@ pub fn handle_server_message(
                 npcs: p.npcs.into_iter().map(StagedNpcData::from).collect(),
             });
 
-            let rule_npcs: Vec<StagedNpcData> =
-                rule_based_npcs.into_iter().map(StagedNpcData::from).collect();
+            let rule_npcs: Vec<StagedNpcData> = rule_based_npcs
+                .into_iter()
+                .map(StagedNpcData::from)
+                .collect();
 
-            let llm_npcs: Vec<StagedNpcData> =
-                llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
+                .into_iter()
+                .map(StagedNpcData::from)
+                .collect();
 
             let waiting: Vec<WaitingPcData> = waiting_pcs
                 .into_iter()
@@ -891,6 +967,9 @@ pub fn handle_server_message(
                 llm_based_npcs: llm_npcs,
                 default_ttl_hours,
                 waiting_pcs: waiting,
+                resolved_visual_state,
+                available_location_states,
+                available_region_states,
             });
 
             session_state.add_log_entry(
@@ -921,7 +1000,12 @@ pub fn handle_server_message(
 
             // Get current time from platform port for countdown tracking
             let started_at_ms = platform.now_millis();
-            game_state.set_staging_pending(region_id, region_name.clone(), timeout_seconds, started_at_ms);
+            game_state.set_staging_pending(
+                region_id,
+                region_name.clone(),
+                timeout_seconds,
+                started_at_ms,
+            );
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Setting the scene in {}...", region_name),
@@ -933,7 +1017,7 @@ pub fn handle_server_message(
         PlayerEvent::StagingReady {
             region_id,
             npcs_present,
-            .. // visual_state - TODO: Handle in UI when implemented
+            visual_state: _visual_state, // Not used - VisualStateChanged handles it
         } => {
             tracing::info!(
                 "Staging ready for region {}: {} NPCs present",
@@ -943,8 +1027,12 @@ pub fn handle_server_message(
 
             // Clear the pending staging overlay (for players)
             game_state.clear_staging_pending();
-            // Clear the DM approval popup (staging has been approved)
+            // Clear DM approval popup (staging has been approved)
             game_state.clear_pending_staging_approval();
+
+            // Note: Visual state override is NOT set here
+            // The VisualStateChanged message (broadcast immediately after StagingReady)
+            // will handle the visual state update with region matching logic
 
             // Update region staging status to Active with NPC names
             let npc_names: Vec<String> = npcs_present.iter().map(|n| n.name.clone()).collect();
@@ -969,6 +1057,83 @@ pub fn handle_server_message(
             game_state.npcs_present.set(npcs);
         }
 
+        PlayerEvent::VisualStateChanged {
+            region_id,
+            visual_state,
+        } => {
+            // Only apply visual state override if current region matches message's region_id
+            // This prevents applying visual state updates for regions the player is not in
+            // If region_id is None, apply regardless of current region (global update)
+            let current_region_id = game_state
+                .current_region
+                .read()
+                .as_ref()
+                .map(|r| r.id.clone());
+
+            match region_id {
+                // Specific region update
+                Some(region_id) => {
+                    tracing::info!(
+                        "Visual state changed for region {}: {}",
+                        region_id,
+                        visual_state.is_some()
+                    );
+
+                    if let Some(current_id) = current_region_id {
+                        if current_id == region_id {
+                            // Check if visual state is provided before moving it
+                            let has_visual_state = visual_state.is_some();
+                            // Apply visual state override (None will clear the override)
+                            game_state.set_visual_state_override(visual_state);
+                            if has_visual_state {
+                                tracing::debug!(
+                                    "Applied visual state override for current region {}",
+                                    region_id
+                                );
+                            } else {
+                                tracing::debug!(
+                                    "Cleared visual state override for current region {}",
+                                    region_id
+                                );
+                            }
+                        } else {
+                            tracing::debug!(
+                                "Ignored visual state update for region {} (not current region: {})",
+                                region_id,
+                                current_id
+                            );
+                        }
+                    } else {
+                        tracing::debug!(
+                            "Ignored visual state update for region {} (no current region)",
+                            region_id
+                        );
+                    }
+                }
+                // Global update (no region specified)
+                None => {
+                    tracing::info!(
+                        "Visual state changed (global): {}",
+                        visual_state.is_some()
+                    );
+
+                    // Apply regardless of current region, but only if we have one
+                    // This avoids clearing override when not in any scene
+                    if current_region_id.is_some() {
+                        let has_visual_state = visual_state.is_some();
+                        game_state.set_visual_state_override(visual_state);
+                        if has_visual_state {
+                            tracing::debug!("Applied global visual state override");
+                        } else {
+                            tracing::debug!("Cleared global visual state override");
+                        }
+                    } else {
+                        tracing::debug!("Ignored global visual state update (no current region)");
+                    }
+                }
+            }
+        }
+
         PlayerEvent::StagingRegenerated {
             request_id,
             llm_based_npcs,
@@ -981,8 +1146,10 @@ pub fn handle_server_message(
 
             // Update the LLM suggestions in the pending staging approval
             use crate::presentation::state::game_state::StagedNpcData;
-            let llm_npcs: Vec<StagedNpcData> =
-                llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
+                .into_iter()
+                .map(StagedNpcData::from)
+                .collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);
         }
@@ -1003,7 +1170,10 @@ pub fn handle_server_message(
             // Log a message so player knows they can retry
             session_state.add_log_entry(
                 "System".to_string(),
-                format!("Scene staging timed out for {}. You can try entering again.", region_name),
+                format!(
+                    "Scene staging timed out for {}. You can try entering again.",
+                    region_name
+                ),
                 true,
                 platform,
             );
@@ -1570,7 +1740,7 @@ pub fn handle_server_message(
                 discovery_source
             );
             // Create knowledge metadata for the discovery
-            let knowledge = wrldbldr_protocol::types::LoreKnowledgeData {
+            let knowledge = wrldbldr_shared::types::LoreKnowledgeData {
                 lore_id: lore.id.clone(),
                 character_id: character_id.clone(),
                 known_chunk_ids: discovered_chunk_ids,
@@ -1585,11 +1755,7 @@ pub fn handle_server_message(
             character_id,
             lore_id,
         } => {
-            tracing::info!(
-                "Lore {} revoked from character {}",
-                lore_id,
-                character_id
-            );
+            tracing::info!("Lore {} revoked from character {}", lore_id, character_id);
             lore_state.remove_lore(&lore_id);
         }
 
@@ -1638,7 +1804,7 @@ mod tests {
         pin::Pin,
         sync::{Arc, Mutex},
     };
-    use wrldbldr_protocol::types::GameTime;
+    use wrldbldr_shared::types::GameTime;
 
     struct TestPlatform {
         storage: Mutex<HashMap<String, String>>,
@@ -1724,8 +1890,8 @@ mod tests {
             handle_server_message(
                 PlayerEvent::GameTimeAdvanced {
                     previous_time,
-                    new_time,
-                    minutes_advanced: 60,
+                    new_time: new_time.clone(),
+                    seconds_advanced: 60,
                     reason: "Travel".to_string(),
                     period_changed: false,
                     new_period: None,
@@ -1769,9 +1935,9 @@ mod tests {
                     pc_name: "Alice".to_string(),
                     action_type: "conversation".to_string(),
                     action_description: "Talk".to_string(),
-                    suggested_minutes: 10,
-                    current_time,
-                    resulting_time,
+                    suggested_seconds: 10,
+                    current_time: current_time.clone(),
+                    resulting_time: resulting_time.clone(),
                     period_change: None,
                 },
                 &mut session_state,
@@ -1786,7 +1952,7 @@ mod tests {
             assert_eq!(suggestions.len(), 1);
             assert_eq!(suggestions[0].suggestion_id, "sug-1");
             assert_eq!(suggestions[0].pc_name, "Alice");
-            assert_eq!(suggestions[0].suggested_minutes, 10);
+            assert_eq!(suggestions[0].suggested_seconds, 10);
             assert_eq!(suggestions[0].current_time, current_time);
             assert_eq!(suggestions[0].resulting_time, resulting_time);
 

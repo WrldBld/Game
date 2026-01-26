@@ -1,3 +1,6 @@
+// Resilient LLM client - methods for future resilience features
+#![allow(dead_code)]
+
 //! Resilient LLM client wrapper with exponential backoff retry and circuit breaker
 //!
 //! Wraps any LlmPort implementation with retry logic and circuit breaker pattern
@@ -9,8 +12,10 @@ use rand::Rng;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::infrastructure::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitBreakerMetrics, CircuitState};
-use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse, ToolDefinition};
+use crate::infrastructure::circuit_breaker::{
+    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerMetrics, CircuitState,
+};
+use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse};
 
 /// Configuration for retry behavior
 #[derive(Debug, Clone)]
@@ -149,7 +154,11 @@ impl ResilientLlmClient {
     /// immediately rejected. This is intentional to avoid wasted work - a request that's
     /// already mid-retry should finish its attempts rather than fail immediately when
     /// another request trips the breaker.
-    async fn execute_with_retry<F, Fut>(&self, operation_name: &str, operation: F) -> Result<LlmResponse, LlmError>
+    async fn execute_with_retry<F, Fut>(
+        &self,
+        operation_name: &str,
+        operation: F,
+    ) -> Result<LlmResponse, LlmError>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<LlmResponse, LlmError>>,
@@ -218,7 +227,8 @@ impl ResilientLlmClient {
         // Record failure with circuit breaker after all retries exhausted
         self.circuit_breaker.record_failure();
 
-        let error = last_error.unwrap_or_else(|| LlmError::RequestFailed("Unknown error".to_string()));
+        let error =
+            last_error.unwrap_or_else(|| LlmError::RequestFailed("Unknown error".to_string()));
         tracing::error!(
             attempts = self.retry_config.max_retries + 1,
             error = %error,
@@ -239,21 +249,6 @@ impl LlmPort for ResilientLlmClient {
             let inner = Arc::clone(&inner);
             let request = request.clone();
             async move { inner.generate(request).await }
-        })
-        .await
-    }
-
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError> {
-        let inner = Arc::clone(&self.inner);
-        self.execute_with_retry("generate_with_tools", || {
-            let inner = Arc::clone(&inner);
-            let request = request.clone();
-            let tools = tools.clone();
-            async move { inner.generate_with_tools(request, tools).await }
         })
         .await
     }
@@ -288,25 +283,19 @@ mod tests {
             } else {
                 Ok(LlmResponse {
                     content: "Success!".to_string(),
-                    tool_calls: vec![],
                     finish_reason: crate::infrastructure::ports::FinishReason::Stop,
                     usage: None,
                 })
             }
         }
-
-        async fn generate_with_tools(
-            &self,
-            request: LlmRequest,
-            _tools: Vec<ToolDefinition>,
-        ) -> Result<LlmResponse, LlmError> {
-            self.generate(request).await
-        }
     }
 
     #[tokio::test]
     async fn test_succeeds_without_retry() {
-        let mock = Arc::new(FailingMockLlm::new(0, LlmError::RequestFailed("test".into())));
+        let mock = Arc::new(FailingMockLlm::new(
+            0,
+            LlmError::RequestFailed("test".into()),
+        ));
         let client = ResilientLlmClient::new(mock, RetryConfig::default());
 
         let request = LlmRequest::new(vec![]);
@@ -318,7 +307,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_succeeds_after_retry() {
-        let mock = Arc::new(FailingMockLlm::new(2, LlmError::RequestFailed("transient".into())));
+        let mock = Arc::new(FailingMockLlm::new(
+            2,
+            LlmError::RequestFailed("transient".into()),
+        ));
         let config = RetryConfig {
             max_retries: 3,
             base_delay_ms: 1, // Fast for tests
@@ -335,7 +327,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_fails_after_max_retries() {
-        let mock = Arc::new(FailingMockLlm::new(10, LlmError::RequestFailed("persistent".into())));
+        let mock = Arc::new(FailingMockLlm::new(
+            10,
+            LlmError::RequestFailed("persistent".into()),
+        ));
         let config = RetryConfig {
             max_retries: 2,
             base_delay_ms: 1,
@@ -352,7 +347,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_retry_on_auth_error() {
-        let mock = Arc::new(FailingMockLlm::new(10, LlmError::RequestFailed("401 Unauthorized".into())));
+        let mock = Arc::new(FailingMockLlm::new(
+            10,
+            LlmError::RequestFailed("401 Unauthorized".into()),
+        ));
         let mock_ref = Arc::clone(&mock);
         let config = RetryConfig {
             max_retries: 3,
@@ -404,7 +402,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_circuit_breaker_opens_after_failures() {
-        let mock = Arc::new(FailingMockLlm::new(100, LlmError::RequestFailed("persistent".into())));
+        let mock = Arc::new(FailingMockLlm::new(
+            100,
+            LlmError::RequestFailed("persistent".into()),
+        ));
         let retry_config = RetryConfig {
             max_retries: 0, // No retries - each call is one failure
             base_delay_ms: 1,
@@ -430,12 +431,18 @@ mod tests {
         // Next request should be rejected by circuit breaker
         let result = client.generate(request).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Circuit breaker is open"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Circuit breaker is open"));
     }
 
     #[tokio::test]
     async fn test_circuit_breaker_success_resets_failures() {
-        let mock = Arc::new(FailingMockLlm::new(2, LlmError::RequestFailed("transient".into())));
+        let mock = Arc::new(FailingMockLlm::new(
+            2,
+            LlmError::RequestFailed("transient".into()),
+        ));
         let retry_config = RetryConfig {
             max_retries: 0,
             base_delay_ms: 1,
@@ -467,7 +474,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_circuit_metrics() {
-        let mock = Arc::new(FailingMockLlm::new(2, LlmError::RequestFailed("test".into())));
+        let mock = Arc::new(FailingMockLlm::new(
+            2,
+            LlmError::RequestFailed("test".into()),
+        ));
         let retry_config = RetryConfig {
             max_retries: 0,
             base_delay_ms: 1,

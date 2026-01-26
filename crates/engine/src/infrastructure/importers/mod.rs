@@ -6,4 +6,4 @@
 mod fivetools;
 mod fivetools_types;
 
-pub use fivetools::{FiveToolsImporter, ImportError};
+pub use fivetools::{Dnd5eContentProvider, FiveToolsImporter, ImportError};

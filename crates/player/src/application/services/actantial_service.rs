@@ -10,10 +10,11 @@ use crate::infrastructure::messaging::CommandBus;
 // Note: Actantial enum types (WantVisibilityData, ActantialRoleData, etc.) are imported
 // as shared value objects. These are essentially protocol primitives used in DTOs.
 // This is a documented exception in the hexagonal architecture.
-use wrldbldr_protocol::{
-    ActantialRequest, ActantialRoleData, ActorTypeData, GoalRequest, NpcActantialContextData,
-    RequestPayload, WantRequest, WantTargetData, WantTargetTypeData, WantVisibilityData,
+use wrldbldr_shared::messages::{
+    ActantialRoleData, ActorTypeData, NpcActantialContextData, WantTargetData, WantTargetTypeData,
+    WantVisibilityData,
 };
+use wrldbldr_shared::{ActantialRequest, GoalRequest, RequestPayload, WantRequest};
 
 /// Request to create a new want
 #[derive(Clone, Debug, Serialize)]
@@ -116,8 +117,8 @@ pub struct GoalResponse {
 
 // From impls for protocol conversion at the boundary
 impl CreateWantRequest {
-    fn to_protocol_data(&self) -> wrldbldr_protocol::messages::CreateWantData {
-        wrldbldr_protocol::messages::CreateWantData {
+    fn to_protocol_data(&self) -> wrldbldr_shared::messages::CreateWantData {
+        wrldbldr_shared::messages::CreateWantData {
             description: self.description.clone(),
             intensity: self.intensity,
             priority: self.priority,
@@ -136,8 +137,8 @@ impl CreateWantRequest {
 }
 
 impl UpdateWantRequest {
-    fn to_protocol_data(&self) -> wrldbldr_protocol::messages::UpdateWantData {
-        wrldbldr_protocol::messages::UpdateWantData {
+    fn to_protocol_data(&self) -> wrldbldr_shared::messages::UpdateWantData {
+        wrldbldr_shared::messages::UpdateWantData {
             description: self.description.clone(),
             intensity: self.intensity,
             priority: self.priority,
@@ -148,7 +149,7 @@ impl UpdateWantRequest {
     }
 }
 
-impl From<&CreateGoalRequest> for wrldbldr_protocol::messages::CreateGoalData {
+impl From<&CreateGoalRequest> for wrldbldr_shared::messages::CreateGoalData {
     fn from(req: &CreateGoalRequest) -> Self {
         Self {
             name: req.name.clone(),
@@ -157,7 +158,7 @@ impl From<&CreateGoalRequest> for wrldbldr_protocol::messages::CreateGoalData {
     }
 }
 
-impl From<&UpdateGoalRequest> for wrldbldr_protocol::messages::UpdateGoalData {
+impl From<&UpdateGoalRequest> for wrldbldr_shared::messages::UpdateGoalData {
     fn from(req: &UpdateGoalRequest) -> Self {
         Self {
             name: req.name.clone(),

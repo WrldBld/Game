@@ -4,20 +4,21 @@
 
 use std::sync::Arc;
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Node, Row};
+use neo4rs::{query, Node, Row};
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_optional_typed_id, parse_typed_id, row_to_item, NodeExt};
 use crate::infrastructure::ports::{ClockPort, PlayerCharacterRepo, RepoError};
 
 pub struct Neo4jPlayerCharacterRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jPlayerCharacterRepo {
-    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 }
@@ -32,12 +33,12 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_player_character(row)?))
         } else {
@@ -48,15 +49,19 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
     /// Save a player character (upsert)
     async fn save(&self, pc: &PlayerCharacter) -> Result<(), RepoError> {
         let sheet_data_json = pc
-            .sheet_data
-            .as_ref()
-            .map(|s| serde_json::to_string(s))
+            .sheet_data()
+            .map(serde_json::to_string)
             .transpose()
             .map_err(|e| RepoError::Serialization(e.to_string()))?
-            .unwrap_or_else(|| "{}".to_string());
+            .unwrap_or_else(|| {
+                serde_json::to_string(
+                    &wrldbldr_shared::character_sheet::CharacterSheetValues::default(),
+                )
+                .unwrap_or_else(|_| "{}".to_string())
+            });
 
         let current_region_id_str = pc
-            .current_region_id
+            .current_region_id()
             .map(|r| r.to_string())
             .unwrap_or_default();
 
@@ -95,29 +100,42 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             MATCH (l:Location {id: $current_location_id})
             MERGE (pc)-[:AT_LOCATION]->(l)",
         )
-        .param("id", pc.id.to_string())
-        .param("user_id", pc.user_id.clone())
-        .param("world_id", pc.world_id.to_string())
-        .param("name", pc.name.clone())
-        .param("description", pc.description.clone().unwrap_or_default())
+        .param("id", pc.id().to_string())
+        .param("user_id", pc.user_id().to_string())
+        .param("world_id", pc.world_id().to_string())
+        .param("name", pc.name().to_string())
+        .param(
+            "description",
+            pc.description().unwrap_or_default().to_string(),
+        )
         .param("sheet_data", sheet_data_json)
-        .param("current_location_id", pc.current_location_id.to_string())
+        .param("current_location_id", pc.current_location_id().to_string())
         .param("current_region_id", current_region_id_str)
-        .param("starting_location_id", pc.starting_location_id.to_string())
-        .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
+        .param(
+            "starting_location_id",
+            pc.starting_location_id().to_string(),
+        )
+        .param(
+            "sprite_asset",
+            pc.sprite_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
+        )
         .param(
             "portrait_asset",
-            pc.portrait_asset.clone().unwrap_or_default(),
+            pc.portrait_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
         )
-        .param("is_alive", pc.is_alive)
-        .param("is_active", pc.is_active)
-        .param("created_at", pc.created_at.to_rfc3339())
-        .param("last_active_at", pc.last_active_at.to_rfc3339());
+        .param("is_alive", pc.is_alive())
+        .param("is_active", pc.is_active())
+        .param("created_at", pc.created_at().to_rfc3339())
+        .param("last_active_at", pc.last_active_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -130,7 +148,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -148,13 +166,13 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut pcs = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             pcs.push(row_to_player_character(row)?);
         }
@@ -166,7 +184,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
     async fn get_by_user(
         &self,
         world_id: WorldId,
-        user_id: &str,
+        user_id: &UserId,
     ) -> Result<Option<PlayerCharacter>, RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {user_id: $user_id})-[:IN_WORLD]->(w:World {id: $world_id})
@@ -174,19 +192,19 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             ORDER BY pc.last_active_at DESC
             LIMIT 1",
         )
-        .param("user_id", user_id)
+        .param("user_id", user_id.as_str())
         .param("world_id", world_id.to_string());
 
         let mut result = self
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_player_character(row)?))
         } else {
@@ -223,13 +241,13 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Check if the update succeeded (PC and Location both exist)
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
             tracing::warn!(
@@ -237,7 +255,10 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
                 location_id = %location_id,
                 "update_position failed: PC or Location not found"
             );
-            return Err(RepoError::NotFound);
+            return Err(RepoError::not_found(
+                "PlayerCharacterPosition",
+                format!("pc:{}/location:{}", id, location_id),
+            ));
         }
 
         Ok(())
@@ -256,13 +277,13 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut items = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             items.push(row_to_item(row)?);
         }
@@ -287,7 +308,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -308,7 +329,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -327,7 +348,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .graph
             .start_txn()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Step 1: Read current stats_json within transaction
         let read_q = query(
@@ -339,25 +360,35 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         let mut result = txn
             .execute(read_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let stats_json: String = if let Some(row) = result
             .next(txn.handle())
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             row.get("stats_json").unwrap_or_else(|_| "{}".to_string())
         } else {
             // Rollback not strictly needed for read-only, but good practice
             txn.rollback()
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-            return Err(RepoError::NotFound);
+                .map_err(|e| RepoError::database("query", e))?;
+            tracing::warn!(
+                pc_id = %id,
+                stat = %stat,
+                "modify_stat failed: PlayerCharacter not found"
+            );
+            return Err(RepoError::not_found("PlayerCharacter", id.to_string()));
         };
 
         // Step 2: Parse JSON, modify stat in Rust
-        let mut stats: std::collections::HashMap<String, i64> =
-            serde_json::from_str(&stats_json).unwrap_or_default();
+        let mut stats: std::collections::HashMap<String, i64> = serde_json::from_str(&stats_json)
+            .map_err(|e| {
+            RepoError::database(
+                "data_corruption",
+                format!("Corrupted stats JSON for PlayerCharacter {}: {}", id, e),
+            )
+        })?;
 
         let current_value = stats.get(stat).copied().unwrap_or(0);
         let new_value = current_value + modifier as i64;
@@ -376,12 +407,12 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
 
         txn.run(write_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Commit the transaction
         txn.commit()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::info!(pc_id = %id, stat = %stat, modifier = %modifier, new_value = %new_value, "Modified stat");
         Ok(())
@@ -393,74 +424,151 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
 // =============================================================================
 
 fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
-    let node: Node = row
-        .get("pc")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let node: Node = row.get("pc").map_err(|e| RepoError::database("query", e))?;
 
-    let id: PlayerCharacterId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let user_id: String = node
-        .get("user_id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-    let name: String = node
-        .get("name")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let id: PlayerCharacterId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse PlayerCharacterId: {}", e))
+    })?;
+    let user_id_str: String = node.get("user_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'user_id' for PlayerCharacter {}: {}", id, e),
+        )
+    })?;
+    let user_id = UserId::from_trusted(user_id_str);
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse WorldId for PlayerCharacter {}: {}", id, e),
+        )
+    })?;
+    let name: String = node.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'name' for PlayerCharacter {}: {}", id, e),
+        )
+    })?;
     let description = node.get_optional_string("description");
 
     // Parse sheet_data from JSON
-    let sheet_data_str = node.get_string_or("sheet_data", "{}");
-    let sheet_data = if sheet_data_str.is_empty() || sheet_data_str == "{}" {
+    let sheet_data_str = node.get_string_or("sheet_data", "");
+    let sheet_data = if sheet_data_str.is_empty() {
         None
     } else {
-        serde_json::from_str(&sheet_data_str)
-            .map_err(|e| RepoError::Serialization(format!("Invalid sheet_data: {}", e)))?
+        let parsed: wrldbldr_shared::character_sheet::CharacterSheetValues =
+            serde_json::from_str(&sheet_data_str)
+                .map_err(|e| RepoError::Serialization(format!("Invalid sheet_data: {}", e)))?;
+        if parsed.values.is_empty() {
+            None
+        } else {
+            Some(parsed)
+        }
     };
 
-    let current_location_id: LocationId = parse_typed_id(&node, "current_location_id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let current_location_id: LocationId =
+        parse_typed_id(&node, "current_location_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse current_location_id for PlayerCharacter {}: {}",
+                    id, e
+                ),
+            )
+        })?;
     let current_region_id: Option<RegionId> = parse_optional_typed_id(&node, "current_region_id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-    let starting_location_id: LocationId = parse_typed_id(&node, "starting_location_id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to parse current_region_id for PlayerCharacter {}: {}",
+                id, e
+            ),
+        )
+    })?;
+    let starting_location_id: LocationId =
+        parse_typed_id(&node, "starting_location_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse starting_location_id for PlayerCharacter {}: {}",
+                    id, e
+                ),
+            )
+        })?;
 
     let sprite_asset = node.get_optional_string("sprite_asset");
     let portrait_asset = node.get_optional_string("portrait_asset");
 
-    let created_at_str: String = node
-        .get("created_at")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let created_at_str: String = node.get("created_at").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'created_at' for PlayerCharacter {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
-        .map_err(|e| RepoError::Database(format!("Invalid created_at: {}", e)))?
+        .map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Invalid created_at for PlayerCharacter {}: {}", id, e),
+            )
+        })?
         .with_timezone(&chrono::Utc);
 
-    let last_active_at_str: String = node
-        .get("last_active_at")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let last_active_at_str: String = node.get("last_active_at").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'last_active_at' for PlayerCharacter {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let last_active_at = chrono::DateTime::parse_from_rfc3339(&last_active_at_str)
-        .map_err(|e| RepoError::Database(format!("Invalid last_active_at: {}", e)))?
+        .map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Invalid last_active_at for PlayerCharacter {}: {}", id, e),
+            )
+        })?
         .with_timezone(&chrono::Utc);
 
     // Status flags with defaults
     let is_alive: bool = node.get("is_alive").unwrap_or(true);
     let is_active: bool = node.get("is_active").unwrap_or(true);
 
-    Ok(PlayerCharacter {
-        id,
+    let mut pc = PlayerCharacter::new(
         user_id,
         world_id,
-        name,
-        description,
-        sheet_data,
-        current_location_id,
-        current_region_id,
+        wrldbldr_domain::CharacterName::new(&name)
+            .map_err(|e| RepoError::database("query", e.to_string()))?,
         starting_location_id,
-        sprite_asset,
-        portrait_asset,
-        is_alive,
-        is_active,
         created_at,
-        last_active_at,
-    })
+    )
+    .with_id(id)
+    .with_current_location(current_location_id)
+    .with_current_region(current_region_id)
+    .with_description(description.unwrap_or_default().as_str())
+    .with_state(CharacterState::from_legacy(is_alive, is_active))
+    .with_last_active_at(last_active_at);
+
+    // Set optional assets (convert from String to AssetPath)
+    if let Some(asset_str) = sprite_asset {
+        let asset_path = wrldbldr_domain::AssetPath::new(asset_str)
+            .map_err(|e| RepoError::database("parse", e))?;
+        pc = pc.with_sprite(asset_path);
+    }
+    if let Some(asset_str) = portrait_asset {
+        let asset_path = wrldbldr_domain::AssetPath::new(asset_str)
+            .map_err(|e| RepoError::database("parse", e))?;
+        pc = pc.with_portrait(asset_path);
+    }
+
+    if let Some(sheet_data) = sheet_data {
+        pc = pc.with_sheet_data(sheet_data);
+    }
+
+    Ok(pc)
 }

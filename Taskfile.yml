@@ -119,7 +119,7 @@ tasks:
   check:protocol:
     desc: Check Protocol crate
     cmds:
-      - cargo check -p wrldbldr-protocol
+      - cargo check -p wrldbldr-shared
 
   test:
     desc: Run all tests
@@ -139,7 +139,72 @@ tasks:
   test:protocol:
     desc: Run Protocol tests
     cmds:
-      - cargo test -p wrldbldr-protocol
+      - cargo test -p wrldbldr-shared
+
+  # ===========================================================================
+  # E2E Tests (require Docker for testcontainers)
+  # ===========================================================================
+
+  e2e:
+    desc: Run E2E tests with VCR playback (fast, no Ollama needed)
+    cmds:
+      - cargo test -p wrldbldr-engine --lib e2e_tests -- --ignored --test-threads=1 --nocapture
+    env:
+      RUST_LOG: info,wrldbldr_engine=debug
+
+  e2e:record:
+    desc: Run E2E tests in record mode (requires Ollama running)
+    cmds:
+      - cargo test -p wrldbldr-engine --lib e2e_tests -- --ignored --test-threads=1 --nocapture
+    env:
+      E2E_LLM_MODE: record
+      RUST_LOG: info,wrldbldr_engine=debug
+
+  e2e:live:
+    desc: Run E2E tests in live mode (always calls Ollama, no recording)
+    cmds:
+      - cargo test -p wrldbldr-engine --lib e2e_tests -- --ignored --test-threads=1 --nocapture
+    env:
+      E2E_LLM_MODE: live
+      RUST_LOG: info,wrldbldr_engine=debug
+
+  e2e:single:
+    desc: "Run a single E2E test (usage: task e2e:single -- test_name)"
+    cmds:
+      - cargo test -p wrldbldr-engine --lib "e2e_tests::{{.CLI_ARGS}}" -- --ignored --nocapture
+    env:
+      RUST_LOG: info,wrldbldr_engine=debug
+
+  e2e:logs:
+    desc: Show E2E event logs directory
+    cmds:
+      - ls -la crates/engine/src/e2e_tests/logs/
+
+  e2e:logs:view:
+    desc: "View E2E log summary (usage: task e2e:logs:view -- test_name)"
+    cmds:
+      - cat crates/engine/src/e2e_tests/logs/{{.CLI_ARGS}}.json | jq '.summary'
+
+  e2e:logs:prompts:
+    desc: "View LLM prompts from E2E log (usage: task e2e:logs:prompts -- test_name)"
+    cmds:
+      - cat crates/engine/src/e2e_tests/logs/{{.CLI_ARGS}}.json | jq '.events[] | select(.event.type == "LlmPromptSent")'
+
+  e2e:logs:conversations:
+    desc: "View conversation turns from E2E log (usage: task e2e:logs:conversations -- test_name)"
+    cmds:
+      - cat crates/engine/src/e2e_tests/logs/{{.CLI_ARGS}}.json | jq '.events[] | select(.event.type == "ConversationTurn" or .event.type == "ConversationStarted")'
+
+  e2e:cleanup:
+    desc: Clean up all data from the E2E test Neo4j database
+    cmds:
+      - ./scripts/cleanup-test-db.sh
+    interactive: true
+
+  e2e:cleanup:dry-run:
+    desc: Show what would be cleaned from E2E test database (no actual deletion)
+    cmds:
+      - ./scripts/cleanup-test-db.sh --dry-run
 
   # ===========================================================================
   # Architecture Enforcement
@@ -263,6 +328,12 @@ tasks:
     dir: ./docker
     cmds:
       - docker-compose stop neo4j
+ 
+  docker:down:
+    desc: Stop Docker
+    dir: ./docker
+    cmds:
+      - docker-compose down
 
   docker:down:
     desc: Stop Docker services
@@ -275,6 +346,11 @@ tasks:
     dir: ./docker
     cmds:
       - docker-compose logs -f
+
+  docker:neo4j:reset:
+    desc: Remove Neo4j data and logs volumes (requires neo4j to be stopped)
+    cmds:
+      - docker volume rm docker_neo4j_data docker_neo4j_logs
 
   # ===========================================================================
   # Clean Tasks

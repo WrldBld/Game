@@ -1,11 +1,12 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_domain::{
     ActantialActor, ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, WantId,
     WantTarget, WantVisibility,
 };
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     messages::{
         ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
         SocialRelationData, SocialViewsData, WantData, WantTargetData, WantTargetTypeData,
@@ -41,38 +42,41 @@ pub(super) async fn handle_goal_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         GoalRequest::ListGoals { world_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.actantial.goals.list(world_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .actantial
+                .goals
+                .list(world_id_typed)
+                .await
+            {
                 Ok(goals) => {
                     let data: Vec<GoalResponse> = goals
                         .into_iter()
                         .map(|details| GoalResponse {
-                            id: details.goal.id.to_string(),
-                            name: details.goal.name,
-                            description: details.goal.description,
+                            id: details.goal.id().to_string(),
+                            name: details.goal.name().to_string(),
+                            description: details.goal.description().map(|s| s.to_string()),
                         })
                         .collect();
                     Ok(ResponseResult::success(data))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list goals"),
                 )),
             }
         }
 
         GoalRequest::GetGoal { goal_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let goal_id_typed = match parse_goal_id_for_request(&goal_id, request_id) {
                 Ok(id) => id,
@@ -81,25 +85,20 @@ pub(super) async fn handle_goal_request(
 
             match state.app.use_cases.actantial.goals.get(goal_id_typed).await {
                 Ok(Some(details)) => Ok(ResponseResult::success(GoalResponse {
-                    id: details.goal.id.to_string(),
-                    name: details.goal.name,
-                    description: details.goal.description,
+                    id: details.goal.id().to_string(),
+                    name: details.goal.name().to_string(),
+                    description: details.goal.description().map(|s| s.to_string()),
                 })),
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Goal not found",
-                )),
+                Ok(None) => Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found")),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get goal"),
                 )),
             }
         }
 
         GoalRequest::CreateGoal { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -120,105 +119,115 @@ pub(super) async fn handle_goal_request(
                             world_id: world_id.to_string(),
                             goal: goal_details_to_data(&details),
                         };
-                        state
-                            .connections
-                            .broadcast_to_world(world_id, msg)
-                            .await;
+                        state.connections.broadcast_to_world(world_id, msg).await;
                     }
 
                     Ok(ResponseResult::success(GoalResponse {
-                        id: details.goal.id.to_string(),
-                        name: details.goal.name,
-                        description: details.goal.description,
+                        id: details.goal.id().to_string(),
+                        name: details.goal.name().to_string(),
+                        description: details.goal.description().map(|s| s.to_string()),
                     }))
                 }
-                Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => Ok(
-                    ResponseResult::error(ErrorCode::BadRequest, msg),
-                ),
+                Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, msg))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create goal"),
                 )),
             }
         }
 
         GoalRequest::UpdateGoal { goal_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let goal_id_typed = match parse_goal_id_for_request(&goal_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
 
             match state
                 .app
                 .use_cases
                 .actantial
                 .goals
-                .update(goal_id_typed, data.name, data.description)
+                .update(world_id, goal_id_typed, data.name, data.description)
                 .await
             {
                 Ok(details) => {
-                    if let Some(world_id) = conn_info.world_id {
-                        let msg = ServerMessage::GoalUpdated {
-                            goal: goal_details_to_data(&details),
-                        };
-                        state
-                            .connections
-                            .broadcast_to_world(world_id, msg)
-                            .await;
-                    }
+                    let msg = ServerMessage::GoalUpdated {
+                        goal: goal_details_to_data(&details),
+                    };
+                    state.connections.broadcast_to_world(world_id, msg).await;
 
                     Ok(ResponseResult::success(GoalResponse {
-                        id: details.goal.id.to_string(),
-                        name: details.goal.name,
-                        description: details.goal.description,
+                        id: details.goal.id().to_string(),
+                        name: details.goal.name().to_string(),
+                        description: details.goal.description().map(|s| s.to_string()),
                     }))
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => Ok(
-                    ResponseResult::error(ErrorCode::NotFound, "Goal not found"),
-                ),
-                Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => Ok(
-                    ResponseResult::error(ErrorCode::BadRequest, msg),
-                ),
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found"))
+                }
+                Err(crate::use_cases::actantial::ActantialError::Unauthorized { .. }) => {
+                    Ok(ResponseResult::error(ErrorCode::Unauthorized, "Goal not in current world"))
+                }
+                Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, msg))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update goal"),
                 )),
             }
         }
 
         GoalRequest::DeleteGoal { goal_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let goal_id_typed = match parse_goal_id_for_request(&goal_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.actantial.goals.delete(goal_id_typed).await {
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
+            match state
+                .app
+                .use_cases
+                .actantial
+                .goals
+                .delete(world_id, goal_id_typed)
+                .await
+            {
                 Ok(()) => {
-                    if let Some(world_id) = conn_info.world_id {
-                        let msg = ServerMessage::GoalDeleted {
-                            goal_id: goal_id_typed.to_string(),
-                        };
-                        state
-                            .connections
-                            .broadcast_to_world(world_id, msg)
-                            .await;
-                    }
+                    let msg = ServerMessage::GoalDeleted {
+                        goal_id: goal_id_typed.to_string(),
+                    };
+                    state.connections.broadcast_to_world(world_id, msg).await;
                     Ok(ResponseResult::success_empty())
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => Ok(
-                    ResponseResult::error(ErrorCode::NotFound, "Goal not found"),
-                ),
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found"))
+                }
+                Err(crate::use_cases::actantial::ActantialError::Unauthorized { .. }) => {
+                    Ok(ResponseResult::error(ErrorCode::Unauthorized, "Goal not in current world"))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete goal"),
                 )),
             }
         }
@@ -233,9 +242,7 @@ pub(super) async fn handle_want_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         WantRequest::ListWants { character_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -253,7 +260,7 @@ pub(super) async fn handle_want_request(
             {
                 Ok(Some(context)) => {
                     let data: Vec<WantResponse> = context
-                        .wants
+                        .wants()
                         .iter()
                         .map(want_context_to_response)
                         .collect();
@@ -265,15 +272,13 @@ pub(super) async fn handle_want_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list wants"),
                 )),
             }
         }
 
         WantRequest::GetWant { want_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -283,15 +288,12 @@ pub(super) async fn handle_want_request(
             let details = match state.app.use_cases.actantial.wants.get(want_id_typed).await {
                 Ok(Some(details)) => details,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Want not found",
-                    ));
+                    return Ok(ResponseResult::error(ErrorCode::NotFound, "Want not found"));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get want"),
                     ));
                 }
             };
@@ -305,9 +307,9 @@ pub(super) async fn handle_want_request(
                 .await
             {
                 Ok(Some(context)) => context
-                    .wants
+                    .wants()
                     .iter()
-                    .find(|want| want.want_id == uuid::Uuid::from(details.want.id))
+                    .find(|want| want.want_id() == WantId::from_uuid(details.want.id().into()))
                     .map(want_context_to_response)
                     .unwrap_or_else(|| want_details_to_response(&details)),
                 _ => want_details_to_response(&details),
@@ -317,9 +319,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::CreateWant { character_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -352,7 +352,7 @@ pub(super) async fn handle_want_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "create want"),
                     ));
                 }
             };
@@ -364,11 +364,11 @@ pub(super) async fn handle_want_request(
                         .use_cases
                         .actantial
                         .wants
-                        .set_target(details.want.id, target_ref)
+                        .set_target(details.want.id(), target_ref)
                         .await
                     {
                         Ok(target) => details.target = Some(target),
-                        Err(crate::use_cases::actantial::ActantialError::NotFound) => {
+                        Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
                             return Ok(ResponseResult::error(
                                 ErrorCode::NotFound,
                                 "Target not found",
@@ -377,7 +377,7 @@ pub(super) async fn handle_want_request(
                         Err(e) => {
                             return Ok(ResponseResult::error(
                                 ErrorCode::InternalError,
-                                e.to_string(),
+                                sanitize_repo_error(&e, "set want target"),
                             ));
                         }
                     },
@@ -386,7 +386,7 @@ pub(super) async fn handle_want_request(
             }
 
             if let Some(world_id) = conn_info.world_id {
-                let want_data = resolve_want_data(state, details.character_id, details.want.id)
+                let want_data = resolve_want_data(state, details.character_id, details.want.id())
                     .await
                     .unwrap_or_else(|| want_details_to_data(&details));
                 let msg = ServerMessage::NpcWantCreated {
@@ -400,9 +400,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::UpdateWant { want_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -428,11 +426,8 @@ pub(super) async fn handle_want_request(
                 .await
             {
                 Ok(details) => details,
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Want not found",
-                    ));
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
+                    return Ok(ResponseResult::error(ErrorCode::NotFound, "Want not found"));
                 }
                 Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => {
                     return Ok(ResponseResult::error(ErrorCode::BadRequest, msg));
@@ -440,13 +435,13 @@ pub(super) async fn handle_want_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "update want"),
                     ));
                 }
             };
 
             if let Some(world_id) = conn_info.world_id {
-                let want_data = resolve_want_data(state, details.character_id, details.want.id)
+                let want_data = resolve_want_data(state, details.character_id, details.want.id())
                     .await
                     .unwrap_or_else(|| want_details_to_data(&details));
                 let msg = ServerMessage::NpcWantUpdated {
@@ -460,9 +455,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::DeleteWant { want_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -472,20 +465,24 @@ pub(super) async fn handle_want_request(
             let details = match state.app.use_cases.actantial.wants.get(want_id_typed).await {
                 Ok(Some(details)) => details,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Want not found",
-                    ));
+                    return Ok(ResponseResult::error(ErrorCode::NotFound, "Want not found"));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get want"),
                     ));
                 }
             };
 
-            match state.app.use_cases.actantial.wants.delete(want_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .actantial
+                .wants
+                .delete(want_id_typed)
+                .await
+            {
                 Ok(()) => {
                     if let Some(world_id) = conn_info.world_id {
                         let msg = ServerMessage::NpcWantDeleted {
@@ -498,7 +495,7 @@ pub(super) async fn handle_want_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete want"),
                 )),
             }
         }
@@ -508,9 +505,7 @@ pub(super) async fn handle_want_request(
             target_id,
             target_type,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -540,20 +535,18 @@ pub(super) async fn handle_want_request(
                     }
                     Ok(ResponseResult::success_empty())
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => Ok(
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Target not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set want target"),
                 )),
             }
         }
 
         WantRequest::RemoveWantTarget { want_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -579,7 +572,7 @@ pub(super) async fn handle_want_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "remove want target"),
                 )),
             }
         }
@@ -594,9 +587,7 @@ pub(super) async fn handle_actantial_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         ActantialRequest::GetActantialContext { character_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -612,16 +603,16 @@ pub(super) async fn handle_actantial_request(
                 .get_context(character_id_typed)
                 .await
             {
-                Ok(Some(context)) => Ok(ResponseResult::success(actantial_context_to_data(
-                    &context,
-                ))),
+                Ok(Some(context)) => {
+                    Ok(ResponseResult::success(actantial_context_to_data(&context)))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get actantial context"),
                 )),
             }
         }
@@ -634,9 +625,7 @@ pub(super) async fn handle_actantial_request(
             role,
             reason,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -674,12 +663,12 @@ pub(super) async fn handle_actantial_request(
                     }
                     Ok(ResponseResult::success_empty())
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => Ok(
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Target not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "add actantial view"),
                 )),
             }
         }
@@ -691,9 +680,7 @@ pub(super) async fn handle_actantial_request(
             target_type,
             role,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -735,7 +722,7 @@ pub(super) async fn handle_actantial_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "remove actantial view"),
                 )),
             }
         }
@@ -744,40 +731,40 @@ pub(super) async fn handle_actantial_request(
 
 fn want_details_to_response(details: &crate::infrastructure::ports::WantDetails) -> WantResponse {
     WantResponse {
-        id: details.want.id.to_string(),
-        description: details.want.description.clone(),
-        intensity: details.want.intensity,
+        id: details.want.id().to_string(),
+        description: details.want.description().to_string(),
+        intensity: details.want.intensity(),
         priority: details.priority,
-        visibility: map_visibility_data(details.want.visibility),
+        visibility: map_visibility_data(details.want.visibility()),
         target: details.target.as_ref().map(want_target_to_data),
-        deflection_behavior: details.want.deflection_behavior.clone(),
-        tells: details.want.tells.first().cloned(),
+        deflection_behavior: details.want.deflection_behavior().map(|s| s.to_string()),
+        tells: details.want.tells().first().cloned(),
     }
 }
 
 fn want_context_to_response(want: &wrldbldr_domain::WantContext) -> WantResponse {
     WantResponse {
-        id: want.want_id.to_string(),
-        description: want.description.clone(),
-        intensity: want.intensity,
-        priority: want.priority,
-        visibility: map_visibility_data(want.visibility),
-        target: want.target.as_ref().map(want_target_to_data),
-        deflection_behavior: want.deflection_behavior.clone(),
-        tells: want.tells.first().cloned(),
+        id: want.want_id().to_string(),
+        description: want.description().to_string(),
+        intensity: want.intensity(),
+        priority: want.priority(),
+        visibility: map_visibility_data(want.visibility()),
+        target: want.target().map(want_target_to_data),
+        deflection_behavior: want.deflection_behavior().map(|s| s.to_string()),
+        tells: want.tells().first().cloned(),
     }
 }
 
 fn want_details_to_data(details: &crate::infrastructure::ports::WantDetails) -> WantData {
     WantData {
-        id: details.want.id.to_string(),
-        description: details.want.description.clone(),
-        intensity: details.want.intensity,
+        id: details.want.id().to_string(),
+        description: details.want.description().to_string(),
+        intensity: details.want.intensity(),
         priority: details.priority,
-        visibility: map_visibility_data(details.want.visibility),
+        visibility: map_visibility_data(details.want.visibility()),
         target: details.target.as_ref().map(want_target_to_data),
-        deflection_behavior: details.want.deflection_behavior.clone(),
-        tells: details.want.tells.clone(),
+        deflection_behavior: details.want.deflection_behavior().map(|s| s.to_string()),
+        tells: details.want.tells().to_vec(),
         helpers: Vec::new(),
         opponents: Vec::new(),
         sender: None,
@@ -787,22 +774,22 @@ fn want_details_to_data(details: &crate::infrastructure::ports::WantDetails) -> 
 
 fn want_context_to_data(want: &wrldbldr_domain::WantContext) -> WantData {
     WantData {
-        id: want.want_id.to_string(),
-        description: want.description.clone(),
-        intensity: want.intensity,
-        priority: want.priority,
-        visibility: map_visibility_data(want.visibility),
-        target: want.target.as_ref().map(want_target_to_data),
-        deflection_behavior: want.deflection_behavior.clone(),
-        tells: want.tells.clone(),
-        helpers: want.helpers.iter().map(actantial_actor_to_data).collect(),
+        id: want.want_id().to_string(),
+        description: want.description().to_string(),
+        intensity: want.intensity(),
+        priority: want.priority(),
+        visibility: map_visibility_data(want.visibility()),
+        target: want.target().map(want_target_to_data),
+        deflection_behavior: want.deflection_behavior().map(|s| s.to_string()),
+        tells: want.tells().to_vec(),
+        helpers: want.helpers().iter().map(actantial_actor_to_data).collect(),
         opponents: want
-            .opponents
+            .opponents()
             .iter()
             .map(actantial_actor_to_data)
             .collect(),
-        sender: want.sender.as_ref().map(actantial_actor_to_data),
-        receiver: want.receiver.as_ref().map(actantial_actor_to_data),
+        sender: want.sender().map(actantial_actor_to_data),
+        receiver: want.receiver().map(actantial_actor_to_data),
     }
 }
 
@@ -843,11 +830,11 @@ fn want_target_to_data(target: &WantTarget) -> WantTargetData {
 }
 
 fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextData {
-    let wants = context.wants.iter().map(want_context_to_data).collect();
+    let wants = context.wants().iter().map(want_context_to_data).collect();
 
     let allies = context
-        .social_views
-        .allies
+        .social_views()
+        .allies()
         .iter()
         .map(|(target, name, reasons)| SocialRelationData {
             id: target.id_string(),
@@ -858,8 +845,8 @@ fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextD
         .collect();
 
     let enemies = context
-        .social_views
-        .enemies
+        .social_views()
+        .enemies()
         .iter()
         .map(|(target, name, reasons)| SocialRelationData {
             id: target.id_string(),
@@ -870,8 +857,8 @@ fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextD
         .collect();
 
     NpcActantialContextData {
-        npc_id: context.character_id.to_string(),
-        npc_name: context.character_name.clone(),
+        npc_id: context.character_id().to_string(),
+        npc_name: context.character_name().to_string(),
         wants,
         social_views: SocialViewsData { allies, enemies },
     }
@@ -879,17 +866,17 @@ fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextD
 
 fn goal_details_to_data(details: &crate::infrastructure::ports::GoalDetails) -> GoalData {
     GoalData {
-        id: details.goal.id.to_string(),
-        name: details.goal.name.clone(),
-        description: details.goal.description.clone(),
+        id: details.goal.id().to_string(),
+        name: details.goal.name().to_string(),
+        description: details.goal.description().map(|s| s.to_string()),
         usage_count: details.usage_count,
     }
 }
 
 fn actantial_view_record_to_data(
     record: &crate::infrastructure::ports::ActantialViewRecord,
-) -> wrldbldr_protocol::messages::ActantialViewData {
-    wrldbldr_protocol::messages::ActantialViewData {
+) -> wrldbldr_shared::messages::ActantialViewData {
+    wrldbldr_shared::messages::ActantialViewData {
         want_id: record.want_id.to_string(),
         target_id: record.target.id_string(),
         target_name: record.target_name.clone(),
@@ -955,8 +942,10 @@ fn map_actantial_target(
 ) -> Result<ActantialTarget, ServerMessage> {
     let target_uuid = parse_uuid_for_request(target_id, request_id, "Invalid target ID")?;
     match target_type {
-        ActorTypeData::Npc => Ok(ActantialTarget::npc(target_uuid)),
-        ActorTypeData::Pc => Ok(ActantialTarget::pc(target_uuid)),
+        ActorTypeData::Npc => Ok(ActantialTarget::npc(CharacterId::from_uuid(target_uuid))),
+        ActorTypeData::Pc => Ok(ActantialTarget::pc(
+            wrldbldr_domain::PlayerCharacterId::from_uuid(target_uuid),
+        )),
         ActorTypeData::Unknown => Err(ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(ErrorCode::BadRequest, "Invalid target type"),
@@ -971,16 +960,12 @@ fn map_want_target_ref(
 ) -> Result<crate::infrastructure::ports::WantTargetRef, ServerMessage> {
     let target_uuid = parse_uuid_for_request(target_id, request_id, "Invalid target ID")?;
     let target = match target_type {
-        WantTargetTypeData::Character => {
-            crate::infrastructure::ports::WantTargetRef::Character(CharacterId::from_uuid(
-                target_uuid,
-            ))
-        }
-        WantTargetTypeData::Item => {
-            crate::infrastructure::ports::WantTargetRef::Item(wrldbldr_domain::ItemId::from_uuid(
-                target_uuid,
-            ))
-        }
+        WantTargetTypeData::Character => crate::infrastructure::ports::WantTargetRef::Character(
+            CharacterId::from_uuid(target_uuid),
+        ),
+        WantTargetTypeData::Item => crate::infrastructure::ports::WantTargetRef::Item(
+            wrldbldr_domain::ItemId::from_uuid(target_uuid),
+        ),
         WantTargetTypeData::Goal => {
             crate::infrastructure::ports::WantTargetRef::Goal(GoalId::from_uuid(target_uuid))
         }
@@ -1010,8 +995,8 @@ async fn resolve_want_data(
         .flatten()?;
 
     context
-        .wants
+        .wants()
         .iter()
-        .find(|want| want.want_id == uuid::Uuid::from(want_id))
+        .find(|want| want.want_id() == want_id)
         .map(want_context_to_data)
 }

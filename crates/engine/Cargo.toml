@@ -9,7 +9,7 @@ description = "WrldBldr Engine - All server-side code"
 [dependencies]
 # Internal crates
 wrldbldr-domain = { workspace = true }
-wrldbldr-protocol = { workspace = true }
+wrldbldr-shared = { workspace = true }
 
 # Web framework
 axum = { workspace = true }
@@ -22,7 +22,6 @@ neo4rs = { workspace = true }
 # Async runtime
 async-trait = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 futures-util = { workspace = true }
 
 # HTTP client (for LLM, ComfyUI)
@@ -64,6 +63,10 @@ mockall = { workspace = true }
 tokio-tungstenite = { workspace = true }
 testcontainers = { workspace = true }
 tempfile = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
 
 [lints]
 workspace = true

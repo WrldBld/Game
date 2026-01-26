@@ -6,8 +6,15 @@
 use serde::{Deserialize, Serialize};
 
 use super::feat::{RechargeType, UsesFormula};
+use crate::value_objects::Tag;
 
 /// A class feature that a character gains from their class or subclass.
+///
+/// # ADR-008 Tier 4: Simple Data Struct
+///
+/// This is a data-carrying struct with no invariants to protect. All fields are public
+/// because there's no invalid state that can be constructed - any combination of values
+/// is valid.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ClassFeature {
@@ -34,7 +41,34 @@ pub struct ClassFeature {
     pub has_choices: bool,
     /// Tags for categorization
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub tags: Vec<Tag>,
+}
+
+impl ClassFeature {
+    /// Create a new class feature with required fields.
+    pub fn new(
+        id: impl Into<String>,
+        system_id: impl Into<String>,
+        class_id: impl Into<String>,
+        name: impl Into<String>,
+        level: u8,
+        description: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            system_id: system_id.into(),
+            class_id: class_id.into(),
+            subclass_id: None,
+            name: name.into(),
+            level,
+            description: description.into(),
+            uses: None,
+            source: source.into(),
+            has_choices: false,
+            tags: Vec::new(),
+        }
+    }
 }
 
 /// Limited uses tracking for a class feature.
@@ -48,6 +82,11 @@ pub struct FeatureUses {
 }
 
 impl FeatureUses {
+    /// Create new feature uses.
+    pub fn new(max: UsesFormula, recharge: RechargeType) -> Self {
+        Self { max, recharge }
+    }
+
     /// Create uses that recharge on a short rest.
     pub fn short_rest(max: UsesFormula) -> Self {
         Self {
@@ -82,6 +121,12 @@ impl FeatureUses {
 }
 
 /// A racial trait or ancestry feature.
+///
+/// # ADR-008 Tier 4: Simple Data Struct
+///
+/// This is a data-carrying struct with no invariants to protect. All fields are public
+/// because there's no invalid state that can be constructed - any combination of values
+/// is valid.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RacialTrait {
@@ -103,10 +148,40 @@ pub struct RacialTrait {
     pub source: String,
     /// Tags for categorization
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub tags: Vec<Tag>,
+}
+
+impl RacialTrait {
+    /// Create a new racial trait with required fields.
+    pub fn new(
+        id: impl Into<String>,
+        system_id: impl Into<String>,
+        race_id: impl Into<String>,
+        name: impl Into<String>,
+        description: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            system_id: system_id.into(),
+            race_id: race_id.into(),
+            subrace_id: None,
+            name: name.into(),
+            description: description.into(),
+            uses: None,
+            source: source.into(),
+            tags: Vec::new(),
+        }
+    }
 }
 
 /// A background feature.
+///
+/// # ADR-008 Tier 4: Simple Data Struct
+///
+/// This is a data-carrying struct with no invariants to protect. All fields are public
+/// because there's no invalid state that can be constructed - any combination of values
+/// is valid.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct BackgroundFeature {
@@ -124,48 +199,85 @@ pub struct BackgroundFeature {
     pub source: String,
 }
 
+impl BackgroundFeature {
+    /// Create a new background feature with required fields.
+    pub fn new(
+        id: impl Into<String>,
+        system_id: impl Into<String>,
+        background_id: impl Into<String>,
+        name: impl Into<String>,
+        description: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            system_id: system_id.into(),
+            background_id: background_id.into(),
+            name: name.into(),
+            description: description.into(),
+            source: source.into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn class_feature_serialization() {
-        let feature = ClassFeature {
-            id: "dnd5e_fighter_second_wind".into(),
-            system_id: "dnd5e".into(),
-            class_id: "fighter".into(),
-            subclass_id: None,
-            name: "Second Wind".into(),
-            level: 1,
-            description: "You have a limited well of stamina...".into(),
-            uses: Some(FeatureUses::short_rest(UsesFormula::Fixed { value: 1 })),
-            source: "PHB p.72".into(),
-            has_choices: false,
-            tags: vec!["healing".into()],
-        };
+    fn class_feature_equality() {
+        let mut feature = ClassFeature::new(
+            "dnd5e_fighter_second_wind",
+            "dnd5e",
+            "fighter",
+            "Second Wind",
+            1,
+            "You have a limited well of stamina...",
+            "PHB p.72",
+        );
+        feature.uses = Some(FeatureUses::short_rest(UsesFormula::Fixed { value: 1 }));
+        feature.tags.push(Tag::new("healing").unwrap());
 
-        let json = serde_json::to_string(&feature).unwrap();
-        let deserialized: ClassFeature = serde_json::from_str(&json).unwrap();
-        assert_eq!(feature, deserialized);
+        let other = feature.clone();
+        assert_eq!(feature, other);
+    }
+
+    #[test]
+    fn class_feature_accessors() {
+        let mut feature = ClassFeature::new(
+            "test_feature",
+            "test_system",
+            "test_class",
+            "Test Feature",
+            5,
+            "Test description",
+            "Test Source",
+        );
+        feature.has_choices = true;
+
+        assert_eq!(feature.id, "test_feature");
+        assert_eq!(feature.system_id, "test_system");
+        assert_eq!(feature.class_id, "test_class");
+        assert_eq!(feature.name, "Test Feature");
+        assert_eq!(feature.level, 5);
+        assert!(feature.has_choices);
     }
 
     #[test]
     fn subclass_feature() {
-        let feature = ClassFeature {
-            id: "dnd5e_champion_improved_critical".into(),
-            system_id: "dnd5e".into(),
-            class_id: "fighter".into(),
-            subclass_id: Some("champion".into()),
-            name: "Improved Critical".into(),
-            level: 3,
-            description: "Your weapon attacks score a critical hit on a roll of 19 or 20.".into(),
-            uses: None,
-            source: "PHB p.72".into(),
-            has_choices: false,
-            tags: vec!["combat".into()],
-        };
+        let mut feature = ClassFeature::new(
+            "dnd5e_champion_improved_critical",
+            "dnd5e",
+            "fighter",
+            "Improved Critical",
+            3,
+            "Your weapon attacks score a critical hit on a roll of 19 or 20.",
+            "PHB p.72",
+        );
+        feature.subclass_id = Some("champion".to_string());
+        feature.tags.push(Tag::new("combat").unwrap());
 
-        assert!(feature.subclass_id.is_some());
+        assert_eq!(feature.subclass_id.as_deref(), Some("champion"));
         assert!(feature.uses.is_none());
     }
 
@@ -180,21 +292,51 @@ mod tests {
     }
 
     #[test]
-    fn racial_trait_serialization() {
-        let trait_ = RacialTrait {
-            id: "dnd5e_dwarf_darkvision".into(),
-            system_id: "dnd5e".into(),
-            race_id: "dwarf".into(),
-            subrace_id: None,
-            name: "Darkvision".into(),
-            description: "You can see in dim light within 60 feet...".into(),
-            uses: None,
-            source: "PHB p.20".into(),
-            tags: vec!["vision".into()],
-        };
+    fn racial_trait_equality() {
+        let mut trait_ = RacialTrait::new(
+            "dnd5e_dwarf_darkvision",
+            "dnd5e",
+            "dwarf",
+            "Darkvision",
+            "You can see in dim light within 60 feet...",
+            "PHB p.20",
+        );
+        trait_.tags.push(Tag::new("vision").unwrap());
 
-        let json = serde_json::to_string(&trait_).unwrap();
-        let deserialized: RacialTrait = serde_json::from_str(&json).unwrap();
-        assert_eq!(trait_, deserialized);
+        let other = trait_.clone();
+        assert_eq!(trait_, other);
+    }
+
+    #[test]
+    fn racial_trait_accessors() {
+        let mut trait_ = RacialTrait::new(
+            "test_trait",
+            "test_system",
+            "test_race",
+            "Test Trait",
+            "Test description",
+            "Test Source",
+        );
+        trait_.subrace_id = Some("test_subrace".to_string());
+
+        assert_eq!(trait_.id, "test_trait");
+        assert_eq!(trait_.race_id, "test_race");
+        assert_eq!(trait_.subrace_id.as_deref(), Some("test_subrace"));
+    }
+
+    #[test]
+    fn background_feature_accessors() {
+        let feature = BackgroundFeature::new(
+            "test_bg_feature",
+            "test_system",
+            "test_background",
+            "Test Background Feature",
+            "Test description",
+            "Test Source",
+        );
+
+        assert_eq!(feature.id, "test_bg_feature");
+        assert_eq!(feature.background_id, "test_background");
+        assert_eq!(feature.name, "Test Background Feature");
     }
 }

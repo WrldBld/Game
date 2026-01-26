@@ -1,0 +1,30 @@
+[package]
+name = "wrldbldr-shared"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Shared - Shared types, contracts, and game systems for Engine and Player"
+
+[dependencies]
+# Domain types - protocol uses vocabulary types from domain::types
+wrldbldr-domain = { workspace = true }
+
+# NOTE: Protocol depends on domain for the shared vocabulary types (domain::types module).
+# Domain→protocol conversions are handled in engine-adapters or engine-app.
+
+# Serialization (required for wire protocol)
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Unique identifiers - with js feature for WASM compatibility
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,23 +1,75 @@
 //! Directorial guidance for LLM responses
 //!
-//! Provides structured guidance for the LLM on how to handle
+//! Provides structured guidance for LLM on how to handle
 //! NPC responses and scene interactions.
+//!
+//! # Tier Classification
+//!
+//! - **Tier 3a: Composite VO (Simple Data)** - `DirectorialNotes`, `ToneGuidance`,
+//!   `PacingGuidance`, `NpcMotivation` are simple data structs with public fields.
+//!
+//! See [docs/architecture/tier-levels.md](../../../../docs/architecture/tier-levels.md)
+//! for complete tier classification system.
 
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use wrldbldr_domain::CharacterId;
+
+// Custom serde module for HashMap<CharacterId, NpcMotivation>
+// This handles serialization/deserialization with CharacterId as key
+pub mod serde_with_character_id_key {
+    use super::*;
+    use serde::de::Error as DeError;
+
+    /// Serialize HashMap<CharacterId, NpcMotivation> as HashMap<String, NpcMotivation>
+    pub fn serialize<S>(
+        map: &HashMap<CharacterId, NpcMotivation>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let string_map: std::collections::HashMap<String, NpcMotivation> = map
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect();
+        string_map.serialize(serializer)
+    }
+
+    /// Deserialize HashMap<String, NpcMotivation> as HashMap<CharacterId, NpcMotivation>
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<HashMap<CharacterId, NpcMotivation>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string_map: std::collections::HashMap<String, NpcMotivation> =
+            Deserialize::deserialize(deserializer)?;
+
+        let mut result = HashMap::new();
+        for (key_str, value) in string_map {
+            let key = CharacterId::from_uuid(uuid::Uuid::parse_str(&key_str).map_err(|e| {
+                DeError::custom(format!("Invalid CharacterId '{}': {}", key_str, e))
+            })?);
+            result.insert(key, value);
+        }
+
+        Ok(result)
+    }
+}
 
 /// Structured directorial notes for a scene
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct DirectorialNotes {
     /// General notes about the scene (free-form text)
     pub general_notes: String,
     /// Overall tone for the scene
     pub tone: ToneGuidance,
     /// Per-NPC motivation hints (character ID -> motivation text)
-    pub npc_motivations: HashMap<String, NpcMotivation>,
+    /// Uses typed CharacterId as key instead of raw String for type safety
+    #[serde(with = "serde_with_character_id_key")]
+    pub npc_motivations: HashMap<CharacterId, NpcMotivation>,
     /// Topics the LLM should avoid
     pub forbidden_topics: Vec<String>,
     /// Tools the LLM is allowed to call in this scene
@@ -32,6 +84,8 @@ impl DirectorialNotes {
     pub fn new() -> Self {
         Self::default()
     }
+
+    // ── Builder Methods ──────────────────────────────────────────────────
 
     pub fn with_general_notes(mut self, notes: impl Into<String>) -> Self {
         self.general_notes = notes.into();
@@ -48,8 +102,7 @@ impl DirectorialNotes {
         character_id: CharacterId,
         motivation: NpcMotivation,
     ) -> Self {
-        self.npc_motivations
-            .insert(character_id.to_string(), motivation);
+        self.npc_motivations.insert(character_id, motivation);
         self
     }
 
@@ -91,7 +144,7 @@ impl DirectorialNotes {
                     "  - {}: {} (Mood: {})",
                     char_id, motivation.immediate_goal, motivation.current_mood
                 ));
-                if let Some(ref secret) = motivation.secret_agenda {
+                if let Some(secret) = &motivation.secret_agenda {
                     parts.push(format!("    [Hidden agenda: {}]", secret));
                 }
             }
@@ -117,7 +170,6 @@ impl DirectorialNotes {
 
 /// Tone guidance for the scene
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ToneGuidance {
     /// Default neutral tone
     #[default]
@@ -164,7 +216,6 @@ impl ToneGuidance {
 
 /// Pacing guidance for the scene
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum PacingGuidance {
     /// Let conversation flow naturally
     #[default]
@@ -193,7 +244,6 @@ impl PacingGuidance {
 
 /// Motivation hints for an NPC
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct NpcMotivation {
     /// Current emotional state
     pub current_mood: String,
@@ -217,6 +267,8 @@ impl NpcMotivation {
             speech_patterns: Vec::new(),
         }
     }
+
+    // ── Builder Methods ──────────────────────────────────────────────────
 
     pub fn with_secret(mut self, secret: impl Into<String>) -> Self {
         self.secret_agenda = Some(secret.into());

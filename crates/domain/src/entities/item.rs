@@ -19,15 +19,26 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{ItemId, WorldId};
+use wrldbldr_domain::{ItemId, ItemName, WorldId};
 
 /// An object that can be possessed or interacted with
+///
+/// # ADR-008 Tier 4: Simple Data Struct
+///
+/// This is a data-carrying struct with no invariants to protect. All fields are public
+/// because there's no invalid state that can be constructed - any combination of values
+/// is valid.
+///
+/// # Container Coupling
+///
+/// When setting `can_contain_items` to true, ensure `container_limit` is also set appropriately
+/// (Some(limit) for finite containers, None for unlimited). This coupling is not enforced
+/// by the type system - it's a data modeling concern.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Item {
     pub id: ItemId,
     pub world_id: WorldId,
-    pub name: String,
+    pub name: ItemName,
     pub description: Option<String>,
     /// Type of item (e.g., "Weapon", "Consumable", "Key", "Quest")
     pub item_type: Option<String>,
@@ -42,11 +53,11 @@ pub struct Item {
 }
 
 impl Item {
-    pub fn new(world_id: WorldId, name: impl Into<String>) -> Self {
+    pub fn new(world_id: WorldId, name: ItemName) -> Self {
         Self {
             id: ItemId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: None,
             item_type: None,
             is_unique: false,
@@ -55,44 +66,10 @@ impl Item {
             container_limit: None,
         }
     }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    pub fn with_type(mut self, item_type: impl Into<String>) -> Self {
-        self.item_type = Some(item_type.into());
-        self
-    }
-
-    pub fn unique(mut self) -> Self {
-        self.is_unique = true;
-        self
-    }
-
-    pub fn with_properties(mut self, properties: impl Into<String>) -> Self {
-        self.properties = Some(properties.into());
-        self
-    }
-
-    /// Make this item a container that can hold other items
-    pub fn as_container(mut self) -> Self {
-        self.can_contain_items = true;
-        self
-    }
-
-    /// Set the maximum number of items this container can hold
-    pub fn with_container_limit(mut self, limit: u32) -> Self {
-        self.can_contain_items = true;
-        self.container_limit = Some(limit);
-        self
-    }
 }
 
 /// Data for the POSSESSES edge between Character/PlayerCharacter and Item
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InventoryItem {
     /// The item being possessed
     pub item: Item,
@@ -106,31 +83,8 @@ pub struct InventoryItem {
     pub acquisition_method: Option<AcquisitionMethod>,
 }
 
-impl InventoryItem {
-    pub fn new(item: Item, quantity: u32, now: DateTime<Utc>) -> Self {
-        Self {
-            item,
-            quantity,
-            equipped: false,
-            acquired_at: now,
-            acquisition_method: None,
-        }
-    }
-
-    pub fn equipped(mut self) -> Self {
-        self.equipped = true;
-        self
-    }
-
-    pub fn with_acquisition(mut self, method: AcquisitionMethod) -> Self {
-        self.acquisition_method = Some(method);
-        self
-    }
-}
-
 /// How an item was acquired
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum AcquisitionMethod {
     Found,
     Purchased,
@@ -175,7 +129,6 @@ impl std::str::FromStr for AcquisitionMethod {
 
 /// How often a character frequents a location
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum FrequencyLevel {
     Rarely,
     Sometimes,

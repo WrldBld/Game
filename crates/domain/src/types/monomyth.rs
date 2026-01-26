@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Based on Joseph Campbell's work in "The Hero with a Thousand Faces",
 /// these stages represent the archetypal journey of transformation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum MonomythStage {
     /// The hero's normal life before the adventure
     #[default]

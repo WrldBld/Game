@@ -22,22 +22,22 @@ use wrldbldr_domain::{CharacterId, InteractionId, ItemId, SceneId};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InteractionTemplate {
-    pub id: InteractionId,
-    pub scene_id: SceneId,
-    pub name: String,
-    pub interaction_type: InteractionType,
+    id: InteractionId,
+    scene_id: SceneId,
+    name: String,
+    interaction_type: InteractionType,
     /// DEPRECATED: Use TARGETS_* edge via repository
-    pub target: InteractionTarget,
+    target: InteractionTarget,
     /// Hints for the LLM on how to handle this interaction
-    pub prompt_hints: String,
+    prompt_hints: String,
     /// What tools the LLM is allowed to call for this interaction
-    pub allowed_tools: Vec<String>,
+    allowed_tools: Vec<String>,
     /// Conditions that must be met to show this interaction (stored as JSON)
-    pub conditions: Vec<InteractionCondition>,
+    conditions: Vec<InteractionCondition>,
     /// Whether this interaction is currently available
-    pub is_available: bool,
+    is_available: bool,
     /// Display order in the UI
-    pub order: u32,
+    order: u32,
 }
 
 impl InteractionTemplate {
@@ -61,6 +61,76 @@ impl InteractionTemplate {
         }
     }
 
+    /// Reconstruct an InteractionTemplate from stored data (e.g., database)
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_storage(
+        id: InteractionId,
+        scene_id: SceneId,
+        name: String,
+        interaction_type: InteractionType,
+        target: InteractionTarget,
+        prompt_hints: String,
+        allowed_tools: Vec<String>,
+        conditions: Vec<InteractionCondition>,
+        is_available: bool,
+        order: u32,
+    ) -> Self {
+        Self {
+            id,
+            scene_id,
+            name,
+            interaction_type,
+            target,
+            prompt_hints,
+            allowed_tools,
+            conditions,
+            is_available,
+            order,
+        }
+    }
+
+    // Read accessors
+    pub fn id(&self) -> InteractionId {
+        self.id
+    }
+
+    pub fn scene_id(&self) -> SceneId {
+        self.scene_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn interaction_type(&self) -> &InteractionType {
+        &self.interaction_type
+    }
+
+    pub fn target(&self) -> &InteractionTarget {
+        &self.target
+    }
+
+    pub fn prompt_hints(&self) -> &str {
+        &self.prompt_hints
+    }
+
+    pub fn allowed_tools(&self) -> &[String] {
+        &self.allowed_tools
+    }
+
+    pub fn conditions(&self) -> &[InteractionCondition] {
+        &self.conditions
+    }
+
+    pub fn is_available(&self) -> bool {
+        self.is_available
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
+    }
+
+    // Builder methods
     pub fn with_prompt_hints(mut self, hints: impl Into<String>) -> Self {
         self.prompt_hints = hints.into();
         self
@@ -71,13 +141,28 @@ impl InteractionTemplate {
         self
     }
 
+    pub fn with_allowed_tools(mut self, tools: Vec<String>) -> Self {
+        self.allowed_tools = tools;
+        self
+    }
+
     pub fn with_condition(mut self, condition: InteractionCondition) -> Self {
         self.conditions.push(condition);
         self
     }
 
+    pub fn with_conditions(mut self, conditions: Vec<InteractionCondition>) -> Self {
+        self.conditions = conditions;
+        self
+    }
+
     pub fn with_order(mut self, order: u32) -> Self {
         self.order = order;
+        self
+    }
+
+    pub fn with_available(mut self, available: bool) -> Self {
+        self.is_available = available;
         self
     }
 
@@ -164,10 +249,19 @@ pub enum InteractionCondition {
 }
 
 /// Data for interaction requirement edges
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-#[derive(Default)]
 pub struct InteractionRequirement {
     /// Whether the required item is consumed when the interaction is used
     pub consumed: bool,
+}
+
+impl InteractionRequirement {
+    pub fn new() -> Self {
+        Self { consumed: false }
+    }
+
+    pub fn from_storage(consumed: bool) -> Self {
+        Self { consumed }
+    }
 }

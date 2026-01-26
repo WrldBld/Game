@@ -122,7 +122,7 @@ impl DialogueState {
         self.speaker_id.set(Some(speaker_id));
         self.speaker_name.set(speaker_name);
         self.full_text.set(text);
-        self.clean_text.set(parsed.clean_text);
+        self.clean_text.set(parsed.clean_text.clone());
         self.displayed_text.set(String::new());
         self.choices.set(choices);
         self.is_typing.set(true);
@@ -152,8 +152,8 @@ impl DialogueState {
         // Apply all remaining markers
         let markers = self.positioned_markers.read();
         if let Some(last_marker) = markers.last() {
-            if let Some(expr) = &last_marker.marker.expression {
-                self.current_expression.set(Some(expr.clone()));
+            if let Some(expr) = last_marker.marker.expression_value() {
+                self.current_expression.set(Some(expr.to_string()));
             }
         }
         self.current_action.set(None); // Clear action when skipping
@@ -186,12 +186,12 @@ impl DialogueState {
         while next_idx < markers.len() && markers[next_idx].clean_position <= current_position {
             let marker = &markers[next_idx];
 
-            if let Some(expr) = &marker.marker.expression {
-                self.current_expression.set(Some(expr.clone()));
+            if let Some(expr) = marker.marker.expression_value() {
+                self.current_expression.set(Some(expr.to_string()));
             }
 
-            if let Some(action) = &marker.marker.action {
-                self.current_action.set(Some(action.clone()));
+            if let Some(action) = marker.marker.action_value() {
+                self.current_action.set(Some(action.to_string()));
             } else {
                 // Clear action when we hit a non-action marker
                 self.current_action.set(None);
@@ -259,6 +259,14 @@ impl DialogueState {
     /// Check if custom input is available (any choice with is_custom_input)
     pub fn has_custom_input(&self) -> bool {
         self.choices.read().iter().any(|c| c.is_custom_input)
+    }
+
+    /// Check if there's an active conversation
+    ///
+    /// Returns true if a conversation_id is set, indicating an active conversation
+    /// that can be ended.
+    pub fn has_active_conversation(&self) -> bool {
+        self.conversation_id.read().is_some()
     }
 }
 
@@ -334,9 +342,8 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
         let platform = platform.clone();
         spawn_task(async move {
             let mut current = String::new();
-            let mut char_index = 0;
 
-            for ch in text.chars() {
+            for (char_index, ch) in text.chars().enumerate() {
                 // Check if we should stop:
                 // 1. User skipped (is_typing set to false)
                 // 2. New dialogue arrived (version changed)
@@ -356,12 +363,12 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
                     while idx < markers.len() && markers[idx].clean_position <= char_index {
                         let marker = &markers[idx];
 
-                        if let Some(expr) = &marker.marker.expression {
-                            current_expression.set(Some(expr.clone()));
+                        if let Some(expr) = marker.marker.expression_value() {
+                            current_expression.set(Some(expr.to_string()));
                         }
 
-                        if let Some(action) = &marker.marker.action {
-                            current_action.set(Some(action.clone()));
+                        if let Some(action) = marker.marker.action_value() {
+                            current_action.set(Some(action.to_string()));
                         } else {
                             current_action.set(None);
                         }
@@ -374,7 +381,6 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
 
                 current.push(ch);
                 displayed_text.set(current.clone());
-                char_index += 1;
 
                 // Variable delay based on punctuation
                 let delay = match ch {

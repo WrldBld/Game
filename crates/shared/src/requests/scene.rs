@@ -1,0 +1,29 @@
+use serde::{Deserialize, Serialize};
+
+use super::{CreateSceneData, UpdateSceneData};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum SceneRequest {
+    ListScenes {
+        act_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
+    },
+    GetScene {
+        scene_id: String,
+    },
+    CreateScene {
+        act_id: String,
+        data: CreateSceneData,
+    },
+    UpdateScene {
+        scene_id: String,
+        data: UpdateSceneData,
+    },
+    DeleteScene {
+        scene_id: String,
+    },
+}

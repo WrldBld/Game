@@ -12,15 +12,15 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{MessageEvent, WebSocket};
 
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage,
 };
 
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
-use crate::infrastructure::websocket::ConnectionState;
 use crate::infrastructure::websocket::shared::{
     parse_server_message, ParsedServerMessage, MAX_RETRY_ATTEMPTS,
 };
+use crate::infrastructure::websocket::ConnectionState;
 use crate::infrastructure::websocket::{BackoffState, PendingRequests};
 
 /// Storage for WebSocket event closures to prevent leaks on reconnect
