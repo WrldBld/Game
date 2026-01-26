@@ -11,9 +11,12 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{LocationId, LocationStateId, WorldId};
 use crate::value_objects::{
     ActivationLogic, ActivationRule, AssetPath, Atmosphere, Description, StateName,
+};
+use crate::{
+    ids::{LocationId, LocationStateId, WorldId},
+    DomainError,
 };
 
 /// A visual configuration for a location
@@ -64,13 +67,13 @@ impl LocationState {
         world_id: WorldId,
         name: impl Into<String>,
         now: DateTime<Utc>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DomainError> {
+        Ok(Self {
             id: LocationStateId::new(),
             location_id,
             world_id,
-            name: StateName::new(name).unwrap_or_default(),
-            description: Description::default(),
+            name: StateName::new(name)?,
+            description: Description::empty(),
             backdrop_override: None,
             atmosphere_override: None,
             ambient_sound: None,
@@ -83,7 +86,7 @@ impl LocationState {
             workflow_id: None,
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 
     /// Create a default state that's always active (fallback)
@@ -92,14 +95,11 @@ impl LocationState {
         world_id: WorldId,
         name: impl Into<String>,
         now: DateTime<Utc>,
-    ) -> Self {
-        Self {
-            is_default: true,
-            activation_rules: vec![ActivationRule::Always],
-            generation_prompt: None,
-            workflow_id: None,
-            ..Self::new(location_id, world_id, name, now)
-        }
+    ) -> Result<Self, DomainError> {
+        let mut state = Self::new(location_id, world_id, name, now)?;
+        state.is_default = true;
+        state.activation_rules = vec![ActivationRule::Always];
+        Ok(state)
     }
 
     /// Reconstruct from storage
@@ -216,8 +216,8 @@ impl LocationState {
 
     // Builder-style methods
 
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Description::new(description).unwrap_or_default();
+    pub fn with_description(mut self, description: Description) -> Self {
+        self.description = description;
         self
     }
 
@@ -279,13 +279,13 @@ impl LocationState {
         world_id: WorldId,
         name: impl Into<String>,
         now: DateTime<Utc>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DomainError> {
+        Ok(Self {
             id,
             location_id,
             world_id,
-            name: StateName::new(name).unwrap_or_default(),
-            description: Description::default(),
+            name: StateName::new(name)?,
+            description: Description::empty(),
             backdrop_override: None,
             atmosphere_override: None,
             ambient_sound: None,
@@ -298,7 +298,7 @@ impl LocationState {
             workflow_id: None,
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 
     /// Check if this state has any soft rules requiring LLM evaluation
@@ -367,7 +367,8 @@ mod tests {
         let now = fixed_time();
         let atm = Atmosphere::new("The streets are alive with music and laughter...").unwrap();
         let state = LocationState::new(LocationId::new(), WorldId::new(), "Festival Day", now)
-            .with_description("City-wide festival celebration")
+            .unwrap()
+            .with_description(Description::new("City-wide festival celebration").unwrap())
             .with_backdrop(AssetPath::new("/assets/city_festival.png").unwrap())
             .with_atmosphere(atm)
             .with_priority(100);
@@ -376,6 +377,80 @@ mod tests {
         assert!(state.backdrop_override().is_some());
         assert_eq!(state.priority(), 100);
         assert!(!state.is_default());
+    }
+
+    #[test]
+    fn test_default_state() {
+        let now = fixed_time();
+        let state =
+            LocationState::default_state(LocationId::new(), WorldId::new(), "Normal", now).unwrap();
+
+        assert!(state.is_default());
+        assert_eq!(state.activation_rules().len(), 1);
+        assert!(matches!(
+            state.activation_rules()[0],
+            ActivationRule::Always
+        ));
+    }
+
+    #[test]
+    fn test_soft_rules_detection() {
+        let now = fixed_time();
+        let state = LocationState::new(LocationId::new(), WorldId::new(), "Test", now).unwrap();
+
+        // No rules - no soft rules
+        assert!(!state.has_soft_rules());
+
+        // Add hard rule
+        let state = state.with_rule(ActivationRule::TimeOfDay {
+            period: TimeOfDay::Morning,
+        });
+        assert!(!state.has_soft_rules());
+
+        // Add soft rule
+        let state = state.with_rule(ActivationRule::Custom {
+            description: "When the mood is tense".to_string(),
+            llm_prompt: None,
+        });
+        assert!(state.has_soft_rules());
+        assert_eq!(state.hard_rules().len(), 1);
+        assert_eq!(state.soft_rules().len(), 1);
+    }
+
+    #[test]
+    fn test_generation_metadata() {
+        let now = fixed_time();
+        let state = LocationState::new(LocationId::new(), WorldId::new(), "Test", now)
+            .unwrap()
+            .with_generation_prompt("A serene forest path".to_string())
+            .with_workflow_id("backdrop_v2".to_string());
+
+        assert_eq!(state.generation_prompt(), Some("A serene forest path"));
+        assert_eq!(state.workflow_id(), Some("backdrop_v2"));
+
+        let summary = state.summary();
+        assert_eq!(
+            summary.generation_prompt,
+            Some("A serene forest path".to_string())
+        );
+        assert_eq!(summary.workflow_id, Some("backdrop_v2".to_string()));
+    }
+
+    #[test]
+    fn test_new_with_id() {
+        let now = fixed_time();
+        let specific_id = LocationStateId::new();
+        let state = LocationState::new_with_id(
+            specific_id,
+            LocationId::new(),
+            WorldId::new(),
+            "Deterministic State",
+            now,
+        )
+        .unwrap();
+
+        assert_eq!(state.id(), specific_id);
+        assert_eq!(state.name(), "Deterministic State");
     }
 
     #[test]
@@ -443,9 +518,81 @@ mod tests {
             WorldId::new(),
             "Deterministic State",
             now,
-        );
+        )
+        .unwrap();
 
         assert_eq!(state.id(), specific_id);
         assert_eq!(state.name(), "Deterministic State");
+    }
+
+    #[test]
+    fn test_new_rejects_empty_name() {
+        let now = fixed_time();
+        let result = LocationState::new(LocationId::new(), WorldId::new(), "", now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_new_rejects_whitespace_only_name() {
+        let now = fixed_time();
+        let result = LocationState::new(LocationId::new(), WorldId::new(), "   ", now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+    }
+
+    #[test]
+    fn test_new_rejects_too_long_name() {
+        let now = fixed_time();
+        let long_name = "a".repeat(101);
+        let result = LocationState::new(LocationId::new(), WorldId::new(), &long_name, now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("100"));
+    }
+
+    #[test]
+    fn test_new_with_id_rejects_empty_name() {
+        let now = fixed_time();
+        let specific_id = LocationStateId::new();
+        let result =
+            LocationState::new_with_id(specific_id, LocationId::new(), WorldId::new(), "", now);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_new_with_id_rejects_too_long_name() {
+        let now = fixed_time();
+        let specific_id = LocationStateId::new();
+        let long_name = "a".repeat(101);
+        let result = LocationState::new_with_id(
+            specific_id,
+            LocationId::new(),
+            WorldId::new(),
+            &long_name,
+            now,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("100"));
+    }
+
+    #[test]
+    fn test_default_state_validates_name() {
+        let now = fixed_time();
+        let result = LocationState::default_state(LocationId::new(), WorldId::new(), "", now);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_default_state_rejects_whitespace_only_name() {
+        let now = fixed_time();
+        let result = LocationState::default_state(LocationId::new(), WorldId::new(), "   ", now);
+        assert!(result.is_err());
     }
 }

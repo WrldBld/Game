@@ -7,8 +7,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use wrldbldr_domain::{
-    ActivationLogic, ActivationRule, AssetPath, Atmosphere, Description, LocationId, LocationState,
-    LocationStateId, RegionId, RegionState, RegionStateId, StateName,
+    ActivationLogic, ActivationRule, AssetPath, Atmosphere, Description, DomainError, LocationId,
+    LocationState, LocationStateId, RegionId, RegionState, RegionStateId, StateName,
 };
 
 use crate::infrastructure::ports::{
@@ -55,6 +55,9 @@ pub enum CatalogError {
 
     #[error("Description too long (max 5000 characters)")]
     DescriptionTooLong,
+
+    #[error("Domain error: {0}")]
+    Domain(#[from] DomainError),
 }
 
 /// Visual state catalog data
@@ -193,8 +196,8 @@ impl VisualStateCatalog {
         let activation_rules = self.parse_activation_rules(activation_rules_json)?;
         let activation_logic = self.parse_activation_logic(activation_logic_str)?;
 
-        let mut state = LocationState::new(location_id, location.world_id(), name, now)
-            .with_description(description.unwrap_or_default())
+        let mut state = LocationState::new(location_id, location.world_id(), name, now)?
+            .with_description(Description::new(description.unwrap_or_default())?)
             .with_priority(priority)
             .with_is_default(is_default)
             .with_rules(activation_rules, activation_logic);
@@ -242,14 +245,18 @@ impl VisualStateCatalog {
         let activation_rules = self.parse_activation_rules(activation_rules_json)?;
         let activation_logic = self.parse_activation_logic(activation_logic_str)?;
 
+        let description = Description::new(description.unwrap_or_default()).map_err(|e| {
+            CatalogError::Validation(e.to_string())
+        })?;
+
         let mut state = RegionState::new(
             region_id,
             region.location_id(),
             location.world_id(),
             name,
             now,
-        )
-        .with_description(description.unwrap_or_default())
+        )?
+        .with_description(description)
         .with_priority(priority)
         .with_is_default(is_default)
         .with_rules(activation_rules, activation_logic);
@@ -418,7 +425,7 @@ impl VisualStateCatalog {
         let mut state = self.region_state_repo.get(id).await?
             .ok_or(CatalogError::RegionStateNotFound(id))?;
 
-        // Validate and update name
+        // Validate name
         if let Some(n) = &name {
             if n.trim().is_empty() {
                 return Err(CatalogError::NameEmpty);
@@ -451,10 +458,8 @@ impl VisualStateCatalog {
             state.region_id(),
             state.location_id(),
             state.world_id(),
-            StateName::new(name.unwrap_or_else(|| state.name().to_string()))
-                .unwrap_or_else(|_| StateName::default()),
-            Description::new(description.unwrap_or_else(|| state.description().to_string()))
-                .unwrap_or_default(),
+            StateName::new(name.unwrap_or_else(|| state.name().to_string()))?,
+            Description::new(description.unwrap_or_else(|| state.description().to_string()))?,
             backdrop.or_else(|| state.backdrop_override().cloned()),
             atm.or_else(|| state.atmosphere_override().cloned()),
             sound.or_else(|| state.ambient_sound().cloned()),
@@ -500,8 +505,8 @@ impl VisualStateCatalog {
             let activation_logic = self.parse_activation_logic(activation_logic_str)?;
             let now = self.clock.now();
 
-            let state = LocationState::new_with_id(state_id, loc_id, location.world_id(), &name, now)
-                .with_description(description.clone())
+            let state = LocationState::new_with_id(state_id, loc_id, location.world_id(), &name, now)?
+                .with_description(Description::new(description.clone())?)
                 .with_generation_prompt(prompt.clone())
                 .with_workflow_id(workflow_id.clone())
                 .with_rules(activation_rules, activation_logic)
@@ -524,8 +529,11 @@ impl VisualStateCatalog {
             let activation_logic = self.parse_activation_logic(activation_logic_str)?;
             let now = self.clock.now();
 
-            let state = RegionState::new_with_id(state_id, reg_id, region.location_id(), location.world_id(), &name, now)
-                .with_description(description.clone())
+            let description = Description::new(description.clone())
+                .map_err(|e| CatalogError::Validation(e.to_string()))?;
+
+            let state = RegionState::new_with_id(state_id, reg_id, region.location_id(), location.world_id(), &name, now)?
+                .with_description(description)
                 .with_generation_prompt(prompt.clone())
                 .with_workflow_id(workflow_id.clone())
                 .with_rules(activation_rules, activation_logic)
@@ -546,13 +554,13 @@ impl VisualStateCatalog {
 
         // Enqueue asset generation if requested
         if generate_backdrop {
-            let entity_id = location_state
+            let entity_id: String = location_state
                 .as_ref()
                 .map(|s| s.id().to_string())
                 .or_else(|| region_state.as_ref().map(|s| s.id().to_string()))
                 .ok_or_else(|| CatalogError::Validation("Failed to determine state ID".to_string()))?;
 
-            let entity_type = location_state.as_ref()
+            let entity_type: String = location_state.as_ref()
                 .map(|_| "LocationState".to_string())
                 .or_else(|| region_state.as_ref().map(|_| "RegionState".to_string()))
                 .ok_or_else(|| CatalogError::Validation("Failed to determine entity type".to_string()))?;

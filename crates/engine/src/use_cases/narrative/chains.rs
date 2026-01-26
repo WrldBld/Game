@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use wrldbldr_domain::{self as domain, ActId, EventChain, EventChainId, NarrativeEventId, WorldId};
+use wrldbldr_domain::{
+    self as domain, ActId, Description, DomainError, EventChain, EventChainId,
+    EventChainName, NarrativeEventId, WorldId,
+};
 
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::narrative_operations::NarrativeOps;
@@ -103,10 +106,14 @@ impl EventChainOps {
         events: Option<Vec<NarrativeEventId>>,
     ) -> Result<EventChainSummary, EventChainError> {
         let now = self.narrative.now();
-        let mut chain = EventChain::new(world_id, &input.name, now);
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new(&input.name)?,
+            now,
+        )?;
 
         if let Some(description) = input.description {
-            chain.set_description(description, now);
+            chain.set_description(Description::new(description)?, now)?;
         }
         if let Some(tags) = input.tags {
             let domain_tags: Vec<wrldbldr_domain::Tag> = tags
@@ -153,10 +160,10 @@ impl EventChainOps {
 
         let now = self.narrative.now();
         if let Some(name) = input.name {
-            chain.set_name(name, now);
+            chain.set_name(EventChainName::new(name)?, now)?;
         }
         if let Some(description) = input.description {
-            chain.set_description(description, now);
+            chain.set_description(Description::new(description)?, now)?;
         }
         if let Some(tags) = input.tags {
             let domain_tags: Vec<wrldbldr_domain::Tag> = tags
@@ -315,6 +322,8 @@ pub enum EventChainError {
     NotFound,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+    #[error("Domain error: {0}")]
+    Domain(#[from] DomainError),
 }
 
 fn event_chain_to_summary(chain: &EventChain) -> EventChainSummary {

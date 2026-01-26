@@ -1963,8 +1963,25 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
             format!("Failed to get 'name' for EventChain {}: {}", id, e),
         )
     })?;
-
-    let description: String = node.get_string_or("description", "");
+    let name = EventChainName::new(&name).map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!(
+                "Failed to parse name '{}' for EventChain {}: {}",
+                name, id, e
+            ),
+        )
+    })?;
+    let description = Description::new(node.get_string_or("description", ""))
+        .map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Failed to parse description for EventChain {}: {}",
+                    id, e
+                ),
+            )
+        })?;
     let events_strs: Vec<String> = node.get("events").map_err(|e| {
         RepoError::database(
             "query",

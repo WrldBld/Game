@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 
-use crate::value_objects::Tag;
+use crate::value_objects::{Description, Tag};
+use crate::{DomainError, EventChainName};
 
 /// A chain of connected narrative events forming a story arc
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,9 +19,9 @@ pub struct EventChain {
     world_id: WorldId,
 
     /// Name of this story arc/chain
-    name: String,
+    name: EventChainName,
     /// Description of what this chain represents narratively
-    description: String,
+    description: Description,
 
     /// IDs of events in this chain (ordered by chain_position)
     events: Vec<NarrativeEventId>,
@@ -49,12 +50,16 @@ pub struct EventChain {
 }
 
 impl EventChain {
-    pub fn new(world_id: WorldId, name: impl Into<String>, now: DateTime<Utc>) -> Self {
-        Self {
+    pub fn new(
+        world_id: WorldId,
+        name: EventChainName,
+        now: DateTime<Utc>,
+    ) -> Result<Self, DomainError> {
+        Ok(Self {
             id: EventChainId::new(),
             world_id,
-            name: name.into(),
-            description: String::new(),
+            name,
+            description: Description::empty(),
             events: Vec::new(),
             is_active: true,
             current_position: 0,
@@ -65,7 +70,7 @@ impl EventChain {
             is_favorite: false,
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 
     // Read accessors
@@ -77,12 +82,12 @@ impl EventChain {
         self.world_id
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &EventChainName {
         &self.name
     }
 
     pub fn description(&self) -> &str {
-        &self.description
+        self.description.as_str()
     }
 
     pub fn events(&self) -> &[NarrativeEventId] {
@@ -126,8 +131,8 @@ impl EventChain {
     }
 
     // Builder methods
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+    pub fn with_description(mut self, description: Description) -> Self {
+        self.description = description;
         self
     }
 
@@ -162,14 +167,24 @@ impl EventChain {
     }
 
     // Setter methods for updating existing chains
-    pub fn set_name(&mut self, name: impl Into<String>, now: DateTime<Utc>) {
-        self.name = name.into();
+    pub fn set_name(
+        &mut self,
+        name: EventChainName,
+        now: DateTime<Utc>,
+    ) -> Result<(), DomainError> {
+        self.name = name;
         self.updated_at = now;
+        Ok(())
     }
 
-    pub fn set_description(&mut self, description: impl Into<String>, now: DateTime<Utc>) {
-        self.description = description.into();
+    pub fn set_description(
+        &mut self,
+        description: Description,
+        now: DateTime<Utc>,
+    ) -> Result<(), DomainError> {
+        self.description = description;
         self.updated_at = now;
+        Ok(())
     }
 
     pub fn set_tags(&mut self, tags: Vec<Tag>, now: DateTime<Utc>) {
@@ -199,8 +214,8 @@ impl EventChain {
     pub fn from_storage(
         id: EventChainId,
         world_id: WorldId,
-        name: String,
-        description: String,
+        name: EventChainName,
+        description: Description,
         events: Vec<NarrativeEventId>,
         is_active: bool,
         current_position: u32,
@@ -438,7 +453,8 @@ mod tests {
     fn test_new() {
         let world_id = test_world_id();
         let now = test_now();
-        let chain = EventChain::new(world_id, "Test Chain", now);
+        let chain =
+            EventChain::new(world_id, EventChainName::new("Test Chain").unwrap(), now).unwrap();
 
         assert_eq!(chain.name(), "Test Chain");
         assert_eq!(chain.world_id(), world_id);
@@ -454,7 +470,8 @@ mod tests {
     fn test_add_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event1 = test_event_id(1);
         let event2 = test_event_id(2);
 
@@ -473,7 +490,8 @@ mod tests {
     fn test_insert_event_at_beginning() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -501,7 +519,8 @@ mod tests {
     fn test_insert_event_at_current_position() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -529,7 +548,8 @@ mod tests {
     fn test_insert_event_after_current_position() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -557,7 +577,8 @@ mod tests {
     fn test_insert_event_at_end() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_x = test_event_id(10);
@@ -580,7 +601,8 @@ mod tests {
     fn test_insert_event_out_of_bounds() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_x = test_event_id(10);
 
@@ -598,7 +620,8 @@ mod tests {
     fn test_remove_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -622,7 +645,8 @@ mod tests {
     fn test_remove_event_not_found() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -640,7 +664,8 @@ mod tests {
     fn test_remove_event_also_removes_from_completed() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -657,7 +682,8 @@ mod tests {
     fn test_remove_event_before_current_position() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -682,7 +708,8 @@ mod tests {
     fn test_remove_event_at_current_position() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -707,7 +734,8 @@ mod tests {
     fn test_remove_event_after_current_position() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -732,7 +760,8 @@ mod tests {
     fn test_reorder_events() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -755,7 +784,8 @@ mod tests {
     fn test_reorder_events_clamps_current_position() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -774,7 +804,8 @@ mod tests {
     fn test_reorder_events_empty_list() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
 
         chain.add_event(event_a, now);
@@ -792,7 +823,8 @@ mod tests {
     fn test_complete_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -814,7 +846,8 @@ mod tests {
     fn test_complete_event_not_current() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -834,7 +867,8 @@ mod tests {
     fn test_complete_event_duplicate() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
 
         chain.add_event(event_a, now);
@@ -851,7 +885,8 @@ mod tests {
     fn test_current_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -872,7 +907,8 @@ mod tests {
     fn test_next_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -895,7 +931,8 @@ mod tests {
     fn test_is_complete() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -928,7 +965,8 @@ mod tests {
     fn test_progress() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -962,7 +1000,8 @@ mod tests {
     fn test_progress_string() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -977,7 +1016,8 @@ mod tests {
     fn test_remaining_events() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -996,7 +1036,8 @@ mod tests {
     fn test_reset() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -1018,7 +1059,8 @@ mod tests {
     fn test_activate_deactivate() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
 
         assert!(chain.is_active());
 
@@ -1037,7 +1079,8 @@ mod tests {
     fn test_contains_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -1051,7 +1094,8 @@ mod tests {
     fn test_event_position() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -1072,7 +1116,8 @@ mod tests {
     fn test_is_event_completed() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -1113,7 +1158,8 @@ mod tests {
     fn test_chain_status_complete() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test", now);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
         let event_a = test_event_id(1);
 
         chain.add_event(event_a, now);
@@ -1123,5 +1169,62 @@ mod tests {
 
         assert!(status.is_complete);
         assert_eq!(status.current_event_id, None);
+    }
+
+    #[test]
+    fn test_new_rejects_empty_name() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let result = EventChain::new(world_id, EventChainName::new("").unwrap(), now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+    }
+
+    #[test]
+    fn test_new_rejects_whitespace_only_name() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let result = EventChain::new(world_id, EventChainName::new("   ").unwrap(), now);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_new_rejects_too_long_name() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let long_name = "a".repeat(201);
+        let result = EventChain::new(world_id, EventChainName::new(&long_name).unwrap(), now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("200"));
+    }
+
+    #[test]
+    fn test_set_name_validates() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+
+        let result = chain.set_name(EventChainName::new("   ").unwrap(), now);
+        assert!(result.is_err());
+
+        let result = chain.set_name(EventChainName::new("a".repeat(201)).unwrap(), now);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_set_description_validates() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+
+        // Description validates length (max 5000)
+        let long_desc = "a".repeat(5001);
+        let result = chain.set_description(&long_desc, now);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("5000"));
     }
 }

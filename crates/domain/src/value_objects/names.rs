@@ -948,6 +948,70 @@ impl AsRef<str> for StateName {
 }
 
 // ============================================================================
+// EventChainName
+// ============================================================================
+
+/// A validated event chain name (non-empty, <=200 chars, trimmed)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct EventChainName(String);
+
+impl EventChainName {
+    /// Create a new validated event chain name.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DomainError::Validation` if:
+    /// - The name is empty after trimming
+    /// - The name exceeds 200 characters after trimming
+    pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
+        let name = name.into();
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return Err(DomainError::validation("Event chain name cannot be empty"));
+        }
+        if trimmed.len() > MAX_NAME_LENGTH {
+            return Err(DomainError::validation(format!(
+                "Event chain name cannot exceed {} characters",
+                MAX_NAME_LENGTH
+            )));
+        }
+        Ok(Self(trimmed.to_string()))
+    }
+
+    /// Returns the name as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for EventChainName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<String> for EventChainName {
+    type Error = DomainError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::new(s)
+    }
+}
+
+impl From<EventChainName> for String {
+    fn from(name: EventChainName) -> String {
+        name.0
+    }
+}
+
+impl AsRef<str> for EventChainName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -1672,6 +1736,77 @@ mod tests {
         fn default_returns_valid_name() {
             let name = StateName::default();
             assert_eq!(name.as_str(), "Default");
+        }
+
+        mod event_chain_name {
+            use super::*;
+
+            #[test]
+            fn valid_name() {
+                let name = EventChainName::new("The Hero's Journey").unwrap();
+                assert_eq!(name.as_str(), "The Hero's Journey");
+                assert_eq!(name.to_string(), "The Hero's Journey");
+            }
+
+            #[test]
+            fn empty_name_rejected() {
+                let result = EventChainName::new("");
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(matches!(err, DomainError::Validation(_)));
+                assert!(err.to_string().contains("cannot be empty"));
+            }
+
+            #[test]
+            fn whitespace_only_rejected() {
+                let result = EventChainName::new("   ");
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(matches!(err, DomainError::Validation(_)));
+            }
+
+            #[test]
+            fn name_is_trimmed() {
+                let name = EventChainName::new("  The Dark Prophecy  ").unwrap();
+                assert_eq!(name.as_str(), "The Dark Prophecy");
+            }
+
+            #[test]
+            fn too_long_rejected() {
+                let long_name = "a".repeat(201);
+                let result = EventChainName::new(long_name);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(matches!(err, DomainError::Validation(_)));
+                assert!(err.to_string().contains("200"));
+            }
+
+            #[test]
+            fn max_length_accepted() {
+                let max_name = "a".repeat(200);
+                let name = EventChainName::new(max_name).unwrap();
+                assert_eq!(name.as_str().len(), 200);
+            }
+
+            #[test]
+            fn try_from_string() {
+                let name: EventChainName = "A New Hope".to_string().try_into().unwrap();
+                assert_eq!(name.as_str(), "A New Hope");
+            }
+
+            #[test]
+            fn into_string() {
+                let name = EventChainName::new("Rise of Empire").unwrap();
+                let s: String = name.into();
+                assert_eq!(s, "Rise of Empire");
+            }
+
+            #[test]
+            fn clone_preserves_name() {
+                let name = EventChainName::new("Return of the King").unwrap();
+                let cloned = name.clone();
+                assert_eq!(cloned.as_str(), "Return of the King");
+            }
         }
     }
 }

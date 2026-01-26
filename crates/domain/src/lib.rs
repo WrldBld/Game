@@ -281,6 +281,8 @@ pub use value_objects::{
     EpochConfig,
     // Calendar era definition
     EraDefinition,
+    // Event chain name
+    EventChainName,
     ExpressionConfig,
     // Relationship types
     FamilyRelation,

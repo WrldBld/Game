@@ -11,9 +11,12 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{LocationId, RegionId, RegionStateId, WorldId};
 use crate::value_objects::{
     ActivationLogic, ActivationRule, AssetPath, Atmosphere, Description, StateName,
+};
+use crate::{
+    ids::{LocationId, RegionId, RegionStateId, WorldId},
+    DomainError,
 };
 
 /// A visual configuration for a region
@@ -65,14 +68,14 @@ impl RegionState {
         world_id: WorldId,
         name: impl Into<String>,
         now: DateTime<Utc>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DomainError> {
+        Ok(Self {
             id: RegionStateId::new(),
             region_id,
             location_id,
             world_id,
-            name: StateName::new(name).unwrap_or_default(),
-            description: Description::default(),
+            name: StateName::new(name)?,
+            description: Description::empty(),
             backdrop_override: None,
             atmosphere_override: None,
             ambient_sound: None,
@@ -84,7 +87,7 @@ impl RegionState {
             workflow_id: None,
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 
     /// Create a default state that's always active (fallback)
@@ -94,14 +97,11 @@ impl RegionState {
         world_id: WorldId,
         name: impl Into<String>,
         now: DateTime<Utc>,
-    ) -> Self {
-        Self {
-            is_default: true,
-            activation_rules: vec![ActivationRule::Always],
-            generation_prompt: None,
-            workflow_id: None,
-            ..Self::new(region_id, location_id, world_id, name, now)
-        }
+    ) -> Result<Self, DomainError> {
+        let mut state = Self::new(region_id, location_id, world_id, name, now)?;
+        state.is_default = true;
+        state.activation_rules = vec![ActivationRule::Always];
+        Ok(state)
     }
 
     /// Reconstruct from storage
@@ -218,8 +218,8 @@ impl RegionState {
 
     // Builder-style methods
 
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Description::new(description).unwrap_or_default();
+    pub fn with_description(mut self, description: Description) -> Self {
+        self.description = description;
         self
     }
 
@@ -277,14 +277,14 @@ impl RegionState {
         world_id: WorldId,
         name: impl Into<String>,
         now: DateTime<Utc>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DomainError> {
+        Ok(Self {
             id,
             region_id,
             location_id,
             world_id,
-            name: StateName::new(name).unwrap_or_default(),
-            description: Description::default(),
+            name: StateName::new(name)?,
+            description: Description::empty(),
             backdrop_override: None,
             atmosphere_override: None,
             ambient_sound: None,
@@ -296,7 +296,7 @@ impl RegionState {
             workflow_id: None,
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 
     /// Check if this state has any soft rules requiring LLM evaluation
@@ -372,7 +372,8 @@ mod tests {
             "Evening",
             now,
         )
-        .with_description("Warm evening atmosphere")
+        .unwrap()
+        .with_description(Description::new("Warm evening atmosphere").unwrap())
         .with_backdrop(AssetPath::new("/assets/tavern_evening.png").unwrap())
         .with_atmosphere(atm)
         .with_rule(ActivationRule::TimeOfDay {
@@ -396,7 +397,8 @@ mod tests {
             WorldId::new(),
             "Default",
             now,
-        );
+        )
+        .unwrap();
 
         assert!(state.is_default());
         assert_eq!(state.activation_rules().len(), 1);
@@ -415,7 +417,8 @@ mod tests {
             WorldId::new(),
             "Test",
             now,
-        );
+        )
+        .unwrap();
 
         // No rules - no soft rules
         assert!(!state.has_soft_rules());
@@ -446,6 +449,7 @@ mod tests {
             "Morning",
             now,
         )
+        .unwrap()
         .with_backdrop(AssetPath::new("/assets/tavern_morning.png").unwrap())
         .with_priority(10);
 
@@ -468,6 +472,7 @@ mod tests {
             "Evening",
             now,
         )
+        .unwrap()
         .with_generation_prompt("Warm tavern with flickering candles".to_string())
         .with_workflow_id("backdrop_v2".to_string());
 
@@ -496,9 +501,120 @@ mod tests {
             WorldId::new(),
             "Deterministic State",
             now,
-        );
+        )
+        .unwrap();
 
         assert_eq!(state.id(), specific_id);
         assert_eq!(state.name(), "Deterministic State");
+    }
+
+    #[test]
+    fn test_new_rejects_empty_name() {
+        let now = fixed_time();
+        let result = RegionState::new(RegionId::new(), LocationId::new(), WorldId::new(), "", now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+    }
+
+    #[test]
+    fn test_new_rejects_whitespace_only_name() {
+        let now = fixed_time();
+        let result = RegionState::new(
+            RegionId::new(),
+            LocationId::new(),
+            WorldId::new(),
+            "   ",
+            now,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+    }
+
+    #[test]
+    fn test_new_rejects_too_long_name() {
+        let now = fixed_time();
+        let long_name = "a".repeat(101);
+        let result = RegionState::new(
+            RegionId::new(),
+            LocationId::new(),
+            WorldId::new(),
+            &long_name,
+            now,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("100"));
+    }
+
+    #[test]
+    fn test_new_rejects_empty_name() {
+        let now = fixed_time();
+        let result = RegionState::new(RegionId::new(), LocationId::new(), WorldId::new(), "", now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_new_rejects_whitespace_only_name() {
+        let now = fixed_time();
+        let result = RegionState::new(
+            RegionId::new(),
+            LocationId::new(),
+            WorldId::new(),
+            "   ",
+            now,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+    }
+
+    #[test]
+    fn test_new_rejects_too_long_name() {
+        let now = fixed_time();
+        let long_name = "a".repeat(101);
+        let result = RegionState::new(
+            RegionId::new(),
+            LocationId::new(),
+            WorldId::new(),
+            &long_name,
+            now,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("100"));
+    }
+
+    #[test]
+    fn test_new_with_id_rejects_too_long_name() {
+        let now = fixed_time();
+        let specific_id = RegionStateId::new();
+        let long_name = "a".repeat(101);
+        let result = RegionState::new_with_id(
+            specific_id,
+            RegionId::new(),
+            LocationId::new(),
+            WorldId::new(),
+            &long_name,
+            now,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("100"));
+    }
+
+    #[test]
+    fn test_default_state_validates_name() {
+        let now = fixed_time();
+        let result =
+            RegionState::default_state(RegionId::new(), LocationId::new(), WorldId::new(), "", now);
+        assert!(result.is_err());
     }
 }
