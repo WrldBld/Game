@@ -107,8 +107,8 @@ pub use user_service::UserService;
 
 // Re-export prompt template service types
 pub use prompt_template_service::{
-    PromptTemplateService, ResolvedPromptTemplate, SavePromptTemplateRequest,
-    use_prompt_template_service,
+    use_prompt_template_service, PromptTemplateService, ResolvedPromptTemplate,
+    SavePromptTemplateRequest,
 };
 
 // Re-export character sheet service types

@@ -19,6 +19,7 @@ use crate::infrastructure::ports::{
 
 impl ActiveConversationRecord {
     /// Convert to protocol message type.
+    /// This handles conversion from repo types to protocol format.
     pub fn to_protocol(&self) -> ProtocolConversationInfo {
         ProtocolConversationInfo {
             conversation_id: self.id.to_string(),

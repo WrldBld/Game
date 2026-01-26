@@ -581,6 +581,7 @@ pub(crate) fn build_test_app_with_ports(
             staging_repo.clone(),
             world_repo.clone(),
             narrative.clone(),
+            narrative_repo.clone(),
             queue_port.clone(),
             clock_port.clone(),
         ));

@@ -532,8 +532,9 @@ pub enum PlayerEvent {
 
     /// Visual state changed for a region (broadcast to all)
     /// Sent when staging approval changes visual state without scene change
+    /// region_id: Some(id) applies to specific region, None applies to all
     VisualStateChanged {
-        region_id: String,
+        region_id: Option<String>,
         visual_state: Option<ResolvedVisualStateData>,
     },
 

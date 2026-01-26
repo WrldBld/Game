@@ -209,6 +209,7 @@ impl App {
             repos.staging.clone(),
             repos.world.clone(),
             narrative.clone(),
+            repos.narrative.clone(),
             queue_port.clone(),
             clock_port.clone(),
         ));
@@ -218,21 +219,14 @@ impl App {
             narrative.clone(),
         ));
         let conversation_end_by_id = Arc::new(use_cases::conversation::EndConversationById::new(
-            repos.character.clone(),
-            repos.player_character.clone(),
             repos.narrative.clone(),
         ));
-        let conversation_list_active =
-            Arc::new(use_cases::conversation::ListActiveConversations::new(
-                repos.character.clone(),
-                repos.player_character.clone(),
-                repos.narrative.clone(),
-            ));
-        let conversation_get_details =
-            Arc::new(use_cases::conversation::GetConversationDetails::new(
-                repos.narrative.clone(),
-                repos.character.clone(),
-            ));
+        let conversation_list_active = Arc::new(
+            use_cases::conversation::ListActiveConversations::new(repos.narrative.clone()),
+        );
+        let conversation_get_details = Arc::new(
+            use_cases::conversation::GetConversationDetails::new(repos.narrative.clone()),
+        );
         let conversation = use_cases::ConversationUseCases::new(
             conversation_start.clone(),
             conversation_continue,

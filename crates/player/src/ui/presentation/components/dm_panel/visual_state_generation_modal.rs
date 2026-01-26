@@ -32,7 +32,9 @@ impl QuickPreset {
     fn description(&self) -> &'static str {
         match self {
             QuickPreset::RainyNight => "Rain-soaked surfaces, flickering lanterns, wet reflections",
-            QuickPreset::Moonlit => "Cool moonlight filtering through windows, shadows stretching long",
+            QuickPreset::Moonlit => {
+                "Cool moonlight filtering through windows, shadows stretching long"
+            }
             QuickPreset::Festive => "Colorful lanterns, celebration decorations, lively atmosphere",
             QuickPreset::Eerie => "Thick fog, unnatural quiet, dim lighting",
         }
@@ -41,8 +43,13 @@ impl QuickPreset {
     fn tags(&self) -> Vec<String> {
         match self {
             QuickPreset::RainyNight => vec!["weather:rain".to_string(), "time:night".to_string()],
-            QuickPreset::Moonlit => vec!["time:night".to_string(), "lighting:moonlight".to_string()],
-            QuickPreset::Festive => vec!["mood:festive".to_string(), "activity:celebration".to_string()],
+            QuickPreset::Moonlit => {
+                vec!["time:night".to_string(), "lighting:moonlight".to_string()]
+            }
+            QuickPreset::Festive => vec![
+                "mood:festive".to_string(),
+                "activity:celebration".to_string(),
+            ],
             QuickPreset::Eerie => vec!["mood:eerie".to_string(), "lighting:dim".to_string()],
         }
     }
@@ -166,7 +173,9 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
         }
 
         if desc.len() > 500 {
-            generation_error.set(Some("Description must be 500 characters or less".to_string()));
+            generation_error.set(Some(
+                "Description must be 500 characters or less".to_string(),
+            ));
             return;
         }
 
@@ -180,8 +189,12 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
         // Build generation request
         let _request = GenerateVisualStateRequest {
             state_type: scope_clone,
-            location_id: location_id_clone.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
-            region_id: region_id_clone.as_ref().and_then(|s| uuid::Uuid::parse_str(s).ok()),
+            location_id: location_id_clone
+                .as_ref()
+                .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+            region_id: region_id_clone
+                .as_ref()
+                .and_then(|s| uuid::Uuid::parse_str(s).ok()),
             name: name.read().clone(),
             description: desc.clone(),
             prompt: format!("{} - {}", desc, atmosphere_guidance.read()),

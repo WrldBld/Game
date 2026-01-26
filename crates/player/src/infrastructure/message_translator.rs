@@ -533,8 +533,6 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             region_name,
         },
 
-        // TODO: VisualStateChanged ServerMessage variant doesn't exist in protocol yet
-        // Uncomment when protocol adds this variant
         ServerMessage::NpcActantialContextResponse { npc_id, context } => {
             PlayerEvent::NpcActantialContextResponse {
                 npc_id,
@@ -811,8 +809,8 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             region_id,
             visual_state,
         } => PlayerEvent::VisualStateChanged {
-            region_id: region_id.unwrap_or_default(),
-            visual_state: Some(visual_state),
+            region_id,
+            visual_state,
         },
     }
 }
@@ -1092,7 +1090,7 @@ mod tests {
     #[test]
     fn test_translate_visual_state_changed() {
         let msg = ServerMessage::VisualStateChanged {
-            region_id: "region-1".to_string(),
+            region_id: Some("region-1".to_string()),
             visual_state: Some(wrldbldr_shared::types::ResolvedVisualStateData {
                 location_state: Some(wrldbldr_shared::types::ResolvedStateInfoData {
                     id: "loc-state-1".to_string(),
@@ -1117,7 +1115,7 @@ mod tests {
                 region_id,
                 visual_state,
             } => {
-                assert_eq!(region_id, "region-1");
+                assert_eq!(region_id, Some("region-1".to_string()));
                 assert!(visual_state.is_some());
                 let vs = visual_state.as_ref().unwrap();
                 assert!(vs.location_state.is_some());
@@ -1140,7 +1138,7 @@ mod tests {
     #[test]
     fn test_translate_visual_state_changed_with_none() {
         let msg = ServerMessage::VisualStateChanged {
-            region_id: "region-1".to_string(),
+            region_id: Some("region-1".to_string()),
             visual_state: None,
         };
 
@@ -1150,7 +1148,27 @@ mod tests {
                 region_id,
                 visual_state,
             } => {
-                assert_eq!(region_id, "region-1");
+                assert_eq!(region_id, Some("region-1".to_string()));
+                assert!(visual_state.is_none());
+            }
+            _ => panic!("Expected VisualStateChanged event"),
+        }
+    }
+
+    #[test]
+    fn test_translate_visual_state_changed_global() {
+        let msg = ServerMessage::VisualStateChanged {
+            region_id: None,
+            visual_state: None,
+        };
+
+        let event = translate(msg);
+        match event {
+            PlayerEvent::VisualStateChanged {
+                region_id,
+                visual_state,
+            } => {
+                assert_eq!(region_id, None);
                 assert!(visual_state.is_none());
             }
             _ => panic!("Expected VisualStateChanged event"),

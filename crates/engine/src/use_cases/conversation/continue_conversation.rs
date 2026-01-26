@@ -13,7 +13,7 @@ use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, QueueItemI
 use crate::queue_types::PlayerActionData;
 
 use crate::infrastructure::ports::{
-    CharacterRepo, ClockPort, PlayerCharacterRepo, QueuePort, StagingRepo, WorldRepo,
+    CharacterRepo, ClockPort, NarrativeRepo, PlayerCharacterRepo, QueuePort, StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
 
@@ -40,6 +40,7 @@ pub struct ContinueConversation {
     staging: Arc<dyn StagingRepo>,
     world: Arc<dyn WorldRepo>,
     narrative: Arc<NarrativeOps>,
+    narrative_repo: Arc<dyn NarrativeRepo>,
     queue: Arc<dyn QueuePort>,
     clock: Arc<dyn ClockPort>,
 }
@@ -51,6 +52,7 @@ impl ContinueConversation {
         staging: Arc<dyn StagingRepo>,
         world: Arc<dyn WorldRepo>,
         narrative: Arc<NarrativeOps>,
+        narrative_repo: Arc<dyn NarrativeRepo>,
         queue: Arc<dyn QueuePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
@@ -60,6 +62,7 @@ impl ContinueConversation {
             staging,
             world,
             narrative,
+            narrative_repo,
             queue,
             clock,
         }
@@ -139,14 +142,13 @@ impl ContinueConversation {
 
         // 4. Resolve conversation_id: use provided one or look up active conversation
         let resolved_conversation_id = if let Some(id) = conversation_id {
-            // Verify the provided conversation is still active (not ended)
+            // Verify provided conversation is still active (not ended)
             // This prevents a race condition where a conversation could be ended
             // between the client sending a continue request and us processing it
             let is_active = self
                 .narrative
                 .is_conversation_active(id)
-                .await
-                .unwrap_or(false);
+                .await?;
 
             if !is_active {
                 tracing::warn!(
@@ -157,6 +159,53 @@ impl ContinueConversation {
                 );
                 return Err(ConversationError::ConversationEnded);
             }
+
+            // Validate that the conversation belongs to (pc_id, npc_id, world_id)
+            // This prevents cross-world or cross-conversation hijacking
+            let details = self
+                .narrative_repo
+                .get_conversation_details(id, world_id)
+                .await;
+
+            match details {
+                Ok(Some(conv_details)) => {
+                    // Check participants match
+                    let expected_pc_id = conv_details.conversation.pc_id;
+                    let expected_npc_id = conv_details.conversation.npc_id;
+
+                    if expected_pc_id != pc_id || expected_npc_id != npc_id {
+                        tracing::warn!(
+                            conversation_id = %id,
+                            provided_pc_id = %pc_id,
+                            provided_npc_id = %npc_id,
+                            actual_pc_id = %expected_pc_id,
+                            actual_npc_id = %expected_npc_id,
+                            "Conversation participants mismatch - rejecting"
+                        );
+                        return Err(ConversationError::BadRequest(
+                            "Conversation does not belong to these participants".to_string(),
+                        ));
+                    }
+
+                    // World scoping is enforced by the repo query
+                }
+                Ok(None) => {
+                    tracing::warn!(
+                        conversation_id = %id,
+                        "Conversation not found in details check"
+                    );
+                    return Err(ConversationError::ConversationEnded);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        conversation_id = %id,
+                        "Failed to get conversation details for validation"
+                    );
+                    return Err(ConversationError::Repo(e));
+                }
+            }
+
             Some(id)
         } else {
             // Look up active conversation between PC and NPC
@@ -421,6 +470,7 @@ mod tests {
             Arc::new(MockStagingRepo::new()),
             Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
+            Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
             clock,
         );
@@ -485,6 +535,7 @@ mod tests {
             Arc::new(MockStagingRepo::new()),
             Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
+            Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
             clock,
         );
@@ -556,6 +607,7 @@ mod tests {
             Arc::new(MockStagingRepo::new()),
             Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
+            Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
             clock,
         );
@@ -632,8 +684,9 @@ mod tests {
             Arc::new(character_repo),
             Arc::new(pc_repo),
             Arc::new(MockStagingRepo::new()),
-            Arc::new(world_repo),
+            Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
+            Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
             clock,
         );
@@ -737,9 +790,10 @@ mod tests {
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
             Arc::new(pc_repo),
-            Arc::new(staging_repo),
-            Arc::new(world_repo),
+            Arc::new(MockStagingRepo::new()),
+            Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
+            Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
             clock,
         );
@@ -852,7 +906,8 @@ mod tests {
             Arc::new(pc_repo),
             Arc::new(staging_repo),
             Arc::new(world_repo),
-            create_narrative_entity(narrative_repo),
+            create_narrative_entity(narrative_repo.clone()),
+            narrative_repo,
             queue_port.clone(),
             clock,
         );
@@ -965,7 +1020,8 @@ mod tests {
             Arc::new(pc_repo),
             Arc::new(staging_repo),
             Arc::new(world_repo),
-            create_narrative_entity(narrative_repo),
+            create_narrative_entity(narrative_repo.clone()),
+            narrative_repo,
             queue_port.clone(),
             clock,
         );
@@ -1082,7 +1138,8 @@ mod tests {
             Arc::new(pc_repo),
             Arc::new(staging_repo),
             Arc::new(world_repo),
-            create_narrative_entity(narrative_repo),
+            create_narrative_entity(narrative_repo.clone()),
+            narrative_repo,
             queue_port.clone(),
             clock,
         );
@@ -1209,7 +1266,8 @@ mod tests {
             Arc::new(pc_repo),
             Arc::new(staging_repo),
             Arc::new(world_repo),
-            create_narrative_entity(narrative_repo),
+            create_narrative_entity(narrative_repo.clone()),
+            narrative_repo,
             queue_port.clone(),
             clock,
         );

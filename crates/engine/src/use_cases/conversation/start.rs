@@ -183,7 +183,7 @@ pub enum ConversationError {
     WorldNotFound(WorldId),
     #[error("Player is not in a region")]
     PlayerNotInRegion,
-    #[error("NPC is not in the player's region")]
+    #[error("NPC is not in player's region")]
     NpcNotInRegion,
     #[error("NPC has left the region")]
     NpcLeftRegion,
@@ -191,6 +191,8 @@ pub enum ConversationError {
     ConversationEnded,
     #[error("No active conversation found")]
     NoActiveConversation,
+    #[error("Bad request: {0}")]
+    BadRequest(String),
     #[error("Queue error: {0}")]
     Queue(#[from] QueueError),
     #[error("Repository error: {0}")]

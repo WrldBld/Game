@@ -18,7 +18,6 @@ use crate::application::dto::{
 };
 // Note: WantData is re-exported from dto/player_events for PlayerEvent types
 // For service request/response types, use messages::WantData
-use wrldbldr_shared::messages::WantData;
 use crate::application::services::{
     AddActantialViewRequest, CreateGoalRequest, CreateWantRequest, RemoveActantialViewRequest,
     SetWantTargetRequest, SuggestionContext, UpdateWantRequest,
@@ -30,6 +29,7 @@ use crate::presentation::components::creator::suggestion_button::{
 };
 use crate::presentation::services::{use_actantial_service, use_character_service};
 use crate::presentation::state::use_game_state;
+use wrldbldr_shared::messages::WantData;
 
 /// Props for the motivations tab
 #[derive(Props, Clone, PartialEq)]

@@ -191,7 +191,6 @@ pub(super) async fn handle_staging_approval(
 
     let region_id_str = payload.region_id.to_string();
     let visual_state_proto = payload.visual_state.as_ref().map(|vs| vs.to_protocol());
-    let visual_state_data = visual_state_proto.clone().unwrap_or_default();
 
     state
         .connections
@@ -214,7 +213,7 @@ pub(super) async fn handle_staging_approval(
             world_id,
             ServerMessage::VisualStateChanged {
                 region_id: Some(region_id_str),
-                visual_state: visual_state_data,
+                visual_state: visual_state_proto,
             },
         )
         .await;

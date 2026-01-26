@@ -15,7 +15,9 @@ use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
 use crate::presentation::components::common::TimeAdvanceToast;
-use crate::presentation::components::event_overlays::{ApproachEventOverlay, EndConversationConfirmation, LocationEventBanner};
+use crate::presentation::components::event_overlays::{
+    ApproachEventOverlay, EndConversationConfirmation, LocationEventBanner,
+};
 use crate::presentation::components::inventory_panel::InventoryPanel;
 use crate::presentation::components::known_npcs_panel::{KnownNpcsPanel, NpcObservationData};
 use crate::presentation::components::mini_map::{MapBounds, MapRegionData, MiniMap};

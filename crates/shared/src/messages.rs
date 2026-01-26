@@ -1053,8 +1053,9 @@ pub enum ServerMessage {
         /// Region ID for the visual state change
         #[serde(default)]
         region_id: Option<String>,
-        /// Current visual state for scene display
-        visual_state: crate::types::ResolvedVisualStateData,
+        /// Current visual state for scene display (None clears override)
+        #[serde(default)]
+        visual_state: Option<crate::types::ResolvedVisualStateData>,
     },
 
     /// Unknown message type for forward compatibility

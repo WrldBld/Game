@@ -22,7 +22,9 @@ use crate::presentation::components::dm_panel::staging_approval::{
 };
 use crate::presentation::components::dm_panel::time_control::TimeControlPanel;
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
-use crate::presentation::services::{use_challenge_service, use_command_bus, use_conversation_service, use_skill_service};
+use crate::presentation::services::{
+    use_challenge_service, use_command_bus, use_conversation_service, use_skill_service,
+};
 use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
     SessionState, ViewMode,
@@ -736,10 +738,12 @@ pub fn DirectorModeContent() -> Element {
                     if has_selected {
                         // Show conversation details
                         let mut game_state_for_close = game_state.clone();
+                        let mut game_state_for_end = game_state.clone();
                         let conversation_service_for_end = conversation_service.clone();
                         let session_state_for_end = session_state.clone();
                         let selected_conversation_id_for_read = selected_conversation_id.clone();
                         let mut show_conversations_for_end = show_conversations.clone();
+                        let mut details_loading_for_end = details_loading.clone();
                         rsx! {
                             ConversationDetailsPanel {
                                 details: game_state.conversation_details.read().clone(),
@@ -753,6 +757,10 @@ pub fn DirectorModeContent() -> Element {
                                     if let Some(conv_id_str) = conv_id {
                                         match uuid::Uuid::parse_str(&conv_id_str) {
                                             Ok(uuid) => {
+                                                // Clear conversation_details and details_loading before closing modal
+                                                game_state_for_end.clear_conversation_details();
+                                                details_loading_for_end.set(false);
+
                                                 if let Err(e) = conversation_service_for_end.end_conversation_by_id(uuid, None) {
                                                     tracing::error!("Failed to end conversation: {}", e);
                                                 }
@@ -845,7 +853,7 @@ pub fn DirectorModeContent() -> Element {
         }  // Close main container div
         } // end else block for ViewMode::ViewingAsCharacter
     } // Close rsx!
-}  // Close DirectorModeContent fn
+} // Close DirectorModeContent fn
 
 /// Approval popup for DM to approve/reject LLM responses
 #[derive(Props, Clone, PartialEq)]

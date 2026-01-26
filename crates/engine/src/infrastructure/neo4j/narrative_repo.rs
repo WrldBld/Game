@@ -1256,20 +1256,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .get("conversation_id")
                 .map_err(|e| RepoError::database("query", e))?;
 
-            // Handle legacy non-UUID conversation IDs gracefully
-            match Uuid::parse_str(&id_str) {
-                Ok(uuid) => Ok(Some(ConversationId::from(uuid))),
-                Err(_) => {
-                    // Legacy data: log and skip instead of failing
-                    tracing::warn!(
-                        pc_id = %pc_id,
-                        npc_id = %npc_id,
-                        conversation_id = %id_str,
-                        "Legacy non-UUID conversation ID found, skipping"
-                    );
-                    Ok(None)
-                }
-            }
+            let uuid = Uuid::parse_str(&id_str)
+                .map_err(|e| RepoError::database("query", format!("Invalid conversation_id UUID '{}': {}", id_str, e)))?;
+            Ok(Some(ConversationId::from(uuid)))
         } else {
             Ok(None)
         }
@@ -1357,20 +1346,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .get("conversation_id")
                 .map_err(|e| RepoError::database("query", e))?;
 
-            // Handle legacy non-UUID conversation IDs gracefully
-            match Uuid::parse_str(&id_str) {
-                Ok(uuid) => Ok(Some(ConversationId::from(uuid))),
-                Err(_) => {
-                    // Legacy data: log and skip instead of failing
-                    tracing::warn!(
-                        pc_id = %pc_id,
-                        npc_id = %npc_id,
-                        conversation_id = %id_str,
-                        "Legacy non-UUID conversation ID found, skipping"
-                    );
-                    Ok(None)
-                }
-            }
+            let uuid = Uuid::parse_str(&id_str)
+                .map_err(|e| RepoError::database("query", format!("Invalid conversation_id UUID '{}': {}", id_str, e)))?;
+            Ok(Some(ConversationId::from(uuid)))
         } else {
             Ok(None)
         }
@@ -1383,18 +1361,29 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     async fn list_active_conversations(
         &self,
         world_id: WorldId,
+        include_ended: bool,
     ) -> Result<Vec<ActiveConversationRecord>, RepoError> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {is_active: true})
+        // Build query with optional is_active filter
+        let (is_active_filter, is_active_param) = if include_ended {
+            // No filter - return all conversations
+            ("".to_string(), None)
+        } else {
+            // Only active conversations
+            (" {is_active: $is_active}".to_string(), Some(true))
+        };
+
+        let query_str = format!(
+            "MATCH (w:World {{id: $world_id}})-[:HAS_CONVERSATION]->(c:Conversation{})
             MATCH (pc:PlayerCharacter)-[:PARTICIPATED_IN]->(c)
             MATCH (npc:Character)-[:PARTICIPATED_IN]->(c)
             OPTIONAL MATCH (c)-[:IN_SCENE]->(s:Scene)
             OPTIONAL MATCH (c)-[:AT_LOCATION]->(l:Location)-[:IN_REGION]->(r:Region)
             OPTIONAL MATCH (c)-[:AT_REGION]->(r2:Region)
-            WITH c, pc, npc, s, l, coalesce(r, r2) as region
+            OPTIONAL MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+            WITH c, pc, npc, s, l, coalesce(r, r2) as region, count(t) as turn_count
             // Check for pending approval - look for story events in this conversation
             OPTIONAL MATCH (e:StoryEvent)-[:PART_OF_CONVERSATION]->(c)
-            WITH c, pc, npc, s, l, region, count(e) as pending_count
+            WITH c, pc, npc, s, l, region, turn_count, count(e) as pending_count
             RETURN
                 c.id AS id,
                 pc.id AS pc_id,
@@ -1410,10 +1399,19 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 l.id AS location_id,
                 l.name AS location_name,
                 region.name AS region_name,
+                turn_count AS turn_count,
                 (CASE WHEN pending_count > 0 THEN true ELSE false END) AS pending_approval
             ORDER BY c.last_updated_at DESC",
-        )
-        .param("world_id", world_id.to_string());
+            is_active_filter
+        );
+
+        let mut q = query(&query_str)
+            .param("world_id", world_id.to_string());
+
+        // Add is_active parameter only if filtering
+        if let Some(is_active) = is_active_param {
+            q = q.param("is_active", is_active);
+        }
 
         let mut result = self
             .graph
@@ -1429,7 +1427,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .map_err(|e| RepoError::database("query", e))?
         {
             let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
-            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
+
+            let uuid = Uuid::parse_str(&id_str)
+                .map_err(|e| RepoError::database("query", format!("Invalid conversation_id UUID '{}': {}", id_str, e)))?;
 
             let pc_id_str: String = row
                 .get("pc_id")
@@ -1441,30 +1441,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .map_err(|e| RepoError::database("query", e))?;
             let npc_uuid = Uuid::parse_str(&npc_id_str).map_err(|e| RepoError::database("query", e))?;
 
-            // Count turns
-            let turn_count = {
-                let q = query(
-                    "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
-                    RETURN count(t) AS turn_count",
-                )
-                .param("conversation_id", id_str.clone());
-
-                let mut turn_result = self
-                    .graph
-                    .execute(q)
-                    .await
-                    .map_err(|e| RepoError::database("query", e))?;
-
-                if let Some(row) = turn_result
-                    .next()
-                    .await
-                    .map_err(|e| RepoError::database("query", e))?
-                {
-                    row.get("turn_count").unwrap_or(0)
-                } else {
-                    0
-                }
-            };
+            // Turn count is now aggregated in the main query (N+1 fix)
+            let turn_count: i64 = row.get("turn_count").unwrap_or(0);
 
             conversations.push(ActiveConversationRecord {
                 id: ConversationId::from(uuid),
@@ -1518,16 +1496,18 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     async fn get_conversation_details(
         &self,
         conversation_id: ConversationId,
+        world_id: WorldId,
     ) -> Result<Option<ConversationDetails>, RepoError> {
-        // First get the conversation record
+        // First get conversation record with world scoping
         let q = query(
-            "MATCH (c:Conversation {id: $conversation_id})
+            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})
             MATCH (pc:PlayerCharacter)-[:PARTICIPATED_IN]->(c)
             MATCH (npc:Character)-[:PARTICIPATED_IN]->(c)
             OPTIONAL MATCH (c)-[:IN_SCENE]->(s:Scene)
             OPTIONAL MATCH (c)-[:AT_LOCATION]->(l:Location)-[:IN_REGION]->(r:Region)
             OPTIONAL MATCH (c)-[:AT_REGION]->(r2:Region)
             WITH c, pc, npc, s, l, coalesce(r, r2) as region
+            // SPOKE_TO is now optional - participants without relationship still appear
             OPTIONAL MATCH (pc)-[spt:SPOKE_TO]->(npc)
             RETURN
                 c.id AS id,
@@ -1545,7 +1525,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 l.name AS location_name,
                 region.name AS region_name",
         )
-        .param("conversation_id", conversation_id.to_string());
+        .param("conversation_id", conversation_id.to_string())
+        .param("world_id", world_id.to_string());
 
         let mut result = self
             .graph
@@ -1572,13 +1553,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                     .map_err(|e| RepoError::database("query", e))?;
                 let npc_uuid = Uuid::parse_str(&npc_id_str).map_err(|e| RepoError::database("query", e))?;
 
-                // Count turns
-                let turn_count = {
+                // Count turns in the same query (N+1 fix)
+                let turn_count: i64 = {
                     let q = query(
-                        "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                        "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
                         RETURN count(t) AS turn_count",
                     )
-                    .param("conversation_id", id_str.clone());
+                    .param("conversation_id", id_str.clone())
+                    .param("world_id", world_id.to_string());
 
                     let mut turn_result = self
                         .graph
@@ -1648,12 +1630,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         // Get participants with turn counts
         let participants = {
             let q = query(
-                "MATCH (c:Conversation {id: $conversation_id})<-[:PARTICIPATED_IN]-(p)
-                MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+                "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})<-[:PARTICIPATED_IN]-(p)
+                OPTIONAL MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
                 WHERE t.speaker_id = p.id
                 WITH p, count(t) as turn_count, max(t.order) as last_order
-                MATCH (t:DialogueTurn {order: last_order})
-                MATCH (p)-[spt:SPOKE_TO]->(npc:Character)
+                // SPOKE_TO is now optional - participants without relationship still appear
+                OPTIONAL MATCH (c)-[:HAS_TURN]->(last_t:DialogueTurn {speaker_id: p.id, order: last_order})
+                OPTIONAL MATCH (p)-[spt:SPOKE_TO]->(npc:Character)
                 OPTIONAL MATCH (p)<-[w:WANTS]-(want:Want)
                 OPTIONAL MATCH (p)-[rel:HAS_RELATIONSHIP]->(target)
                 RETURN
@@ -1661,12 +1644,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                     p.name AS name,
                     CASE WHEN p:PlayerCharacter THEN 'pc' ELSE 'npc' END AS participant_type,
                     turn_count,
-                    CASE WHEN t.game_time IS NOT NULL THEN datetime({epochSeconds: toInteger(t.game_time)}) ELSE c.last_updated_at END AS last_spoke_at,
-                    t.text AS last_spoke,
+                    CASE WHEN last_t.game_time IS NOT NULL THEN datetime({epochSeconds: toInteger(last_t.game_time)}) ELSE c.last_updated_at END AS last_spoke_at,
+                    last_t.text AS last_spoke,
                     want.description AS want_description,
                     rel.type AS relationship_type",
             )
-            .param("conversation_id", conversation_id.to_string());
+            .param("conversation_id", conversation_id.to_string())
+            .param("world_id", world_id.to_string());
 
             let mut result = self
                 .graph
@@ -1708,20 +1692,22 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             parts
         };
 
-        // Get recent turns
+        // Get recent turns - scoped to conversation (fix)
         let recent_turns = {
             let q = query(
-                "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
-                OPTIONAL MATCH (p)-[:SPEAKER]->(t)
+                "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                OPTIONAL MATCH (pc:PlayerCharacter {id: t.speaker_id})
+                OPTIONAL MATCH (npc:Character {id: t.speaker_id})
                 RETURN
-                    p.name AS speaker_name,
+                    coalesce(pc.name, npc.name, 'Unknown') AS speaker_name,
                     t.text AS text,
-                    c.last_updated_at AS timestamp,
+                    coalesce(datetime({epochSeconds: toInteger(t.game_time)}), c.last_updated_at) AS timestamp,
                     t.is_dm_override AS is_dm_override
                 ORDER BY t.order DESC
                 LIMIT 20",
             )
-            .param("conversation_id", conversation_id.to_string());
+            .param("conversation_id", conversation_id.to_string())
+            .param("world_id", world_id.to_string());
 
             let mut result = self
                 .graph
@@ -1759,18 +1745,21 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     async fn end_conversation_by_id(
         &self,
         conversation_id: ConversationId,
+        world_id: WorldId,
         ended_by: Option<CharacterId>,
         reason: Option<String>,
     ) -> Result<bool, RepoError> {
         // End conversation by ID, tracking who ended it and why
+        // World scoping enforced via World relationship
         let q = query(
-            "MATCH (c:Conversation {id: $conversation_id, is_active: true})
+            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id, is_active: true})
             SET c.is_active = false,
                 c.ended_at = datetime(),
                 c.ended_by = $ended_by,
                 c.ended_reason = $reason
             RETURN c.id AS conversation_id",
         )
+        .param("world_id", world_id.to_string())
         .param("conversation_id", conversation_id.to_string())
         .param(
             "ended_by",
@@ -1784,7 +1773,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        // If we got a result, the conversation was found and ended
+        // If we got a result, conversation was found and ended
         let ended = result
             .next()
             .await

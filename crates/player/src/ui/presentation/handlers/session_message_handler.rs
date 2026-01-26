@@ -85,11 +85,11 @@ pub fn handle_server_message(
         }
 
         PlayerEvent::ConversationEnded {
-            npc_id: _,
+            npc_id,
             npc_name,
             pc_id: _,
             summary: _,
-            conversation_id: _,
+            conversation_id: ended_conversation_id,
             ended_by,
             reason,
         } => {
@@ -100,8 +100,26 @@ pub fn handle_server_message(
                 (None, None) => "Conversation ended.".to_string(),
             };
             session_state.add_log_entry(npc_name, msg, false, platform);
-            // Clear dialogue state since conversation is over (includes conversation_id)
-            dialogue_state.clear();
+
+            // Only clear dialogue state if this is the active conversation
+            // Don't clear state for unrelated conversations
+            let active_conversation_id = dialogue_state.get_conversation_id();
+
+            match ended_conversation_id {
+                // If conversation_id is provided, clear only if it matches active conversation
+                Some(ref ended_id) => {
+                    if active_conversation_id.as_ref() == Some(ended_id) {
+                        dialogue_state.clear();
+                    }
+                }
+                // If conversation_id is None, clear when NPC matches OR when no active conversation
+                None => {
+                    let current_npc_id = dialogue_state.speaker_id.read().clone();
+                    if active_conversation_id.is_none() || current_npc_id.as_ref() == Some(&npc_id) {
+                        dialogue_state.clear();
+                    }
+                }
+            }
         }
 
         PlayerEvent::ActiveConversationsList { conversations } => {
@@ -111,7 +129,10 @@ pub fn handle_server_message(
         }
 
         PlayerEvent::ConversationDetails { details } => {
-            tracing::info!("Received details for conversation: {}", details.conversation_id);
+            tracing::info!(
+                "Received details for conversation: {}",
+                details.conversation_id
+            );
             // Store conversation details in game state for UI components to access
             game_state.set_conversation_details(details);
         }
@@ -160,6 +181,8 @@ pub fn handle_server_message(
             let error_msg = format!("Server error [{}]: {}", code, message);
             tracing::error!("{}", error_msg);
             session_state.error_message().set(Some(error_msg));
+            // Clear LLM processing flag on error
+            dialogue_state.is_llm_processing.set(false);
         }
 
         PlayerEvent::Pong => {}
@@ -365,12 +388,8 @@ pub fn handle_server_message(
                         match outcome_type.as_str() {
                             "success" => outcomes.success = Some(outcome_text),
                             "failure" => outcomes.failure = Some(outcome_text),
-                            "critical_success" => {
-                                outcomes.critical_success = Some(outcome_text)
-                            }
-                            "critical_failure" => {
-                                outcomes.critical_failure = Some(outcome_text)
-                            }
+                            "critical_success" => outcomes.critical_success = Some(outcome_text),
+                            "critical_failure" => outcomes.critical_failure = Some(outcome_text),
                             // "all" or unknown: update success/failure as a minimal default
                             _ => {
                                 outcomes.success = Some(outcome_text.clone());
@@ -756,7 +775,8 @@ pub fn handle_server_message(
             period_change,
         } => {
             // DM-only: show time suggestion for approval
-            let current_display = crate::presentation::game_time_format::display_date(&current_time);
+            let current_display =
+                crate::presentation::game_time_format::display_date(&current_time);
             let resulting_display =
                 crate::presentation::game_time_format::display_date(&resulting_time);
 
@@ -912,11 +932,15 @@ pub fn handle_server_message(
                 npcs: p.npcs.into_iter().map(StagedNpcData::from).collect(),
             });
 
-            let rule_npcs: Vec<StagedNpcData> =
-                rule_based_npcs.into_iter().map(StagedNpcData::from).collect();
+            let rule_npcs: Vec<StagedNpcData> = rule_based_npcs
+                .into_iter()
+                .map(StagedNpcData::from)
+                .collect();
 
-            let llm_npcs: Vec<StagedNpcData> =
-                llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
+                .into_iter()
+                .map(StagedNpcData::from)
+                .collect();
 
             let waiting: Vec<WaitingPcData> = waiting_pcs
                 .into_iter()
@@ -976,7 +1000,12 @@ pub fn handle_server_message(
 
             // Get current time from platform port for countdown tracking
             let started_at_ms = platform.now_millis();
-            game_state.set_staging_pending(region_id, region_name.clone(), timeout_seconds, started_at_ms);
+            game_state.set_staging_pending(
+                region_id,
+                region_name.clone(),
+                timeout_seconds,
+                started_at_ms,
+            );
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Setting the scene in {}...", region_name),
@@ -1032,39 +1061,76 @@ pub fn handle_server_message(
             region_id,
             visual_state,
         } => {
-            tracing::info!(
-                "Visual state changed for region {}: {}",
-                region_id,
-                visual_state.is_some()
-            );
-
             // Only apply visual state override if current region matches message's region_id
             // This prevents applying visual state updates for regions the player is not in
+            // If region_id is None, apply regardless of current region (global update)
             let current_region_id = game_state
                 .current_region
                 .read()
                 .as_ref()
                 .map(|r| r.id.clone());
 
-            if let Some(current_id) = current_region_id {
-                if current_id == region_id {
-                    game_state.set_visual_state_override(visual_state);
-                    tracing::debug!(
-                        "Applied visual state override for current region {}",
-                        region_id
-                    );
-                } else {
-                    tracing::debug!(
-                        "Ignored visual state update for region {} (not current region: {})",
+            match region_id {
+                // Specific region update
+                Some(region_id) => {
+                    tracing::info!(
+                        "Visual state changed for region {}: {}",
                         region_id,
-                        current_id
+                        visual_state.is_some()
                     );
+
+                    if let Some(current_id) = current_region_id {
+                        if current_id == region_id {
+                            // Check if visual state is provided before moving it
+                            let has_visual_state = visual_state.is_some();
+                            // Apply visual state override (None will clear the override)
+                            game_state.set_visual_state_override(visual_state);
+                            if has_visual_state {
+                                tracing::debug!(
+                                    "Applied visual state override for current region {}",
+                                    region_id
+                                );
+                            } else {
+                                tracing::debug!(
+                                    "Cleared visual state override for current region {}",
+                                    region_id
+                                );
+                            }
+                        } else {
+                            tracing::debug!(
+                                "Ignored visual state update for region {} (not current region: {})",
+                                region_id,
+                                current_id
+                            );
+                        }
+                    } else {
+                        tracing::debug!(
+                            "Ignored visual state update for region {} (no current region)",
+                            region_id
+                        );
+                    }
                 }
-            } else {
-                tracing::debug!(
-                    "Ignored visual state update for region {} (no current region)",
-                    region_id
-                );
+                // Global update (no region specified)
+                None => {
+                    tracing::info!(
+                        "Visual state changed (global): {}",
+                        visual_state.is_some()
+                    );
+
+                    // Apply regardless of current region, but only if we have one
+                    // This avoids clearing override when not in any scene
+                    if current_region_id.is_some() {
+                        let has_visual_state = visual_state.is_some();
+                        game_state.set_visual_state_override(visual_state);
+                        if has_visual_state {
+                            tracing::debug!("Applied global visual state override");
+                        } else {
+                            tracing::debug!("Cleared global visual state override");
+                        }
+                    } else {
+                        tracing::debug!("Ignored global visual state update (no current region)");
+                    }
+                }
             }
         }
 
@@ -1080,8 +1146,10 @@ pub fn handle_server_message(
 
             // Update the LLM suggestions in the pending staging approval
             use crate::presentation::state::game_state::StagedNpcData;
-            let llm_npcs: Vec<StagedNpcData> =
-                llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
+                .into_iter()
+                .map(StagedNpcData::from)
+                .collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);
         }
@@ -1102,7 +1170,10 @@ pub fn handle_server_message(
             // Log a message so player knows they can retry
             session_state.add_log_entry(
                 "System".to_string(),
-                format!("Scene staging timed out for {}. You can try entering again.", region_name),
+                format!(
+                    "Scene staging timed out for {}. You can try entering again.",
+                    region_name
+                ),
                 true,
                 platform,
             );
@@ -1684,11 +1755,7 @@ pub fn handle_server_message(
             character_id,
             lore_id,
         } => {
-            tracing::info!(
-                "Lore {} revoked from character {}",
-                lore_id,
-                character_id
-            );
+            tracing::info!("Lore {} revoked from character {}", lore_id, character_id);
             lore_state.remove_lore(&lore_id);
         }
 

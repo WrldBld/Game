@@ -54,7 +54,23 @@ pub(super) async fn handle_start_conversation(
         Err(e) => return Some(e),
     };
 
-    let message = normalize_conversation_message(message);
+    let message = message.trim().to_string();
+
+    // Validate message length
+    if message.is_empty() {
+        return Some(error_response(
+            ErrorCode::ValidationError,
+            "Conversation message cannot be empty",
+        ));
+    }
+
+    if message.len() > MAX_MESSAGE_LENGTH {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            &format!("Message too long (max {} chars)", MAX_MESSAGE_LENGTH),
+        ));
+    }
+
     let conversation = match state
         .app
         .use_cases
@@ -341,6 +357,9 @@ pub(super) async fn handle_continue_conversation(
                 &format!("World not found: {}", id),
             ))
         }
+        Err(crate::use_cases::conversation::ConversationError::BadRequest(msg)) => {
+            return Some(error_response(ErrorCode::BadRequest, &msg))
+        }
         Err(e) => {
             return Some(error_response(
                 ErrorCode::InternalError,
@@ -527,15 +546,6 @@ pub(super) async fn handle_perform_interaction(
     })
 }
 
-fn normalize_conversation_message(message: String) -> String {
-    let trimmed = message.trim();
-    if trimmed.is_empty() {
-        "Hello".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
 fn interaction_action_type(interaction_type: &InteractionType) -> &'static str {
     match interaction_type {
         InteractionType::Dialogue => "talk",
@@ -580,13 +590,14 @@ async fn broadcast_action_queued(
 
 /// Handle ListActiveConversations request (DM only).
 ///
-/// DM requests list of all active conversations in the current world.
+/// DM requests list of all conversations in the current world.
 /// Returns ActiveConversationsList response with conversation info.
+/// When include_ended is true, returns both active and ended conversations.
 pub(super) async fn handle_list_active_conversations(
     state: &WsState,
     connection_id: ConnectionId,
     world_id: Uuid,
-    _include_ended: bool,
+    include_ended: bool,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
@@ -625,22 +636,16 @@ pub(super) async fn handle_list_active_conversations(
         ));
     }
 
-    // Call use case to get active conversations
+    // Call use case to get conversations (active only or all based on include_ended)
     let result = match state
         .app
         .use_cases
         .conversation
         .list_active
-        .execute(world_uuid)
+        .execute(world_uuid, include_ended)
         .await
     {
         Ok(result) => result,
-        Err(crate::use_cases::conversation::ListActiveConversationsError::WorldNotFound(_)) => {
-            return Some(error_response(
-                ErrorCode::NotFound,
-                "World not found",
-            ))
-        }
         Err(e) => {
             return Some(error_response(
                 ErrorCode::InternalError,
@@ -649,7 +654,7 @@ pub(super) async fn handle_list_active_conversations(
         }
     };
 
-    // Convert domain types to protocol
+    // Convert domain types to protocol (conversion happens in API layer)
     let conversations = result
         .conversations
         .into_iter()
@@ -702,13 +707,13 @@ pub(super) async fn handle_end_conversation_by_id(
     // Track who ended it (optional - could be DM's character ID if DM has a PC)
     let ended_by = None; // For now, DM actions don't track which character
 
-    // Call use case to end conversation by ID
+    // Call use case to end conversation by ID (with world scoping)
     let result = match state
         .app
         .use_cases
         .conversation
         .end_by_id
-        .execute(conversation_uuid, ended_by, reason)
+        .execute(conversation_uuid, world_id, ended_by, reason)
         .await
     {
         Ok(result) => result,
@@ -722,6 +727,12 @@ pub(super) async fn handle_end_conversation_by_id(
             return Some(error_response(
                 ErrorCode::Conflict,
                 "Conversation already ended",
+            ))
+        }
+        Err(crate::use_cases::conversation::EndConversationByIdError::WorldMismatch) => {
+            return Some(error_response(
+                ErrorCode::Unauthorized,
+                "Cannot access conversations from other worlds",
             ))
         }
         Err(e) => {
@@ -796,6 +807,16 @@ pub(super) async fn handle_get_conversation_details(
         ));
     }
 
+    let world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
+    };
+
     let conversation_uuid = wrldbldr_domain::ConversationId::from(conversation_id);
 
     // Call use case to get conversation details
@@ -806,6 +827,7 @@ pub(super) async fn handle_get_conversation_details(
         .get_details
         .execute(crate::use_cases::conversation::GetConversationDetailsInput {
             conversation_id: conversation_uuid,
+            world_id,
         })
         .await
     {
@@ -814,6 +836,12 @@ pub(super) async fn handle_get_conversation_details(
             return Some(error_response(
                 ErrorCode::NotFound,
                 "Conversation not found",
+            ))
+        }
+        Err(crate::use_cases::conversation::GetConversationDetailsError::WorldMismatch(_)) => {
+            return Some(error_response(
+                ErrorCode::Unauthorized,
+                "Cannot access conversations from other worlds",
             ))
         }
         Err(e) => {

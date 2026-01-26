@@ -7,9 +7,9 @@
 //! Used for resolving stuck conversations or managing active sessions.
 
 use std::sync::Arc;
-use wrldbldr_domain::{CharacterId, ConversationId};
+use wrldbldr_domain::{CharacterId, ConversationId, WorldId};
 
-use crate::infrastructure::ports::{CharacterRepo, NarrativeRepo, PlayerCharacterRepo, RepoError};
+use crate::infrastructure::ports::{NarrativeRepo, RepoError};
 
 /// Result of ending a conversation by ID.
 #[derive(Debug, Clone)]
@@ -35,20 +35,14 @@ pub struct EndedConversation {
 /// Ends a specific conversation by conversation_id regardless of who's in it.
 /// Used by DMs to force-end stuck conversations or manage active sessions.
 pub struct EndConversationById {
-    character: Arc<dyn CharacterRepo>,
-    player_character: Arc<dyn PlayerCharacterRepo>,
     narrative: Arc<dyn NarrativeRepo>,
 }
 
 impl EndConversationById {
     pub fn new(
-        character: Arc<dyn CharacterRepo>,
-        player_character: Arc<dyn PlayerCharacterRepo>,
         narrative: Arc<dyn NarrativeRepo>,
     ) -> Self {
         Self {
-            character,
-            player_character,
             narrative,
         }
     }
@@ -57,6 +51,7 @@ impl EndConversationById {
     ///
     /// # Arguments
     /// * `conversation_id` - The conversation to end
+    /// * `world_id` - The world context for scoping
     /// * `ended_by` - Optional character ID of who ended it (for tracking)
     /// * `reason` - Optional reason for ending
     ///
@@ -66,13 +61,14 @@ impl EndConversationById {
     pub async fn execute(
         &self,
         conversation_id: ConversationId,
+        world_id: WorldId,
         ended_by: Option<CharacterId>,
         reason: Option<String>,
     ) -> Result<EndedConversation, EndConversationByIdError> {
         // 1. Get conversation details first
         let details = self
             .narrative
-            .get_conversation_details(conversation_id)
+            .get_conversation_details(conversation_id, world_id)
             .await?
             .ok_or(EndConversationByIdError::ConversationNotFound(conversation_id))?;
 
@@ -81,10 +77,10 @@ impl EndConversationById {
             return Err(EndConversationByIdError::ConversationAlreadyEnded(conversation_id));
         }
 
-        // 3. End the conversation
+        // 3. End conversation
         let was_ended = self
             .narrative
-            .end_conversation_by_id(conversation_id, ended_by, reason.clone())
+            .end_conversation_by_id(conversation_id, world_id, ended_by, reason.clone())
             .await?;
 
         if !was_ended {
@@ -120,20 +116,17 @@ pub enum EndConversationByIdError {
     ConversationNotFound(ConversationId),
     #[error("Conversation already ended: {0}")]
     ConversationAlreadyEnded(ConversationId),
+    #[error("Cannot access conversations from other worlds")]
+    WorldMismatch,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use super::*;
+    use crate::infrastructure::ports::{MockNarrativeRepo, ParticipantType};
     use chrono::Utc;
-    use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, WorldId, LocationId};
-
-    use crate::infrastructure::ports::{
-        CharacterRepo, MockCharacterRepo, MockNarrativeRepo, MockPlayerCharacterRepo,
-        ParticipantType,
-    };
 
     #[tokio::test]
     async fn when_conversation_not_found_then_returns_error() {
@@ -142,17 +135,15 @@ mod tests {
         let mut narrative_repo = MockNarrativeRepo::new();
         narrative_repo
             .expect_get_conversation_details()
-            .withf(move |id| *id == conversation_id)
-            .returning(|_| Ok(None));
+            .withf(move |id, _| *id == conversation_id)
+            .returning(|_, _| Ok(None));
 
         let use_case = super::EndConversationById::new(
-            Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
             Arc::new(narrative_repo),
         );
 
         let err = use_case
-            .execute(conversation_id, None, None)
+            .execute(conversation_id, WorldId::new(), None, None)
             .await
             .unwrap_err();
 
@@ -171,10 +162,10 @@ mod tests {
         let mut narrative_repo = MockNarrativeRepo::new();
         narrative_repo
             .expect_get_conversation_details()
-            .withf(move |id| *id == conversation_id)
-            .returning(move |_| {
-                Ok(Some(crate::infrastructure::types::ConversationDetails {
-                    conversation: crate::infrastructure::types::ActiveConversationRecord {
+            .withf(move |id, _| *id == conversation_id)
+            .returning(move |_, _| {
+                Ok(Some(crate::infrastructure::ports::ConversationDetails {
+                    conversation: crate::infrastructure::ports::ActiveConversationRecord {
                         id: conversation_id,
                         pc_id,
                         npc_id,
@@ -194,14 +185,19 @@ mod tests {
                 }))
             });
 
+        narrative_repo
+            .expect_end_conversation_by_id()
+            .withf(move |id, _, eb, r| {
+                *id == conversation_id && *eb == None && *r == None
+            })
+            .returning(|_, _, _, _| Ok(true));
+
         let use_case = super::EndConversationById::new(
-            Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
             Arc::new(narrative_repo),
         );
 
         let err = use_case
-            .execute(conversation_id, None, None)
+            .execute(conversation_id, WorldId::new(), None, None)
             .await
             .unwrap_err();
 
@@ -218,14 +214,15 @@ mod tests {
         let npc_id = CharacterId::new();
         let ended_by = CharacterId::new();
         let reason = "Forced end by DM".to_string();
+        let world_id = WorldId::new();
 
         let mut narrative_repo = MockNarrativeRepo::new();
         narrative_repo
             .expect_get_conversation_details()
-            .withf(move |id| *id == conversation_id)
-            .returning(move |_| {
-                Ok(Some(crate::infrastructure::types::ConversationDetails {
-                    conversation: crate::infrastructure::types::ActiveConversationRecord {
+            .withf(move |id, w| *id == conversation_id && *w == world_id)
+            .returning(move |_, _| {
+                Ok(Some(crate::infrastructure::ports::ConversationDetails {
+                    conversation: crate::infrastructure::ports::ActiveConversationRecord {
                         id: conversation_id,
                         pc_id,
                         npc_id,
@@ -247,19 +244,17 @@ mod tests {
 
         narrative_repo
             .expect_end_conversation_by_id()
-            .withf(move |id, eb, r| {
-                *id == conversation_id && *eb == Some(ended_by) && *r == Some(reason.clone())
+            .withf(move |id, w, eb, r| {
+                *id == conversation_id && *w == world_id && *eb == Some(ended_by) && *r == Some(reason.clone())
             })
-            .returning(|_, _, _| Ok(true));
+            .returning(|_, _, _, _| Ok(true));
 
         let use_case = super::EndConversationById::new(
-            Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
             Arc::new(narrative_repo),
         );
 
         let result = use_case
-            .execute(conversation_id, Some(ended_by), Some(reason.clone()))
+            .execute(conversation_id, world_id, Some(ended_by), Some(reason.clone()))
             .await
             .expect("EndConversationById should succeed");
 

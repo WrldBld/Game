@@ -7,15 +7,16 @@
 //! Returns conversation info, participants, and recent turns.
 
 use std::sync::Arc;
-use wrldbldr_domain::ConversationId;
+use wrldbldr_domain::{ConversationId, WorldId};
 
-use crate::infrastructure::ports::{CharacterRepo, NarrativeRepo, RepoError};
+use crate::infrastructure::ports::{NarrativeRepo, RepoError};
 use crate::infrastructure::ports::ConversationDetails;
 
 /// Input for getting conversation details.
 #[derive(Debug, Clone)]
 pub struct GetConversationDetailsInput {
     pub conversation_id: ConversationId,
+    pub world_id: WorldId,
 }
 
 /// Output for getting conversation details.
@@ -29,6 +30,9 @@ pub enum GetConversationDetailsError {
 
     #[error("Conversation {0} not found")]
     ConversationNotFound(ConversationId),
+
+    #[error("Conversation not in world {0}")]
+    WorldMismatch(WorldId),
 }
 
 /// Get conversation details use case.
@@ -38,21 +42,19 @@ pub enum GetConversationDetailsError {
 /// and managing active conversations.
 pub struct GetConversationDetails {
     narrative: Arc<dyn NarrativeRepo>,
-    character: Arc<dyn CharacterRepo>,
 }
 
 impl GetConversationDetails {
     pub fn new(
         narrative: Arc<dyn NarrativeRepo>,
-        character: Arc<dyn CharacterRepo>,
     ) -> Self {
-        Self { narrative, character }
+        Self { narrative }
     }
 
     /// Get conversation details by ID.
     ///
     /// # Arguments
-    /// * `input` - Input containing conversation_id
+    /// * `input` - Input containing conversation_id and world_id
     ///
     /// # Returns
     /// * `Ok(ConversationDetails)` - Full conversation details
@@ -63,7 +65,7 @@ impl GetConversationDetails {
     ) -> Result<GetConversationDetailsOutput, GetConversationDetailsError> {
         let details = self
             .narrative
-            .get_conversation_details(input.conversation_id)
+            .get_conversation_details(input.conversation_id, input.world_id)
             .await?
             .ok_or(GetConversationDetailsError::ConversationNotFound(
                 input.conversation_id,
@@ -81,7 +83,6 @@ mod tests {
     #[tokio::test]
     async fn get_conversation_details_returns_details() {
         let mut mock_narrative = MockNarrativeRepo::new();
-        let mock_character = Arc::new(MockCharacterRepo::new());
 
         // Setup mock response
         let expected_details = ConversationDetails {
@@ -106,15 +107,15 @@ mod tests {
 
         mock_narrative
             .expect_get_conversation_details()
-            .returning(move |_| Ok(Some(expected_details.clone())));
+            .returning(move |_, _| Ok(Some(expected_details.clone())));
 
         let use_case = GetConversationDetails::new(
             Arc::new(mock_narrative),
-            mock_character,
         );
 
         let input = GetConversationDetailsInput {
             conversation_id: expected_details.conversation.id,
+            world_id: wrldbldr_domain::WorldId::new(),
         };
 
         let result = use_case.execute(input).await;

@@ -552,13 +552,18 @@ pub trait NarrativeRepo: Send + Sync {
     // Conversation Management (for DM monitoring)
     // =========================================================================
 
-    /// List all active conversations in a world.
+    /// List all conversations in a world.
     ///
     /// Returns conversations with participant info, location context,
     /// turn counts, and pending approval status.
+    ///
+    /// # Arguments
+    /// * `world_id` - The world to list conversations for
+    /// * `include_ended` - If true, includes ended conversations; if false, only active conversations
     async fn list_active_conversations(
         &self,
         world_id: WorldId,
+        include_ended: bool,
     ) -> Result<Vec<ActiveConversationRecord>, RepoError>;
 
     /// Get conversation details by ID.
@@ -567,6 +572,7 @@ pub trait NarrativeRepo: Send + Sync {
     async fn get_conversation_details(
         &self,
         conversation_id: ConversationId,
+        world_id: WorldId,
     ) -> Result<Option<ConversationDetails>, RepoError>;
 
     /// End a specific conversation by ID.
@@ -575,6 +581,7 @@ pub trait NarrativeRepo: Send + Sync {
     async fn end_conversation_by_id(
         &self,
         conversation_id: ConversationId,
+        world_id: WorldId,
         ended_by: Option<CharacterId>,
         reason: Option<String>,
     ) -> Result<bool, RepoError>;

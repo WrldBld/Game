@@ -34,7 +34,7 @@ pub use continue_conversation::ContinueConversation;
 pub use end::{EndConversation, EndConversationError};
 pub use end_by_id::{EndConversationById, EndConversationByIdError};
 pub use get_details::{GetConversationDetails, GetConversationDetailsError, GetConversationDetailsInput};
-pub use list_active::{ListActiveConversations, ListActiveConversationsError};
+pub use list_active::ListActiveConversations;
 pub use start::{ConversationError, StartConversation};
 
 /// Container for conversation use cases.

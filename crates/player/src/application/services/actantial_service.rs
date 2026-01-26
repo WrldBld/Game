@@ -10,13 +10,11 @@ use crate::infrastructure::messaging::CommandBus;
 // Note: Actantial enum types (WantVisibilityData, ActantialRoleData, etc.) are imported
 // as shared value objects. These are essentially protocol primitives used in DTOs.
 // This is a documented exception in the hexagonal architecture.
-use wrldbldr_shared::{
-    ActantialRequest, GoalRequest, RequestPayload, WantRequest,
-};
 use wrldbldr_shared::messages::{
     ActantialRoleData, ActorTypeData, NpcActantialContextData, WantTargetData, WantTargetTypeData,
     WantVisibilityData,
 };
+use wrldbldr_shared::{ActantialRequest, GoalRequest, RequestPayload, WantRequest};
 
 /// Request to create a new want
 #[derive(Clone, Debug, Serialize)]

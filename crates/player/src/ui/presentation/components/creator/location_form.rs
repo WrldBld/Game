@@ -103,7 +103,8 @@ pub fn LocationForm(
                             notable_features.set(loc_data.notable_features.unwrap_or_default());
                             hidden_secrets.set(loc_data.hidden_secrets.unwrap_or_default());
                             parent_location_id.set(loc_data.parent_location_id);
-                            presence_cache_ttl_hours.set(loc_data.presence_cache_ttl_hours.unwrap_or(3));
+                            presence_cache_ttl_hours
+                                .set(loc_data.presence_cache_ttl_hours.unwrap_or(3));
                             use_llm_presence.set(loc_data.use_llm_presence.unwrap_or(true));
                             is_loading.set(false);
                         }

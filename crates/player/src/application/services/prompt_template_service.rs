@@ -65,10 +65,11 @@ impl PromptTemplateService {
         world_id: &str,
         key: &str,
     ) -> Result<ResolvedPromptTemplate, String> {
-        let url = format!("/api/prompt-templates/resolve/{}?world_id={}", key, world_id);
-        HttpClient::get(&url)
-            .await
-            .map_err(|e| e.to_string())
+        let url = format!(
+            "/api/prompt-templates/resolve/{}?world_id={}",
+            key, world_id
+        );
+        HttpClient::get(&url).await.map_err(|e| e.to_string())
     }
 
     /// Save a world-specific override for a template
@@ -92,9 +93,7 @@ impl PromptTemplateService {
         key: &str,
     ) -> Result<ResolvedPromptTemplate, String> {
         let url = format!("/api/prompt-templates/world/{}/{}", world_id, key);
-        HttpClient::delete(&url)
-            .await
-            .map_err(|e| e.to_string())?;
+        HttpClient::delete(&url).await.map_err(|e| e.to_string())?;
         // After deleting, fetch the default value
         self.get_template(world_id, key).await
     }

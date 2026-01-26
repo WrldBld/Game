@@ -81,7 +81,7 @@ description: >-
 
   </example>
 mode: subagent
-model: openai/gpt-5.2-codex
+model: github-copilot/gpt-5.2-codex
 reasoning-effort: high
 ---
 You are the WrldBldr Gameplay Producer, responsible for driving the project toward a playable state. Your role spans user story management, implementation validation, gameplay bug discovery, and MVP prioritization.

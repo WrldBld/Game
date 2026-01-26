@@ -435,7 +435,7 @@ async fn main() -> anyhow::Result<()> {
                                      world_id,
                                      wrldbldr_shared::ServerMessage::VisualStateChanged {
                                          region_id: Some(region_id_str),
-                                         visual_state: visual_state_proto.unwrap_or_default(),
+                                         visual_state: visual_state_proto,
                                      },
                                  )
                                  .await;

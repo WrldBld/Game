@@ -29,8 +29,8 @@ pub mod staging_approval;
 pub mod time_control;
 pub mod tone_selector;
 pub mod trigger_challenge_modal;
-pub mod visual_state_dropdown;
 pub mod visual_state_details_modal;
+pub mod visual_state_dropdown;
 pub mod visual_state_generation_modal;
 pub mod visual_state_preview;
 
@@ -40,7 +40,9 @@ pub use challenge_outcome_approval::{ChallengeOutcomeApprovalCard, ChallengeOutc
 pub use conversation_details::ConversationDetailsPanel;
 pub use conversation_log::{ChallengeResultInfo, ConversationLog, ConversationTurn};
 pub use location_preview_modal::LocationPreviewModal;
-pub use location_staging::{LocationStagingPanel, PreStageApprovalData, RegionStagingInfo, StagingStatus};
+pub use location_staging::{
+    LocationStagingPanel, PreStageApprovalData, RegionStagingInfo, StagingStatus,
+};
 pub use npc_disposition_panel::{
     DispositionChangeEvent, NpcDispositionListPanel, NpcDispositionPanel, RelationshipChangeEvent,
     SceneNpcInfo, DISPOSITION_OPTIONS, RELATIONSHIP_OPTIONS,
@@ -48,9 +50,9 @@ pub use npc_disposition_panel::{
 pub use split_party_banner::SplitPartyBanner;
 pub use staging_approval::{StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest};
 pub use time_control::TimeControlPanel;
-pub use visual_state_dropdown::VisualStateDropdown;
 pub use visual_state_details_modal::VisualStateDetailData;
 pub use visual_state_details_modal::VisualStateDetailsModal;
+pub use visual_state_dropdown::VisualStateDropdown;
 pub use visual_state_generation_modal::GeneratedStateResult;
 pub use visual_state_generation_modal::VisualStateGenerationModal;
 pub use visual_state_preview::VisualStatePreview;
