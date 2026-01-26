@@ -240,7 +240,7 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
                             }
                         }
 
-                        NumberField {
+                        StagingTimeoutField {
                             label: "Auto-Approve Timeout",
                             description: "Seconds to wait before auto-approving (0 = disabled)",
                             value: settings.read().staging_timeout_seconds as usize,
@@ -649,6 +649,86 @@ fn BooleanField(props: BooleanFieldProps) -> Element {
 
                 div {
                     class: "w-9 h-5 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"
+                }
+            }
+        }
+    }
+}
+
+/// Staging timeout field with quick preset buttons
+#[derive(Props, Clone, PartialEq)]
+struct StagingTimeoutFieldProps {
+    label: &'static str,
+    description: &'static str,
+    value: usize,
+    onchange: EventHandler<usize>,
+}
+
+#[component]
+fn StagingTimeoutField(props: StagingTimeoutFieldProps) -> Element {
+    let value_str = format!("{}", props.value);
+
+    rsx! {
+        div {
+            class: "staging-timeout-field",
+
+            // Label row
+            div {
+                class: "flex items-center gap-2 mb-2",
+
+                span {
+                    class: "text-gray-300 text-sm",
+                    "{props.label}"
+                }
+
+                span {
+                    class: "text-gray-600 text-xs ml-2",
+                    "({props.description})"
+                }
+            }
+
+            // Input + presets row
+            div {
+                class: "flex items-center gap-3",
+
+                // Number input
+                input {
+                    r#type: "number",
+                    class: "w-24 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500",
+                    value: "{value_str}",
+                    min: "0",
+                    max: "300",
+                    oninput: move |evt| {
+                        if let Ok(val) = evt.value().parse::<usize>() {
+                            props.onchange.call(val);
+                        }
+                    }
+                }
+
+                // "seconds" label
+                span {
+                    class: "text-gray-400 text-sm",
+                    "seconds"
+                }
+
+                // Quick preset buttons
+                div {
+                    class: "flex gap-2 ml-4",
+
+                    for preset in [5usize, 15, 30, 60] {
+                        button {
+                            key: "{preset}",
+                            class: if preset == props.value {
+                                "px-2 py-1 rounded text-xs font-medium transition-colors bg-blue-600 text-white"
+                            } else {
+                                "px-2 py-1 rounded text-xs font-medium transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
+                            },
+                            onclick: move |_| {
+                                props.onchange.call(preset);
+                            },
+                            "{preset}"
+                        }
+                    }
                 }
             }
         }
