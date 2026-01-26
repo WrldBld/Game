@@ -62,25 +62,6 @@ enum TriggerStatus {
     },
 }
 
-impl TriggerStatus {
-    fn from_wire(
-        is_triggered: bool,
-        triggered_at: Option<DateTime<Utc>>,
-        selected_outcome: Option<String>,
-        fallback_time: DateTime<Utc>,
-    ) -> Self {
-        if is_triggered {
-            let at = triggered_at.unwrap_or(fallback_time);
-            Self::Triggered {
-                at,
-                selected_outcome,
-            }
-        } else {
-            Self::Never
-        }
-    }
-}
-
 /// A narrative event that can be triggered when conditions are met
 ///
 /// # Invariants
@@ -543,7 +524,30 @@ impl NarrativeEvent {
         self
     }
 
-    /// Set the event's triggered state (used when loading from storage).
+    /// Set the event's triggered state with Never status (not triggered).
+    pub fn with_not_triggered(mut self, trigger_count: u32) -> Self {
+        self.trigger_status = TriggerStatus::Never;
+        self.trigger_count = trigger_count;
+        self
+    }
+
+    /// Set the event's triggered state with Triggered status.
+    pub fn with_triggered(
+        mut self,
+        triggered_at: DateTime<Utc>,
+        selected_outcome: Option<String>,
+        trigger_count: u32,
+    ) -> Self {
+        self.trigger_status = TriggerStatus::Triggered {
+            at: triggered_at,
+            selected_outcome,
+        };
+        self.trigger_count = trigger_count;
+        self
+    }
+
+    /// Set the event's triggered state (for backwards compatibility with wire format).
+    #[deprecated(note = "Use with_not_triggered or with_triggered instead")]
     pub fn with_triggered_state(
         mut self,
         is_triggered: bool,
@@ -551,12 +555,14 @@ impl NarrativeEvent {
         selected_outcome: Option<String>,
         trigger_count: u32,
     ) -> Self {
-        self.trigger_status = TriggerStatus::from_wire(
-            is_triggered,
-            triggered_at,
-            selected_outcome,
-            self.created_at,
-        );
+        if is_triggered {
+            self.trigger_status = TriggerStatus::Triggered {
+                at: triggered_at.unwrap_or(self.created_at),
+                selected_outcome,
+            };
+        } else {
+            self.trigger_status = TriggerStatus::Never;
+        }
         self.trigger_count = trigger_count;
         self
     }

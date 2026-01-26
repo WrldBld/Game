@@ -20,6 +20,8 @@ use wrldbldr_shared::game_systems::{
 pub enum ContentError {
     #[error("Import error: {0}")]
     Import(#[from] ImportError),
+    #[error("Provider error: {0}")]
+    ProviderError(String),
     #[error("System not found: {0}")]
     SystemNotFound(String),
     #[error("Content not found: {0}")]
@@ -101,7 +103,7 @@ impl ContentService {
         provider
             .value()
             .load_content(content_type, filter)
-            .map_err(|e| ContentError::ContentNotFound(e.to_string()))
+            .map_err(|e| ContentError::ProviderError(e.to_string()))
     }
 
     /// Get a single content item by ID.
@@ -119,7 +121,7 @@ impl ContentService {
         provider
             .value()
             .get_content_by_id(content_type, id)
-            .map_err(|e| ContentError::ContentNotFound(e.to_string()))
+            .map_err(|e| ContentError::ProviderError(e.to_string()))
     }
 
     /// Search content across all types for a system.

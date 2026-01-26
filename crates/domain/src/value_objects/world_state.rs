@@ -1,5 +1,6 @@
 //! World state value objects for conversation history and pending approvals.
 
+use crate::{ApprovalId, CharacterId, PlayerCharacterId};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -31,12 +32,17 @@ impl ConversationEntry {
     // ── Factory Methods ──────────────────────────────────────────────────
 
     /// Create a player conversation entry.
-    pub fn player(pc_id: String, pc_name: String, message: String, now: DateTime<Utc>) -> Self {
+    pub fn player(
+        pc_id: PlayerCharacterId,
+        pc_name: String,
+        message: String,
+        now: DateTime<Utc>,
+    ) -> Self {
         Self::new(Speaker::Player { pc_id, pc_name }, message, now)
     }
 
     /// Create an NPC conversation entry.
-    pub fn npc(npc_id: String, npc_name: String, message: String, now: DateTime<Utc>) -> Self {
+    pub fn npc(npc_id: CharacterId, npc_name: String, message: String, now: DateTime<Utc>) -> Self {
         Self::new(Speaker::Npc { npc_id, npc_name }, message, now)
     }
 
@@ -58,14 +64,14 @@ pub enum Speaker {
     /// A player character speaking
     Player {
         /// The PC's unique identifier
-        pc_id: String,
+        pc_id: PlayerCharacterId,
         /// The PC's display name
         pc_name: String,
     },
     /// An NPC speaking
     Npc {
         /// The NPC's unique identifier
-        npc_id: String,
+        npc_id: CharacterId,
         /// The NPC's display name
         npc_name: String,
     },
@@ -79,7 +85,7 @@ pub enum Speaker {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PendingApprovalItem {
     /// Unique identifier for this approval request
-    pub approval_id: String,
+    pub approval_id: ApprovalId,
     /// What type of approval is needed
     pub approval_type: ApprovalType,
     /// When this approval was requested
@@ -95,7 +101,7 @@ impl PendingApprovalItem {
     /// Timestamp is injected rather than using direct time sources to keep domain pure.
     /// Call sites should use `clock_port.now()` to get the current time.
     pub fn new(
-        approval_id: String,
+        approval_id: ApprovalId,
         approval_type: ApprovalType,
         data: String,
         now: DateTime<Utc>,

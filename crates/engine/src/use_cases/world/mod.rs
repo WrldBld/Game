@@ -112,7 +112,7 @@ impl ExportWorld {
             characters,
             items,
             narrative_events,
-            format_version: 1,
+            format_version: 2,
         })
     }
 }
@@ -154,10 +154,10 @@ impl ImportWorld {
     /// * `Ok(WorldId)` - The ID of the imported world
     /// * `Err(WorldError)` - Import failed
     pub async fn execute(&self, data: WorldExport) -> Result<WorldId, WorldError> {
-        // Validate format version
-        if data.format_version > 1 {
-            return Err(WorldError::ImportFailed(format!(
-                "Unsupported format version: {}",
+        // Validate format version - only version 2 is supported
+        if data.format_version != 2 {
+            return Err(WorldError::NotSupported(format!(
+                "Unsupported format version: {}. Only version 2 is supported.",
                 data.format_version
             )));
         }
@@ -203,6 +203,8 @@ pub enum WorldError {
     ExportFailed(String),
     #[error("Import failed: {0}")]
     ImportFailed(String),
+    #[error("Unsupported format version: {0}")]
+    NotSupported(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

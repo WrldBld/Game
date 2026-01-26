@@ -17,7 +17,7 @@ use wrldbldr_domain::{
 use crate::queue_types::AssetGenerationData;
 
 use crate::infrastructure::ports::{
-    AssetRepo, ClockPort, ImageGenError, ImageGenPort, ImageRequest, QueuePort, RepoError,
+    AssetRepo, ClockPort, ImageGenError, ImageGenPort, ImageRequest, QueueError, QueuePort, RepoError,
 };
 
 // Type aliases for old names to maintain compatibility
@@ -123,8 +123,7 @@ impl GenerateAsset {
         let image_result = self
             .image_gen
             .generate(request)
-            .await
-            .map_err(|e| GenerateError::Failed(e.to_string()))?;
+            .await?;
 
         // Create generation metadata
         let batch_id = BatchId::new();
@@ -138,11 +137,11 @@ impl GenerateAsset {
             batch_id,
         };
 
-        // Create the asset
+        // Create asset
         let now = self.clock.now();
         let file_path_str = format!("assets/{:?}/{}.png", entity_type, entity_id);
         let file_path = AssetPath::new(file_path_str)
-            .map_err(|e| GenerateError::Failed(format!("Invalid asset path: {}", e)))?;
+            .map_err(|e| GenerateError::InvalidPath(e.to_string()))?;
         let asset = GalleryAsset::new_generated(
             entity_type,
             entity_id.to_string(),
@@ -156,8 +155,7 @@ impl GenerateAsset {
 
         self.asset_repo
             .save(&asset)
-            .await
-            .map_err(|e| GenerateError::Failed(e.to_string()))?;
+            .await?;
 
         Ok(GenerateResult {
             asset_id,
@@ -187,21 +185,21 @@ impl GenerateAsset {
             count,
         };
 
-        self.queue
-            .enqueue_asset_generation(&data)
-            .await
-            .map_err(|e| GenerateError::Failed(e.to_string()))
+        let queue_item_id = self.queue.enqueue_asset_generation(&data).await?;
+        Ok(queue_item_id)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
-    #[error("Generation failed: {0}")]
-    Failed(String),
+    #[error("Invalid asset path: {0}")]
+    InvalidPath(String),
     #[error("Service unavailable")]
     Unavailable,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
     #[error("Image generation error: {0}")]
     ImageGen(#[from] ImageGenError),
+    #[error("Queue error: {0}")]
+    Queue(#[from] QueueError),
 }

@@ -194,6 +194,7 @@ define_id!(ConversationId);
 // Approval and suggestion IDs
 define_id!(ApprovalRequestId);
 define_id!(TimeSuggestionId);
+define_id!(ApprovalId);
 
 // Conversion from QueueItemId to ActionId for player action tracking
 impl From<QueueItemId> for ActionId {

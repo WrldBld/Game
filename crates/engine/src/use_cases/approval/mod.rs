@@ -412,8 +412,7 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use chrono::Utc;
-    use uuid::Uuid;
-    use wrldbldr_domain::{CharacterId, CharacterName, GameTime, GameTimeConfig, TimeMode, TimeCostConfig};
+    use wrldbldr_domain::{ActionId, CharacterId, CharacterName, ConversationId, GameTime, GameTimeConfig, TimeMode, TimeCostConfig};
     use crate::infrastructure::ports::{
         ClockPort, MockPlayerCharacterRepo, MockWorldRepo, QueuePort,
     };
@@ -432,7 +431,7 @@ mod tests {
 
     // Simple queue mock for tests
     struct SimpleQueue {
-        approvals: std::sync::Mutex<std::collections::HashMap<Uuid, crate::queue_types::ApprovalRequestData>>,
+        approvals: std::sync::Mutex<std::collections::HashMap<wrldbldr_domain::QueueItemId, crate::queue_types::ApprovalRequestData>>,
     }
 
     impl SimpleQueue {
@@ -442,7 +441,7 @@ mod tests {
             }
         }
 
-        fn insert_approval(&self, id: Uuid, data: crate::queue_types::ApprovalRequestData) {
+        fn insert_approval(&self, id: wrldbldr_domain::QueueItemId, data: crate::queue_types::ApprovalRequestData) {
             self.approvals.lock().unwrap().insert(id, data);
         }
     }
@@ -563,7 +562,7 @@ mod tests {
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
         let approval_id = QueueItemId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
         let location_id = wrldbldr_domain::LocationId::new();
 
         // Set up world with Suggested time mode and conversation cost
@@ -606,7 +605,7 @@ mod tests {
         // Set up queue
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: Uuid::new_v4(),
+            source_action_id: ActionId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),
@@ -707,7 +706,7 @@ mod tests {
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
         let approval_id = QueueItemId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
         // Set up world with Manual time mode
         let mut time_config = GameTimeConfig::default();
@@ -747,7 +746,7 @@ mod tests {
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: Uuid::new_v4(),
+            source_action_id: ActionId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),
@@ -845,7 +844,7 @@ mod tests {
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
         let approval_id = QueueItemId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
         // Set up world with Suggested mode but zero conversation cost
         let mut time_config = GameTimeConfig::default();
@@ -885,7 +884,7 @@ mod tests {
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: Uuid::new_v4(),
+            source_action_id: ActionId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),
@@ -983,7 +982,7 @@ mod tests {
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
         let approval_id = QueueItemId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
         let time_config = GameTimeConfig::default();
         let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
@@ -1016,7 +1015,7 @@ mod tests {
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: Uuid::new_v4(),
+            source_action_id: ActionId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),

@@ -1885,23 +1885,46 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
 
     let name =
         NarrativeEventName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
-    let mut event = NarrativeEvent::new(world_id, name, created_at)
-        .with_id(id)
-        .with_description(description)
-        .with_trigger_conditions(trigger_conditions)
-        .with_trigger_logic(trigger_logic)
-        .with_scene_direction(
-            Description::new(scene_direction)
-                .map_err(|e| RepoError::database("query", e.to_string()))?,
-        )
-        .with_outcomes(outcomes)
-        .with_active(is_active)
-        .with_repeatable(is_repeatable)
-        .with_delay_turns(delay_turns)
-        .with_priority(priority)
-        .with_favorite(is_favorite)
-        .with_triggered_state(is_triggered, triggered_at, selected_outcome, trigger_count)
-        .with_updated_at(updated_at);
+
+    // Build event with explicit trigger state
+    let mut event = if is_triggered {
+        let triggered_time = triggered_at.unwrap_or(created_at);
+        NarrativeEvent::new(world_id, name, created_at)
+            .with_id(id)
+            .with_description(description)
+            .with_trigger_conditions(trigger_conditions)
+            .with_trigger_logic(trigger_logic)
+            .with_scene_direction(
+                Description::new(scene_direction)
+                    .map_err(|e| RepoError::database("query", e.to_string()))?,
+            )
+            .with_outcomes(outcomes)
+            .with_active(is_active)
+            .with_repeatable(is_repeatable)
+            .with_delay_turns(delay_turns)
+            .with_priority(priority)
+            .with_favorite(is_favorite)
+            .with_triggered(triggered_time, selected_outcome, trigger_count)
+            .with_updated_at(updated_at)
+    } else {
+        NarrativeEvent::new(world_id, name, created_at)
+            .with_id(id)
+            .with_description(description)
+            .with_trigger_conditions(trigger_conditions)
+            .with_trigger_logic(trigger_logic)
+            .with_scene_direction(
+                Description::new(scene_direction)
+                    .map_err(|e| RepoError::database("query", e.to_string()))?,
+            )
+            .with_outcomes(outcomes)
+            .with_active(is_active)
+            .with_repeatable(is_repeatable)
+            .with_delay_turns(delay_turns)
+            .with_priority(priority)
+            .with_favorite(is_favorite)
+            .with_not_triggered(trigger_count)
+            .with_updated_at(updated_at)
+    };
 
     if let Some(opening) = suggested_opening {
         event = event.with_suggested_opening(opening);

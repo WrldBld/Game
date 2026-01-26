@@ -38,14 +38,23 @@ pub enum CatalogError {
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 
-    #[error("Image generation error: {0}")]
-    ImageGen(String),
+    #[error("Queue error: {0}")]
+    Queue(String),
 
     #[error("Invalid activation rules JSON: {0}")]
     InvalidActivationRules(String),
 
     #[error("Invalid activation logic: {0}")]
     InvalidActivationLogic(String),
+
+    #[error("Name cannot be empty")]
+    NameEmpty,
+
+    #[error("Name too long (max 200 characters)")]
+    NameTooLong,
+
+    #[error("Description too long (max 5000 characters)")]
+    DescriptionTooLong,
 }
 
 /// Visual state catalog data
@@ -336,17 +345,17 @@ impl VisualStateCatalog {
         // Validate and update name
         if let Some(n) = &name {
             if n.trim().is_empty() {
-                return Err(CatalogError::Validation("name cannot be empty".to_string()));
+                return Err(CatalogError::NameEmpty);
             }
             if n.len() > 200 {
-                return Err(CatalogError::Validation("name too long (max 200 chars)".to_string()));
+                return Err(CatalogError::NameTooLong);
             }
         }
 
         // Validate description length
         if let Some(desc) = &description {
             if desc.len() > 5000 {
-                return Err(CatalogError::Validation("description too long (max 5000 chars)".to_string()));
+                return Err(CatalogError::DescriptionTooLong);
             }
         }
 
@@ -412,17 +421,17 @@ impl VisualStateCatalog {
         // Validate and update name
         if let Some(n) = &name {
             if n.trim().is_empty() {
-                return Err(CatalogError::Validation("name cannot be empty".to_string()));
+                return Err(CatalogError::NameEmpty);
             }
             if n.len() > 200 {
-                return Err(CatalogError::Validation("name too long (max 200 chars)".to_string()));
+                return Err(CatalogError::NameTooLong);
             }
         }
 
         // Validate description length
         if let Some(desc) = &description {
             if desc.len() > 5000 {
-                return Err(CatalogError::Validation("description too long (max 5000 chars)".to_string()));
+                return Err(CatalogError::DescriptionTooLong);
             }
         }
 
@@ -558,7 +567,7 @@ impl VisualStateCatalog {
             };
 
             self.queue.enqueue_asset_generation(&data).await
-                .map_err(|e| CatalogError::ImageGen(e.to_string()))?;
+                .map_err(|e| CatalogError::Queue(e.to_string()))?;
         }
 
         // Note: Map generation would be queued separately here when implemented
