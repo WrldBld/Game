@@ -808,7 +808,7 @@ async fn test_triggered_event_not_in_prompt() {
             )
             .with_required(true),
         )
-        .with_triggered_state(true, Some(now), Some("default".to_string()), 1); // ALREADY TRIGGERED
+        .with_triggered(now, Some("default".to_string()), 1); // ALREADY TRIGGERED
 
         ctx.app
             .repositories
@@ -1007,7 +1007,7 @@ async fn test_repeatable_triggered_event_in_prompt() {
             .with_required(true),
         )
         .with_repeatable(true) // REPEATABLE
-        .with_triggered_state(true, Some(now), Some("default".to_string()), 1); // WAS TRIGGERED
+        .with_triggered(now, Some("default".to_string()), 1); // WAS TRIGGERED
 
         ctx.app
             .repositories

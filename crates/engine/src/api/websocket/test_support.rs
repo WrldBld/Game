@@ -268,9 +268,9 @@ impl RandomPort for FixedRandom {
 
 #[derive(Default)]
 pub(crate) struct RecordingApprovalQueueState {
-    pub(crate) approvals: StdHashMap<Uuid, ApprovalRequestData>,
-    pub(crate) completed: Vec<Uuid>,
-    pub(crate) failed: Vec<(Uuid, String)>,
+    pub(crate) approvals: StdHashMap<QueueItemId, ApprovalRequestData>,
+    pub(crate) completed: Vec<QueueItemId>,
+    pub(crate) failed: Vec<(QueueItemId, String)>,
 }
 
 #[derive(Clone, Default)]
@@ -279,17 +279,17 @@ pub(crate) struct RecordingApprovalQueue {
 }
 
 impl RecordingApprovalQueue {
-    pub(crate) fn insert_approval(&self, id: Uuid, data: ApprovalRequestData) {
+    pub(crate) fn insert_approval(&self, id: QueueItemId, data: ApprovalRequestData) {
         let mut guard = self.state.lock().unwrap();
         guard.approvals.insert(id, data);
     }
 
-    pub(crate) fn completed_contains(&self, id: Uuid) -> bool {
+    pub(crate) fn completed_contains(&self, id: QueueItemId) -> bool {
         let guard = self.state.lock().unwrap();
         guard.completed.contains(&id)
     }
 
-    pub(crate) fn failed_contains(&self, id: Uuid) -> bool {
+    pub(crate) fn failed_contains(&self, id: QueueItemId) -> bool {
         let guard = self.state.lock().unwrap();
         guard.failed.iter().any(|(got, _)| *got == id)
     }
@@ -340,13 +340,13 @@ impl QueuePort for RecordingApprovalQueue {
 
     async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError> {
         let mut guard = self.state.lock().unwrap();
-        guard.completed.push(id.to_uuid());
+        guard.completed.push(id);
         Ok(())
     }
 
     async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError> {
         let mut guard = self.state.lock().unwrap();
-        guard.failed.push((id.to_uuid(), error.to_string()));
+        guard.failed.push((id, error.to_string()));
         Ok(())
     }
 
@@ -382,7 +382,7 @@ impl QueuePort for RecordingApprovalQueue {
         id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
         let guard = self.state.lock().unwrap();
-        Ok(guard.approvals.get(&id.to_uuid()).cloned())
+        Ok(guard.approvals.get(&id).cloned())
     }
 
     async fn get_generation_read_state(

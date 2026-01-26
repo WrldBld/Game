@@ -211,7 +211,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
     .with_id(event_a_id)
     .with_description("First event in chain")
     .with_scene_direction(Description::new("The stranger nods at you").unwrap())
-    .with_triggered_state(true, Some(now), Some("default".to_string()), 1);
+    .with_triggered(now, Some("default".to_string()), 1);
 
     ctx.app
         .repositories

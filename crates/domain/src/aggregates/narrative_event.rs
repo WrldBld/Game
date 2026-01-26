@@ -546,27 +546,6 @@ impl NarrativeEvent {
         self
     }
 
-    /// Set the event's triggered state (for backwards compatibility with wire format).
-    #[deprecated(note = "Use with_not_triggered or with_triggered instead")]
-    pub fn with_triggered_state(
-        mut self,
-        is_triggered: bool,
-        triggered_at: Option<DateTime<Utc>>,
-        selected_outcome: Option<String>,
-        trigger_count: u32,
-    ) -> Self {
-        if is_triggered {
-            self.trigger_status = TriggerStatus::Triggered {
-                at: triggered_at.unwrap_or(self.created_at),
-                selected_outcome,
-            };
-        } else {
-            self.trigger_status = TriggerStatus::Never;
-        }
-        self.trigger_count = trigger_count;
-        self
-    }
-
     /// Set the created_at timestamp (used when loading from storage).
     pub fn with_created_at(mut self, created_at: DateTime<Utc>) -> Self {
         self.created_at = created_at;
