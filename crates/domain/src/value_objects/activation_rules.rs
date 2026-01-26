@@ -129,48 +129,72 @@ impl ActivationRule {
 }
 
 /// Result of evaluating activation rules
+///
+/// This value object enforces invariants through its constructors:
+/// - Rules cannot appear in both matched and unmatched lists
+/// - Rule descriptions cannot be empty
+/// - Soft rules cannot have duplicates
+/// - `is_active` is only set for resolved evaluations (not when pending LLM)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActivationEvaluation {
-    /// Whether the state should be activated
-    pub is_active: bool,
-    /// Rules that matched
-    pub matched_rules: Vec<String>,
-    /// Rules that didn't match
-    pub unmatched_rules: Vec<String>,
-    /// Soft rules that need LLM evaluation
-    pub pending_soft_rules: Vec<String>,
-    /// LLM reasoning (if soft rules were evaluated)
-    pub llm_reasoning: Option<String>,
+    is_active: bool,
+    matched_rules: Vec<String>,
+    unmatched_rules: Vec<String>,
+    pending_soft_rules: Vec<String>,
+    llm_reasoning: Option<String>,
 }
 
 impl ActivationEvaluation {
-    /// Create a new evaluation result for a fully resolved state
-    pub fn resolved(is_active: bool, matched: Vec<String>, unmatched: Vec<String>) -> Self {
-        Self {
+    /// Create a new evaluation result for a fully resolved state.
+    ///
+    /// # Invariants
+    /// - No rule can appear in both `matched` and `unmatched`
+    /// - Rule descriptions cannot be empty
+    pub fn resolved(
+        is_active: bool,
+        matched: Vec<String>,
+        unmatched: Vec<String>,
+    ) -> Result<Self, DomainError> {
+        let eval = Self {
             is_active,
             matched_rules: matched,
             unmatched_rules: unmatched,
             pending_soft_rules: Vec::new(),
             llm_reasoning: None,
-        }
+        };
+        eval.validate()?;
+        Ok(eval)
     }
 
-    /// Create an evaluation that needs LLM evaluation
+    /// Create an evaluation that needs LLM evaluation.
+    ///
+    /// # Invariants
+    /// - No rule can appear in both `matched_hard` and `unmatched_hard`
+    /// - Rule descriptions cannot be empty
+    /// - Soft rules cannot have duplicates
+    /// - `is_active` is always `false` (not yet determined)
     pub fn needs_llm(
         matched_hard: Vec<String>,
         unmatched_hard: Vec<String>,
         pending_soft: Vec<String>,
-    ) -> Self {
-        Self {
-            is_active: false, // Not yet determined
+    ) -> Result<Self, DomainError> {
+        let eval = Self {
+            is_active: false,
             matched_rules: matched_hard,
             unmatched_rules: unmatched_hard,
             pending_soft_rules: pending_soft,
             llm_reasoning: None,
-        }
+        };
+        eval.validate()?;
+        Ok(eval)
     }
 
-    /// Update with LLM evaluation results
+    /// Update with LLM evaluation results.
+    ///
+    /// # Invariants
+    /// - Clears `pending_soft_rules` (now resolved)
+    /// - Sets `is_active` based on LLM result
+    /// - Stores reasoning
     pub fn with_llm_result(mut self, is_active: bool, reasoning: String) -> Self {
         self.is_active = is_active;
         self.llm_reasoning = Some(reasoning);
@@ -178,13 +202,48 @@ impl ActivationEvaluation {
         self
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Accessors
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// Check if the state should be activated.
+    ///
+    /// Returns `false` when evaluation is pending LLM.
+    pub fn is_active(&self) -> bool {
+        self.is_active
+    }
+
+    /// Get rules that matched.
+    pub fn matched_rules(&self) -> &[String] {
+        &self.matched_rules
+    }
+
+    /// Get rules that didn't match.
+    pub fn unmatched_rules(&self) -> &[String] {
+        &self.unmatched_rules
+    }
+
+    /// Get soft rules that need LLM evaluation.
+    pub fn pending_soft_rules(&self) -> &[String] {
+        &self.pending_soft_rules
+    }
+
+    /// Get LLM reasoning (if soft rules were evaluated).
+    pub fn llm_reasoning(&self) -> Option<&String> {
+        self.llm_reasoning.as_ref()
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Validation (private)
+    // ──────────────────────────────────────────────────────────────────────────
+
     /// Validate the activation evaluation.
     ///
     /// Checks for:
     /// - No overlapping rules (a rule can't be in both matched and unmatched)
     /// - No duplicate soft rules
     /// - Non-empty rule descriptions
-    pub fn validate(&self) -> Result<(), DomainError> {
+    fn validate(&self) -> Result<(), DomainError> {
         // Check for rule overlaps
         let matched_set: std::collections::HashSet<_> = self.matched_rules.iter().collect();
         let unmatched_set: std::collections::HashSet<_> = self.unmatched_rules.iter().collect();
@@ -276,5 +335,117 @@ mod tests {
             period: TimeOfDay::Evening,
         };
         assert_eq!(rule.description(), "During Evening");
+    }
+
+    // -------------------------------------------------------------------------
+    // ActivationEvaluation tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_activation_evaluation_resolved_active() {
+        let eval = ActivationEvaluation::resolved(
+            true,
+            vec!["Rule A".to_string(), "Rule B".to_string()],
+            vec!["Rule C".to_string()],
+        )
+        .expect("valid evaluation");
+
+        assert!(eval.is_active());
+        assert_eq!(eval.matched_rules(), &["Rule A", "Rule B"]);
+        assert_eq!(eval.unmatched_rules(), &["Rule C"]);
+        assert!(eval.pending_soft_rules().is_empty());
+        assert!(eval.llm_reasoning().is_none());
+    }
+
+    #[test]
+    fn test_activation_evaluation_resolved_inactive() {
+        let eval = ActivationEvaluation::resolved(false, vec![], vec!["Rule A".to_string()])
+            .expect("valid evaluation");
+
+        assert!(!eval.is_active());
+        assert_eq!(eval.matched_rules().len(), 0);
+        assert_eq!(eval.unmatched_rules(), &["Rule A"]);
+    }
+
+    #[test]
+    fn test_activation_evaluation_needs_llm() {
+        let eval = ActivationEvaluation::needs_llm(
+            vec!["Rule A".to_string()],
+            vec!["Rule B".to_string()],
+            vec!["Custom Rule X".to_string(), "Custom Rule Y".to_string()],
+        )
+        .expect("valid evaluation");
+
+        assert!(!eval.is_active());
+        assert_eq!(eval.matched_rules(), &["Rule A"]);
+        assert_eq!(eval.unmatched_rules(), &["Rule B"]);
+        assert_eq!(
+            eval.pending_soft_rules(),
+            &["Custom Rule X", "Custom Rule Y"]
+        );
+        assert!(eval.llm_reasoning().is_none());
+    }
+
+    #[test]
+    fn test_activation_evaluation_with_llm_result() {
+        let eval = ActivationEvaluation::needs_llm(
+            vec!["Rule A".to_string()],
+            vec![],
+            vec!["Custom Rule".to_string()],
+        )
+        .expect("valid evaluation");
+
+        let resolved = eval.with_llm_result(true, "The custom rule matched".to_string());
+
+        assert!(resolved.is_active());
+        assert_eq!(resolved.matched_rules(), &["Rule A"]);
+        assert!(resolved.pending_soft_rules().is_empty());
+        assert_eq!(
+            resolved.llm_reasoning(),
+            Some(&"The custom rule matched".to_string())
+        );
+    }
+
+    #[test]
+    fn test_activation_evaluation_rejects_overlapping_rules() {
+        let result = ActivationEvaluation::resolved(
+            true,
+            vec!["Rule A".to_string()],
+            vec!["Rule A".to_string()], // Same rule in both!
+        );
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Rules appear in both matched and unmatched"));
+    }
+
+    #[test]
+    fn test_activation_evaluation_rejects_empty_rule_descriptions() {
+        let result = ActivationEvaluation::resolved(
+            true,
+            vec!["Valid Rule".to_string(), "".to_string()], // Empty description
+            vec![],
+        );
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Matched rule descriptions cannot be empty"));
+    }
+
+    #[test]
+    fn test_activation_evaluation_rejects_duplicate_soft_rules() {
+        let result = ActivationEvaluation::needs_llm(
+            vec![],
+            vec![],
+            vec!["Custom Rule".to_string(), "Custom Rule".to_string()], // Duplicate
+        );
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Duplicate soft rules detected"));
     }
 }

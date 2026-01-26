@@ -919,9 +919,9 @@ mod tests {
             assert_eq!(character.current_archetype(), CampbellArchetype::Mentor);
             assert_eq!(character.archetype_history().len(), 1);
             let change = &character.archetype_history()[0];
-            assert_eq!(change.from(), CampbellArchetype::Hero);
-            assert_eq!(change.to(), CampbellArchetype::Mentor);
-            assert_eq!(change.reason(), "Character growth");
+            assert_eq!(change.from, CampbellArchetype::Hero);
+            assert_eq!(change.to, CampbellArchetype::Mentor);
+            assert_eq!(change.reason, "Character growth");
         }
     }
 }

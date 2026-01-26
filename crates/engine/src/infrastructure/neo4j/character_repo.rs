@@ -201,10 +201,10 @@ struct ArchetypeChangeStored {
 impl From<ArchetypeChange> for ArchetypeChangeStored {
     fn from(value: ArchetypeChange) -> Self {
         Self {
-            from: format!("{:?}", value.from()),
-            to: format!("{:?}", value.to()),
-            reason: value.reason().to_string(),
-            timestamp: value.timestamp().to_rfc3339(),
+            from: format!("{:?}", value.from),
+            to: format!("{:?}", value.to),
+            reason: value.reason,
+            timestamp: value.timestamp.to_rfc3339(),
         }
     }
 }
@@ -232,12 +232,12 @@ impl TryFrom<ArchetypeChangeStored> for ArchetypeChange {
                 format!("Invalid 'to' archetype in history '{}': {}", value.to, e),
             )
         })?;
-        Ok(ArchetypeChange::new(
-            from_archetype,
-            to_archetype,
-            value.reason,
+        Ok(ArchetypeChange {
+            from: from_archetype,
+            to: to_archetype,
+            reason: value.reason,
             timestamp,
-        ))
+        })
     }
 }
 

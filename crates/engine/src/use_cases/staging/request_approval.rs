@@ -289,8 +289,8 @@ impl RequestStagingApproval {
             .available_location_states
             .iter()
             .map(|s| {
-                let match_reason = if s.evaluation.is_active {
-                    Some(s.evaluation.matched_rules.join(", "))
+                let match_reason = if s.evaluation.is_active() {
+                    Some(s.evaluation.matched_rules().join(", "))
                 } else {
                     None
                 };
@@ -308,8 +308,8 @@ impl RequestStagingApproval {
             .available_region_states
             .iter()
             .map(|s| {
-                let match_reason = if s.evaluation.is_active {
-                    Some(s.evaluation.matched_rules.join(", "))
+                let match_reason = if s.evaluation.is_active() {
+                    Some(s.evaluation.matched_rules().join(", "))
                 } else {
                     None
                 };

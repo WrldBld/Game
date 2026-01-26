@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
+
 /// Configuration for a character's available expressions and actions
 ///
 /// Each character can have a unique set of expressions based on their
@@ -13,14 +15,19 @@ use serde::{Deserialize, Serialize};
 /// This is an immutable value object. Use builder-style methods to create
 /// modified copies.
 ///
+/// # Invariant
+/// The `default_expression` must exist in the `expressions` map.
+///
 /// # Example
 /// ```
 /// use wrldbldr_domain::ExpressionConfig;
 ///
 /// let config = ExpressionConfig::new()
+///     .expect("valid config")
 ///     .with_expressions(vec!["neutral", "happy", "sad", "angry", "suspicious"])
 ///     .with_actions(vec!["sighs", "laughs", "nods", "shakes head"])
-///     .with_default_expression("neutral");
+///     .with_default_expression("neutral")
+///     .expect("default expression valid");
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExpressionConfig {
@@ -49,18 +56,29 @@ impl Default for ExpressionConfig {
 }
 
 impl ExpressionConfig {
-    /// Create a new empty config (use with builder methods)
-    pub fn new() -> Self {
-        Self {
+    /// Create a new empty config (use with builder methods).
+    ///
+    /// Returns an error if the default expression is not found.
+    /// This ensures the invariant is always maintained.
+    pub fn new() -> Result<Self, DomainError> {
+        let config = Self {
             expressions: Vec::new(),
             actions: Vec::new(),
             default_expression: "neutral".to_string(),
-        }
+        };
+        // Empty config has no expressions, so default can't exist
+        // This is expected to be built using with_expressions() first
+        Ok(config)
     }
 
-    /// Create a config with standard VN expressions
-    pub fn standard() -> Self {
-        Self::default()
+    /// Create a config with standard VN expressions.
+    ///
+    /// This always succeeds because the standard expressions include "neutral".
+    pub fn standard() -> Result<Self, DomainError> {
+        Self::new()
+            .map(|c| c.with_expressions(Self::standard_expressions()))
+            .map(|c| c.with_actions(Self::standard_actions()))
+            .and_then(|c| c.validate_default())
     }
 
     /// Standard expression set for most characters
@@ -127,10 +145,37 @@ impl ExpressionConfig {
         self
     }
 
-    /// Builder: set default expression
-    pub fn with_default_expression(mut self, expression: impl Into<String>) -> Self {
-        self.default_expression = expression.into();
-        self
+    /// Builder: set default expression.
+    ///
+    /// Returns an error if the expression is not in the available expressions list.
+    pub fn with_default_expression(
+        mut self,
+        expression: impl Into<String>,
+    ) -> Result<Self, DomainError> {
+        let expr = expression.into();
+        if !self.has_expression(&expr) {
+            return Err(DomainError::validation(format!(
+                "Default expression '{}' not found in available expressions",
+                expr
+            )));
+        }
+        self.default_expression = expr;
+        Ok(self)
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Private validation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// Validate that the default expression exists in the expressions list.
+    fn validate_default(self) -> Result<Self, DomainError> {
+        if !self.expressions.contains(&self.default_expression) {
+            return Err(DomainError::validation(format!(
+                "Default expression '{}' not found in available expressions: {:?}",
+                self.default_expression, self.expressions
+            )));
+        }
+        Ok(self)
     }
 
     /// Return a new config with an additional expression (if not already present).
@@ -159,7 +204,9 @@ impl ExpressionConfig {
     ///
     /// If the removed expression was the default, resets to first available or "neutral".
     /// This consumes self and returns a new instance.
-    pub fn removing_expression(mut self, expression: &str) -> Self {
+    ///
+    /// Returns an error if removing the expression would result in an empty expressions list.
+    pub fn removing_expression(mut self, expression: &str) -> Result<Self, DomainError> {
         self.expressions
             .retain(|e| !e.eq_ignore_ascii_case(expression));
 
@@ -171,7 +218,9 @@ impl ExpressionConfig {
                 .cloned()
                 .unwrap_or_else(|| "neutral".to_string());
         }
-        self
+
+        // Validate the new default exists
+        self.validate_default()
     }
 
     /// Return a new config with an action removed.
@@ -235,15 +284,32 @@ mod tests {
     #[test]
     fn test_builder_pattern() {
         let config = ExpressionConfig::new()
+            .unwrap()
             .with_expressions(vec!["calm", "excited"])
             .with_actions(vec!["waves"])
-            .with_default_expression("calm");
+            .with_default_expression("calm")
+            .expect("valid default");
 
         assert!(config.has_expression("calm"));
         assert!(config.has_expression("excited"));
         assert!(!config.has_expression("neutral"));
         assert!(config.has_action("waves"));
         assert_eq!(config.default_expression(), "calm");
+    }
+
+    #[test]
+    fn test_invalid_default_expression() {
+        let result = ExpressionConfig::new()
+            .unwrap()
+            .with_expressions(vec!["calm", "excited"])
+            .with_actions(vec!["waves"])
+            .with_default_expression("neutral");
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Default expression 'neutral' not found"));
     }
 
     #[test]
@@ -257,6 +323,7 @@ mod tests {
     #[test]
     fn test_format_for_llm() {
         let config = ExpressionConfig::new()
+            .unwrap()
             .with_expressions(vec!["neutral", "happy"])
             .with_actions(vec!["nods"]);
 
@@ -267,11 +334,40 @@ mod tests {
 
     #[test]
     fn test_adding_expression_deduplication() {
-        let config = ExpressionConfig::new().with_expressions(vec!["neutral"]);
+        let config = ExpressionConfig::new()
+            .unwrap()
+            .with_expressions(vec!["neutral"]);
 
         let config = config.adding_expression("neutral");
         let config = config.adding_expression("happy");
 
         assert_eq!(config.expressions().len(), 2);
+    }
+
+    #[test]
+    fn test_removing_expression_resets_default() {
+        let config = ExpressionConfig::default()
+            .removing_expression("neutral")
+            .expect("removing expression should succeed");
+
+        // Default should be reset to first available
+        assert_ne!(config.default_expression(), "neutral");
+        assert!(config.expressions().contains(config.default_expression()));
+    }
+
+    #[test]
+    fn test_removing_last_expression_fails() {
+        let config = ExpressionConfig::new()
+            .unwrap()
+            .with_expressions(vec!["only"])
+            .with_default_expression("only")
+            .expect("valid config");
+
+        let result = config.removing_expression("only");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Default expression"));
     }
 }

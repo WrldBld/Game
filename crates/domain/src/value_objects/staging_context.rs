@@ -63,21 +63,41 @@ pub struct RuleBasedSuggestion {
 }
 
 /// Result of a probabilistic presence roll
+///
+/// The `passed` field is derived from `chance_percent` and `rolled` to prevent
+/// inconsistent states.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RollResult {
-    pub chance_percent: u8,
-    pub rolled: u8,
-    pub passed: bool,
+    chance_percent: u8,
+    rolled: u8,
+    passed: bool,
 }
 
 impl RollResult {
-    /// Create a new roll result
+    /// Create a new roll result with computed `passed` value.
+    ///
+    /// A roll passes when `rolled <= chance_percent`.
     pub fn new(chance_percent: u8, rolled: u8) -> Self {
         Self {
             chance_percent,
             rolled,
             passed: rolled <= chance_percent,
         }
+    }
+
+    /// Get the success chance (0-100)
+    pub fn chance_percent(&self) -> u8 {
+        self.chance_percent
+    }
+
+    /// Get the rolled value
+    pub fn rolled(&self) -> u8 {
+        self.rolled
+    }
+
+    /// Check if the roll passed
+    pub fn passed(&self) -> bool {
+        self.passed
     }
 }
 
@@ -202,5 +222,52 @@ impl RuleBasedSuggestion {
     pub fn with_roll(mut self, chance_percent: u8, rolled: u8) -> Self {
         self.roll_result = Some(RollResult::new(chance_percent, rolled));
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_roll_result_pass_when_rolled_less_than_chance() {
+        let result = RollResult::new(50, 30);
+        assert_eq!(result.chance_percent(), 50);
+        assert_eq!(result.rolled(), 30);
+        assert!(result.passed());
+    }
+
+    #[test]
+    fn test_roll_result_pass_when_equal() {
+        let result = RollResult::new(50, 50);
+        assert_eq!(result.chance_percent(), 50);
+        assert_eq!(result.rolled(), 50);
+        assert!(result.passed());
+    }
+
+    #[test]
+    fn test_roll_result_fail_when_rolled_higher() {
+        let result = RollResult::new(30, 50);
+        assert_eq!(result.chance_percent(), 30);
+        assert_eq!(result.rolled(), 50);
+        assert!(!result.passed());
+    }
+
+    #[test]
+    fn test_roll_result_always_fail_at_zero_chance() {
+        let result = RollResult::new(0, 0);
+        assert!(!result.passed());
+
+        let result = RollResult::new(0, 100);
+        assert!(!result.passed());
+    }
+
+    #[test]
+    fn test_roll_result_always_pass_at_100_chance() {
+        let result = RollResult::new(100, 0);
+        assert!(result.passed());
+
+        let result = RollResult::new(100, 100);
+        assert!(result.passed());
     }
 }

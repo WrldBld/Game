@@ -35,6 +35,9 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
     let mut show_standard_expressions = use_signal(|| false);
     let mut show_standard_actions = use_signal(|| false);
 
+    // Error state for validation failures
+    let mut error_message: Signal<Option<String>> = use_signal(|| None);
+
     // Clone config for modifications
     let config = props.config.clone();
 
@@ -177,8 +180,15 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                                     button {
                                         class: "ml-1 text-gray-400 hover:text-red-400",
                                         onclick: move |_| {
-                                            let new_config = config_clone.clone().removing_expression(&expr_clone);
-                                            props.on_config_change.call(new_config);
+                                            match config_clone.clone().removing_expression(&expr_clone) {
+                                                Ok(new_config) => {
+                                                    error_message.set(None);
+                                                    props.on_config_change.call(new_config);
+                                                }
+                                                Err(e) => {
+                                                    error_message.set(Some(e.to_string()));
+                                                }
+                                            }
                                         },
                                         "×"
                                     }
@@ -246,8 +256,15 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                             onchange: {
                                 let config_for_select = config.clone();
                                 move |e| {
-                                    let new_config = config_for_select.clone().with_default_expression(e.value());
-                                    props.on_config_change.call(new_config);
+                                    match config_for_select.clone().with_default_expression(e.value()) {
+                                        Ok(new_config) => {
+                                            error_message.set(None);
+                                            props.on_config_change.call(new_config);
+                                        }
+                                        Err(e) => {
+                                            error_message.set(Some(e.to_string()));
+                                        }
+                                    }
                                 }
                             },
 
@@ -411,6 +428,14 @@ pub fn ExpressionConfigEditor(props: ExpressionConfigEditorProps) -> Element {
                 pre {
                     class: "text-xs text-gray-300 whitespace-pre-wrap",
                     "{config.format_for_llm()}"
+                }
+
+                // Error message display
+                if let Some(error) = error_message.read().as_ref() {
+                    div {
+                        class: "mt-2 text-xs text-red-400",
+                        "{error}"
+                    }
                 }
             }
         }

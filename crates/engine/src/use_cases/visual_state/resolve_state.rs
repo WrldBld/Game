@@ -324,14 +324,12 @@ impl ResolveVisualState {
 
         // Empty rules = always active (implicit Always rule)
         if rules.is_empty() {
-            return (
-                ActivationEvaluation::resolved(
-                    true,
-                    vec!["No rules (always active)".to_string()],
-                    vec![],
-                ),
+            let eval = ActivationEvaluation::resolved(
+                true,
+                vec!["No rules (always active)".to_string()],
                 vec![],
-            );
+            ).expect("empty rule evaluation should always be valid");
+            return (eval, vec![]);
         }
 
         for rule in rules {
@@ -365,31 +363,25 @@ impl ResolveVisualState {
         // active. We return an empty soft rules vec because the resolution is complete
         // and we don't want to trigger unnecessary LLM evaluation.
         if logic == ActivationLogic::Any && !matched.is_empty() {
-            return (
-                ActivationEvaluation::resolved(true, matched, unmatched),
-                vec![],
-            );
+            let eval = ActivationEvaluation::resolved(true, matched, unmatched)
+                .expect("resolved evaluation with any match should be valid");
+            return (eval, vec![]);
         }
 
         // If there are pending soft rules, we can't determine final state yet
         if !pending_soft.is_empty() {
-            return (
-                ActivationEvaluation::needs_llm(
-                    matched,
-                    unmatched,
-                    pending_soft.iter().map(|s| s.description.clone()).collect(),
-                ),
-                pending_soft,
-            );
+            let pending_descriptions: Vec<_> = pending_soft.iter().map(|s| s.description.clone()).collect();
+            let eval = ActivationEvaluation::needs_llm(matched, unmatched, pending_descriptions)
+                .expect("needs_llm evaluation should be valid");
+            return (eval, pending_soft);
         }
 
         // Determine if active based on logic and hard rule results
         let is_active = self.check_logic(logic, matched.len(), unmatched.len(), rules.len());
 
-        (
-            ActivationEvaluation::resolved(is_active, matched, unmatched),
-            vec![],
-        )
+        let eval = ActivationEvaluation::resolved(is_active, matched, unmatched)
+            .expect("resolved evaluation should be valid");
+        (eval, vec![])
     }
 
     /// Evaluate a single hard rule against the context
@@ -529,7 +521,7 @@ impl ResolveVisualState {
         // First try to find highest priority active state
         let active_state = evaluations
             .iter()
-            .filter(|(_, eval)| eval.is_active)
+            .filter(|(_, eval)| eval.is_active())
             .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
@@ -570,7 +562,7 @@ impl ResolveVisualState {
         // First try to find highest priority active state
         let active_state = evaluations
             .iter()
-            .filter(|(_, eval)| eval.is_active)
+            .filter(|(_, eval)| eval.is_active())
             .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
