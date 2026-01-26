@@ -158,6 +158,12 @@ pub struct CreateLocationData {
     pub description: Option<String>,
     #[serde(default)]
     pub setting: Option<String>,
+    /// Default TTL in hours for staging cache in this location
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presence_cache_ttl_hours: Option<i32>,
+    /// Whether to use LLM for staging decisions in this location
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_llm_presence: Option<bool>,
 }
 
 /// Data for updating a location

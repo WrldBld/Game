@@ -108,12 +108,38 @@ pub(super) async fn handle_location_request(
                 Err(e) => return Err(e),
             };
 
+            // Fetch app settings for default values
+            let settings = match state.app.use_cases.settings.get_for_world(world_id_typed).await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        world_id = %world_id,
+                        "Failed to load settings for create location, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+
+            // Use app settings as defaults when not provided
+            let presence_cache_ttl_hours =
+                data.presence_cache_ttl_hours.unwrap_or_else(|| settings.default_presence_cache_ttl_hours());
+            let use_llm_presence =
+                data.use_llm_presence.unwrap_or_else(|| settings.default_use_llm_presence());
+
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .create_location(world_id_typed, data.name, data.description, data.setting)
+                .create_location(
+                    world_id_typed,
+                    data.name,
+                    data.description,
+                    data.setting,
+                    Some(presence_cache_ttl_hours),
+                    Some(use_llm_presence),
+                )
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({

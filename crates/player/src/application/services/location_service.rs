@@ -75,6 +75,8 @@ impl LocationFormData {
             name: self.name.clone(),
             description: self.description.clone(),
             setting: self.atmosphere.clone(),
+            presence_cache_ttl_hours: self.presence_cache_ttl_hours,
+            use_llm_presence: self.use_llm_presence,
         }
     }
 
