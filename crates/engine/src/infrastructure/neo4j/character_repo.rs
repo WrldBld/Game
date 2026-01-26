@@ -430,7 +430,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
     // =========================================================================
 
     async fn get(&self, id: CharacterId) -> Result<Option<Character>, RepoError> {
-        let q = query("MATCH (c:Character {id: $id}) RETURN c").param("id", id.to_string());
+        let q = query("MATCH (c:Character {id: $id}) RETURN c")
+            .param("id", id.to_string());
 
         let mut result = self
             .graph

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::DomainError;
+use crate::types::EntityType;
 
 macro_rules! define_id {
     ($name:ident) => {
@@ -161,6 +162,69 @@ impl fmt::Display for UserId {
 // Asset and generation IDs
 define_id!(AssetId);
 define_id!(BatchId);
+
+/// Typed wrapper for asset owner IDs
+///
+/// Combines entity type with specific ID to provide type safety
+/// when working with assets owned by different entity types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AssetOwnerId {
+    /// Character (NPC) owns this asset
+    Character(CharacterId),
+    /// Location owns this asset
+    Location(LocationId),
+    /// Item owns this asset
+    Item(ItemId),
+}
+
+impl AssetOwnerId {
+    /// Get the EntityType for this owner
+    pub fn entity_type(&self) -> EntityType {
+        match self {
+            AssetOwnerId::Character(_) => EntityType::Character,
+            AssetOwnerId::Location(_) => EntityType::Location,
+            AssetOwnerId::Item(_) => EntityType::Item,
+        }
+    }
+
+    /// Get the UUID value of this owner
+    pub fn as_uuid(&self) -> Uuid {
+        match self {
+            AssetOwnerId::Character(id) => id.to_uuid(),
+            AssetOwnerId::Location(id) => id.to_uuid(),
+            AssetOwnerId::Item(id) => id.to_uuid(),
+        }
+    }
+
+    /// Convert to string representation
+    pub fn to_string(&self) -> String {
+        self.as_uuid().to_string()
+    }
+}
+
+impl fmt::Display for AssetOwnerId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_uuid())
+    }
+}
+
+impl From<CharacterId> for AssetOwnerId {
+    fn from(id: CharacterId) -> Self {
+        AssetOwnerId::Character(id)
+    }
+}
+
+impl From<LocationId> for AssetOwnerId {
+    fn from(id: LocationId) -> Self {
+        AssetOwnerId::Location(id)
+    }
+}
+
+impl From<ItemId> for AssetOwnerId {
+    fn from(id: ItemId) -> Self {
+        AssetOwnerId::Item(id)
+    }
+}
 
 // Scene interaction IDs
 define_id!(InteractionId);

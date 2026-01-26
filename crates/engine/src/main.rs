@@ -334,6 +334,48 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // =============================================================================
+    // Conversion helpers for staging types (main.rs local)
+    // =============================================================================
+
+    fn npc_present_to_protocol_from_main(
+        npc: &use_cases::staging::NpcPresent,
+    ) -> wrldbldr_shared::NpcPresentInfo {
+        wrldbldr_shared::NpcPresentInfo {
+            character_id: npc.character_id.to_string(),
+            name: npc.name.clone(),
+            sprite_asset: npc.sprite_asset.clone(),
+            portrait_asset: npc.portrait_asset.clone(),
+            is_hidden_from_players: npc.is_hidden_from_players,
+            mood: npc.mood.clone(),
+        }
+    }
+
+    fn resolved_visual_state_to_protocol_from_main(
+        vs: &use_cases::staging::ResolvedVisualState,
+    ) -> wrldbldr_shared::types::ResolvedVisualStateData {
+        wrldbldr_shared::types::ResolvedVisualStateData {
+            location_state: vs.location_state.as_ref().map(|s| {
+                wrldbldr_shared::types::ResolvedStateInfoData {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    backdrop_override: s.backdrop_override.clone(),
+                    atmosphere_override: s.atmosphere_override.clone(),
+                    ambient_sound: s.ambient_sound.clone(),
+                }
+            }),
+            region_state: vs.region_state.as_ref().map(|s| {
+                wrldbldr_shared::types::ResolvedStateInfoData {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    backdrop_override: s.backdrop_override.clone(),
+                    atmosphere_override: s.atmosphere_override.clone(),
+                    ambient_sound: s.ambient_sound.clone(),
+                }
+            }),
+        }
+    }
+
     // Spawn staging timeout processor
     let staging_ws_state = ws_state.clone();
     tokio::spawn(async move {
@@ -408,11 +450,11 @@ async fn main() -> anyhow::Result<()> {
                                 payload
                                     .npcs_present
                                     .iter()
-                                    .map(|n| n.to_protocol())
+                                    .map(npc_present_to_protocol_from_main)
                                     .collect();
 
                             let region_id_str = payload.region_id.to_string();
-                            let visual_state_proto = payload.visual_state.as_ref().map(|vs| vs.to_protocol());
+                            let visual_state_proto = payload.visual_state.as_ref().map(resolved_visual_state_to_protocol_from_main);
 
                             // Broadcast StagingReady to all players in world
                             staging_ws_state

@@ -26,7 +26,7 @@ pub use approve::{ApproveStagingInput, ApproveStagingRequest};
 pub use auto_approve::AutoApproveStagingTimeout;
 pub use regenerate::RegenerateStagingSuggestions;
 pub use request_approval::{RequestStagingApproval, StagingApprovalContext, StagingApprovalInput};
-pub use types::{ApprovedNpc, ResolvedStateInfo, ResolvedVisualState, StagingApprovalData};
+pub use types::*;
 
 /// Fetches world settings with graceful fallback to defaults.
 ///

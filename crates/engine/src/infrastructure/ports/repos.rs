@@ -5,7 +5,6 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 use wrldbldr_domain::*;
 
 use super::error::RepoError;
@@ -847,13 +846,11 @@ pub trait AssetRepo: Send + Sync {
     async fn delete(&self, id: AssetId) -> Result<(), RepoError>;
     async fn list_for_entity(
         &self,
-        entity_type: EntityType,
-        entity_id: Uuid,
+        owner_id: AssetOwnerId,
     ) -> Result<Vec<GalleryAsset>, RepoError>;
     async fn set_active(
         &self,
-        entity_type: EntityType,
-        entity_id: Uuid,
+        owner_id: AssetOwnerId,
         asset_id: AssetId,
     ) -> Result<(), RepoError>;
 }

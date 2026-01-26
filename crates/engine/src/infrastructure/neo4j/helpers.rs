@@ -431,3 +431,104 @@ pub fn parse_description_or_default(s: Option<String>) -> Description {
     s.map(|text| Description::new(text).unwrap_or_default())
         .unwrap_or_default()
 }
+
+// =============================================================================
+// Common Neo4j Query Fragments
+// =============================================================================
+
+/// Fragment for creating a parameter binding for a character ID.
+///
+/// Returns the `.param("id", ...)` call as a string helper.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::param_character_id;
+///
+/// let id = param_character_id(character_id);
+/// ```
+///
+/// Note: This is a documentation helper only - the actual param call
+/// uses neo4rs QueryBuilder, not this function.
+#[allow(dead_code)]
+pub fn param_character_id(id: impl std::fmt::Display) -> String {
+    format!("{}", id)
+}
+
+/// Fragment for character fields including optional relationship mood in a COLLECT map.
+///
+/// Returns a comma-separated list of character field mappings for use in
+/// COLLECT({ ... }) clauses, with an optional mood field from a relationship
+/// (e.g., `rel.mood` with fallback to `c.default_mood`).
+///
+/// # Fields
+/// - `character_id: c.id`
+/// - `name: c.name`
+/// - `sprite_asset: c.sprite_asset`
+/// - `portrait_asset: c.portrait_asset`
+/// - `mood: COALESCE(rel.mood, c.default_mood, 'calm')`
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::collect_character_fields_with_rel_mood;
+///
+/// let q = query(&format!(
+///     "MATCH (s:Staging)-[rel:INCLUDES_NPC]->(c:Character)
+///     WITH s, COLLECT({{ {} }}) as npcs
+///     RETURN s, npcs",
+///     collect_character_fields_with_rel_mood()
+/// ))
+/// .param("staging_id", staging_id.to_string());
+/// ```
+pub const fn collect_character_fields_with_rel_mood() -> &'static str {
+    "character_id: c.id, name: c.name, sprite_asset: c.sprite_asset, portrait_asset: c.portrait_asset, mood: COALESCE(rel.mood, c.default_mood, 'calm')"
+}
+
+/// Fragment for returning character fields with relationship properties (for staging queries).
+///
+/// Returns a comma-separated list of character and relationship fields for RETURN clauses.
+/// Designed for use in staging queries that return StagedNpc data.
+///
+/// # Fields
+/// - Character fields: `c.id as character_id`, `c.name as name`, `c.sprite_asset as sprite_asset`, `c.portrait_asset as portrait_asset`
+/// - Relationship fields: `rel.is_present as is_present`, `COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players`, `rel.reasoning as reasoning`, `COALESCE(rel.mood, c.default_mood, 'calm') as mood`, `COALESCE(rel.has_incomplete_data, false) as has_incomplete_data`
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_staged_character_fields;
+///
+/// let q = query(&format!(
+///     "MATCH (r:Region {{id: $region_id}})-[:CURRENT_STAGING]->(s:Staging)-[rel:INCLUDES_NPC]->(c:Character)
+///     WHERE s.is_active = true AND rel.is_present = true
+///     {}",
+///     return_staged_character_fields()
+/// ))
+/// .param("region_id", region_id.to_string());
+/// ```
+pub const fn return_staged_character_fields() -> &'static str {
+    "RETURN c.id as character_id, c.name as name, c.sprite_asset as sprite_asset, c.portrait_asset as portrait_asset, rel.is_present as is_present, COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players, rel.reasoning as reasoning, COALESCE(rel.mood, c.default_mood, 'calm') as mood, COALESCE(rel.has_incomplete_data, false) as has_incomplete_data"
+}
+
+/// Fragment for collecting character fields with relationship properties (for staging COLLECT queries).
+///
+/// Returns a comma-separated list of character and relationship field mappings for use in
+/// COLLECT({ ... }) clauses in staging queries.
+///
+/// # Fields
+/// - Character fields: `character_id: c.id`, `name: c.name`, `sprite_asset: c.sprite_asset`, `portrait_asset: c.portrait_asset`
+/// - Relationship fields: `is_present: rel.is_present`, `is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false)`, `reasoning: rel.reasoning`, `mood: COALESCE(rel.mood, c.default_mood, 'calm')`, `has_incomplete_data: COALESCE(rel.has_incomplete_data, false)`
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::collect_staged_character_fields;
+///
+/// let q = query(&format!(
+///     "MATCH (s:Staging)-[rel:INCLUDES_NPC]->(c:Character)
+///     WITH s, COLLECT({{ {} }}) as npcs
+///     RETURN s, npcs",
+///     collect_staged_character_fields()
+/// ))
+/// .param("staging_id", staging_id.to_string());
+/// ```
+pub const fn collect_staged_character_fields() -> &'static str {
+    "character_id: c.id, name: c.name, sprite_asset: c.sprite_asset, portrait_asset: c.portrait_asset, is_present: rel.is_present, is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false), reasoning: rel.reasoning, mood: COALESCE(rel.mood, c.default_mood, 'calm'), has_incomplete_data: COALESCE(rel.has_incomplete_data, false)"
+}

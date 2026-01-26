@@ -11,7 +11,6 @@ use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Node, Row};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -152,9 +151,9 @@ impl AssetRepo for Neo4jAssetRepo {
     /// List all assets for an entity
     async fn list_for_entity(
         &self,
-        entity_type: EntityType,
-        entity_id: Uuid,
+        owner_id: AssetOwnerId,
     ) -> Result<Vec<GalleryAsset>, RepoError> {
+        let entity_type = owner_id.entity_type();
         if !entity_type.has_assets() {
             return Err(RepoError::constraint(format!(
                 "Entity type {:?} cannot have assets",
@@ -168,7 +167,7 @@ impl AssetRepo for Neo4jAssetRepo {
             ORDER BY a.created_at DESC",
         )
         .param("entity_type", entity_type.to_string())
-        .param("entity_id", entity_id.to_string());
+        .param("entity_id", owner_id.to_string());
 
         let mut result = self
             .graph
@@ -192,10 +191,10 @@ impl AssetRepo for Neo4jAssetRepo {
     /// Uses explicit transaction to ensure atomicity.
     async fn set_active(
         &self,
-        entity_type: EntityType,
-        entity_id: Uuid,
+        owner_id: AssetOwnerId,
         asset_id: AssetId,
     ) -> Result<(), RepoError> {
+        let entity_type = owner_id.entity_type();
         if !entity_type.has_assets() {
             return Err(RepoError::constraint(format!(
                 "Entity type {:?} cannot have assets",
@@ -225,7 +224,7 @@ impl AssetRepo for Neo4jAssetRepo {
             SET a.is_active = false",
         )
         .param("entity_type", entity_type.to_string())
-        .param("entity_id", entity_id.to_string())
+        .param("entity_id", owner_id.to_string())
         .param("asset_type", asset.asset_type().to_string());
 
         txn.run(deactivate_q)
@@ -261,25 +260,25 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
     let entity_type_str: String = node.get("entity_type").map_err(|e| {
         RepoError::database(
             "query",
-            format!("Failed to get 'entity_type' for Asset {}: {}", id, e),
+            format!("Failed to get \"entity_type\" for Asset {}: {}", id, e),
         )
     })?;
     let entity_id: String = node.get("entity_id").map_err(|e| {
         RepoError::database(
             "query",
-            format!("Failed to get 'entity_id' for Asset {}: {}", id, e),
+            format!("Failed to get \"entity_id\" for Asset {}: {}", id, e),
         )
     })?;
     let asset_type_str: String = node.get("asset_type").map_err(|e| {
         RepoError::database(
             "query",
-            format!("Failed to get 'asset_type' for Asset {}: {}", id, e),
+            format!("Failed to get \"asset_type\" for Asset {}: {}", id, e),
         )
     })?;
     let file_path_str: String = node.get("file_path").map_err(|e| {
         RepoError::database(
             "query",
-            format!("Failed to get 'file_path' for Asset {}: {}", id, e),
+            format!("Failed to get \"file_path\" for Asset {}: {}", id, e),
         )
     })?;
     let file_path = AssetPath::new(file_path_str).map_err(|e| {
@@ -293,7 +292,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
     let created_at_str: String = node.get("created_at").map_err(|e| {
         RepoError::database(
             "query",
-            format!("Failed to get 'created_at' for Asset {}: {}", id, e),
+            format!("Failed to get \"created_at\" for Asset {}: {}", id, e),
         )
     })?;
 
@@ -335,7 +334,7 @@ fn parse_entity_type(s: &str) -> Result<EntityType, RepoError> {
         "Item" => Ok(EntityType::Item),
         _ => Err(RepoError::database(
             "parse",
-            format!("Unknown EntityType: '{}'", s),
+            format!("Unknown EntityType: \"{}\"", s),
         )),
     }
 }

@@ -86,38 +86,151 @@ fn staging_approval_to_server_message(
         region_name: approval.region_name.clone(),
         location_id: approval.location_id.to_string(),
         location_name: approval.location_name.clone(),
-        game_time: approval.game_time.to_protocol(),
-        previous_staging: approval.previous_staging.as_ref().map(|s| s.to_protocol()),
+        game_time: staging_game_time_to_protocol(&approval.game_time),
+        previous_staging: approval.previous_staging.as_ref().map(staging_previous_staging_to_protocol),
         rule_based_npcs: approval
             .rule_based_npcs
             .iter()
-            .map(|n| n.to_protocol())
+            .map(staging_staged_npc_to_protocol)
             .collect(),
         llm_based_npcs: approval
             .llm_based_npcs
             .iter()
-            .map(|n| n.to_protocol())
+            .map(staging_staged_npc_to_protocol)
             .collect(),
         default_ttl_hours: approval.default_ttl_hours,
         waiting_pcs: approval
             .waiting_pcs
             .iter()
-            .map(|pc| pc.to_protocol())
+            .map(staging_waiting_pc_to_protocol)
             .collect(),
         resolved_visual_state: approval
             .resolved_visual_state
             .as_ref()
-            .map(|vs| vs.to_protocol()),
+            .map(staging_resolved_visual_state_to_protocol),
         available_location_states: approval
             .available_location_states
             .iter()
-            .map(|s| s.to_protocol())
+            .map(staging_state_option_to_protocol)
             .collect(),
         available_region_states: approval
             .available_region_states
             .iter()
-            .map(|s| s.to_protocol())
+            .map(staging_state_option_to_protocol)
             .collect(),
+    }
+}
+
+// =============================================================================
+// Domain -> Protocol Conversions for Staging (ws_movement)
+// =============================================================================
+
+fn staging_staged_npc_to_protocol(
+    npc: &crate::use_cases::staging::StagedNpc,
+) -> wrldbldr_shared::StagedNpcInfo {
+    wrldbldr_shared::StagedNpcInfo {
+        character_id: npc.character_id.to_string(),
+        name: npc.name.clone(),
+        sprite_asset: npc.sprite_asset.clone(),
+        portrait_asset: npc.portrait_asset.clone(),
+        is_present: npc.is_present,
+        reasoning: npc.reasoning.clone(),
+        is_hidden_from_players: npc.is_hidden_from_players,
+        mood: npc.mood.clone(),
+    }
+}
+
+fn staging_waiting_pc_to_protocol(
+    pc: &crate::use_cases::staging::WaitingPc,
+) -> wrldbldr_shared::WaitingPcInfo {
+    wrldbldr_shared::WaitingPcInfo {
+        pc_id: pc.pc_id.to_string(),
+        pc_name: pc.pc_name.clone(),
+        player_id: pc.player_id.clone(),
+    }
+}
+
+fn staging_previous_staging_to_protocol(
+    data: &crate::use_cases::staging::PreviousStagingData,
+) -> wrldbldr_shared::PreviousStagingInfo {
+    wrldbldr_shared::PreviousStagingInfo {
+        staging_id: data.staging_id.to_string(),
+        approved_at: data.approved_at.to_rfc3339(),
+        npcs: data.npcs.iter().map(staging_staged_npc_to_protocol).collect(),
+    }
+}
+
+fn staging_game_time_to_protocol(
+    gt: &crate::use_cases::staging::GameTimeData,
+) -> wrldbldr_shared::types::GameTime {
+    let period = match gt.hour {
+        5..=11 => "Morning",
+        12..=17 => "Afternoon",
+        18..=21 => "Evening",
+        _ => "Night",
+    }
+    .to_string();
+
+    // Format time as 12-hour display
+    let am_pm = if gt.hour >= 12 { "PM" } else { "AM" };
+    let display_hour = if gt.hour == 0 {
+        12
+    } else if gt.hour > 12 {
+        gt.hour - 12
+    } else {
+        gt.hour
+    };
+    let formatted_time = Some(format!("{}:{:02} {}", display_hour, gt.minute, am_pm));
+
+    // Calculate total_seconds from day/hour/minute/second
+    let total_seconds = (gt.day as i64 - 1) * 24 * 60 * 60
+        + (gt.hour as i64) * 60 * 60
+        + (gt.minute as i64) * 60
+        + (gt.second as i64);
+
+    wrldbldr_shared::types::GameTime {
+        total_seconds,
+        day: gt.day,
+        hour: gt.hour,
+        minute: gt.minute,
+        second: gt.second,
+        is_paused: gt.is_paused,
+        formatted_date: None, // Calendar formatting handled elsewhere
+        formatted_time,
+        period,
+    }
+}
+
+fn staging_resolved_state_info_to_protocol(
+    info: &crate::use_cases::staging::ResolvedStateInfo,
+) -> wrldbldr_shared::types::ResolvedStateInfoData {
+    wrldbldr_shared::types::ResolvedStateInfoData {
+        id: info.id.clone(),
+        name: info.name.clone(),
+        backdrop_override: info.backdrop_override.clone(),
+        atmosphere_override: info.atmosphere_override.clone(),
+        ambient_sound: info.ambient_sound.clone(),
+    }
+}
+
+fn staging_resolved_visual_state_to_protocol(
+    vs: &crate::use_cases::staging::ResolvedVisualState,
+) -> wrldbldr_shared::types::ResolvedVisualStateData {
+    wrldbldr_shared::types::ResolvedVisualStateData {
+        location_state: vs.location_state.as_ref().map(staging_resolved_state_info_to_protocol),
+        region_state: vs.region_state.as_ref().map(staging_resolved_state_info_to_protocol),
+    }
+}
+
+fn staging_state_option_to_protocol(
+    option: &crate::use_cases::staging::StateOption,
+) -> wrldbldr_shared::types::StateOptionData {
+    wrldbldr_shared::types::StateOptionData {
+        id: option.id.clone(),
+        name: option.name.clone(),
+        priority: option.priority,
+        is_default: option.is_default,
+        match_reason: option.match_reason.clone(),
     }
 }
 
@@ -275,7 +388,7 @@ pub(super) async fn handle_move_to_region(
                             .into_iter()
                             .map(region_item_to_proto)
                             .collect(),
-                        visual_state: result.visual_state.as_ref().map(|vs| vs.to_protocol()),
+                        visual_state: result.visual_state.as_ref().map(staging_resolved_visual_state_to_protocol),
                     })
                 }
             }
@@ -471,7 +584,7 @@ pub(super) async fn handle_exit_to_location(
                             .into_iter()
                             .map(region_item_to_proto)
                             .collect(),
-                        visual_state: result.visual_state.as_ref().map(|vs| vs.to_protocol()),
+                        visual_state: result.visual_state.as_ref().map(staging_resolved_visual_state_to_protocol),
                     })
                 }
             }

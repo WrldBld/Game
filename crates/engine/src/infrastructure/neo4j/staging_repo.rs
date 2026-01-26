@@ -13,7 +13,7 @@ use neo4rs::{query, Node, Row};
 use wrldbldr_domain::MoodState;
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt, RowExt};
+use super::helpers::{parse_typed_id, NodeExt, RowExt, collect_character_fields_with_rel_mood, return_staged_character_fields, collect_staged_character_fields};
 use crate::infrastructure::ports::{ClockPort, RepoError, StagingRepo};
 
 pub struct Neo4jStagingRepo {
@@ -31,19 +31,12 @@ impl Neo4jStagingRepo {
 impl StagingRepo for Neo4jStagingRepo {
     /// Get all staged NPCs in a region (from current active staging)
     async fn get_staged_npcs(&self, region_id: RegionId) -> Result<Vec<StagedNpc>, RepoError> {
-        let q = query(
-            "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)-[rel:INCLUDES_NPC]->(c:Character)
+        let q = query(&format!(
+            "MATCH (r:Region {{id: $region_id}})-[:CURRENT_STAGING]->(s:Staging)-[rel:INCLUDES_NPC]->(c:Character)
             WHERE s.is_active = true AND rel.is_present = true
-            RETURN c.id as character_id,
-                   c.name as name,
-                   c.sprite_asset as sprite_asset,
-                   c.portrait_asset as portrait_asset,
-                   rel.is_present as is_present,
-                   COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players,
-                   rel.reasoning as reasoning,
-                   COALESCE(rel.mood, c.default_mood, 'calm') as mood,
-                   COALESCE(rel.has_incomplete_data, false) as has_incomplete_data",
-        )
+            {}",
+            return_staged_character_fields()
+        ))
         .param("region_id", region_id.to_string());
 
         let mut result = self
@@ -159,23 +152,20 @@ impl StagingRepo for Neo4jStagingRepo {
     /// Get pending stagings awaiting DM approval for a world
     async fn get_pending_staging(&self, world_id: WorldId) -> Result<Vec<Staging>, RepoError> {
         // Use COLLECT to fetch NPCs in single query (avoids N+1)
-        let q = query(
-            "MATCH (s:Staging {world_id: $world_id})
+        let q = query(&format!(
+            "MATCH (s:Staging {{world_id: $world_id}})
             WHERE s.is_active = false AND NOT EXISTS((s)<-[:CURRENT_STAGING]-())
             OPTIONAL MATCH (s)-[rel:INCLUDES_NPC]->(c:Character)
-            WITH s, COLLECT({
-                character_id: c.id,
-                name: c.name,
-                sprite_asset: c.sprite_asset,
-                portrait_asset: c.portrait_asset,
+            WITH s, COLLECT({{
+                {},
                 is_present: rel.is_present,
                 is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
-                reasoning: rel.reasoning,
-                mood: COALESCE(rel.mood, c.default_mood, 'calm')
-            }) as npcs
+                reasoning: rel.reasoning
+            }}) as npcs
             RETURN s, npcs
             ORDER BY s.approved_at DESC",
-        )
+            collect_character_fields_with_rel_mood()
+        ))
         .param("world_id", world_id.to_string());
 
         let mut result = self
@@ -657,21 +647,11 @@ impl StagingRepo for Neo4jStagingRepo {
         region_id: RegionId,
         current_game_time_seconds: i64,
     ) -> Result<Option<Staging>, RepoError> {
-        let q = query(
-            "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)
+        let q = query(&format!(
+            "MATCH (r:Region {{id: $region_id}})-[:CURRENT_STAGING]->(s:Staging)
             WHERE s.is_active = true
             OPTIONAL MATCH (s)-[rel:INCLUDES_NPC]->(c:Character)
-            WITH s, COLLECT({
-                character_id: c.id,
-                name: c.name,
-                sprite_asset: c.sprite_asset,
-                portrait_asset: c.portrait_asset,
-                is_present: rel.is_present,
-                is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
-                reasoning: rel.reasoning,
-                mood: COALESCE(rel.mood, c.default_mood, 'calm'),
-                has_incomplete_data: COALESCE(rel.has_incomplete_data, false)
-            }) as npcs
+            WITH s, COLLECT({{ {} }}) as npcs
             RETURN s.id as id,
                    s.region_id as region_id,
                    s.location_id as location_id,
@@ -688,7 +668,8 @@ impl StagingRepo for Neo4jStagingRepo {
                    s.visual_state_source as visual_state_source,
                    s.visual_state_reasoning as visual_state_reasoning,
                    npcs",
-        )
+            collect_staged_character_fields()
+        ))
         .param("region_id", region_id.to_string());
 
         let mut result = self
@@ -762,21 +743,11 @@ impl StagingRepo for Neo4jStagingRepo {
     ) -> Result<Vec<Staging>, RepoError> {
         // Get past stagings that are linked via HAS_STAGING but not CURRENT_STAGING
         // Use COLLECT to fetch NPCs in single query (avoids N+1)
-        let q = query(
-            "MATCH (r:Region {id: $region_id})-[:HAS_STAGING]->(s:Staging)
+        let q = query(&format!(
+            "MATCH (r:Region {{id: $region_id}})-[:HAS_STAGING]->(s:Staging)
             WHERE NOT (r)-[:CURRENT_STAGING]->(s)
             OPTIONAL MATCH (s)-[rel:INCLUDES_NPC]->(c:Character)
-            WITH s, COLLECT({
-                character_id: c.id,
-                name: c.name,
-                sprite_asset: c.sprite_asset,
-                portrait_asset: c.portrait_asset,
-                is_present: rel.is_present,
-                is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
-                reasoning: rel.reasoning,
-                mood: COALESCE(rel.mood, c.default_mood, 'calm'),
-                has_incomplete_data: COALESCE(rel.has_incomplete_data, false)
-            }) as npcs
+            WITH s, COLLECT({{ {} }}) as npcs
             RETURN s.id as id,
                    s.region_id as region_id,
                    s.location_id as location_id,
@@ -793,9 +764,10 @@ impl StagingRepo for Neo4jStagingRepo {
                    s.visual_state_source as visual_state_source,
                    s.visual_state_reasoning as visual_state_reasoning,
                    npcs
-            ORDER BY s.approved_at DESC
-            LIMIT $limit",
-        )
+             ORDER BY s.approved_at DESC
+             LIMIT $limit",
+            collect_staged_character_fields()
+        ))
         .param("region_id", region_id.to_string())
         .param("limit", limit as i64);
 
@@ -968,18 +940,11 @@ impl Neo4jStagingRepo {
     /// Load NPCs for a specific staging
     #[allow(dead_code)]
     async fn load_staging_npcs(&self, staging_id: StagingId) -> Result<Vec<StagedNpc>, RepoError> {
-        let q = query(
-            "MATCH (s:Staging {id: $staging_id})-[rel:INCLUDES_NPC]->(c:Character)
-            RETURN c.id as character_id,
-                   c.name as name,
-                   c.sprite_asset as sprite_asset,
-                   c.portrait_asset as portrait_asset,
-                   rel.is_present as is_present,
-                   COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players,
-                   rel.reasoning as reasoning,
-                   COALESCE(rel.mood, c.default_mood, 'calm') as mood,
-                   COALESCE(rel.has_incomplete_data, false) as has_incomplete_data",
-        )
+        let q = query(&format!(
+            "MATCH (s:Staging {{id: $staging_id}})-[rel:INCLUDES_NPC]->(c:Character)
+            {}",
+            return_staged_character_fields()
+        ))
         .param("staging_id", staging_id.to_string());
 
         let mut result = self
