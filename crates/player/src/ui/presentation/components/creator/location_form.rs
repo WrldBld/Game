@@ -46,7 +46,7 @@ pub fn LocationForm(
     let mut hidden_secrets = use_signal(String::new);
     let mut parent_location_id: Signal<Option<String>> = use_signal(|| None);
     let mut parent_locations: Signal<Vec<LocationFormData>> = use_signal(Vec::new);
-    let mut presence_cache_ttl_hours: Signal<i32> = use_signal(|| 3);
+    let mut presence_cache_ttl_hours: Signal<i32> = use_signal(|| 0); // 0 means "use world default"
     let mut use_llm_presence: Signal<bool> = use_signal(|| true);
     let mut is_loading = use_signal(|| !is_new);
     let mut is_saving = use_signal(|| false);
@@ -103,8 +103,8 @@ pub fn LocationForm(
                             notable_features.set(loc_data.notable_features.unwrap_or_default());
                             hidden_secrets.set(loc_data.hidden_secrets.unwrap_or_default());
                             parent_location_id.set(loc_data.parent_location_id);
-                            presence_cache_ttl_hours
-                                .set(loc_data.presence_cache_ttl_hours.unwrap_or(3));
+                            // Map None to 0 (meaning "use world default")
+                            presence_cache_ttl_hours.set(loc_data.presence_cache_ttl_hours.unwrap_or(0));
                             use_llm_presence.set(loc_data.use_llm_presence.unwrap_or(true));
                             is_loading.set(false);
                         }

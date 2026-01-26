@@ -18,6 +18,7 @@ mod names;
 mod dialogue_markers;
 mod disposition;
 mod expression_config;
+mod presence_ttl;
 mod quantity;
 mod region;
 mod relationship;
@@ -95,6 +96,9 @@ pub use names::{
 
 // Character lifecycle state enum
 pub use character_state::CharacterState;
+
+// Presence cache TTL in hours
+pub use presence_ttl::PresenceTtlHours;
 
 // Stat enum for ability/stat checks
 pub use stat::Stat;

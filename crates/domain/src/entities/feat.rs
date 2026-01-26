@@ -73,9 +73,9 @@ impl Feat {
         }
     }
 
-    /// Reconstruct a Feat from storage parts.
+    /// Reconstruct a Feat from storage
     #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
+    pub fn from_storage(
         id: String,
         system_id: String,
         name: String,

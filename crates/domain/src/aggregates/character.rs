@@ -19,7 +19,7 @@
 //! - **Domain events**: Mutations return outcome enums (`DamageOutcome`, etc.)
 //! - **Valid by construction**: `new()` takes pre-validated types
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::events::{
     ArchetypeShift, CharacterStateChange, CharacterUpdate, DamageOutcome, HealOutcome,
@@ -57,7 +57,7 @@ pub use crate::value_objects::{StatBlock, StatModifier, StatValue};
 /// assert!(character.is_alive());
 /// assert!(character.is_active());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Character {
     // Identity
     id: CharacterId,
@@ -627,95 +627,6 @@ impl Character {
             from: previous,
             to: self.portrait_asset.clone(),
         }
-    }
-}
-
-// ============================================================================
-// Serde Implementation
-// ============================================================================
-
-/// Intermediate format for serialization that matches the wire format
-///
-/// Uses string-based state for backward compatibility with legacy data.
-#[derive(Serialize, Deserialize)]
-struct CharacterWireFormat {
-    id: CharacterId,
-    world_id: WorldId,
-    name: CharacterName,
-    description: Description,
-    sprite_asset: Option<AssetPath>,
-    portrait_asset: Option<AssetPath>,
-    base_archetype: CampbellArchetype,
-    current_archetype: CampbellArchetype,
-    archetype_history: Vec<ArchetypeChange>,
-    stats: StatBlock,
-    state: String,
-    default_disposition: DispositionLevel,
-    default_mood: MoodState,
-    expression_config: ExpressionConfig,
-}
-
-impl Serialize for Character {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let wire = CharacterWireFormat {
-            id: self.id,
-            world_id: self.world_id,
-            name: self.name.clone(),
-            description: self.description.clone(),
-            sprite_asset: self.sprite_asset.clone(),
-            portrait_asset: self.portrait_asset.clone(),
-            base_archetype: self.base_archetype,
-            current_archetype: self.current_archetype,
-            archetype_history: self.archetype_history.clone(),
-            stats: self.stats.clone(),
-            state: self.state.to_string(),
-            default_disposition: self.default_disposition,
-            default_mood: self.default_mood,
-            expression_config: self.expression_config.clone(),
-        };
-        wire.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Character {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = CharacterWireFormat::deserialize(deserializer)?;
-
-        // Convert string state to CharacterState
-        let state = match wire.state.as_str() {
-            "Active" => CharacterState::Active,
-            "Inactive" => CharacterState::Inactive,
-            "Dead" => CharacterState::Dead,
-            s => {
-                return Err(serde::de::Error::custom(format!(
-                    "Invalid character state: {}",
-                    s
-                )))
-            }
-        };
-
-        Ok(Character {
-            id: wire.id,
-            world_id: wire.world_id,
-            name: wire.name,
-            description: wire.description,
-            sprite_asset: wire.sprite_asset,
-            portrait_asset: wire.portrait_asset,
-            base_archetype: wire.base_archetype,
-            current_archetype: wire.current_archetype,
-            archetype_history: wire.archetype_history,
-            stats: wire.stats,
-            state,
-            default_disposition: wire.default_disposition,
-            default_mood: wire.default_mood,
-            expression_config: wire.expression_config,
-        })
     }
 }
 

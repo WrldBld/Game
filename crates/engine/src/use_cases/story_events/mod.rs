@@ -85,7 +85,7 @@ impl StoryEventOps {
             .await?
             .ok_or(StoryEventError::NotFound)?;
 
-        // Rebuild event with updated fields using from_parts
+        // Rebuild event with updated fields using from_storage
         let new_summary = summary.unwrap_or_else(|| event.summary().to_string());
         let new_tags: Vec<wrldbldr_domain::Tag> = match tags {
             Some(tag_strings) => tag_strings
@@ -95,7 +95,7 @@ impl StoryEventOps {
             None => event.tags().to_vec(),
         };
 
-        let event = wrldbldr_domain::StoryEvent::from_parts(
+        let event = wrldbldr_domain::StoryEvent::from_storage(
             event.id(),
             event.world_id(),
             event.event_type().clone(),
@@ -144,8 +144,8 @@ impl StoryEventOps {
             .await?
             .ok_or(StoryEventError::NotFound)?;
 
-        // Rebuild event with updated visibility using from_parts
-        let event = wrldbldr_domain::StoryEvent::from_parts(
+        // Rebuild event with updated visibility using from_storage
+        let event = wrldbldr_domain::StoryEvent::from_storage(
             event.id(),
             event.world_id(),
             event.event_type().clone(),

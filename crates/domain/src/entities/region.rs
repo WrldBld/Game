@@ -61,8 +61,8 @@ impl Region {
         }
     }
 
-    /// Create a region with a specific ID (for reconstitution from storage)
-    pub fn from_parts(
+    /// Reconstruct a region from storage
+    pub fn from_storage(
         id: RegionId,
         location_id: LocationId,
         name: RegionName,
@@ -232,8 +232,8 @@ pub struct RegionConnection {
 }
 
 impl RegionConnection {
-    /// Create a connection from parts (for reconstitution from storage)
-    pub fn from_parts(
+    /// Reconstruct a connection from storage
+    pub fn from_storage(
         from_region: RegionId,
         to_region: RegionId,
         description: Option<Description>,
@@ -270,8 +270,8 @@ pub struct RegionExit {
 }
 
 impl RegionExit {
-    /// Create a region exit from parts (for reconstitution from storage)
-    pub fn from_parts(
+    /// Reconstruct a region exit from storage
+    pub fn from_storage(
         from_region: RegionId,
         to_location: LocationId,
         arrival_region_id: RegionId,

@@ -1,6 +1,6 @@
 //! Directorial guidance for LLM responses
 //!
-//! Provides structured guidance for the LLM on how to handle
+//! Provides structured guidance for LLM on how to handle
 //! NPC responses and scene interactions.
 //!
 //! # Tier Classification
@@ -13,8 +13,51 @@
 
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use wrldbldr_domain::CharacterId;
+
+// Custom serde module for HashMap<CharacterId, NpcMotivation>
+// This handles serialization/deserialization with CharacterId as key
+pub mod serde_with_character_id_key {
+    use super::*;
+    use serde::de::Error as DeError;
+
+    /// Serialize HashMap<CharacterId, NpcMotivation> as HashMap<String, NpcMotivation>
+    pub fn serialize<S>(
+        map: &HashMap<CharacterId, NpcMotivation>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let string_map: std::collections::HashMap<String, NpcMotivation> = map
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect();
+        string_map.serialize(serializer)
+    }
+
+    /// Deserialize HashMap<String, NpcMotivation> as HashMap<CharacterId, NpcMotivation>
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<HashMap<CharacterId, NpcMotivation>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string_map: std::collections::HashMap<String, NpcMotivation> =
+            Deserialize::deserialize(deserializer)?;
+
+        let mut result = HashMap::new();
+        for (key_str, value) in string_map {
+            let key = CharacterId::from_uuid(uuid::Uuid::parse_str(&key_str).map_err(|e| {
+                DeError::custom(format!("Invalid CharacterId '{}': {}", key_str, e))
+            })?);
+            result.insert(key, value);
+        }
+
+        Ok(result)
+    }
+}
 
 /// Structured directorial notes for a scene
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -24,7 +67,9 @@ pub struct DirectorialNotes {
     /// Overall tone for the scene
     pub tone: ToneGuidance,
     /// Per-NPC motivation hints (character ID -> motivation text)
-    pub npc_motivations: HashMap<String, NpcMotivation>,
+    /// Uses typed CharacterId as key instead of raw String for type safety
+    #[serde(with = "serde_with_character_id_key")]
+    pub npc_motivations: HashMap<CharacterId, NpcMotivation>,
     /// Topics the LLM should avoid
     pub forbidden_topics: Vec<String>,
     /// Tools the LLM is allowed to call in this scene
@@ -57,8 +102,7 @@ impl DirectorialNotes {
         character_id: CharacterId,
         motivation: NpcMotivation,
     ) -> Self {
-        self.npc_motivations
-            .insert(character_id.to_string(), motivation);
+        self.npc_motivations.insert(character_id, motivation);
         self
     }
 

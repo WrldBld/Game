@@ -22,8 +22,7 @@
 //! - **Domain behavior**: `evaluate_triggers()`, `trigger()`, `reset()`
 
 use chrono::{DateTime, Utc};
-use serde::de::Error as DeError;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 
@@ -36,25 +35,25 @@ pub use crate::entities::{
     NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation, TriggerLogic,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventActivation {
     Active,
     Inactive,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum EventRepeatability {
     OneShot,
     Repeatable,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FavoriteStatus {
     Normal,
     Favorite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum TriggerStatus {
     Never,
     Triggered {
@@ -119,7 +118,7 @@ impl TriggerStatus {
 /// assert!(event.is_active());
 /// assert!(!event.is_triggered());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NarrativeEvent {
     // Identity
     id: NarrativeEventId,
@@ -972,131 +971,6 @@ impl NarrativeEvent {
         self.default_outcome
             .as_ref()
             .and_then(|name| self.get_outcome(name))
-    }
-}
-
-// ============================================================================
-// Serde Implementation
-// ============================================================================
-
-/// Intermediate format for serialization that matches the wire format
-#[derive(Serialize, Deserialize)]
-struct NarrativeEventWireFormat {
-    id: NarrativeEventId,
-    world_id: WorldId,
-    name: String,
-    description: String,
-    tags: Vec<String>,
-    trigger_conditions: Vec<NarrativeTrigger>,
-    trigger_logic: TriggerLogic,
-    scene_direction: String,
-    suggested_opening: Option<String>,
-    outcomes: Vec<EventOutcome>,
-    default_outcome: Option<String>,
-    is_active: bool,
-    is_triggered: bool,
-    triggered_at: Option<DateTime<Utc>>,
-    selected_outcome: Option<String>,
-    is_repeatable: bool,
-    trigger_count: u32,
-    delay_turns: u32,
-    expires_after_turns: Option<u32>,
-    priority: i32,
-    is_favorite: bool,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-impl Serialize for NarrativeEvent {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let wire = NarrativeEventWireFormat {
-            id: self.id,
-            world_id: self.world_id,
-            name: self.name.to_string(),
-            description: self.description.to_string(),
-            tags: self.tags.iter().map(|t| t.to_string()).collect(),
-            trigger_conditions: self.trigger_conditions.clone(),
-            trigger_logic: self.trigger_logic,
-            scene_direction: self.scene_direction.to_string(),
-            suggested_opening: self.suggested_opening.clone(),
-            outcomes: self.outcomes.clone(),
-            default_outcome: self.default_outcome.clone(),
-            is_active: self.is_active(),
-            is_triggered: self.is_triggered(),
-            triggered_at: self.triggered_at(),
-            selected_outcome: self.selected_outcome().map(|value| value.to_string()),
-            is_repeatable: self.is_repeatable(),
-            trigger_count: self.trigger_count,
-            delay_turns: self.delay_turns,
-            expires_after_turns: self.expires_after_turns,
-            priority: self.priority,
-            is_favorite: self.is_favorite(),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        };
-        wire.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for NarrativeEvent {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = NarrativeEventWireFormat::deserialize(deserializer)?;
-
-        let name = NarrativeEventName::new(wire.name).map_err(DeError::custom)?;
-
-        // Convert string tags to Tag newtypes, skipping invalid ones
-        let tags: Vec<Tag> = wire
-            .tags
-            .into_iter()
-            .filter_map(|s| Tag::new(&s).ok())
-            .collect();
-
-        Ok(NarrativeEvent {
-            id: wire.id,
-            world_id: wire.world_id,
-            name,
-            description: Description::new(wire.description).unwrap_or_default(),
-            tags,
-            trigger_conditions: wire.trigger_conditions,
-            trigger_logic: wire.trigger_logic,
-            scene_direction: Description::new(wire.scene_direction).unwrap_or_default(),
-            suggested_opening: wire.suggested_opening,
-            outcomes: wire.outcomes,
-            default_outcome: wire.default_outcome,
-            activation: if wire.is_active {
-                EventActivation::Active
-            } else {
-                EventActivation::Inactive
-            },
-            trigger_status: TriggerStatus::from_wire(
-                wire.is_triggered,
-                wire.triggered_at,
-                wire.selected_outcome,
-                wire.created_at,
-            ),
-            repeatability: if wire.is_repeatable {
-                EventRepeatability::Repeatable
-            } else {
-                EventRepeatability::OneShot
-            },
-            trigger_count: wire.trigger_count,
-            delay_turns: wire.delay_turns,
-            expires_after_turns: wire.expires_after_turns,
-            priority: wire.priority,
-            favorite: if wire.is_favorite {
-                FavoriteStatus::Favorite
-            } else {
-                FavoriteStatus::Normal
-            },
-            created_at: wire.created_at,
-            updated_at: wire.updated_at,
-        })
     }
 }
 

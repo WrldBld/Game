@@ -478,7 +478,7 @@ mod tests {
                 .with_id(target_location_id);
 
         let arrival_region_id = RegionId::new();
-        let arrival_region = Region::from_parts(
+        let arrival_region = Region::from_storage(
             arrival_region_id,
             other_location_id,
             RegionName::new("Arrival").unwrap(),
@@ -606,9 +606,9 @@ mod tests {
                 .with_id(target_location_id);
 
         let arrival_region_id = RegionId::new();
-        let arrival_region = Region::from_parts(
+        let arrival_region = Region::from_storage(
             arrival_region_id,
-            target_location_id,
+            other_location_id,
             RegionName::new("Arrival").unwrap(),
             Description::default(),
             None,

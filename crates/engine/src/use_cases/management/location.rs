@@ -183,7 +183,7 @@ impl LocationManagement {
                     id: region_id.to_string(),
                 })?;
 
-        // Regions are immutable - rebuild with updated values using from_parts
+        // Regions are immutable - rebuild with updated values using from_storage
         let new_name = if let Some(name) = name {
             RegionName::new(&name).map_err(ManagementError::Domain)?
         } else {
@@ -196,7 +196,7 @@ impl LocationManagement {
         };
         let new_is_spawn_point = is_spawn_point.unwrap_or_else(|| region.is_spawn_point());
 
-        let region = wrldbldr_domain::Region::from_parts(
+        let region = wrldbldr_domain::Region::from_storage(
             region.id(),
             region.location_id(),
             new_name,

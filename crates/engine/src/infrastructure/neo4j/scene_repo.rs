@@ -613,7 +613,7 @@ impl SceneRepo for Neo4jSceneRepo {
                 },
             );
 
-            characters.push(SceneCharacter::from_parts(char_id, role, entrance_cue));
+            characters.push(SceneCharacter::from_storage(char_id, role, entrance_cue));
         }
 
         Ok(characters)

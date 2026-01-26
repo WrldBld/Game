@@ -187,12 +187,12 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
 
                     h3 {
                         class: "text-white font-semibold m-0",
-                        "{template_key}"
+                        "{props.template_key}"
                     }
 
                     p {
                         class: "text-gray-400 text-sm m-0",
-                        "Instructions shown to the LLM for how to format NPC dialogue responses"
+                        "Instructions shown to the LLM for {props.template_key}"
                     }
                 }
 

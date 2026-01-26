@@ -379,24 +379,30 @@ impl NarrativeOps {
         let npc_text = npc_response.clone();
         let topics_for_context = topics.clone();
 
-        let fallback_game_time = world_game_time.as_ref().map(|gt| gt.display_date());
+        // Use provided game_time, or fall back to world game time
+        let resolved_game_time = game_time.clone().or_else(|| world_game_time.as_ref().map(|t| t.display_date()));
 
-        let event = StoryEvent::from_parts(
+        let tags: Vec<wrldbldr_domain::Tag> = topics
+            .iter()
+            .filter_map(|s| wrldbldr_domain::Tag::new(s).ok())
+            .collect();
+
+        let event = StoryEvent::from_storage(
             event_id,
             world_id,
             StoryEventType::DialogueExchange {
                 npc_id,
                 npc_name: npc_name.clone(),
-                player_dialogue,
-                npc_response,
+                player_dialogue: player_dialogue.clone(),
+                npc_response: npc_response.clone(),
                 topics_discussed: topics.clone(),
                 tone: None,
             },
             timestamp,
-            game_time.or(fallback_game_time),
+            resolved_game_time,
             summary,
             false, // is_hidden
-            vec![wrldbldr_domain::Tag::new("dialogue").expect("valid tag")],
+            tags,
         );
 
         // Save the story event

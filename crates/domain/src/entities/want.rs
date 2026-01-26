@@ -37,7 +37,7 @@ pub enum WantVisibility {
 
 impl WantVisibility {
     /// Convert from legacy known_to_player bool
-    pub fn from_known_to_player(known: bool) -> Self {
+    pub fn from_storage(known: bool) -> Self {
         if known {
             WantVisibility::Known
         } else {

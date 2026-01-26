@@ -488,7 +488,7 @@ mod tests {
             now,
         );
         let region_id = RegionId::new();
-        let region = Region::from_parts(
+        let region = Region::from_storage(
             region_id,
             other_location_id,
             RegionName::new("Target").unwrap(),
@@ -537,7 +537,7 @@ mod tests {
 
         let from_region_id = RegionId::new();
         let to_region_id = RegionId::new();
-        let to_region = Region::from_parts(
+        let to_region = Region::from_storage(
             to_region_id,
             location_id,
             RegionName::new("Target").unwrap(),
@@ -596,7 +596,7 @@ mod tests {
         let to_region_id = RegionId::new();
         let now = fixed_time();
 
-        let to_region = Region::from_parts(
+        let to_region = Region::from_storage(
             to_region_id,
             location_id,
             RegionName::new("Target").unwrap(),
@@ -655,7 +655,7 @@ mod tests {
 
         let from_region_id = RegionId::new();
         let to_region_id = RegionId::new();
-        let to_region = Region::from_parts(
+        let to_region = Region::from_storage(
             to_region_id,
             location_id,
             RegionName::new("Target").unwrap(),
@@ -725,8 +725,8 @@ mod tests {
         let now = fixed_time();
 
         let region_id = RegionId::new();
-        let region = Region::from_parts(
-            region_id,
+        let region = Region::from_storage(
+            to_region_id,
             location_id,
             RegionName::new("Target").unwrap(),
             Description::default(),

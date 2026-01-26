@@ -192,11 +192,11 @@ impl EventChain {
         self.updated_at = now;
     }
 
-    /// Reconstruct an EventChain from stored parts (for repository deserialization).
+    /// Reconstruct an EventChain from storage
     ///
-    /// This bypasses normal validation since we trust the stored data.
+    /// This bypasses normal validation since we trust stored data.
     #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
+    pub fn from_storage(
         id: EventChainId,
         world_id: WorldId,
         name: String,

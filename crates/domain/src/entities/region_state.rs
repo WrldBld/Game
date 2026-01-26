@@ -104,9 +104,9 @@ impl RegionState {
         }
     }
 
-    /// Reconstruct from stored data
+    /// Reconstruct from storage
     #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
+    pub fn from_storage(
         id: RegionStateId,
         region_id: RegionId,
         location_id: LocationId,

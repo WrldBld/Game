@@ -75,7 +75,7 @@ impl ActManagement {
                 id: act_id.to_string(),
             })?;
 
-        // Rebuild act with updated values using from_parts
+        // Rebuild act with updated values using from_storage
         let new_name = if let Some(name) = name {
             require_non_empty(&name, "Act name")?;
             name
@@ -86,7 +86,7 @@ impl ActManagement {
         let new_description = description.unwrap_or_else(|| act.description().to_string());
         let new_order = order.unwrap_or_else(|| act.order());
 
-        act = wrldbldr_domain::Act::from_parts(
+        act = wrldbldr_domain::Act::from_storage(
             act.id(),
             act.world_id(),
             new_name,

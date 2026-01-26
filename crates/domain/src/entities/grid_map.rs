@@ -45,9 +45,9 @@ impl GridMap {
         }
     }
 
-    /// Reconstruct from stored data
+    /// Reconstruct from storage
     #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
+    pub fn from_storage(
         id: GridMapId,
         world_id: WorldId,
         name: String,
@@ -187,8 +187,8 @@ impl Tile {
         }
     }
 
-    /// Reconstruct from stored data
-    pub fn from_parts(
+    /// Reconstruct from storage
+    pub fn from_storage(
         terrain_type: TerrainType,
         elevation: i32,
         tile_index: u32,

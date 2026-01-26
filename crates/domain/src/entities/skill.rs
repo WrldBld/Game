@@ -55,9 +55,9 @@ impl Skill {
         skill
     }
 
-    /// Reconstruct a Skill from storage parts.
+    /// Reconstruct a Skill from storage
     #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
+    pub fn from_storage(
         id: SkillId,
         world_id: WorldId,
         name: String,

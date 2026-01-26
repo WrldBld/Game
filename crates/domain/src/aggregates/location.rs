@@ -16,9 +16,9 @@
 //! - **Valid by construction**: `new()` takes pre-validated types
 //! - **Builder pattern**: Fluent API for optional fields
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
-use crate::value_objects::{AssetPath, Atmosphere, Description, LocationName};
+use crate::value_objects::{AssetPath, Atmosphere, Description, LocationName, PresenceTtlHours};
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 
 // Re-export from entities for now (MapBounds, LocationType)
@@ -44,7 +44,7 @@ pub use crate::entities::{ConnectionType, LocationConnection, LocationType, MapB
 ///
 /// assert_eq!(location.name().as_str(), "The Prancing Pony");
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Location {
     // Identity
     id: LocationId,
@@ -73,8 +73,8 @@ pub struct Location {
     atmosphere: Option<Atmosphere>,
 
     // Staging settings
-    /// Default staging duration in game hours (default: 3)
-    presence_cache_ttl_hours: i32,
+    /// Default staging duration in game hours (default: 3 hours)
+    presence_cache_ttl_hours: PresenceTtlHours,
     /// Whether to use LLM for staging decisions (default: true)
     use_llm_presence: bool,
 }
@@ -114,7 +114,7 @@ impl Location {
             parent_map_bounds: None,
             default_region_id: None,
             atmosphere: None,
-            presence_cache_ttl_hours: 3,
+            presence_cache_ttl_hours: PresenceTtlHours::default(),
             use_llm_presence: true,
         }
     }
@@ -198,7 +198,7 @@ impl Location {
     /// Returns the presence cache TTL in hours.
     #[inline]
     pub fn presence_cache_ttl_hours(&self) -> i32 {
-        self.presence_cache_ttl_hours
+        self.presence_cache_ttl_hours.value()
     }
 
     /// Returns whether LLM is used for presence decisions.
@@ -249,7 +249,13 @@ impl Location {
 
     /// Set the presence cache TTL in hours.
     pub fn with_presence_ttl(mut self, hours: i32) -> Self {
-        self.presence_cache_ttl_hours = hours;
+        self.presence_cache_ttl_hours = PresenceTtlHours::clamped(hours);
+        self
+    }
+
+    /// Set the presence cache TTL using validated newtype.
+    pub fn with_presence_ttl_validated(mut self, ttl: PresenceTtlHours) -> Self {
+        self.presence_cache_ttl_hours = ttl;
         self
     }
 
@@ -306,7 +312,12 @@ impl Location {
 
     /// Set the presence cache TTL.
     pub fn set_presence_ttl(&mut self, hours: i32) {
-        self.presence_cache_ttl_hours = hours;
+        self.presence_cache_ttl_hours = PresenceTtlHours::clamped(hours);
+    }
+
+    /// Set the presence cache TTL using validated newtype.
+    pub fn set_presence_ttl_validated(&mut self, ttl: PresenceTtlHours) {
+        self.presence_cache_ttl_hours = ttl;
     }
 
     /// Set whether to use LLM for presence decisions.
@@ -325,87 +336,6 @@ impl Location {
         } else {
             false
         }
-    }
-}
-
-// ============================================================================
-// Serde Implementation
-// ============================================================================
-
-/// Intermediate format for serialization that matches the wire format
-#[derive(Serialize, Deserialize)]
-struct LocationWireFormat {
-    id: LocationId,
-    world_id: WorldId,
-    name: LocationName,
-    description: Description,
-    location_type: LocationType,
-    backdrop_asset: Option<String>,
-    map_asset: Option<String>,
-    parent_map_bounds: Option<MapBounds>,
-    default_region_id: Option<RegionId>,
-    atmosphere: Option<String>,
-    presence_cache_ttl_hours: i32,
-    use_llm_presence: bool,
-}
-
-impl Serialize for Location {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let wire = LocationWireFormat {
-            id: self.id,
-            world_id: self.world_id,
-            name: self.name.clone(),
-            description: self.description.clone(),
-            location_type: self.location_type,
-            backdrop_asset: self.backdrop_asset.as_ref().map(|p| p.to_string()),
-            map_asset: self.map_asset.as_ref().map(|p| p.to_string()),
-            parent_map_bounds: self.parent_map_bounds,
-            default_region_id: self.default_region_id,
-            atmosphere: self.atmosphere.as_ref().map(|a| a.to_string()),
-            presence_cache_ttl_hours: self.presence_cache_ttl_hours,
-            use_llm_presence: self.use_llm_presence,
-        };
-        wire.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Location {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = LocationWireFormat::deserialize(deserializer)?;
-        let mut location = Location::new(wire.world_id, wire.name, wire.location_type)
-            .with_description(wire.description);
-        if let Some(backdrop) = wire.backdrop_asset {
-            location = location.with_backdrop(AssetPath::new(backdrop).map_err(|e| {
-                serde::de::Error::custom(format!("Invalid backdrop asset path: {}", e))
-            })?);
-        }
-        if let Some(map) = wire.map_asset {
-            location =
-                location.with_map(AssetPath::new(map).map_err(|e| {
-                    serde::de::Error::custom(format!("Invalid map asset path: {}", e))
-                })?);
-        }
-        if let Some(bounds) = wire.parent_map_bounds {
-            location = location.with_parent_map_bounds(bounds);
-        }
-        if let Some(region_id) = wire.default_region_id {
-            location = location.with_default_region(region_id);
-        }
-        if let Some(atm) = wire.atmosphere {
-            location = location.with_atmosphere(
-                Atmosphere::new(atm)
-                    .map_err(|e| serde::de::Error::custom(format!("Invalid atmosphere: {}", e)))?,
-            );
-        }
-        location = location.with_presence_ttl(wire.presence_cache_ttl_hours);
-        location = location.with_llm_presence(wire.use_llm_presence);
-        Ok(location)
     }
 }
 

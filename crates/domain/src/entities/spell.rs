@@ -97,11 +97,11 @@ impl Spell {
         }
     }
 
-    /// Reconstruct a spell from all its component parts.
+    /// Reconstruct a spell from storage
     ///
     /// This is useful when reconstructing from storage or when you have
-    /// all fields available and want to avoid the builder pattern overhead.
-    pub fn from_parts(
+    /// all fields available and want to avoid builder pattern overhead.
+    pub fn from_storage(
         id: impl Into<String>,
         system_id: impl Into<String>,
         name: impl Into<String>,

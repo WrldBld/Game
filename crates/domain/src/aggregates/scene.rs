@@ -15,8 +15,7 @@
 //! - **Valid by construction**: `new()` takes pre-validated types
 //! - **Builder pattern**: Fluent API for optional fields
 
-use serde::de::Error as DeError;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{ActId, SceneId};
 
 use crate::events::SceneUpdate;
@@ -49,7 +48,7 @@ pub use crate::entities::{SceneCharacter, SceneCharacterRole, SceneCondition, Ti
 ///
 /// assert_eq!(scene.name().as_str(), "The Tavern Meeting");
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Scene {
     // Identity
     id: SceneId,
@@ -291,66 +290,6 @@ impl Scene {
         let previous_count = self.entry_conditions.len();
         self.entry_conditions.clear();
         SceneUpdate::EntryConditionsCleared { previous_count }
-    }
-}
-
-// ============================================================================
-// Serde Implementation
-// ============================================================================
-
-/// Intermediate format for serialization that matches the wire format.
-/// Note: location_id and featured_characters are managed via graph edges,
-/// not serialized with the aggregate.
-#[derive(Serialize, Deserialize)]
-struct SceneWireFormat {
-    id: SceneId,
-    act_id: ActId,
-    name: String,
-    time_context: TimeContext,
-    backdrop_override: Option<String>,
-    entry_conditions: Vec<SceneCondition>,
-    directorial_notes: String,
-    order: u32,
-}
-
-impl Serialize for Scene {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let wire = SceneWireFormat {
-            id: self.id,
-            act_id: self.act_id,
-            name: self.name.to_string(),
-            time_context: self.time_context.clone(),
-            backdrop_override: self.backdrop_override.as_ref().map(|a| a.to_string()),
-            entry_conditions: self.entry_conditions.clone(),
-            directorial_notes: self.directorial_notes.to_string(),
-            order: self.order,
-        };
-        wire.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Scene {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = SceneWireFormat::deserialize(deserializer)?;
-
-        let name = SceneName::new(wire.name).map_err(DeError::custom)?;
-
-        Ok(Scene {
-            id: wire.id,
-            act_id: wire.act_id,
-            name,
-            time_context: wire.time_context,
-            backdrop_override: wire.backdrop_override.and_then(|s| AssetPath::new(s).ok()),
-            entry_conditions: wire.entry_conditions,
-            directorial_notes: Description::new(wire.directorial_notes).unwrap_or_default(),
-            order: wire.order,
-        })
     }
 }
 

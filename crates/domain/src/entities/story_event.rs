@@ -153,11 +153,11 @@ impl StoryEvent {
 
     // NOTE: triggered_by() removed - use repository edge method set_triggered_by()
 
-    /// Reconstruct a StoryEvent from stored parts (for repository deserialization).
+    /// Reconstruct a StoryEvent from storage
     ///
-    /// This bypasses normal validation since we trust the stored data.
+    /// This bypasses normal validation since we trust stored data.
     #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
+    pub fn from_storage(
         id: StoryEventId,
         world_id: WorldId,
         event_type: StoryEventType,

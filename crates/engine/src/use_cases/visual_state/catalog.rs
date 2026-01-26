@@ -362,7 +362,7 @@ impl VisualStateCatalog {
 
         // Reconstruct with updates
         let now = self.clock.now();
-        state = LocationState::from_parts(
+        state = LocationState::from_storage(
             state.id(),
             state.location_id(),
             state.world_id(),
@@ -376,8 +376,8 @@ impl VisualStateCatalog {
             overlay.or_else(|| state.map_overlay().cloned()),
             activation_rules,
             activation_logic,
-            priority.unwrap_or(state.priority()),
-            is_default.unwrap_or(state.is_default()),
+            priority.unwrap_or_else(|| state.priority()),
+            is_default.unwrap_or_else(|| state.is_default()),
             generation_prompt.or_else(|| state.generation_prompt().map(String::from)),
             workflow_id.or_else(|| state.workflow_id().map(String::from)),
             state.created_at(),
@@ -437,7 +437,7 @@ impl VisualStateCatalog {
 
         // Reconstruct with updates
         let now = self.clock.now();
-        state = RegionState::from_parts(
+        state = RegionState::from_storage(
             state.id(),
             state.region_id(),
             state.location_id(),
@@ -451,8 +451,8 @@ impl VisualStateCatalog {
             sound.or_else(|| state.ambient_sound().cloned()),
             activation_rules,
             activation_logic,
-            priority.unwrap_or(state.priority()),
-            is_default.unwrap_or(state.is_default()),
+            priority.unwrap_or_else(|| state.priority()),
+            is_default.unwrap_or_else(|| state.is_default()),
             generation_prompt.or_else(|| state.generation_prompt().map(String::from)),
             workflow_id.or_else(|| state.workflow_id().map(String::from)),
             state.created_at(),

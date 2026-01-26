@@ -51,8 +51,8 @@ impl Act {
         }
     }
 
-    /// Create an act from parts (for reconstitution from storage)
-    pub fn from_parts(
+    /// Reconstruct an act from storage
+    pub fn from_storage(
         id: wrldbldr_domain::ActId,
         world_id: WorldId,
         name: String,

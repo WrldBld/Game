@@ -111,7 +111,7 @@ impl Neo4jInteractionRepo {
                 )
             })?;
 
-        Ok(InteractionTemplate::from_stored(
+        Ok(InteractionTemplate::from_storage(
             id,
             scene_id,
             name,

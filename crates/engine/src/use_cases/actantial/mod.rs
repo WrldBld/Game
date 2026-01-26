@@ -124,7 +124,7 @@ impl GoalOps {
             });
         }
 
-        // Rebuild the goal with updated values using from_parts
+        // Rebuild the goal with updated values using from_storage
         let new_name = if let Some(name) = name {
             GoalName::new(&name).map_err(ActantialError::Domain)?
         } else {
@@ -137,7 +137,7 @@ impl GoalOps {
             None => details.goal.description().map(|s| s.to_string()),
         };
 
-        details.goal = wrldbldr_domain::Goal::from_parts(
+        details.goal = wrldbldr_domain::Goal::from_storage(
             details.goal.id(),
             details.goal.world_id(),
             new_name,

@@ -1030,11 +1030,11 @@ mod tests {
 
             let mut location_repo = MockLocationRepo::new();
             // Use from_parts to set the region ID
-            let region_with_id = Region::from_parts(
+            let region_with_id = Region::from_storage(
                 region_id,
                 location_id,
                 RegionName::new("SharedRegion").unwrap(),
-                Default::default(),
+                Description::default(),
                 None,
                 None,
                 None,

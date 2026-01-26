@@ -163,7 +163,7 @@ impl Neo4jLocationStateRepo {
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        Ok(LocationState::from_parts(
+        Ok(LocationState::from_storage(
             id,
             location_id,
             world_id,

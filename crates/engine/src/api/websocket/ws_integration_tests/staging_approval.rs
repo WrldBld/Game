@@ -32,7 +32,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let region = wrldbldr_domain::Region::from_parts(
+    let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Unstaged Region").unwrap(),
@@ -1027,22 +1027,22 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
     );
 
     let region_state_id = wrldbldr_domain::RegionStateId::new();
-    let region_state = wrldbldr_domain::RegionState::from_parts(
+    let region_state = wrldbldr_domain::RegionState::from_storage(
         region_state_id,
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Battle Damaged").unwrap(),
+        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
         wrldbldr_domain::Description::default(),
-        backdrop_override_path.clone(),
-        atmosphere_override_atm.clone(),
-        None,
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
         vec![wrldbldr_domain::ActivationRule::Always],
         wrldbldr_domain::ActivationLogic::All,
-        0,
+        0, // priority
         true, // is_default
-        None,
-        None,
+        None, // generation_prompt
+        None, // workflow_id
         now,
         now,
     );

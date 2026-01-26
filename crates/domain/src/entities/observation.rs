@@ -185,7 +185,7 @@ impl NpcObservation {
 
     /// Reconstruct an NpcObservation from stored data (e.g., database)
     #[allow(clippy::too_many_arguments)]
-    pub fn from_stored(
+    pub fn from_storage(
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
         location_id: LocationId,

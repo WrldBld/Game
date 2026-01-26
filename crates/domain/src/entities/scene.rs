@@ -58,8 +58,8 @@ pub struct SceneCharacter {
 }
 
 impl SceneCharacter {
-    /// Create a scene character from parts (for reconstitution from storage)
-    pub fn from_parts(
+    /// Reconstruct a scene character from storage
+    pub fn from_storage(
         character_id: CharacterId,
         role: SceneCharacterRole,
         entrance_cue: Option<String>,

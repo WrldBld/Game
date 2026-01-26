@@ -153,7 +153,7 @@ impl Neo4jRegionStateRepo {
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        Ok(RegionState::from_parts(
+        Ok(RegionState::from_storage(
             id,
             region_id,
             location_id,

@@ -1996,7 +1996,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         .map(|s| wrldbldr_domain::Tag::new(&s).map_err(|e| RepoError::database("parse", e)))
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(EventChain::from_parts(
+    Ok(EventChain::from_storage(
         id,
         world_id,
         name,
@@ -2057,7 +2057,7 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
         .try_into()
         .map_err(|e: StoredTypeParseError| RepoError::database("parse", e.to_string()))?;
 
-    Ok(StoryEvent::from_parts(
+    Ok(StoryEvent::from_storage(
         id, world_id, event_type, timestamp, game_time, summary, is_hidden, tags,
     ))
 }

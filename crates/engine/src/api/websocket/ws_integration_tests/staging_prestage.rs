@@ -29,7 +29,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let region = wrldbldr_domain::Region::from_parts(
+    let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Region").unwrap(),
@@ -60,7 +60,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
 
     // Visual state fixtures: minimal states to satisfy fail-fast validation
     let location_state_id = wrldbldr_domain::LocationStateId::new();
-    let location_state = wrldbldr_domain::LocationState::from_parts(
+    let location_state = wrldbldr_domain::LocationState::from_storage(
         location_state_id,
         location_id,
         world_id,
@@ -81,7 +81,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     );
 
     let region_state_id = wrldbldr_domain::RegionStateId::new();
-    let region_state = wrldbldr_domain::RegionState::from_parts(
+    let region_state = wrldbldr_domain::RegionState::from_storage(
         region_state_id,
         region_id,
         location_id,

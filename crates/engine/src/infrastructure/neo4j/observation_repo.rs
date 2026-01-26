@@ -74,7 +74,7 @@ impl ObservationRepo for Neo4jObservationRepo {
                 .get("created_at")
                 .map_err(|e| RepoError::database("query", e))?;
 
-            let observation = NpcObservation::from_stored(
+            let observation = NpcObservation::from_storage(
                 pc_id,
                 CharacterId::from_uuid(
                     uuid::Uuid::parse_str(&npc_id_str)

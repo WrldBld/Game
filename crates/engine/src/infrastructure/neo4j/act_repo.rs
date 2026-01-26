@@ -61,7 +61,7 @@ impl Neo4jActRepo {
         let description: String = node.get_string_or("description", "");
         let order_num = node.get_i64_or("order_num", 0);
 
-        Ok(Act::from_parts(
+        Ok(Act::from_storage(
             id,
             world_id,
             name,

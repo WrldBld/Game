@@ -118,8 +118,8 @@ impl LocationConnection {
         }
     }
 
-    /// Create a connection from parts (for reconstitution from storage)
-    pub fn from_parts(
+    /// Reconstruct a connection from storage
+    pub fn from_storage(
         from_location: LocationId,
         to_location: LocationId,
         connection_type: ConnectionType,

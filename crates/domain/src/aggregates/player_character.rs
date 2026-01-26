@@ -11,7 +11,7 @@
 //! - **Domain events**: Mutations return `PlayerCharacterStateChange` enum
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::error::DomainError;
 use crate::types::character_sheet::CharacterSheetValues;
@@ -89,7 +89,7 @@ pub enum PlayerCharacterStateChange {
 ///
 /// assert_eq!(pc.name().as_str(), "Aragorn");
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerCharacter {
     // Identity
     id: PlayerCharacterId,
@@ -632,99 +632,6 @@ impl PlayerCharacter {
     pub fn validate(&self) -> Result<(), DomainError> {
         // CharacterName already validates non-empty at construction
         Ok(())
-    }
-}
-
-// ============================================================================
-// Serde Implementation
-// ============================================================================
-
-/// Intermediate format for serialization that matches the wire format.
-///
-/// This maintains backward compatibility with existing JSON data that uses
-/// `is_alive` and `is_active` boolean fields. During serialization, we convert
-/// the internal `CharacterState` enum to these legacy fields. During
-/// deserialization, we convert back using `CharacterState::from_legacy()`.
-#[derive(Serialize, Deserialize)]
-struct PlayerCharacterWireFormat {
-    id: PlayerCharacterId,
-    user_id: String,
-    world_id: WorldId,
-    name: CharacterName,
-    description: Option<String>,
-    sheet_data: Option<CharacterSheetValues>,
-    current_location_id: LocationId,
-    current_region_id: Option<RegionId>,
-    starting_location_id: LocationId,
-    sprite_asset: Option<AssetPath>,
-    portrait_asset: Option<AssetPath>,
-    /// Legacy field for backward compatibility (serialized from CharacterState)
-    #[serde(default = "default_true")]
-    is_alive: bool,
-    /// Legacy field for backward compatibility (serialized from CharacterState)
-    #[serde(default = "default_true")]
-    is_active: bool,
-    created_at: DateTime<Utc>,
-    last_active_at: DateTime<Utc>,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-impl Serialize for PlayerCharacter {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // Convert CharacterState to legacy boolean fields for wire format
-        let wire = PlayerCharacterWireFormat {
-            id: self.id,
-            user_id: self.user_id.to_string(),
-            world_id: self.world_id,
-            name: self.name.clone(),
-            description: self.description.as_ref().map(|d| d.to_string()),
-            sheet_data: self.sheet_data.clone(),
-            current_location_id: self.current_location_id,
-            current_region_id: self.current_region_id,
-            starting_location_id: self.starting_location_id,
-            sprite_asset: self.sprite_asset.clone(),
-            portrait_asset: self.portrait_asset.clone(),
-            is_alive: self.state.is_alive(),
-            is_active: self.state.is_active(),
-            created_at: self.created_at,
-            last_active_at: self.last_active_at,
-        };
-        wire.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for PlayerCharacter {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = PlayerCharacterWireFormat::deserialize(deserializer)?;
-
-        // Convert legacy boolean fields to CharacterState
-        let state = CharacterState::from_legacy(wire.is_alive, wire.is_active);
-
-        Ok(PlayerCharacter {
-            id: wire.id,
-            user_id: UserId::from_trusted(wire.user_id),
-            world_id: wire.world_id,
-            name: wire.name,
-            description: wire.description.and_then(|d| Description::new(d).ok()),
-            sheet_data: wire.sheet_data,
-            current_location_id: wire.current_location_id,
-            current_region_id: wire.current_region_id,
-            starting_location_id: wire.starting_location_id,
-            sprite_asset: wire.sprite_asset,
-            portrait_asset: wire.portrait_asset,
-            state,
-            created_at: wire.created_at,
-            last_active_at: wire.last_active_at,
-        })
     }
 }
 

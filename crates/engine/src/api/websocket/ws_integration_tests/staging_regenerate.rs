@@ -27,7 +27,7 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let region = wrldbldr_domain::Region::from_parts(
+    let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),

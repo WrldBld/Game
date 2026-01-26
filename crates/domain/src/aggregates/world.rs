@@ -9,7 +9,7 @@
 //! - **Builder pattern**: Fluent API for optional fields
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::value_objects::{Description, RuleSystemConfig, WorldName};
 use wrldbldr_domain::{
@@ -72,7 +72,7 @@ pub enum WorldUpdate {
 ///
 /// assert_eq!(world.name().as_str(), "Middle-earth");
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct World {
     // Identity
     id: WorldId,
@@ -340,79 +340,6 @@ impl World {
     /// Advance game time by a number of hours.
     pub fn advance_hours(&mut self, hours: u32, now: DateTime<Utc>) -> TimeAdvanceResult {
         self.advance_time(hours * 3600, TimeAdvanceReason::DmManual { hours }, now)
-    }
-}
-
-// ============================================================================
-// Serde Implementation
-// ============================================================================
-
-/// Intermediate format for serialization that matches the wire format
-#[derive(Serialize, Deserialize)]
-struct WorldWireFormat {
-    id: WorldId,
-    name: WorldName,
-    description: Description,
-    rule_system: RuleSystemConfig,
-    game_time: GameTime,
-    #[serde(default)]
-    time_config: GameTimeConfig,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-impl Serialize for World {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let wire = WorldWireFormat {
-            id: self.id,
-            name: self.name.clone(),
-            description: self.description.clone(),
-            rule_system: self.rule_system.clone(),
-            game_time: self.game_time.clone(),
-            time_config: self.time_config.clone(),
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        };
-        wire.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for World {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // Support both new format (newtypes) and legacy format (raw strings)
-        #[derive(Deserialize)]
-        struct LegacyWorldFormat {
-            id: WorldId,
-            name: WorldName,
-            #[serde(default)]
-            description: Description,
-            #[serde(default)]
-            rule_system: RuleSystemConfig,
-            game_time: GameTime,
-            #[serde(default)]
-            time_config: GameTimeConfig,
-            created_at: DateTime<Utc>,
-            updated_at: DateTime<Utc>,
-        }
-
-        let legacy = LegacyWorldFormat::deserialize(deserializer)?;
-
-        Ok(World {
-            id: legacy.id,
-            name: legacy.name,
-            description: legacy.description,
-            rule_system: legacy.rule_system,
-            game_time: legacy.game_time,
-            time_config: legacy.time_config,
-            created_at: legacy.created_at,
-            updated_at: legacy.updated_at,
-        })
     }
 }
 

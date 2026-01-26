@@ -386,7 +386,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_narrative_repo_fails_then_still_succeeds_with_none_conversation_id() {
+    async fn when_narrative_repo_fails_then_returns_repo_error_fail_fast() {
         let now = Utc::now();
         let world_id = WorldId::new();
         let location_id = LocationId::new();
@@ -441,14 +441,12 @@ mod tests {
             create_narrative_entity(narrative_repo),
         );
 
-        // Should still succeed - repo failure is logged but not propagated
-        let result = use_case
-            .execute(pc_id, npc_id, None)
-            .await
-            .expect("EndConversation should succeed even if narrative repo fails");
+        // Should fail-fast - repo error is propagated, not swallowed
+        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
 
-        assert_eq!(result.pc_id, pc_id);
-        assert_eq!(result.npc_id, npc_id);
-        assert_eq!(result.conversation_id, None); // None because repo failed
+        assert!(matches!(
+            err,
+            super::EndConversationError::Repo(_)
+        ));
     }
 }

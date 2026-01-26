@@ -100,9 +100,7 @@ impl InteractionManagement {
             None => existing.conditions().to_vec(),
         };
 
-        let updated_available = available.unwrap_or_else(|| existing.is_available());
-
-        let interaction = wrldbldr_domain::InteractionTemplate::from_stored(
+        let interaction = wrldbldr_domain::InteractionTemplate::from_storage(
             existing.id(),
             existing.scene_id(),
             updated_name,
@@ -111,7 +109,7 @@ impl InteractionManagement {
             updated_hints,
             existing.allowed_tools().to_vec(),
             updated_conditions,
-            updated_available,
+            available.unwrap_or_else(|| existing.is_available()),
             existing.order(),
         );
 

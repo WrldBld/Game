@@ -169,7 +169,7 @@ impl Neo4jLocationRepo {
                 )
             });
 
-        Ok(Region::from_parts(
+        Ok(Region::from_storage(
             id,
             location_id,
             name,
@@ -216,7 +216,7 @@ impl Neo4jLocationRepo {
             )
         })?;
 
-        Ok(RegionConnection::from_parts(
+        Ok(RegionConnection::from_storage(
             RegionId::from_uuid(from_id),
             RegionId::from_uuid(to_id),
             description,
@@ -270,7 +270,7 @@ impl Neo4jLocationRepo {
             )
         })?;
 
-        Ok(LocationConnection::from_parts(
+        Ok(LocationConnection::from_storage(
             LocationId::from_uuid(from_id),
             LocationId::from_uuid(to_id),
             ConnectionType::parse(&connection_type_str),
@@ -944,7 +944,7 @@ impl LocationRepo for Neo4jLocationRepo {
             let description: String = row.get("description").unwrap_or_default();
             let bidirectional: bool = row.get("bidirectional").unwrap_or(false);
 
-            exits.push(RegionExit::from_parts(
+            exits.push(RegionExit::from_storage(
                 RegionId::from(
                     Uuid::parse_str(&from_region).map_err(|e| RepoError::database("query", e))?,
                 ),

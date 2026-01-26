@@ -63,7 +63,7 @@ impl InteractionTemplate {
 
     /// Reconstruct an InteractionTemplate from stored data (e.g., database)
     #[allow(clippy::too_many_arguments)]
-    pub fn from_stored(
+    pub fn from_storage(
         id: InteractionId,
         scene_id: SceneId,
         name: String,
@@ -261,7 +261,7 @@ impl InteractionRequirement {
         Self { consumed: false }
     }
 
-    pub fn from_stored(consumed: bool) -> Self {
+    pub fn from_storage(consumed: bool) -> Self {
         Self { consumed }
     }
 }

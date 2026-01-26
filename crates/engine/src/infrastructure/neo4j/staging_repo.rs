@@ -1238,7 +1238,7 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
     // Parse collected NPCs from row
     let npcs = parse_collected_npcs(&row)?;
 
-    Ok(Staging::from_stored(
+    Ok(Staging::from_storage(
         id,
         region_id,
         location_id,
@@ -1461,7 +1461,7 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
 
     let visual_state_reasoning = node.get_optional_string("visual_state_reasoning");
 
-    Ok(Staging::from_stored(
+    Ok(Staging::from_storage(
         id,
         region_id,
         location_id,

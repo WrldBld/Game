@@ -66,8 +66,8 @@ impl Goal {
         self
     }
 
-    /// Reconstruct a Goal from parts (for repository deserialization or updates).
-    pub fn from_parts(
+    /// Reconstruct a Goal from storage
+    pub fn from_storage(
         id: GoalId,
         world_id: WorldId,
         name: GoalName,

@@ -253,7 +253,7 @@ impl Staging {
 
     /// Reconstruct a Staging from stored data (e.g., database)
     #[allow(clippy::too_many_arguments)]
-    pub fn from_stored(
+    pub fn from_storage(
         id: StagingId,
         region_id: RegionId,
         location_id: LocationId,

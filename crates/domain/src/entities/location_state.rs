@@ -102,9 +102,9 @@ impl LocationState {
         }
     }
 
-    /// Reconstruct from stored data
+    /// Reconstruct from storage
     #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
+    pub fn from_storage(
         id: LocationStateId,
         location_id: LocationId,
         world_id: WorldId,
