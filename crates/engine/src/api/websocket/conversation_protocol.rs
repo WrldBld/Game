@@ -12,14 +12,15 @@ use wrldbldr_shared::messages::{
     ParticipantType as ProtocolParticipantType, SceneContext as ProtocolSceneContext,
 };
 
-use crate::infrastructure::ports::{
-    ActiveConversationRecord, ConversationDetails, ConversationLocationContext,
-    ConversationParticipantDetail, ConversationSceneContext,
+// Use case DTOs (not infrastructure types)
+use crate::use_cases::conversation::{
+    ActiveConversationSummary, ConversationDetailResult, DialogueTurnDetail, LocationSummary,
+    ParticipantDetail, ParticipantType as UseCaseParticipantType, SceneSummary,
 };
 
-impl ActiveConversationRecord {
+impl ActiveConversationSummary {
     /// Convert to protocol message type.
-    /// This handles conversion from repo types to protocol format.
+    /// This handles conversion from use case DTOs to protocol format.
     pub fn to_protocol(&self) -> ProtocolConversationInfo {
         ProtocolConversationInfo {
             conversation_id: self.id.to_string(),
@@ -65,21 +66,10 @@ impl ActiveConversationRecord {
     }
 }
 
-impl ConversationDetails {
+impl ConversationDetailResult {
     /// Convert to protocol message type.
     pub fn to_protocol(&self) -> ProtocolConversationFullDetails {
-        let recent_turns = self
-            .recent_turns
-            .iter()
-            .map(|t| ProtocolDialogueTurn {
-                speaker_name: t.speaker_name.clone(),
-                text: t.text.clone(),
-                timestamp: t
-                    .timestamp
-                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                is_dm_override: t.is_dm_override,
-            })
-            .collect();
+        let recent_turns = self.recent_turns.iter().map(|t| t.to_protocol()).collect();
 
         ProtocolConversationFullDetails {
             conversation_id: self.conversation.id.to_string(),
@@ -93,12 +83,7 @@ impl ConversationDetails {
                 .last_updated_at
                 .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             is_active: self.conversation.is_active,
-            participants: self
-                .participants
-                .clone()
-                .into_iter()
-                .map(|p| p.to_protocol())
-                .collect(),
+            participants: self.participants.iter().map(|p| p.to_protocol()).collect(),
             location: self.conversation.location.as_ref().map(|l| l.to_protocol()),
             scene: self.conversation.scene.as_ref().map(|s| s.to_protocol()),
             turn_count: self.conversation.turn_count,
@@ -108,15 +93,15 @@ impl ConversationDetails {
     }
 }
 
-impl ConversationParticipantDetail {
+impl ParticipantDetail {
     /// Convert to protocol message type.
     pub fn to_protocol(&self) -> ProtocolConversationParticipant {
         ProtocolConversationParticipant {
             id: self.character_id.to_string(),
             name: self.name.clone(),
             participant_type: match self.participant_type {
-                crate::infrastructure::ports::ParticipantType::Pc => ProtocolParticipantType::Pc,
-                crate::infrastructure::ports::ParticipantType::Npc => ProtocolParticipantType::Npc,
+                UseCaseParticipantType::Pc => ProtocolParticipantType::Pc,
+                UseCaseParticipantType::Npc => ProtocolParticipantType::Npc,
             },
             turn_count: self.turn_count,
             last_spoke_at: self
@@ -129,7 +114,21 @@ impl ConversationParticipantDetail {
     }
 }
 
-impl ConversationLocationContext {
+impl DialogueTurnDetail {
+    /// Convert to protocol message type.
+    pub fn to_protocol(&self) -> ProtocolDialogueTurn {
+        ProtocolDialogueTurn {
+            speaker_name: self.speaker_name.clone(),
+            text: self.text.clone(),
+            timestamp: self
+                .timestamp
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            is_dm_override: self.is_dm_override,
+        }
+    }
+}
+
+impl LocationSummary {
     /// Convert to protocol message type.
     pub fn to_protocol(&self) -> ProtocolLocationContext {
         ProtocolLocationContext {
@@ -140,7 +139,7 @@ impl ConversationLocationContext {
     }
 }
 
-impl ConversationSceneContext {
+impl SceneSummary {
     /// Convert to protocol message type.
     pub fn to_protocol(&self) -> ProtocolSceneContext {
         ProtocolSceneContext {

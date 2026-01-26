@@ -24,6 +24,7 @@ mod continue_conversation;
 mod end;
 mod end_by_id;
 mod get_details;
+mod helpers;
 mod list_active;
 mod start;
 
@@ -34,6 +35,10 @@ pub use continue_conversation::ContinueConversation;
 pub use end::{EndConversation, EndConversationError};
 pub use end_by_id::{EndConversationById, EndConversationByIdError};
 pub use get_details::{GetConversationDetails, GetConversationDetailsError, GetConversationDetailsInput};
+pub use helpers::{
+    ActiveConversationSummary, ConversationDetailResult, DialogueTurnDetail,
+    LocationSummary, ParticipantDetail, ParticipantType, SceneSummary,
+};
 pub use list_active::ListActiveConversations;
 pub use start::{ConversationError, StartConversation};
 

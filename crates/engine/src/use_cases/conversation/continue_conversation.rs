@@ -10,12 +10,12 @@
 use std::sync::Arc;
 use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, QueueItemId, WorldId};
 
-use crate::queue_types::PlayerActionData;
-
 use crate::infrastructure::ports::{
     CharacterRepo, ClockPort, NarrativeRepo, PlayerCharacterRepo, QueuePort, StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
+
+use super::helpers::{build_player_action_data, validate_npc_staging_visibility};
 
 // Re-use the shared ConversationError from start.rs
 use super::start::ConversationError;
@@ -105,40 +105,22 @@ impl ContinueConversation {
             .ok_or(ConversationError::NpcNotFound(npc_id))?;
 
         // 3. Verify the NPC is still in the same region as the PC
-        let pc_region_id = pc
-            .current_region_id()
-            .ok_or(ConversationError::PlayerNotInRegion)?;
-
-        // Get current game time for staging TTL check
-        let world_data = self
-            .world
-            .get(world_id)
-            .await?
-            .ok_or(ConversationError::WorldNotFound(world_id))?;
-        let current_game_time_seconds = world_data.game_time().total_seconds();
-
-        // Get active staging and filter to visible NPCs
-        let active_staging = self
-            .staging
-            .get_active_staging(pc_region_id, current_game_time_seconds)
-            .await?;
-        let staged_npcs = active_staging
-            .map(|s| {
-                s.npcs()
-                    .iter()
-                    .filter(|npc| npc.is_present() && !npc.is_hidden_from_players())
-                    .cloned()
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let npc_in_region = staged_npcs
-            .iter()
-            .any(|staged| staged.character_id == npc_id);
-
-        if !npc_in_region {
-            // NPC left the region - conversation is over
-            return Err(ConversationError::NpcLeftRegion);
-        }
+        // Note: validate_npc_staging_visibility returns NpcNotInRegion if NPC not visible
+        // We map this to NpcLeftRegion for continue_conversation context
+        validate_npc_staging_visibility(
+            self.staging.as_ref(),
+            self.world.as_ref(),
+            pc.current_region_id(),
+            npc_id,
+            world_id,
+        ).await.map_err(|e| {
+            // Map NpcNotInRegion to NpcLeftRegion for continue_conversation context
+            if matches!(e, ConversationError::NpcNotInRegion) {
+                ConversationError::NpcLeftRegion
+            } else {
+                e
+            }
+        })?;
 
         // 4. Resolve conversation_id: use provided one or look up active conversation
         let resolved_conversation_id = if let Some(id) = conversation_id {
@@ -235,18 +217,16 @@ impl ContinueConversation {
             }
         };
 
-        // 5. Enqueue the player action for processing
-        // Note: target is the NPC ID (as string) so it can be parsed in build_prompt
-        let action_data = PlayerActionData {
+        // 5. Build and enqueue the player action for processing
+        let action_data = build_player_action_data(
             world_id,
             player_id,
-            pc_id: Some(pc_id),
-            action_type: "talk".to_string(),
-            target: Some(npc_id.to_string()),
-            dialogue: Some(player_message),
-            timestamp: self.clock.now(),
-            conversation_id: resolved_conversation_id.map(|id| id.to_uuid()),
-        };
+            pc_id,
+            npc_id,
+            player_message,
+            self.clock.as_ref(),
+            resolved_conversation_id,
+        );
 
         let action_queue_id = self.queue.enqueue_player_action(&action_data).await?;
 

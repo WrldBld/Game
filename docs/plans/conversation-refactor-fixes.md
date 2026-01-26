@@ -201,3 +201,51 @@ Resolve all verified bugs/tech debt from the conversation_id refactor, align wit
   - `crates/player/src/ui/presentation/handlers/session_message_handler.rs` (handler fix)
   - `crates/player/src/ui/presentation/state/game_state.rs` (no changes needed)
 - **Impact:** Allows DM to clear visual state overrides by sending `None` instead of always overwriting
+
+---
+
+## Tech Debt Resolution (January 26, 2026)
+
+### Infrastructure DTO Leakage Fix
+- **Issue:** Use cases returned infrastructure DTOs directly, violating ADR-011 boundaries
+  - `list_active.rs` returned `Vec<ActiveConversationRecord>` (ports type)
+  - `get_details.rs` aliased `ConversationDetails` from ports
+- **Fix:** Created use-case-local DTOs in shared `helpers` module
+  - `ActiveConversationSummary` - domain projection of `ActiveConversationRecord`
+  - `ConversationDetailResult` - domain projection of `ConversationDetails`
+  - `LocationSummary`, `SceneSummary` - location/scene context DTOs
+  - `ParticipantDetail`, `DialogueTurnDetail` - participant/turn DTOs
+  - Added mapping methods (`from_record`, `from_infrastructure`) in use case layer
+  - Updated API layer (`conversation_protocol.rs`) to convert from new DTOs to protocol types
+- **Files:**
+  - `engine/src/use_cases/conversation/helpers.rs` (new shared DTOs and mappings)
+  - `engine/src/use_cases/conversation/list_active.rs` (uses ActiveConversationSummary)
+  - `engine/src/use_cases/conversation/get_details.rs` (uses ConversationDetailResult)
+  - `engine/src/use_cases/conversation/mod.rs` (re-exports shared DTOs)
+  - `engine/src/api/websocket/conversation_protocol.rs` (API layer protocol conversion updated)
+- **Impact:** Maintains ADR-011 boundaries; use cases no longer leak infrastructure types; protocol conversions stay in API layer
+
+### Duplicate Staging Visibility Validation Fix
+- **Issue:** Identical staging visibility validation duplicated in `start.rs` and `continue_conversation.rs`
+  - ~25 lines of duplicate validation logic per file
+  - Both validated: PC region, world game time, NPC staging TTL, visibility filters
+- **Fix:** Extracted to shared helper `validate_npc_staging_visibility()`
+  - Single source of truth for NPC visibility validation
+  - Both use cases now call same helper
+  - `continue_conversation` maps `NpcNotInRegion` to `NpcLeftRegion` for semantic correctness
+- **Files:**
+  - `engine/src/use_cases/conversation/helpers.rs` (new validation helper)
+  - `engine/src/use_cases/conversation/start.rs` (uses shared helper)
+  - `engine/src/use_cases/conversation/continue_conversation.rs` (uses shared helper)
+- **Impact:** Eliminates code duplication; ensures consistent validation across conversation flows
+
+### PlayerActionData Construction Consolidation
+- **Issue:** `PlayerActionData` construction duplicated in `start.rs` and `continue_conversation.rs`
+- **Fix:** Extracted to shared helper `build_player_action_data()`
+  - Centralizes queue data payload structure
+  - Both use cases now call same builder function
+- **Files:**
+  - `engine/src/use_cases/conversation/helpers.rs` (new builder helper)
+  - `engine/src/use_cases/conversation/start.rs` (uses shared builder)
+  - `engine/src/use_cases/conversation/continue_conversation.rs` (uses shared builder)
+- **Impact:** Consistent player action queuing; easier to maintain queue payload structure

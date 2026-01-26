@@ -7,12 +7,12 @@
 use std::sync::Arc;
 use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, QueueItemId, WorldId};
 
-use crate::queue_types::PlayerActionData;
-
 use crate::infrastructure::ports::{
     CharacterRepo, ClockPort, PlayerCharacterRepo, QueueError, QueuePort, RepoError,
     SceneRepo, StagingRepo, WorldRepo,
 };
+
+use super::helpers::{build_player_action_data, validate_npc_staging_visibility};
 
 /// Result of starting a conversation.
 #[derive(Debug)]
@@ -96,41 +96,14 @@ impl StartConversation {
             .await?
             .ok_or(ConversationError::NpcNotFound(npc_id))?;
 
-        // 3. Verify the NPC is in the same region as the PC
-        let pc_region_id = pc
-            .current_region_id()
-            .ok_or(ConversationError::PlayerNotInRegion)?;
-
-        // Get current game time for staging TTL check
-        let world_data = self
-            .world
-            .get(world_id)
-            .await?
-            .ok_or(ConversationError::WorldNotFound(world_id))?;
-        let current_game_time_seconds = world_data.game_time().total_seconds();
-
-        // Check if NPC is staged in this region (with TTL check)
-        // Get active staging and filter to visible NPCs
-        let active_staging = self
-            .staging
-            .get_active_staging(pc_region_id, current_game_time_seconds)
-            .await?;
-        let staged_npcs = active_staging
-            .map(|s| {
-                s.npcs()
-                    .iter()
-                    .filter(|npc| npc.is_present() && !npc.is_hidden_from_players())
-                    .cloned()
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let npc_in_region = staged_npcs
-            .iter()
-            .any(|staged| staged.character_id == npc_id);
-
-        if !npc_in_region {
-            return Err(ConversationError::NpcNotInRegion);
-        }
+        // 3. Verify the NPC is staged and visible in PC's region
+        validate_npc_staging_visibility(
+            self.staging.as_ref(),
+            self.world.as_ref(),
+            pc.current_region_id(),
+            npc_id,
+            world_id,
+        ).await?;
 
         // 4. Generate conversation ID
         let conversation_id = ConversationId::new();
@@ -149,18 +122,16 @@ impl StartConversation {
             }
         };
 
-        // 6. Enqueue the player action for processing
-        // Note: target is the NPC ID (as string) so it can be parsed in build_prompt
-        let action_data = PlayerActionData {
+        // 6. Build and enqueue the player action for processing
+        let action_data = build_player_action_data(
             world_id,
             player_id,
-            pc_id: Some(pc_id),
-            action_type: "talk".to_string(),
-            target: Some(npc_id.to_string()),
-            dialogue: Some(initial_dialogue),
-            timestamp: self.clock.now(),
-            conversation_id: Some(conversation_id.to_uuid()),
-        };
+            pc_id,
+            npc_id,
+            initial_dialogue,
+            self.clock.as_ref(),
+            Some(conversation_id),
+        );
 
         let action_queue_id = self.queue.enqueue_player_action(&action_data).await?;
 

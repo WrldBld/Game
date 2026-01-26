@@ -1,4 +1,4 @@
-//!
+ //!
 //! Lists all active conversations in a world for DM monitoring.
 //! Returns conversation info with participants, location, and status.
 
@@ -8,11 +8,8 @@ use wrldbldr_domain::WorldId;
 
 use crate::infrastructure::ports::{NarrativeRepo, RepoError};
 
-/// Result of listing active conversations.
-#[derive(Debug, Clone)]
-pub struct ListActiveConversationsResult {
-    pub conversations: Vec<crate::infrastructure::ports::ActiveConversationRecord>,
-}
+// Re-export shared DTOs from helpers module
+pub use super::helpers::ListActiveConversationsResult;
 
 /// Error types for list active conversations use case.
 #[derive(Debug, thiserror::Error)]
@@ -56,10 +53,16 @@ impl ListActiveConversations {
         // Get conversations from narrative repo
         // Note: If world doesn't exist or has no conversations, repo returns empty list
         // This is semantically correct - no conversations exist for that world
-        let conversations = self
+        let records = self
             .narrative
             .list_active_conversations(world_id, include_ended)
             .await?;
+
+        // Map infrastructure records to use case DTOs
+        let conversations = records
+            .into_iter()
+            .map(super::helpers::ActiveConversationSummary::from_record)
+            .collect();
 
         Ok(ListActiveConversationsResult {
             conversations,

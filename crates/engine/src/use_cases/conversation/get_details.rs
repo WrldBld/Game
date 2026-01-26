@@ -10,7 +10,9 @@ use std::sync::Arc;
 use wrldbldr_domain::{ConversationId, WorldId};
 
 use crate::infrastructure::ports::{NarrativeRepo, RepoError};
-use crate::infrastructure::ports::ConversationDetails;
+
+// Re-export shared DTOs from helpers module
+pub use super::helpers::ConversationDetailResult;
 
 /// Input for getting conversation details.
 #[derive(Debug, Clone)]
@@ -19,8 +21,8 @@ pub struct GetConversationDetailsInput {
     pub world_id: WorldId,
 }
 
-/// Output for getting conversation details.
-pub type GetConversationDetailsOutput = ConversationDetails;
+/// Output for getting conversation details (use-case DTO, not infrastructure type).
+pub type GetConversationDetailsOutput = ConversationDetailResult;
 
 /// Errors for get conversation details.
 #[derive(Debug, thiserror::Error)]
@@ -57,7 +59,7 @@ impl GetConversationDetails {
     /// * `input` - Input containing conversation_id and world_id
     ///
     /// # Returns
-    /// * `Ok(ConversationDetails)` - Full conversation details
+    /// * `Ok(ConversationDetailResult)` - Full conversation details (use case DTO)
     /// * `Err(GetConversationDetailsError)` - Failed to get details
     pub async fn execute(
         &self,
@@ -71,7 +73,8 @@ impl GetConversationDetails {
                 input.conversation_id,
             ))?;
 
-        Ok(details)
+        // Map infrastructure type to use case DTO
+        Ok(super::helpers::ConversationDetailResult::from_infrastructure(details))
     }
 }
 
@@ -84,10 +87,11 @@ mod tests {
     async fn get_conversation_details_returns_details() {
         let mut mock_narrative = MockNarrativeRepo::new();
 
-        // Setup mock response
-        let expected_details = ConversationDetails {
+        // Setup mock response (infrastructure type)
+        let conversation_id = ConversationId::new();
+        let expected_details = crate::infrastructure::ports::ConversationDetails {
             conversation: crate::infrastructure::ports::ActiveConversationRecord {
-                id: ConversationId::new(),
+                id: conversation_id,
                 pc_id: wrldbldr_domain::PlayerCharacterId::new(),
                 npc_id: wrldbldr_domain::CharacterId::new(),
                 pc_name: "Test PC".to_string(),
@@ -114,12 +118,17 @@ mod tests {
         );
 
         let input = GetConversationDetailsInput {
-            conversation_id: expected_details.conversation.id,
+            conversation_id,
             world_id: wrldbldr_domain::WorldId::new(),
         };
 
         let result = use_case.execute(input).await;
 
         assert!(result.is_ok());
+        // Verify we got back a use case DTO, not the infrastructure type
+        let details = result.unwrap();
+        assert_eq!(details.conversation.id, conversation_id);
+        assert_eq!(details.conversation.pc_name, "Test PC");
+        assert_eq!(details.conversation.npc_name, "Test NPC");
     }
 }
