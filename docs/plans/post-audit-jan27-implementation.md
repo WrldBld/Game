@@ -30,17 +30,17 @@
 - [x] Validate RollResult percent bounds (0–100)
 
 ### Phase 2 — Typed IDs + ADR-011 boundary
-- [ ] Replace raw IDs in queue_types with typed IDs (ConversationId, ApprovalRequestId, NarrativeEventId, ChallengeId)
-- [ ] Remove serde_json::Value from join_world_flow use case outputs; move conversion to API
-- [ ] Replace activation_rules_json input with typed rules/logic at API boundary
-- [ ] Replace generation_batch_id String with typed BatchId internally, stringify at boundary
+- [x] Replace raw IDs in queue_types with typed IDs (ConversationId, ApprovalRequestId, NarrativeEventId, ChallengeId)
+- [x] Remove serde_json::Value from join_world_flow use case outputs; move conversion to API
+- [x] Replace activation_rules_json input with typed rules/logic at API boundary
+- [x] Replace generation_batch_id String with typed BatchId internally, stringify at boundary
 
 ---
 
 ## Progress
 
 - [x] Phase 1 complete
-- [ ] Phase 2 complete
-- [ ] Phase 3 complete (tool argument typing)
+- [x] Phase 2 complete
+- [x] Phase 3 complete (tool argument typing)
 - [ ] Code review + architecture review
 - [ ] Checks/tests clean

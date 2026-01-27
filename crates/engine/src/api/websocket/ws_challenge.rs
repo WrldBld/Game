@@ -294,7 +294,7 @@ pub(super) async fn handle_challenge_roll(
                         id: tool.id,
                         name: tool.name,
                         description: tool.description,
-                        arguments: tool.arguments,
+                        arguments: tool.arguments.to_json_value(),
                     })
                     .collect();
 
@@ -502,7 +502,7 @@ pub(super) async fn handle_challenge_roll_input(
                         id: tool.id,
                         name: tool.name,
                         description: tool.description,
-                        arguments: tool.arguments,
+                        arguments: tool.arguments.to_json_value(),
                     })
                     .collect();
 

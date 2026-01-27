@@ -3,6 +3,7 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::visual_state::VisualStateDetails;
+use wrldbldr_domain::{ActivationLogic, ActivationRule};
 use wrldbldr_shared::{
     requests::visual_state::{
         LocationStateData, RegionStateData, VisualStateCatalogData,
@@ -266,6 +267,13 @@ async fn handle_create_visual_state(
                 }
             };
 
+            // Parse activation rules and logic at API boundary
+            let activation_rules = match parse_activation_rules(request.activation_rules) {
+                Ok(rules) => rules,
+                Err(err) => return err,
+            };
+            let activation_logic = parse_activation_logic(request.activation_logic);
+
             match state
                 .app
                 .use_cases
@@ -279,8 +287,8 @@ async fn handle_create_visual_state(
                     request.atmosphere,
                     request.ambient_sound,
                     request.map_overlay,
-                    request.activation_rules,
-                    request.activation_logic,
+                    activation_rules,
+                    activation_logic,
                     request.priority,
                     request.is_default,
                 )
@@ -313,6 +321,13 @@ async fn handle_create_visual_state(
                 }
             };
 
+            // Parse activation rules and logic at API boundary
+            let activation_rules = match parse_activation_rules(request.activation_rules) {
+                Ok(rules) => rules,
+                Err(err) => return err,
+            };
+            let activation_logic = parse_activation_logic(request.activation_logic);
+
             match state
                 .app
                 .use_cases
@@ -325,8 +340,8 @@ async fn handle_create_visual_state(
                     request.backdrop_asset,
                     request.atmosphere,
                     request.ambient_sound,
-                    request.activation_rules,
-                    request.activation_logic,
+                    activation_rules,
+                    activation_logic,
                     request.priority,
                     request.is_default,
                 )
@@ -433,6 +448,13 @@ async fn handle_update_visual_state(
         .map(wrldbldr_domain::RegionStateId::from_uuid);
 
     if let Some(ls_id) = location_state_id {
+        // Parse activation rules and logic at API boundary
+        let activation_rules = request.activation_rules
+            .as_ref()
+            .and_then(|v| parse_activation_rules(Some(v.clone())).ok());
+        let activation_logic = request.activation_logic.as_ref()
+            .map(|s| parse_activation_logic(Some(s.clone())));
+
         match state
             .app
             .use_cases
@@ -446,8 +468,8 @@ async fn handle_update_visual_state(
                 request.atmosphere,
                 request.ambient_sound,
                 request.map_overlay,
-                request.activation_rules,
-                request.activation_logic,
+                activation_rules,
+                activation_logic,
                 request.priority,
                 request.is_default,
                 request.generation_prompt,
@@ -468,6 +490,13 @@ async fn handle_update_visual_state(
             },
         }
     } else if let Some(rs_id) = region_state_id {
+        // Parse activation rules and logic at API boundary
+        let activation_rules = request.activation_rules
+            .as_ref()
+            .and_then(|v| parse_activation_rules(Some(v.clone())).ok());
+        let activation_logic = request.activation_logic.as_ref()
+            .map(|s| parse_activation_logic(Some(s.clone())));
+
         match state
             .app
             .use_cases
@@ -480,8 +509,8 @@ async fn handle_update_visual_state(
                 request.backdrop_asset,
                 request.atmosphere,
                 request.ambient_sound,
-                request.activation_rules,
-                request.activation_logic,
+                activation_rules,
+                activation_logic,
                 request.priority,
                 request.is_default,
                 request.generation_prompt,
@@ -709,6 +738,13 @@ async fn handle_generate_visual_state(
                 }
             };
 
+            // Parse activation rules and logic at API boundary
+            let activation_rules = match parse_activation_rules(request.activation_rules) {
+                Ok(rules) => rules,
+                Err(err) => return err,
+            };
+            let activation_logic = parse_activation_logic(request.activation_logic);
+
             match state
                 .app
                 .use_cases
@@ -724,20 +760,21 @@ async fn handle_generate_visual_state(
                     request.tags,
                     request.generate_backdrop,
                     request.generate_map,
-                    request.activation_rules,
-                    request.activation_logic,
+                    activation_rules,
+                    activation_logic,
                     request.priority,
                     request.is_default,
                 )
                 .await
             {
                 Ok(result) => {
+                    // Convert BatchId to string at API boundary
                     let data = wrldbldr_shared::GeneratedVisualStateData {
                         location_state: result
                             .location_state
                             .map(domain_to_location_state_data),
                         region_state: result.region_state.map(domain_to_region_state_data),
-                        generation_batch_id: result.generation_batch_id,
+                        generation_batch_id: result.generation_batch_id.to_string(),
                         is_complete: result.is_complete,
                     };
                     ServerMessage::Response {
@@ -768,6 +805,13 @@ async fn handle_generate_visual_state(
                 }
             };
 
+            // Parse activation rules and logic at API boundary
+            let activation_rules = match parse_activation_rules(request.activation_rules) {
+                Ok(rules) => rules,
+                Err(err) => return err,
+            };
+            let activation_logic = parse_activation_logic(request.activation_logic);
+
             match state
                 .app
                 .use_cases
@@ -783,20 +827,21 @@ async fn handle_generate_visual_state(
                     request.tags,
                     request.generate_backdrop,
                     request.generate_map,
-                    request.activation_rules,
-                    request.activation_logic,
+                    activation_rules,
+                    activation_logic,
                     request.priority,
                     request.is_default,
                 )
                 .await
             {
                 Ok(result) => {
+                    // Convert BatchId to string at API boundary
                     let data = wrldbldr_shared::GeneratedVisualStateData {
                         location_state: result
                             .location_state
                             .map(domain_to_location_state_data),
                         region_state: result.region_state.map(domain_to_region_state_data),
-                        generation_batch_id: result.generation_batch_id,
+                        generation_batch_id: result.generation_batch_id.to_string(),
                         is_complete: result.is_complete,
                     };
                     ServerMessage::Response {
@@ -834,6 +879,45 @@ fn map_catalog_error_to_code(error: &crate::use_cases::visual_state::CatalogErro
             ErrorCode::NotFound
         }
         _ => ErrorCode::InternalError,
+    }
+}
+
+/// Parse activation logic from protocol string to domain type
+fn parse_activation_logic(logic: Option<String>) -> ActivationLogic {
+    match logic.as_deref() {
+        Some("All") => ActivationLogic::All,
+        Some("Any") => ActivationLogic::Any,
+        Some(s) if s.starts_with("AtLeast") => {
+            // Parse "AtLeast(N)" pattern
+            if let Some(n_str) = s.strip_prefix("AtLeast(") {
+                if let Some(n) = n_str.strip_suffix(')') {
+                    n.parse::<u32>()
+                        .map(ActivationLogic::AtLeast)
+                        .unwrap_or(ActivationLogic::All)
+                } else {
+                    ActivationLogic::All
+                }
+            } else {
+                ActivationLogic::All
+            }
+        }
+        _ => ActivationLogic::All,
+    }
+}
+
+/// Parse activation rules from protocol JSON to domain type
+fn parse_activation_rules(rules_json: Option<serde_json::Value>) -> Result<Vec<ActivationRule>, ServerMessage> {
+    match rules_json {
+        Some(value) => {
+            serde_json::from_value::<Vec<ActivationRule>>(value)
+                .map_err(|e| {
+                    ServerMessage::Error {
+                        code: "validation_error".to_string(),
+                        message: format!("Invalid activation rules: {}", e),
+                    }
+                })
+        }
+        None => Ok(Vec::new()),
     }
 }
 

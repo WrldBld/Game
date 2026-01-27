@@ -15,7 +15,7 @@ use serde::Deserialize;
 use std::sync::LazyLock;
 use uuid::Uuid;
 
-use crate::game_tools::GameTool;
+use crate::game_tools::ToolArgs;
 use crate::queue_types::ProposedTool;
 
 /// Parsed components from an LLM dialogue response.
@@ -331,8 +331,8 @@ pub fn parse_tool_tags(raw: &str) -> Vec<ProposedTool> {
         let name = caps[1].trim().to_string();
         let json_str = caps[2].trim();
 
-        // Parse the JSON arguments
-        let arguments: serde_json::Value = match serde_json::from_str(json_str) {
+        // Parse the JSON arguments into typed ToolArgs
+        let arguments: ToolArgs = match serde_json::from_str(json_str) {
             Ok(args) => args,
             Err(e) => {
                 tracing::error!(
@@ -348,8 +348,8 @@ pub fn parse_tool_tags(raw: &str) -> Vec<ProposedTool> {
         // Generate a unique ID for this tool call
         let id = Uuid::new_v4().to_string();
 
-        // Generate human-readable description using GameTool
-        let description = GameTool::describe_from_json(&name, &arguments);
+        // Generate human-readable description using ToolArgs
+        let description = arguments.description();
 
         results.push(ProposedTool {
             id,

@@ -261,40 +261,40 @@
  // PlayerActionData Builder
  // =============================================================================
 
- /// Build PlayerActionData for a conversation action.
- ///
- /// This helper constructs the queue data payload for player dialogue actions.
- /// Centralized here to ensure consistent structure across use cases.
- ///
- /// # Arguments
- /// * `world_id` - The world context
- /// * `player_id` - The player's user ID
- /// * `pc_id` - The player character in the conversation
- /// * `npc_id` - The NPC being spoken to
- /// * `dialogue` - The dialogue text
- /// * `clock` - Clock for timestamp
- /// * `conversation_id` - Optional conversation ID (for continuing conversations)
- ///
- /// # Returns
- /// PlayerActionData ready for queuing
- pub fn build_player_action_data(
-     world_id: WorldId,
-     player_id: String,
-     pc_id: PlayerCharacterId,
-     npc_id: CharacterId,
-     dialogue: String,
-     clock: &dyn ClockPort,
-     conversation_id: Option<ConversationId>,
- ) -> PlayerActionData {
-     // Note: target is the NPC ID (as string) so it can be parsed in build_prompt
-     PlayerActionData {
-         world_id,
-         player_id,
-         pc_id: Some(pc_id),
-         action_type: "talk".to_string(),
-         target: Some(npc_id.to_string()),
-         dialogue: Some(dialogue),
-         timestamp: clock.now(),
-         conversation_id: conversation_id.map(|id| id.to_uuid()),
-     }
- }
+  /// Build PlayerActionData for a conversation action.
+  ///
+  /// This helper constructs of queue data payload for player dialogue actions.
+  /// Centralized here to ensure consistent structure across use cases.
+  ///
+  /// # Arguments
+  /// * `world_id` - The world context
+  /// * `player_id` - The player's user ID
+  /// * `pc_id` - The player character in the conversation
+  /// * `npc_id` - The NPC being spoken to
+  /// * `dialogue` - The dialogue text
+  /// * `clock` - Clock for timestamp
+  /// * `conversation_id` - Optional conversation ID (for continuing conversations)
+  ///
+  /// # Returns
+  /// PlayerActionData ready for queuing
+  pub fn build_player_action_data(
+      world_id: WorldId,
+      player_id: String,
+      pc_id: PlayerCharacterId,
+      npc_id: CharacterId,
+      dialogue: String,
+      clock: &dyn ClockPort,
+      conversation_id: Option<ConversationId>,
+  ) -> PlayerActionData {
+      // Note: target is to NPC ID (as string) so it can be parsed in build_prompt
+       PlayerActionData {
+           world_id,
+           player_id,
+           pc_id: Some(pc_id),
+           action_type: "talk".to_string(),
+           target: Some(npc_id.to_string()),
+           dialogue: Some(dialogue),
+           timestamp: clock.now(),
+           conversation_id,
+       }
+   }

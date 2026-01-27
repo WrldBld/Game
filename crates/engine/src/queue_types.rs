@@ -9,10 +9,13 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
+use wrldbldr_domain::{
+    ApprovalRequestId, ChallengeId, CharacterId, ConversationId, LocationId, NarrativeEventId,
+    PlayerCharacterId, SceneId, WorldId,
+};
 
+use crate::game_tools::ToolArgs;
 use crate::llm_context::GamePromptRequest;
 
 // =============================================================================
@@ -41,7 +44,7 @@ pub struct PlayerActionData {
     pub timestamp: DateTime<Utc>,
     /// Conversation ID for dialogue actions (links to Conversation node in Neo4j)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 // =============================================================================
@@ -57,7 +60,7 @@ pub enum DmActionType {
     /// Decision on a pending approval request
     ApprovalDecision {
         /// ID of the approval request being decided on
-        request_id: String,
+        request_id: ApprovalRequestId,
         /// The DM's decision
         decision: DmApprovalDecision,
     },
@@ -71,7 +74,7 @@ pub enum DmActionType {
     /// Manually trigger a narrative event
     TriggerEvent {
         /// Event to trigger
-        event_id: String,
+        event_id: NarrativeEventId,
     },
     /// Force a scene transition
     TransitionScene {
@@ -106,7 +109,7 @@ pub enum DmApprovalDecision {
     /// Accept with specific item distribution
     AcceptWithRecipients {
         /// Map of item IDs to recipient character IDs
-        item_recipients: HashMap<String, Vec<String>>,
+        item_recipients: HashMap<String, Vec<PlayerCharacterId>>,
     },
     /// Accept with modifications to dialogue and/or tools
     AcceptWithModification {
@@ -117,7 +120,7 @@ pub enum DmApprovalDecision {
         /// Tools that were rejected
         rejected_tools: Vec<String>,
         /// Map of item IDs to recipient character IDs
-        item_recipients: HashMap<String, Vec<String>>,
+        item_recipients: HashMap<String, Vec<PlayerCharacterId>>,
     },
     /// Reject the proposed response with feedback for regeneration
     Reject {
@@ -219,14 +222,14 @@ pub struct SuggestionContext {
 /// Information about a proposed tool call.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposedTool {
-    /// Tool name
+    /// Tool ID (UUID for tracking)
     pub id: String,
     /// Tool name for display
     pub name: String,
     /// Tool description
     pub description: String,
-    /// Tool arguments as raw JSON
-    pub arguments: serde_json::Value,
+    /// Tool arguments as typed enum
+    pub arguments: ToolArgs,
 }
 
 /// Proposed challenge outcomes from the LLM.
@@ -241,7 +244,7 @@ pub struct ChallengeSuggestionOutcomes {
 /// LLM-suggested challenge data for the DM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChallengeSuggestion {
-    pub challenge_id: String,
+    pub challenge_id: ChallengeId,
     pub challenge_name: String,
     pub skill_name: String,
     pub difficulty_display: String,
@@ -254,7 +257,7 @@ pub struct ChallengeSuggestion {
 /// LLM-suggested narrative event data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NarrativeEventSuggestion {
-    pub event_id: String,
+    pub event_id: NarrativeEventId,
     pub event_name: String,
     pub description: String,
     pub scene_direction: String,

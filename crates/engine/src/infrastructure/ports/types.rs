@@ -74,11 +74,14 @@ pub struct ConnectedUserInfo {
 }
 
 /// Payload for user joined notification.
+///
+/// Note: Uses Option<PlayerCharacterSummary> (domain type) instead of JSON.
+/// JSON conversion happens at API layer (ws_session).
 #[derive(Debug, Clone)]
 pub struct UserJoinedInfo {
     pub user_id: UserId,
     pub role: WorldRole,
-    pub pc: Option<serde_json::Value>,
+    pub pc: Option<crate::use_cases::session::PlayerCharacterSummary>,
 }
 
 /// NPC disposition information for a specific PC (domain representation).

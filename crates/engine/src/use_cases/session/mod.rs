@@ -15,6 +15,7 @@ mod types;
 pub use directorial::{DirectorialUpdate, DirectorialUpdateContext, DirectorialUpdateInput};
 pub use join_world::{JoinWorld, JoinWorldError};
 pub use join_world_flow::{JoinWorldFlow, JoinWorldFlowError};
+pub use types::PlayerCharacterSummary;
 
 /// Container for session use cases.
 pub struct SessionUseCases {

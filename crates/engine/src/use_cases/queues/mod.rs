@@ -1296,8 +1296,8 @@ impl ProcessLlmRequest {
         };
 
         Some(crate::queue_types::ChallengeSuggestion {
-            // Store the dealiased UUID, not the alias, for auditing and persistence
-            challenge_id: challenge_id_str,
+            // Store the typed ID, not the string, for type safety
+            challenge_id,
             challenge_name: challenge.name().to_string(),
             skill_name: challenge
                 .check_stat()
@@ -1349,8 +1349,8 @@ impl ProcessLlmRequest {
         };
 
         Some(crate::queue_types::NarrativeEventSuggestion {
-            // Store the dealiased UUID, not the alias, for auditing and persistence
-            event_id: event_id_str,
+            // Store the typed ID, not string, for type safety
+            event_id,
             event_name: event.name().to_string(),
             description: event.description().to_string(),
             scene_direction: event.scene_direction().to_string(),
@@ -1395,7 +1395,7 @@ impl ProcessLlmRequest {
         );
 
         Some(crate::queue_types::NarrativeEventSuggestion {
-            event_id: event.id().to_string(),
+            event_id: event.id(),
             event_name: event.name().to_string(),
             description: event.description().to_string(),
             scene_direction: event.scene_direction().to_string(),
@@ -1441,7 +1441,7 @@ impl ProcessLlmRequest {
         );
 
         Some(crate::queue_types::ChallengeSuggestion {
-            challenge_id: challenge.id().to_string(),
+            challenge_id: challenge.id(),
             challenge_name: challenge.name().to_string(),
             skill_name: challenge
                 .check_stat()

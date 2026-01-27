@@ -267,13 +267,13 @@ async fn main() -> anyhow::Result<()> {
                                 id: t.id,
                                 name: t.name,
                                 description: t.description,
-                                arguments: t.arguments,
+                                arguments: t.arguments.to_json_value(),
                             })
                             .collect();
 
                         let challenge_suggestion = data.challenge_suggestion.map(|cs| {
                             wrldbldr_shared::ChallengeSuggestionInfo {
-                                challenge_id: cs.challenge_id,
+                                challenge_id: cs.challenge_id.to_string(),
                                 challenge_name: cs.challenge_name,
                                 skill_name: cs.skill_name,
                                 difficulty_display: cs.difficulty_display,
@@ -294,7 +294,7 @@ async fn main() -> anyhow::Result<()> {
                         let narrative_event_suggestion =
                             data.narrative_event_suggestion.map(|nes| {
                                 wrldbldr_shared::NarrativeEventSuggestionInfo {
-                                    event_id: nes.event_id,
+                                    event_id: nes.event_id.to_string(),
                                     event_name: nes.event_name,
                                     description: nes.description,
                                     scene_direction: nes.scene_direction,

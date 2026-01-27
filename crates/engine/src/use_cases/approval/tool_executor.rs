@@ -121,49 +121,98 @@ impl ToolExecutor {
         pc_id: Option<PlayerCharacterId>,
         npc_id: Option<CharacterId>,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        match tool.name.as_str() {
-            "give_item" => self.execute_give_item(tool, pc_id).await,
-            "change_relationship" => self.execute_change_relationship(tool, npc_id, pc_id).await,
-            "change_disposition" => self.execute_change_disposition(tool, npc_id).await,
-            "change_mood" => self.execute_change_mood(tool, npc_id).await,
-            "reveal_info" => self.execute_reveal_info(tool).await,
-            "trigger_event" => self.execute_trigger_event(tool).await,
-            "update_character_stat" => self.execute_update_character_stat(tool).await,
+        let tool_id = tool.id.clone();
+        // Match on typed ToolArgs variant and validate it matches tool name
+        match &tool.arguments {
+            crate::game_tools::ToolArgs::GiveItem { item_name, description } => {
+                if tool.name != "give_item" {
+                    return Err(ToolExecutionError::InvalidArgument(format!(
+                        "Tool name '{}' does not match arguments type GiveItem",
+                        tool.name
+                    )));
+                }
+                self.execute_give_item_typed(tool_id, pc_id, item_name, description).await
+            }
+            crate::game_tools::ToolArgs::RevealInfo {
+                info_type,
+                content,
+                importance: _,
+            } => {
+                if tool.name != "reveal_info" {
+                    return Err(ToolExecutionError::InvalidArgument(format!(
+                        "Tool name '{}' does not match arguments type RevealInfo",
+                        tool.name
+                    )));
+                }
+                self.execute_reveal_info_typed(tool_id, info_type, content).await
+            }
+            crate::game_tools::ToolArgs::ChangeRelationship {
+                change,
+                amount,
+                reason,
+            } => {
+                if tool.name != "change_relationship" {
+                    return Err(ToolExecutionError::InvalidArgument(format!(
+                        "Tool name '{}' does not match arguments type ChangeRelationship",
+                        tool.name
+                    )));
+                }
+                self.execute_change_relationship_typed(tool_id, npc_id, change, amount, reason).await
+            }
+            crate::game_tools::ToolArgs::TriggerEvent {
+                event_type,
+                description,
+            } => {
+                if tool.name != "trigger_event" {
+                    return Err(ToolExecutionError::InvalidArgument(format!(
+                        "Tool name '{}' does not match arguments type TriggerEvent",
+                        tool.name
+                    )));
+                }
+                self.execute_trigger_event_typed(tool_id, event_type, description).await
+            }
+            crate::game_tools::ToolArgs::UpdateCharacterStat {
+                character_id: _,
+                stat_name,
+                delta,
+            } => {
+                if tool.name != "update_character_stat" {
+                    return Err(ToolExecutionError::InvalidArgument(format!(
+                        "Tool name '{}' does not match arguments type UpdateCharacterStat",
+                        tool.name
+                    )));
+                }
+                self.execute_update_character_stat_typed(tool_id, stat_name, *delta).await
+            }
+            crate::game_tools::ToolArgs::Unknown => {
+                tracing::error!(tool_name = %tool.name, "Unknown tool variant in ToolArgs");
+                Err(ToolExecutionError::UnknownTool(tool.name.clone()))
+            }
             _ => {
-                tracing::error!(tool_name = %tool.name, "Unknown tool type in LLM response");
+                tracing::warn!(tool_name = %tool.name, "Tool not supported by executor");
                 Err(ToolExecutionError::UnknownTool(tool.name.clone()))
             }
         }
     }
 
     /// Execute give_item tool.
-    async fn execute_give_item(
+    async fn execute_give_item_typed(
         &self,
-        tool: &ProposedTool,
+        tool_id: String,
         pc_id: Option<PlayerCharacterId>,
+        item_name: &str,
+        description: &str,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let pc_id = pc_id.ok_or_else(|| {
             ToolExecutionError::MissingArgument("pc_id required for give_item".to_string())
         })?;
 
-        let item_name = tool
-            .arguments
-            .get("item_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolExecutionError::MissingArgument("item_name".to_string()))?;
-
-        let description = tool
-            .arguments
-            .get("description")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
         self.give_item
-            .execute(pc_id, item_name.to_string(), description)
+            .execute(pc_id, item_name.to_string(), Some(description.to_string()))
             .await?;
 
         Ok(ToolExecutionResult {
-            tool_id: tool.id.clone(),
+            tool_id,
             description: format!("Gave '{}' to player", item_name),
         })
     }
@@ -172,48 +221,28 @@ impl ToolExecutor {
     ///
     /// TODO: Implement proper relationship persistence when PC-NPC relationship
     /// tracking is fully designed. Currently logs the change for visibility.
-    async fn execute_change_relationship(
+    async fn execute_change_relationship_typed(
         &self,
-        tool: &ProposedTool,
+        tool_id: String,
         npc_id: Option<CharacterId>,
-        _pc_id: Option<PlayerCharacterId>,
+        change: &crate::game_tools::RelationshipChange,
+        amount: &crate::game_tools::ChangeAmount,
+        reason: &str,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let change = tool
-            .arguments
-            .get("change")
-            .and_then(|v| v.as_str())
-            .unwrap_or("improve");
-
-        let amount = tool
-            .arguments
-            .get("amount")
-            .and_then(|v| v.as_str())
-            .unwrap_or("moderate");
-
-        let reason = tool
-            .arguments
-            .get("reason")
-            .and_then(|v| v.as_str())
-            .unwrap_or("interaction");
-
         tracing::info!(
             npc_id = ?npc_id,
-            change = %change,
-            amount = %amount,
+            change = %change.as_str(),
+            amount = %amount.as_str(),
             reason = %reason,
             "Relationship change requested (persistence TBD)"
         );
 
         Ok(ToolExecutionResult {
-            tool_id: tool.id.clone(),
+            tool_id,
             description: format!(
                 "Relationship {} {} ({})",
-                if change == "improve" {
-                    "improved"
-                } else {
-                    "worsened"
-                },
-                amount,
+                change.as_str(),
+                amount.as_str(),
                 reason
             ),
         })
@@ -225,31 +254,15 @@ impl ToolExecutor {
     /// state tracking is designed. Currently logs the change for visibility.
     async fn execute_change_disposition(
         &self,
-        tool: &ProposedTool,
-        npc_id: Option<CharacterId>,
+        tool_id: String,
+        _tool: &ProposedTool,
+        _npc_id: Option<CharacterId>,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let new_disposition = tool
-            .arguments
-            .get("new_disposition")
-            .and_then(|v| v.as_str())
-            .unwrap_or("neutral");
-
-        let reason = tool
-            .arguments
-            .get("reason")
-            .and_then(|v| v.as_str())
-            .unwrap_or("interaction");
-
-        tracing::info!(
-            npc_id = ?npc_id,
-            disposition = %new_disposition,
-            reason = %reason,
-            "Disposition change requested (persistence TBD)"
-        );
-
+        // Legacy tool - no longer supported
+        tracing::warn!("change_disposition tool is deprecated and not supported");
         Ok(ToolExecutionResult {
-            tool_id: tool.id.clone(),
-            description: format!("Disposition changed to {} ({})", new_disposition, reason),
+            tool_id,
+            description: "Disposition change not supported".to_string(),
         })
     }
 
@@ -259,88 +272,45 @@ impl ToolExecutor {
     /// state tracking is designed. Currently logs the change for visibility.
     async fn execute_change_mood(
         &self,
-        tool: &ProposedTool,
-        npc_id: Option<CharacterId>,
+        tool_id: String,
+        _tool: &ProposedTool,
+        _npc_id: Option<CharacterId>,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let new_mood = tool
-            .arguments
-            .get("new_mood")
-            .and_then(|v| v.as_str())
-            .unwrap_or("calm");
-
-        let reason = tool
-            .arguments
-            .get("reason")
-            .and_then(|v| v.as_str())
-            .unwrap_or("interaction");
-
-        tracing::info!(
-            npc_id = ?npc_id,
-            mood = %new_mood,
-            reason = %reason,
-            "Mood change requested (persistence TBD)"
-        );
-
+        // Legacy tool - no longer supported
+        tracing::warn!("change_mood tool is deprecated and not supported");
         Ok(ToolExecutionResult {
-            tool_id: tool.id.clone(),
-            description: format!("Mood changed to {} ({})", new_mood, reason),
+            tool_id,
+            description: "Mood change not supported".to_string(),
         })
     }
 
     /// Execute reveal_info tool (currently just logs - info persistence TBD).
-    async fn execute_reveal_info(
+    async fn execute_reveal_info_typed(
         &self,
-        tool: &ProposedTool,
+        tool_id: String,
+        info_type: &str,
+        content: &str,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let info_type = tool
-            .arguments
-            .get("info_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("information");
-
-        let content = tool
-            .arguments
-            .get("content")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        let importance = tool
-            .arguments
-            .get("importance")
-            .and_then(|v| v.as_str())
-            .unwrap_or("minor");
-
         tracing::info!(
             info_type = %info_type,
-            importance = %importance,
             content = %content,
             "Information revealed (not yet persisted)"
         );
 
         // TODO: Persist revealed information to lore system when implemented
         Ok(ToolExecutionResult {
-            tool_id: tool.id.clone(),
-            description: format!("Revealed {} {} information", importance, info_type),
+            tool_id,
+            description: format!("Revealed {} information", info_type),
         })
     }
 
     /// Execute trigger_event tool (currently just logs - event triggering TBD).
-    async fn execute_trigger_event(
+    async fn execute_trigger_event_typed(
         &self,
-        tool: &ProposedTool,
+        tool_id: String,
+        event_type: &str,
+        description: &str,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let event_type = tool
-            .arguments
-            .get("event_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("narrative");
-
-        let description = tool
-            .arguments
-            .get("description")
-            .and_then(|v| v.as_str())
-            .unwrap_or("An event occurred");
-
         tracing::info!(
             event_type = %event_type,
             description = %description,
@@ -349,36 +319,19 @@ impl ToolExecutor {
 
         // TODO: Integrate with narrative event system when appropriate
         Ok(ToolExecutionResult {
-            tool_id: tool.id.clone(),
+            tool_id,
             description: format!("Triggered {} event: {}", event_type, description),
         })
     }
 
     /// Execute update_character_stat tool (currently just logs - stat updates TBD).
-    async fn execute_update_character_stat(
+    async fn execute_update_character_stat_typed(
         &self,
-        tool: &ProposedTool,
+        tool_id: String,
+        stat_name: &str,
+        delta: i32,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let stat_name = tool
-            .arguments
-            .get("stat_name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("stat");
-
-        let delta = tool
-            .arguments
-            .get("delta")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0) as i32;
-
-        let character_id = tool
-            .arguments
-            .get("character_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
         tracing::info!(
-            character_id = %character_id,
             stat_name = %stat_name,
             delta = %delta,
             "Stat update requested (not yet implemented)"
@@ -392,7 +345,7 @@ impl ToolExecutor {
         };
 
         Ok(ToolExecutionResult {
-            tool_id: tool.id.clone(),
+            tool_id,
             description: format!("Updated {} by {}", stat_name, change_str),
         })
     }
@@ -402,7 +355,6 @@ impl ToolExecutor {
 mod tests {
     use super::*;
     use crate::infrastructure::ports::{MockCharacterRepo, MockItemRepo, MockPlayerCharacterRepo};
-    use serde_json::json;
 
     fn mock_executor() -> ToolExecutor {
         ToolExecutor::new(
@@ -429,7 +381,7 @@ mod tests {
             id: "call_unknown".to_string(),
             name: "unknown_tool".to_string(),
             description: "Unknown tool".to_string(),
-            arguments: json!({}),
+            arguments: crate::game_tools::ToolArgs::Unknown,
         };
 
         let results = executor
@@ -449,7 +401,10 @@ mod tests {
             id: "call_123".to_string(),
             name: "give_item".to_string(),
             description: "Give item".to_string(),
-            arguments: json!({"item_name": "Sword"}),
+            arguments: crate::game_tools::ToolArgs::GiveItem {
+                item_name: "Sword".to_string(),
+                description: "Sharp blade".to_string(),
+            },
         };
 
         // Approve a tool that doesn't exist in proposed_tools

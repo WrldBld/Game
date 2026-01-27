@@ -120,7 +120,7 @@ impl JoinWorldFlow {
     /// * `world_id` - The world being joined
     /// * `role` - The role in the world (DM, Player, Spectator)
     /// * `pc_id` - Player character ID (if role is Player)
-    /// * `pc_json` - Pre-serialized PC data for the UserJoined notification
+    /// * `your_pc` - Player character summary for the UserJoined notification (domain type)
     pub async fn commit(
         &self,
         session: &WorldSession,
@@ -129,7 +129,7 @@ impl JoinWorldFlow {
         world_id: WorldId,
         role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
-        pc_json: Option<serde_json::Value>,
+        your_pc: Option<PlayerCharacterSummary>,
     ) -> Result<JoinWorldCommitted, JoinWorldFlowError> {
         // Update user_id from the client (stable identifier from browser storage)
         session.set_user_id(connection_id, user_id).await;
@@ -161,7 +161,7 @@ impl JoinWorldFlow {
             .map(|info| UserJoinedInfo {
                 user_id: info.user_id,
                 role,
-                pc: pc_json,
+                pc: your_pc,
             });
 
         Ok(JoinWorldCommitted {
@@ -214,12 +214,7 @@ impl JoinWorldFlow {
             })
             .collect();
 
-        // Convert PC summary to JSON for UserJoinedInfo (ports type uses Value)
-        let pc_json = join_result
-            .your_pc
-            .as_ref()
-            .and_then(|pc| serde_json::to_value(pc).ok());
-
+        // Build UserJoinedInfo with typed PC summary
         let user_joined = ctx
             .session
             .get_connection(input.connection_id)
@@ -227,7 +222,7 @@ impl JoinWorldFlow {
             .map(|info| UserJoinedInfo {
                 user_id: info.user_id,
                 role: input.role,
-                pc: pc_json.clone(),
+                pc: join_result.your_pc.clone(),
             });
 
         Ok(JoinWorldFlowResult {

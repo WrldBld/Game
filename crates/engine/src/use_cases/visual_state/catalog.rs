@@ -7,7 +7,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use wrldbldr_domain::{
-    ActivationLogic, ActivationRule, AssetPath, Atmosphere, Description, DomainError, LocationId,
+    ActivationLogic, ActivationRule, AssetPath, Atmosphere, BatchId, Description, DomainError, LocationId,
     LocationState, LocationStateId, RegionId, RegionState, RegionStateId, StateName,
 };
 
@@ -79,7 +79,7 @@ pub enum VisualStateDetails {
 pub struct GeneratedVisualState {
     pub location_state: Option<LocationState>,
     pub region_state: Option<RegionState>,
-    pub generation_batch_id: String,
+    pub generation_batch_id: BatchId,
     pub is_complete: bool,
 }
 
@@ -183,8 +183,8 @@ impl VisualStateCatalog {
         atmosphere: Option<String>,
         ambient_sound: Option<String>,
         map_overlay: Option<String>,
-        activation_rules_json: Option<serde_json::Value>,
-        activation_logic_str: Option<String>,
+        activation_rules: Vec<ActivationRule>,
+        activation_logic: ActivationLogic,
         priority: i32,
         is_default: bool,
     ) -> Result<LocationState, CatalogError> {
@@ -192,9 +192,6 @@ impl VisualStateCatalog {
             .ok_or(CatalogError::LocationNotFound(location_id))?;
 
         let now = self.clock.now();
-
-        let activation_rules = self.parse_activation_rules(activation_rules_json)?;
-        let activation_logic = self.parse_activation_logic(activation_logic_str)?;
 
         let mut state = LocationState::new(location_id, location.world_id(), name, now)?
             .with_description(Description::new(description.unwrap_or_default())?)
@@ -228,8 +225,8 @@ impl VisualStateCatalog {
         backdrop_asset: Option<String>,
         atmosphere: Option<String>,
         ambient_sound: Option<String>,
-        activation_rules_json: Option<serde_json::Value>,
-        activation_logic_str: Option<String>,
+        activation_rules: Vec<ActivationRule>,
+        activation_logic: ActivationLogic,
         priority: i32,
         is_default: bool,
     ) -> Result<RegionState, CatalogError> {
@@ -241,9 +238,6 @@ impl VisualStateCatalog {
             .ok_or(CatalogError::LocationNotFound(region.location_id()))?;
 
         let now = self.clock.now();
-
-        let activation_rules = self.parse_activation_rules(activation_rules_json)?;
-        let activation_logic = self.parse_activation_logic(activation_logic_str)?;
 
         let description = Description::new(description.unwrap_or_default())?;
 
@@ -336,8 +330,8 @@ impl VisualStateCatalog {
         atmosphere: Option<String>,
         ambient_sound: Option<String>,
         map_overlay: Option<String>,
-        activation_rules_json: Option<serde_json::Value>,
-        activation_logic_str: Option<String>,
+        activation_rules: Option<Vec<ActivationRule>>,
+        activation_logic: Option<ActivationLogic>,
         priority: Option<i32>,
         is_default: Option<bool>,
         generation_prompt: Option<String>,
@@ -371,8 +365,8 @@ impl VisualStateCatalog {
         let overlay = map_overlay.and_then(|m| AssetPath::new(m).ok());
 
         // Parse rules and logic
-        let activation_rules = self.parse_activation_rules(activation_rules_json)?;
-        let activation_logic = self.parse_activation_logic(activation_logic_str)?;
+        let activation_rules = activation_rules.unwrap_or_else(|| state.activation_rules().to_vec());
+        let activation_logic = activation_logic.unwrap_or_else(|| state.activation_logic());
 
         // Reconstruct with updates
         let now = self.clock.now();
@@ -412,8 +406,8 @@ impl VisualStateCatalog {
         backdrop_asset: Option<String>,
         atmosphere: Option<String>,
         ambient_sound: Option<String>,
-        activation_rules_json: Option<serde_json::Value>,
-        activation_logic_str: Option<String>,
+        activation_rules: Option<Vec<ActivationRule>>,
+        activation_logic: Option<ActivationLogic>,
         priority: Option<i32>,
         is_default: Option<bool>,
         generation_prompt: Option<String>,
@@ -446,8 +440,8 @@ impl VisualStateCatalog {
         let sound = ambient_sound.and_then(|s| AssetPath::new(s).ok());
 
         // Parse rules and logic
-        let activation_rules = self.parse_activation_rules(activation_rules_json)?;
-        let activation_logic = self.parse_activation_logic(activation_logic_str)?;
+        let activation_rules = activation_rules.unwrap_or_else(|| state.activation_rules().to_vec());
+        let activation_logic = activation_logic.unwrap_or_else(|| state.activation_logic());
 
         // Reconstruct with updates
         let now = self.clock.now();
@@ -488,26 +482,24 @@ impl VisualStateCatalog {
         _tags: Vec<String>,  // Tags reserved for future use
         generate_backdrop: bool,  // Whether to generate backdrop asset
         _generate_map: bool,  // Map generation not yet implemented
-        activation_rules_json: Option<serde_json::Value>,
-        activation_logic_str: Option<String>,
+        activation_rules: Vec<ActivationRule>,
+        activation_logic: ActivationLogic,
         priority: i32,
         is_default: bool,
     ) -> Result<GeneratedVisualState, CatalogError> {
         // Determine target and get world_id
-        let (world_id, location_state, region_state) = if let Some(loc_id) = location_id {
+        let (world_id, location_state, region_state) =         if let Some(loc_id) = location_id {
             let location = self.location_repo.get_location(loc_id).await?
                 .ok_or(CatalogError::LocationNotFound(loc_id))?;
 
             let state_id = LocationStateId::new();
-            let activation_rules = self.parse_activation_rules(activation_rules_json)?;
-            let activation_logic = self.parse_activation_logic(activation_logic_str)?;
             let now = self.clock.now();
 
             let state = LocationState::new_with_id(state_id, loc_id, location.world_id(), &name, now)?
                 .with_description(Description::new(description.clone())?)
                 .with_generation_prompt(prompt.clone())
                 .with_workflow_id(workflow_id.clone())
-                .with_rules(activation_rules, activation_logic)
+                .with_rules(activation_rules.clone(), activation_logic)
                 .with_priority(priority)
                 .with_is_default(is_default);
 
@@ -523,8 +515,6 @@ impl VisualStateCatalog {
                 .ok_or(CatalogError::LocationNotFound(region.location_id()))?;
 
             let state_id = RegionStateId::new();
-            let activation_rules = self.parse_activation_rules(activation_rules_json)?;
-            let activation_logic = self.parse_activation_logic(activation_logic_str)?;
             let now = self.clock.now();
 
             let description = Description::new(description.clone())?;
@@ -533,7 +523,7 @@ impl VisualStateCatalog {
                 .with_description(description)
                 .with_generation_prompt(prompt.clone())
                 .with_workflow_id(workflow_id.clone())
-                .with_rules(activation_rules, activation_logic)
+                .with_rules(activation_rules.clone(), activation_logic)
                 .with_priority(priority)
                 .with_is_default(is_default);
 
@@ -546,8 +536,8 @@ impl VisualStateCatalog {
             ));
         };
 
-        // Create generation batch ID
-        let batch_id = uuid::Uuid::new_v4().to_string();
+        // Create generation batch ID as typed BatchId
+        let batch_id = BatchId::new();
 
         // Enqueue asset generation if requested
         if generate_backdrop {
@@ -582,36 +572,6 @@ impl VisualStateCatalog {
             generation_batch_id: batch_id,
             is_complete: false, // Assets are queued but not yet generated
         })
-    }
-
-    /// Helper: Parse activation rules from JSON
-    fn parse_activation_rules(
-        &self,
-        json: Option<serde_json::Value>,
-    ) -> Result<Vec<ActivationRule>, CatalogError> {
-        match json {
-            Some(value) => {
-                serde_json::from_value(value)
-                    .map_err(|e| CatalogError::InvalidActivationRules(e.to_string()))
-            }
-            None => Ok(Vec::new()),
-        }
-    }
-
-    /// Helper: Parse activation logic from string
-    fn parse_activation_logic(
-        &self,
-        logic: Option<String>,
-    ) -> Result<ActivationLogic, CatalogError> {
-        match logic.as_deref() {
-            Some(s) if s == "All" => Ok(ActivationLogic::All),
-            Some(s) if s == "Any" => Ok(ActivationLogic::Any),
-            Some(s) if s == "AtLeast" => Ok(ActivationLogic::AtLeast(1)),
-            None => Ok(ActivationLogic::All),
-            Some(_) => Err(CatalogError::InvalidActivationLogic(
-                "Invalid activation logic. Must be 'All', 'Any', or 'AtLeast'".to_string()
-            )),
-        }
     }
 }
 

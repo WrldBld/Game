@@ -297,11 +297,89 @@ impl RollChallenge {
             outcome_triggers: outcome
                 .triggers
                 .iter()
-                .map(|t| ProposedTool {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    name: t.trigger_type_name().to_string(),
-                    description: t.to_string(),
-                    arguments: serde_json::Value::Null,
+                .map(|t| {
+                    let (name, description, tool_args) = match t {
+                        wrldbldr_domain::OutcomeTrigger::RevealInformation { info, persist: _ } => {
+                            (
+                                "reveal_info",
+                                t.to_string(),
+                                crate::game_tools::ToolArgs::RevealInfo {
+                                    info_type: "plot".to_string(),
+                                    content: info.clone(),
+                                    importance: crate::game_tools::InfoImportance::Minor,
+                                },
+                            )
+                        }
+                        wrldbldr_domain::OutcomeTrigger::GiveItem { item_name, item_description } => {
+                            (
+                                "give_item",
+                                t.to_string(),
+                                crate::game_tools::ToolArgs::GiveItem {
+                                    item_name: item_name.clone(),
+                                    description: item_description.as_ref().unwrap_or(&String::new()).clone(),
+                                },
+                            )
+                        }
+                        wrldbldr_domain::OutcomeTrigger::ModifyCharacterStat { stat, modifier } => {
+                            (
+                                "update_character_stat",
+                                t.to_string(),
+                                crate::game_tools::ToolArgs::UpdateCharacterStat {
+                                    character_id: wrldbldr_domain::CharacterId::new(), // Will be set by resolver
+                                    stat_name: stat.to_string(),
+                                    delta: *modifier,
+                                },
+                            )
+                        }
+                        wrldbldr_domain::OutcomeTrigger::TriggerScene { scene_id } => {
+                            (
+                                "trigger_event",
+                                t.to_string(),
+                                crate::game_tools::ToolArgs::TriggerEvent {
+                                    event_type: "scene_transition".to_string(),
+                                    description: format!("Transition to scene: {}", scene_id),
+                                },
+                            )
+                        }
+                        wrldbldr_domain::OutcomeTrigger::EnableChallenge { challenge_id } => {
+                            (
+                                "trigger_event",
+                                t.to_string(),
+                                crate::game_tools::ToolArgs::TriggerEvent {
+                                    event_type: "enable_challenge".to_string(),
+                                    description: format!("Enable challenge: {}", challenge_id),
+                                },
+                            )
+                        }
+                        wrldbldr_domain::OutcomeTrigger::DisableChallenge { challenge_id } => {
+                            (
+                                "trigger_event",
+                                t.to_string(),
+                                crate::game_tools::ToolArgs::TriggerEvent {
+                                    event_type: "disable_challenge".to_string(),
+                                    description: format!("Disable challenge: {}", challenge_id),
+                                },
+                            )
+                        }
+                        wrldbldr_domain::OutcomeTrigger::Custom { description } => {
+                            (
+                                "custom",
+                                t.to_string(),
+                                // Custom triggers don't map to standard tool args - use TriggerEvent as placeholder
+                                crate::game_tools::ToolArgs::TriggerEvent {
+                                    event_type: "custom".to_string(),
+                                    description: description.clone(),
+                                },
+                            )
+                        }
+                    };
+
+                    ProposedTool {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        name: name.to_string(),
+                        description,
+                        arguments: tool_args,
+                    }
                 })
                 .collect(),
             roll_breakdown: Some(format!(

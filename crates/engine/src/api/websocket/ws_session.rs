@@ -121,7 +121,7 @@ pub(super) async fn handle_join_world(
             world_id_typed,
             domain_role,
             pc_id_typed,
-            your_pc_json.clone(),
+            prepared.your_pc.clone(),
         )
         .await
     {
@@ -161,11 +161,13 @@ pub(super) async fn handle_join_world(
     // Phase 4: Broadcast (only after commit succeeds)
     // =========================================================================
     if let Some(joined) = &committed.user_joined {
+        // Convert typed PC summary to JSON at API boundary
+        let pc_json = joined.pc.as_ref().and_then(|pc| serde_json::to_value(pc).ok());
         let user_joined_msg = ServerMessage::UserJoined {
             user_id: joined.user_id.to_string(),
             username: None,
             role: joined.role.into(),
-            pc: joined.pc.clone(),
+            pc: pc_json,
         };
         state
             .connections

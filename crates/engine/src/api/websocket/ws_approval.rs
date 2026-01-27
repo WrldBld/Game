@@ -1,10 +1,27 @@
-use wrldbldr_domain::ConnectionId;
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId};
 
 use super::*;
 use crate::api::websocket::ws_time::time_suggestion_to_protocol;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_shared::ErrorCode;
+
+/// Convert protocol item_recipients (String PC IDs) to domain type (PlayerCharacterId)
+fn convert_item_recipients(
+    recipients: std::collections::HashMap<String, Vec<String>>,
+) -> std::collections::HashMap<String, Vec<PlayerCharacterId>> {
+    recipients
+        .into_iter()
+        .map(|(tool_id, pc_ids)| {
+            let typed_ids: Vec<PlayerCharacterId> = pc_ids
+                .into_iter()
+                .filter_map(|s| uuid::Uuid::parse_str(&s).ok())
+                .map(PlayerCharacterId::from_uuid)
+                .collect();
+            (tool_id, typed_ids)
+        })
+        .collect()
+}
 
 pub(super) async fn handle_approval_decision(
     state: &WsState,
@@ -45,7 +62,9 @@ pub(super) async fn handle_approval_decision(
     let domain_decision = match decision {
         wrldbldr_shared::ApprovalDecision::Accept => crate::queue_types::DmApprovalDecision::Accept,
         wrldbldr_shared::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
-            crate::queue_types::DmApprovalDecision::AcceptWithRecipients { item_recipients }
+            crate::queue_types::DmApprovalDecision::AcceptWithRecipients {
+                item_recipients: convert_item_recipients(item_recipients)
+            }
         }
         wrldbldr_shared::ApprovalDecision::Reject { feedback } => {
             crate::queue_types::DmApprovalDecision::Reject { feedback }
@@ -59,7 +78,7 @@ pub(super) async fn handle_approval_decision(
             modified_dialogue,
             approved_tools,
             rejected_tools,
-            item_recipients,
+            item_recipients: convert_item_recipients(item_recipients),
         },
         wrldbldr_shared::ApprovalDecision::TakeOver { dm_response } => {
             crate::queue_types::DmApprovalDecision::TakeOver { dm_response }
