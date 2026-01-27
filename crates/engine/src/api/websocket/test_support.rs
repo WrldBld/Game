@@ -710,23 +710,25 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
+    // Create queue processing context
+    let queue_ctx = crate::use_cases::queues::QueueProcessingContext::new(
+        queue_port.clone(),
+        challenge_repo.clone(),
+        narrative_repo.clone(),
+        character_repo.clone(),
+        player_character_repo.clone(),
+        staging_repo.clone(),
+        scene_repo.clone(),
+        world_repo.clone(),
+        location_repo.clone(),
+        narrative.clone(),
+    );
+
     let queues = crate::use_cases::QueueUseCases::new(
-        Arc::new(crate::use_cases::queues::ProcessPlayerAction::new(
-            queue_port.clone(),
-            character_repo.clone(),
-            player_character_repo.clone(),
-            staging_repo.clone(),
-            scene_repo.clone(),
-            world_repo.clone(),
-            narrative.clone(),
-            location_repo.clone(),
-            challenge_repo.clone(),
-        )),
+        Arc::new(crate::use_cases::queues::ProcessPlayerAction::new(queue_ctx.clone())),
         Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
-            queue_port.clone(),
+            queue_ctx,
             llm_port.clone(),
-            challenge_repo.clone(),
-            narrative_repo.clone(),
             prompt_templates_repo.clone(),
         )),
     );

@@ -343,23 +343,27 @@ impl App {
             )),
         );
 
+        // Create queue processing context
+        let queue_ctx = use_cases::queues::QueueProcessingContext::new(
+            queue_port.clone(),
+            repos.challenge.clone(),
+            repos.narrative.clone(),
+            repos.character.clone(),
+            repos.player_character.clone(),
+            repos.staging.clone(),
+            repos.scene.clone(),
+            repos.world.clone(),
+            repos.location.clone(),
+            narrative.clone(),
+        );
+
         let queues = use_cases::QueueUseCases::new(
             Arc::new(use_cases::queues::ProcessPlayerAction::new(
-                queue_port.clone(),
-                repos.character.clone(),
-                repos.player_character.clone(),
-                repos.staging.clone(),
-                repos.scene.clone(),
-                repos.world.clone(),
-                narrative.clone(),
-                repos.location.clone(),
-                repos.challenge.clone(),
+                queue_ctx.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
-                queue_port.clone(),
+                queue_ctx,
                 llm_port.clone(),
-                repos.challenge.clone(),
-                repos.narrative.clone(),
                 prompt_templates_repo.clone(),
             )),
         );

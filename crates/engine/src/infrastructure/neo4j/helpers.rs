@@ -650,3 +650,207 @@ pub const fn match_lore_by_world() -> &'static str {
 pub const fn return_knowledge_fields() -> &'static str {
     "RETURN l.id as lore_id, c.id as character_id, k.known_chunk_ids as known_chunk_ids, k.discovery_source as discovery_source, k.discovered_at as discovered_at, k.notes as notes"
 }
+
+// =============================================================================
+// Common Scene MATCH Fragments
+// =============================================================================
+
+/// Fragment for matching a Scene node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (s:Scene {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_scene_by_id;
+///
+/// let q = query(&format!("{} RETURN s", match_scene_by_id()))
+///     .param("id", scene_id.to_string());
+/// ```
+pub const fn match_scene_by_id() -> &'static str {
+    "MATCH (s:Scene {id: $id})"
+}
+
+// =============================================================================
+// Common NarrativeEvent MATCH Fragments
+// =============================================================================
+
+/// Fragment for matching a NarrativeEvent node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (e:NarrativeEvent {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_narrative_event_by_id;
+///
+/// let q = query(&format!("{} RETURN e", match_narrative_event_by_id()))
+///     .param("id", event_id.to_string());
+/// ```
+pub const fn match_narrative_event_by_id() -> &'static str {
+    "MATCH (e:NarrativeEvent {id: $id})"
+}
+
+// =============================================================================
+// Common EventChain MATCH Fragments
+// =============================================================================
+
+/// Fragment for matching an EventChain node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (c:EventChain {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_event_chain_by_id;
+///
+/// let q = query(&format!("{} RETURN c", match_event_chain_by_id()))
+///     .param("id", chain_id.to_string());
+/// ```
+pub const fn match_event_chain_by_id() -> &'static str {
+    "MATCH (c:EventChain {id: $id})"
+}
+
+// =============================================================================
+// Common StoryEvent MATCH Fragments
+// =============================================================================
+
+/// Fragment for matching a StoryEvent node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (e:StoryEvent {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_story_event_by_id;
+///
+/// let q = query(&format!("{} RETURN e", match_story_event_by_id()))
+///     .param("id", event_id.to_string());
+/// ```
+pub const fn match_story_event_by_id() -> &'static str {
+    "MATCH (e:StoryEvent {id: $id})"
+}
+
+// =============================================================================
+// Common RETURN Field Fragments
+// =============================================================================
+
+/// Fragment for returning a Scene node as 's'.
+///
+/// Returns `RETURN s` for RETURN clauses.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_scene;
+///
+/// let q = query(&format!("{} {}", match_scene_by_id(), return_scene()))
+///     .param("id", scene_id.to_string());
+/// ```
+pub const fn return_scene() -> &'static str {
+    "RETURN s"
+}
+
+/// Fragment for returning a NarrativeEvent node as 'e'.
+///
+/// Returns `RETURN e` for RETURN clauses.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_narrative_event;
+///
+/// let q = query(&format!("{} {}", match_narrative_event_by_id(), return_narrative_event()))
+///     .param("id", event_id.to_string());
+/// ```
+pub const fn return_narrative_event() -> &'static str {
+    "RETURN e"
+}
+
+/// Fragment for returning an EventChain node as 'c'.
+///
+/// Returns `RETURN c` for RETURN clauses.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_event_chain;
+///
+/// let q = query(&format!("{} {}", match_event_chain_by_id(), return_event_chain()))
+///     .param("id", chain_id.to_string());
+/// ```
+pub const fn return_event_chain() -> &'static str {
+    "RETURN c"
+}
+
+/// Fragment for returning a StoryEvent node as 'e'.
+///
+/// Returns `RETURN e` for RETURN clauses.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_story_event;
+///
+/// let q = query(&format!("{} {}", match_story_event_by_id(), return_story_event()))
+///     .param("id", event_id.to_string());
+/// ```
+pub const fn return_story_event() -> &'static str {
+    "RETURN e"
+}
+
+// =============================================================================
+// Common DELETE Fragments
+// =============================================================================
+
+/// Fragment for deleting a Scene node and all relationships.
+///
+/// Returns DETACH DELETE clause `DETACH DELETE s`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::delete_scene;
+///
+/// let q = query(&format!("{} {}", match_scene_by_id(), delete_scene()))
+///     .param("id", scene_id.to_string());
+/// ```
+pub const fn delete_scene() -> &'static str {
+    "DETACH DELETE s"
+}
+
+/// Fragment for deleting a NarrativeEvent node and all relationships.
+///
+/// Returns DETACH DELETE clause `DETACH DELETE e`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::delete_narrative_event;
+///
+/// let q = query(&format!("{} {}", match_narrative_event_by_id(), delete_narrative_event()))
+///     .param("id", event_id.to_string());
+/// ```
+pub const fn delete_narrative_event() -> &'static str {
+    "DETACH DELETE e"
+}
+
+/// Fragment for deleting an EventChain node and all relationships.
+///
+/// Returns DETACH DELETE clause `DETACH DELETE c`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::delete_event_chain;
+///
+/// let q = query(&format!("{} {}", match_event_chain_by_id(), delete_event_chain()))
+///     .param("id", chain_id.to_string());
+/// ```
+pub const fn delete_event_chain() -> &'static str {
+    "DETACH DELETE c"
+}
+
+/// Fragment for deleting a StoryEvent node and all relationships.
+///
+/// Returns DETACH DELETE clause `DETACH DELETE e`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::delete_story_event;
+///
+/// let q = query(&format!("{} {}", match_story_event_by_id(), delete_story_event()))
+///     .param("id", event_id.to_string());
+/// ```
+pub const fn delete_story_event() -> &'static str {
+    "DETACH DELETE e"
+}

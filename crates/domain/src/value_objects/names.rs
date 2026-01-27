@@ -15,6 +15,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::common;
 use crate::error::DomainError;
 
 /// Maximum length for name fields (CharacterName, LocationName, WorldName)
@@ -41,18 +42,9 @@ impl CharacterName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Character name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Character name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated =
+            common::validate_trimmed_non_empty(name, "Character name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -99,18 +91,8 @@ impl LocationName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Location name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Location name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated = common::validate_trimmed_non_empty(name, "Location name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -157,18 +139,8 @@ impl WorldName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("World name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "World name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated = common::validate_trimmed_non_empty(name, "World name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -215,18 +187,8 @@ impl SceneName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Scene name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Scene name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated = common::validate_trimmed_non_empty(name, "Scene name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -273,20 +235,9 @@ impl NarrativeEventName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation(
-                "Narrative event name cannot be empty",
-            ));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Narrative event name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated =
+            common::validate_trimmed_non_empty(name, "Narrative event name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -333,14 +284,8 @@ impl Description {
     ///
     /// Returns `DomainError::Validation` if the description exceeds 5000 characters.
     pub fn new(text: impl Into<String>) -> Result<Self, DomainError> {
-        let text = text.into();
-        if text.len() > MAX_DESCRIPTION_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Description cannot exceed {} characters",
-                MAX_DESCRIPTION_LENGTH
-            )));
-        }
-        Ok(Self(text))
+        let validated = common::validate_trimmed_max(text, "Description", MAX_DESCRIPTION_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Create an empty description.
@@ -416,6 +361,8 @@ impl Tag {
     pub fn new(tag: impl Into<String>) -> Result<Self, DomainError> {
         let tag = tag.into();
         let trimmed = tag.trim().to_lowercase();
+
+        // Validate using helper (note: already trimmed and lowercased, but helper re-checks)
         if trimmed.is_empty() {
             return Err(DomainError::validation("Tag cannot be empty"));
         }
@@ -425,6 +372,7 @@ impl Tag {
                 MAX_TAG_LENGTH
             )));
         }
+
         Ok(Self(trimmed))
     }
 
@@ -484,15 +432,7 @@ impl AssetPath {
     pub fn new(path: impl Into<String>) -> Result<Self, DomainError> {
         let path = path.into();
         let trimmed = path.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Asset path cannot be empty"));
-        }
-        if trimmed.len() > MAX_ASSET_PATH_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Asset path cannot exceed {} characters",
-                MAX_ASSET_PATH_LENGTH
-            )));
-        }
+
         // Check for invalid characters (null bytes, control chars except newline/tab)
         if trimmed
             .chars()
@@ -502,7 +442,11 @@ impl AssetPath {
                 "Asset path cannot contain null bytes or control characters",
             ));
         }
-        Ok(Self(trimmed.to_string()))
+
+        // Use helper for empty/max length validation
+        let validated =
+            common::validate_trimmed_non_empty(trimmed, "Asset path", MAX_ASSET_PATH_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the path as a string slice.
@@ -555,18 +499,8 @@ impl RegionName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Region name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Region name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated = common::validate_trimmed_non_empty(name, "Region name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -619,18 +553,8 @@ impl ItemName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Item name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Item name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated = common::validate_trimmed_non_empty(name, "Item name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -683,18 +607,9 @@ impl ChallengeName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Challenge name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Challenge name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated =
+            common::validate_trimmed_non_empty(name, "Challenge name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -747,18 +662,8 @@ impl GoalName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Goal name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Goal name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated = common::validate_trimmed_non_empty(name, "Goal name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -819,15 +724,8 @@ impl Atmosphere {
     ///
     /// Returns `DomainError::Validation` if the atmosphere exceeds 2000 characters.
     pub fn new(text: impl Into<String>) -> Result<Self, DomainError> {
-        let text = text.into();
-        let trimmed = text.trim().to_string();
-        if trimmed.len() > MAX_ATMOSPHERE_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Atmosphere cannot exceed {} characters",
-                MAX_ATMOSPHERE_LENGTH
-            )));
-        }
-        Ok(Self(trimmed))
+        let validated = common::validate_trimmed_max(text, "Atmosphere", MAX_ATMOSPHERE_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Create an empty atmosphere.
@@ -895,18 +793,9 @@ impl StateName {
     /// - The name is empty after trimming
     /// - The name exceeds 100 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("State name cannot be empty"));
-        }
-        if trimmed.len() > MAX_STATE_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "State name cannot exceed {} characters",
-                MAX_STATE_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated =
+            common::validate_trimmed_non_empty(name, "State name", MAX_STATE_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.
@@ -965,18 +854,9 @@ impl EventChainName {
     /// - The name is empty after trimming
     /// - The name exceeds 200 characters after trimming
     pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
-        let name = name.into();
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(DomainError::validation("Event chain name cannot be empty"));
-        }
-        if trimmed.len() > MAX_NAME_LENGTH {
-            return Err(DomainError::validation(format!(
-                "Event chain name cannot exceed {} characters",
-                MAX_NAME_LENGTH
-            )));
-        }
-        Ok(Self(trimmed.to_string()))
+        let validated =
+            common::validate_trimmed_non_empty(name, "Event chain name", MAX_NAME_LENGTH)?;
+        Ok(Self(validated))
     }
 
     /// Returns the name as a string slice.

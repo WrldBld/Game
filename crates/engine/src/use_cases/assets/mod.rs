@@ -10,7 +10,7 @@ pub mod expression_sheet;
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    AssetId, AssetPath, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata,
+    AssetId, AssetPath, AssetType, BatchId, DomainError, EntityType, GalleryAsset, GenerationMetadata,
     QueueItemId, WorldId,
 };
 
@@ -140,8 +140,7 @@ impl GenerateAsset {
         // Create asset
         let now = self.clock.now();
         let file_path_str = format!("assets/{:?}/{}.png", entity_type, owner_id.as_uuid());
-        let file_path = AssetPath::new(file_path_str)
-            .map_err(|e| GenerateError::InvalidPath(e.to_string()))?;
+        let file_path = AssetPath::new(file_path_str)?;
         let asset = GalleryAsset::new_generated(
             entity_type,
             owner_id.to_string(),
@@ -192,8 +191,6 @@ impl GenerateAsset {
 
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
-    #[error("Invalid asset path: {0}")]
-    InvalidPath(String),
     #[error("Service unavailable")]
     Unavailable,
     #[error("Repository error: {0}")]
@@ -202,4 +199,6 @@ pub enum GenerateError {
     ImageGen(#[from] ImageGenError),
     #[error("Queue error: {0}")]
     Queue(#[from] QueueError),
+    #[error("Domain error: {0}")]
+    Domain(#[from] DomainError),
 }

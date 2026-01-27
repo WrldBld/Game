@@ -39,7 +39,7 @@ pub enum CatalogError {
     Repo(#[from] RepoError),
 
     #[error("Queue error: {0}")]
-    Queue(String),
+    Queue(#[from] crate::infrastructure::ports::QueueError),
 
     #[error("Invalid activation rules JSON: {0}")]
     InvalidActivationRules(String),
@@ -245,9 +245,7 @@ impl VisualStateCatalog {
         let activation_rules = self.parse_activation_rules(activation_rules_json)?;
         let activation_logic = self.parse_activation_logic(activation_logic_str)?;
 
-        let description = Description::new(description.unwrap_or_default()).map_err(|e| {
-            CatalogError::Validation(e.to_string())
-        })?;
+        let description = Description::new(description.unwrap_or_default())?;
 
         let mut state = RegionState::new(
             region_id,
@@ -529,8 +527,7 @@ impl VisualStateCatalog {
             let activation_logic = self.parse_activation_logic(activation_logic_str)?;
             let now = self.clock.now();
 
-            let description = Description::new(description.clone())
-                .map_err(|e| CatalogError::Validation(e.to_string()))?;
+            let description = Description::new(description.clone())?;
 
             let state = RegionState::new_with_id(state_id, reg_id, region.location_id(), location.world_id(), &name, now)?
                 .with_description(description)
@@ -574,8 +571,7 @@ impl VisualStateCatalog {
                 count: 1,
             };
 
-            self.queue.enqueue_asset_generation(&data).await
-                .map_err(|e| CatalogError::Queue(e.to_string()))?;
+            self.queue.enqueue_asset_generation(&data).await?;
         }
 
         // Note: Map generation would be queued separately here when implemented

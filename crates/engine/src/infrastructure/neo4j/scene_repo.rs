@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt};
+use super::helpers::{delete_scene, match_scene_by_id, parse_typed_id, return_scene, NodeExt};
 use crate::infrastructure::ports::{RepoError, SceneRepo};
 
 // =============================================================================
@@ -224,7 +224,8 @@ impl Neo4jSceneRepo {
 #[async_trait]
 impl SceneRepo for Neo4jSceneRepo {
     async fn get(&self, id: SceneId) -> Result<Option<Scene>, RepoError> {
-        let q = query("MATCH (s:Scene {id: $id}) RETURN s").param("id", id.to_string());
+        let q = query(&format!("{} {}", match_scene_by_id(), return_scene()))
+            .param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -299,11 +300,8 @@ impl SceneRepo for Neo4jSceneRepo {
     }
 
     async fn delete(&self, id: SceneId) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (s:Scene {id: $id})
-            DETACH DELETE s",
-        )
-        .param("id", id.to_string());
+        let q = query(&format!("{} {}", match_scene_by_id(), delete_scene()))
+            .param("id", id.to_string());
 
         self.graph
             .run(q)

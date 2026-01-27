@@ -1,4 +1,128 @@
-//! String conversion utilities.
+//! String conversion utilities and validation helpers.
+
+use crate::error::DomainError;
+
+/// Validates a string field that must be non-empty after trimming.
+///
+/// This helper enforces the common validation pattern:
+/// - Trim leading/trailing whitespace
+/// - Ensure non-empty after trimming
+/// - Enforce maximum length
+/// - Return descriptive validation errors with field name
+///
+/// # Arguments
+///
+/// * `value` - The string value to validate
+/// * `field_name` - The name of the field (for error messages)
+/// * `max_len` - Maximum allowed length after trimming
+///
+/// # Errors
+///
+/// Returns `DomainError::Validation` if:
+/// - The value is empty after trimming
+/// - The value exceeds `max_len` characters after trimming
+///
+/// # Examples
+///
+/// ```ignore
+/// use wrldbldr_domain::common::validate_trimmed_non_empty;
+/// use wrldbldr_domain::error::DomainError;
+///
+/// // Valid input
+/// let result = validate_trimmed_non_empty("  Gandalf  ", "Character name", 200);
+/// assert!(result.is_ok());
+/// assert_eq!(result.unwrap(), "Gandalf");
+///
+/// // Empty after trimming
+/// let result = validate_trimmed_non_empty("   ", "Character name", 200);
+/// assert!(matches!(result, Err(DomainError::Validation(_))));
+/// assert!(result.unwrap_err().to_string().contains("Character name cannot be empty"));
+///
+/// // Too long
+/// let long = "a".repeat(201);
+/// let result = validate_trimmed_non_empty(&long, "Character name", 200);
+/// assert!(matches!(result, Err(DomainError::Validation(_))));
+/// assert!(result.unwrap_err().to_string().contains("200"));
+/// ```
+pub fn validate_trimmed_non_empty(
+    value: impl Into<String>,
+    field_name: &str,
+    max_len: usize,
+) -> Result<String, DomainError> {
+    let value = value.into();
+    let trimmed = value.trim();
+
+    if trimmed.is_empty() {
+        return Err(DomainError::validation(format!(
+            "{} cannot be empty",
+            field_name
+        )));
+    }
+
+    if trimmed.len() > max_len {
+        return Err(DomainError::validation(format!(
+            "{} cannot exceed {} characters",
+            field_name, max_len
+        )));
+    }
+
+    Ok(trimmed.to_string())
+}
+
+/// Validates a string field with maximum length (empty is allowed).
+///
+/// This helper enforces the common validation pattern for fields that can be empty:
+/// - Trim leading/trailing whitespace
+/// - Enforce maximum length (empty is valid)
+/// - Return descriptive validation errors with field name
+///
+/// # Arguments
+///
+/// * `value` - The string value to validate
+/// * `field_name` - The name of the field (for error messages)
+/// * `max_len` - Maximum allowed length after trimming
+///
+/// # Errors
+///
+/// Returns `DomainError::Validation` if the value exceeds `max_len` characters.
+///
+/// # Examples
+///
+/// ```ignore
+/// use wrldbldr_domain::common::validate_trimmed_max;
+///
+/// // Valid input with content
+/// let result = validate_trimmed_max("  Some description  ", "Description", 5000);
+/// assert!(result.is_ok());
+/// assert_eq!(result.unwrap(), "Some description");
+///
+/// // Empty is valid
+/// let result = validate_trimmed_max("", "Description", 5000);
+/// assert!(result.is_ok());
+/// assert_eq!(result.unwrap(), "");
+///
+/// // Too long
+/// let long = "a".repeat(5001);
+/// let result = validate_trimmed_max(&long, "Description", 5000);
+/// assert!(matches!(result, Err(DomainError::Validation(_))));
+/// ```
+pub fn validate_trimmed_max(
+    value: impl Into<String>,
+    field_name: &str,
+    max_len: usize,
+) -> Result<String, DomainError> {
+    let value = value.into();
+    let trimmed = value.trim();
+
+    if trimmed.len() > max_len {
+        return Err(DomainError::validation(format!(
+            "{} cannot exceed {} characters",
+            field_name, max_len
+        )));
+    }
+
+    Ok(trimmed.to_string())
+}
 
 /// Converts an empty string to `None`, otherwise returns `Some(value)`.
 ///
@@ -115,5 +239,119 @@ mod tests {
     #[test]
     fn test_string_ext_whitespace() {
         assert_eq!(" ".to_string().into_option(), Some(" ".to_string()));
+    }
+
+    mod validate_trimmed_non_empty {
+        use super::*;
+
+        #[test]
+        fn valid_string() {
+            let result = validate_trimmed_non_empty("hello", "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), "hello");
+        }
+
+        #[test]
+        fn string_is_trimmed() {
+            let result = validate_trimmed_non_empty("  hello  ", "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), "hello");
+        }
+
+        #[test]
+        fn empty_string_rejected() {
+            let result = validate_trimmed_non_empty("", "Test field", 100);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("Test field cannot be empty"));
+        }
+
+        #[test]
+        fn whitespace_only_rejected() {
+            let result = validate_trimmed_non_empty("   ", "Test field", 100);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+        }
+
+        #[test]
+        fn too_long_rejected() {
+            let long = "a".repeat(101);
+            let result = validate_trimmed_non_empty(&long, "Test field", 100);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("100"));
+        }
+
+        #[test]
+        fn max_length_accepted() {
+            let max = "a".repeat(100);
+            let result = validate_trimmed_non_empty(&max, "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap().len(), 100);
+        }
+
+        #[test]
+        fn error_message_contains_field_name() {
+            let result = validate_trimmed_non_empty("", "Character name", 100);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("Character name"));
+        }
+    }
+
+    mod validate_trimmed_max {
+        use super::*;
+
+        #[test]
+        fn valid_string() {
+            let result = validate_trimmed_max("hello", "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), "hello");
+        }
+
+        #[test]
+        fn string_is_trimmed() {
+            let result = validate_trimmed_max("  hello  ", "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), "hello");
+        }
+
+        #[test]
+        fn empty_string_is_valid() {
+            let result = validate_trimmed_max("", "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), "");
+        }
+
+        #[test]
+        fn whitespace_only_becomes_empty() {
+            let result = validate_trimmed_max("   ", "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), "");
+        }
+
+        #[test]
+        fn too_long_rejected() {
+            let long = "a".repeat(101);
+            let result = validate_trimmed_max(&long, "Test field", 100);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("100"));
+        }
+
+        #[test]
+        fn max_length_accepted() {
+            let max = "a".repeat(100);
+            let result = validate_trimmed_max(&max, "Test field", 100);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap().len(), 100);
+        }
+
+        #[test]
+        fn error_message_contains_field_name() {
+            let long = "a".repeat(101);
+            let result = validate_trimmed_max(&long, "Description", 100);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("Description"));
+        }
     }
 }

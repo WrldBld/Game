@@ -10,7 +10,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
+use super::helpers::{
+    delete_event_chain, delete_narrative_event, delete_story_event, match_event_chain_by_id,
+    match_narrative_event_by_id, match_story_event_by_id, parse_optional_typed_id, parse_typed_id,
+    return_event_chain, return_narrative_event, return_story_event, NodeExt,
+};
 use crate::infrastructure::ports::{
     ActiveConversationRecord, ClockPort, ConversationDetails, ConversationLocationContext,
     ConversationParticipantDetail, ConversationSceneContext, ConversationTurnRecord,
@@ -35,7 +39,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     // =========================================================================
 
     async fn get_event(&self, id: NarrativeEventId) -> Result<Option<NarrativeEvent>, RepoError> {
-        let q = query("MATCH (e:NarrativeEvent {id: $id}) RETURN e").param("id", id.to_string());
+        let q = query(&format!("{} {}", match_narrative_event_by_id(), return_narrative_event()))
+            .param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -190,11 +195,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn delete_event(&self, id: NarrativeEventId) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (e:NarrativeEvent {id: $id})
-            DETACH DELETE e",
-        )
-        .param("id", id.to_string());
+        let q = query(&format!("{} {}", match_narrative_event_by_id(), delete_narrative_event()))
+            .param("id", id.to_string());
 
         self.graph
             .run(q)
@@ -210,7 +212,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     // =========================================================================
 
     async fn get_chain(&self, id: EventChainId) -> Result<Option<EventChain>, RepoError> {
-        let q = query("MATCH (c:EventChain {id: $id}) RETURN c").param("id", id.to_string());
+        let q = query(&format!("{} {}", match_event_chain_by_id(), return_event_chain()))
+            .param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -301,11 +304,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (c:EventChain {id: $id})
-            DETACH DELETE c",
-        )
-        .param("id", id.to_string());
+        let q = query(&format!("{} {}", match_event_chain_by_id(), delete_event_chain()))
+            .param("id", id.to_string());
 
         self.graph
             .run(q)
@@ -348,7 +348,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     // =========================================================================
 
     async fn get_story_event(&self, id: StoryEventId) -> Result<Option<StoryEvent>, RepoError> {
-        let q = query("MATCH (e:StoryEvent {id: $id}) RETURN e").param("id", id.to_string());
+        let q = query(&format!("{} {}", match_story_event_by_id(), return_story_event()))
+            .param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -416,11 +417,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn delete_story_event(&self, id: StoryEventId) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $id})
-            DETACH DELETE e",
-        )
-        .param("id", id.to_string());
+        let q = query(&format!("{} {}", match_story_event_by_id(), delete_story_event()))
+            .param("id", id.to_string());
 
         self.graph
             .run(q)

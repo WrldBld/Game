@@ -36,12 +36,12 @@
 - [x] Remove legacy boolean field OR clauses from Cypher queries
 
 ### Phase 3 — Use case refactor + error mapping
-- [ ] Decompose queue processing fan-in (introduce internal context/helper)
-- [ ] Replace error stringification with typed errors (assets, visual_state, challenge)
+- [x] Decompose queue processing fan-in (introduce internal context/helper)
+- [x] Replace error stringification with typed errors (assets, visual_state, challenge)
 
 ### Phase 4 — Query/validation tech debt
-- [ ] Extend Neo4j helper fragments to narrative/scene repos where duplication remains
-- [ ] Consolidate string validation with common/string.rs where repeated
+- [x] Extend Neo4j helper fragments to narrative/scene repos where duplication remains
+- [x] Consolidate string validation with common/string.rs where repeated
 
 ---
 
@@ -49,7 +49,7 @@
 
 - [x] Phase 1 complete
 - [x] Phase 2 complete
-- [ ] Phase 3 complete
-- [ ] Phase 4 complete
-- [ ] Code review + architecture review
-- [ ] Checks/tests clean
+- [x] Phase 3 complete
+- [x] Phase 4 complete
+- [x] Code review + architecture review
+- [x] Checks/tests clean

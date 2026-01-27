@@ -16,4 +16,6 @@ pub mod string;
 
 // Re-export commonly used functions at crate root for convenience
 pub use datetime::{parse_datetime, parse_datetime_or};
-pub use string::{none_if_empty, some_if_not_empty, StringExt};
+pub use string::{
+    none_if_empty, some_if_not_empty, validate_trimmed_max, validate_trimmed_non_empty, StringExt,
+};

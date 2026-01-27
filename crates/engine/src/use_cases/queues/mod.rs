@@ -67,6 +67,166 @@ pub enum BroadcastEvent {
     },
 }
 
+/// Internal context for queue processing operations.
+///
+/// Owns shared repositories and provides helper methods for common operations.
+/// This reduces the constructor parameter count for queue use cases.
+#[derive(Clone)]
+pub struct QueueProcessingContext {
+    // Core repositories used by multiple queue processors
+    pub queue: Arc<dyn QueuePort>,
+    pub challenge: Arc<dyn ChallengeRepo>,
+    pub narrative: Arc<dyn NarrativeRepo>,
+
+    // Repositories specific to ProcessPlayerAction
+    pub character: Arc<dyn CharacterRepo>,
+    pub player_character: Arc<dyn PlayerCharacterRepo>,
+    pub staging: Arc<dyn StagingRepo>,
+    pub scene: Arc<dyn SceneRepo>,
+    pub world: Arc<dyn WorldRepo>,
+    pub location: Arc<dyn LocationRepo>,
+
+    // Services used by queue processors
+    pub narrative_ops: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
+}
+
+impl QueueProcessingContext {
+    pub fn new(
+        queue: Arc<dyn QueuePort>,
+        challenge: Arc<dyn ChallengeRepo>,
+        narrative: Arc<dyn NarrativeRepo>,
+        character: Arc<dyn CharacterRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        staging: Arc<dyn StagingRepo>,
+        scene: Arc<dyn SceneRepo>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        narrative_ops: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
+    ) -> Self {
+        Self {
+            queue,
+            challenge,
+            narrative,
+            character,
+            player_character,
+            staging,
+            scene,
+            world,
+            location,
+            narrative_ops,
+        }
+    }
+
+    /// Helper to fetch active challenges for a world
+    pub async fn fetch_active_challenges(
+        &self,
+        world_id: WorldId,
+    ) -> Vec<ActiveChallengeContext> {
+        self.challenge
+            .list_for_world(world_id)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to fetch active challenges");
+                vec![]
+            })
+            .into_iter()
+            .filter(|c| c.active())
+            .map(|c| {
+                let mut trigger_hints = TriggerHints::default();
+
+                for tc in c.trigger_conditions() {
+                    match &tc.condition_type {
+                        wrldbldr_domain::TriggerType::DialogueTopic { topic_keywords } => {
+                            trigger_hints.pc_mentions.extend(topic_keywords.clone());
+                        }
+                        wrldbldr_domain::TriggerType::ObjectInteraction { keywords } => {
+                            trigger_hints.interacts_with.extend(keywords.clone());
+                        }
+                        wrldbldr_domain::TriggerType::Custom { description } => {
+                            trigger_hints.custom.push(description.clone());
+                        }
+                        _ => {}
+                    }
+                }
+
+                ActiveChallengeContext {
+                    id: c.id().to_string(),
+                    name: c.name().to_string(),
+                    description: c.description().to_string(),
+                    skill_name: c
+                        .check_stat()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "General".to_string()),
+                    difficulty_display: c.difficulty().display(),
+                    trigger_hints,
+                }
+            })
+            .collect()
+    }
+
+    /// Helper to fetch active narrative events for a world
+    pub async fn fetch_active_narrative_events(
+        &self,
+        world_id: WorldId,
+    ) -> Vec<ActiveNarrativeEventContext> {
+        self.narrative_ops
+            .list_events(world_id)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to fetch narrative events");
+                vec![]
+            })
+            .into_iter()
+            .filter(|e| e.is_active() && (!e.is_triggered() || e.is_repeatable()))
+            .map(|e| {
+                let mut trigger_hints = TriggerHints::default();
+
+                for tc in e.trigger_conditions() {
+                    match &tc.trigger_type {
+                        wrldbldr_domain::NarrativeTriggerType::DialogueTopic {
+                            keywords, ..
+                        } => {
+                            trigger_hints.pc_mentions.extend(keywords.clone());
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::NpcAction {
+                            action_keywords,
+                            ..
+                        } => {
+                            trigger_hints
+                                .custom
+                                .push(format!("NPC action: {}", action_keywords.join(", ")));
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::Custom { description, .. } => {
+                            trigger_hints.custom.push(description.clone());
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::HasItem { item_name, .. } => {
+                            trigger_hints
+                                .custom
+                                .push(format!("PC has item: {}", item_name));
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::FlagSet { flag_name } => {
+                            trigger_hints
+                                .custom
+                                .push(format!("flag set: {}", flag_name));
+                        }
+                        _ => {}
+                    }
+                }
+
+                ActiveNarrativeEventContext {
+                    id: e.id().to_string(),
+                    name: e.name().to_string(),
+                    description: e.description().to_string(),
+                    scene_direction: e.scene_direction().to_string(),
+                    trigger_hints,
+                    featured_npc_names: vec![],
+                    priority: e.priority(),
+                }
+            })
+            .collect()
+    }
+}
+
 /// Container for queue use cases.
 pub struct QueueUseCases {
     pub process_player_action: Arc<ProcessPlayerAction>,
@@ -99,40 +259,12 @@ pub struct PlayerActionProcessed {
 /// Dequeues player actions, builds LLM prompts, and enqueues LLM requests.
 #[allow(dead_code)]
 pub struct ProcessPlayerAction {
-    queue: Arc<dyn QueuePort>,
-    character: Arc<dyn CharacterRepo>,
-    player_character: Arc<dyn PlayerCharacterRepo>,
-    staging: Arc<dyn StagingRepo>,
-    scene: Arc<dyn SceneRepo>,
-    world: Arc<dyn WorldRepo>,
-    narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
-    location: Arc<dyn LocationRepo>,
-    challenge: Arc<dyn ChallengeRepo>,
+    ctx: QueueProcessingContext,
 }
 
 impl ProcessPlayerAction {
-    pub fn new(
-        queue: Arc<dyn QueuePort>,
-        character: Arc<dyn CharacterRepo>,
-        player_character: Arc<dyn PlayerCharacterRepo>,
-        staging: Arc<dyn StagingRepo>,
-        scene: Arc<dyn SceneRepo>,
-        world: Arc<dyn WorldRepo>,
-        narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
-        location: Arc<dyn LocationRepo>,
-        challenge: Arc<dyn ChallengeRepo>,
-    ) -> Self {
-        Self {
-            queue,
-            character,
-            player_character,
-            staging,
-            scene,
-            world,
-            narrative,
-            location,
-            challenge,
-        }
+    pub fn new(ctx: QueueProcessingContext) -> Self {
+        Self { ctx }
     }
 
     /// Process the next player action in the queue.
@@ -140,7 +272,7 @@ impl ProcessPlayerAction {
     /// Returns None if the queue is empty.
     pub async fn execute(&self) -> Result<Option<PlayerActionProcessed>, QueueError> {
         // Dequeue the next player action
-        let item = match self.queue.dequeue_player_action().await? {
+        let item = match self.ctx.queue.dequeue_player_action().await? {
             Some(item) => item,
             None => return Ok(None),
         };
@@ -150,7 +282,8 @@ impl ProcessPlayerAction {
             crate::infrastructure::ports::QueueItemData::PlayerAction(data) => data,
             _ => {
                 // Wrong type - mark as failed and return
-                self.queue
+                self.ctx
+                    .queue
                     .mark_failed(item.id, "Invalid queue item type")
                     .await?;
                 return Err(QueueError::InvalidItemType);
@@ -176,10 +309,10 @@ impl ProcessPlayerAction {
         };
 
         // Enqueue the LLM request
-        let llm_request_id = self.queue.enqueue_llm_request(&llm_request).await?;
+        let llm_request_id = self.ctx.queue.enqueue_llm_request(&llm_request).await?;
 
         // Mark the player action as complete
-        self.queue.mark_complete(item.id).await?;
+        self.ctx.queue.mark_complete(item.id).await?;
 
         Ok(Some(PlayerActionProcessed {
             action_id: item.id.to_uuid(),
@@ -193,7 +326,7 @@ impl ProcessPlayerAction {
         action_data: &PlayerActionData,
     ) -> Result<GamePromptRequest, QueueError> {
         let pc = if let Some(pc_id) = action_data.pc_id {
-            self.player_character.get(pc_id).await?
+            self.ctx.player_character.get(pc_id).await?
         } else {
             None
         };
@@ -215,7 +348,7 @@ impl ProcessPlayerAction {
 
         // Fetch full NPC entity instead of just name
         let npc_entity = match npc_id {
-            Some(id) => self.character.get(id).await?.clone(),
+            Some(id) => self.ctx.character.get(id).await?.clone(),
             None => None,
         };
 
@@ -239,8 +372,9 @@ impl ProcessPlayerAction {
         };
 
         // Build scene context with actual location name
-        let current_scene = self.scene.get_current(action_data.world_id).await?;
+        let current_scene = self.ctx.scene.get_current(action_data.world_id).await?;
         let game_time = self
+            .ctx
             .world
             .get(action_data.world_id)
             .await?
@@ -253,7 +387,8 @@ impl ProcessPlayerAction {
 
         // Get actual location name from the location entity
         let location_name = if let Some(location_id) = pc_location_id {
-            self.location
+            self.ctx
+                .location
                 .get_location(location_id)
                 .await?
                 .map(|loc| loc.name().to_string())
@@ -275,7 +410,7 @@ impl ProcessPlayerAction {
 
         // Fetch NPC disposition toward PC (if both IDs exist) - optional context for prompt
         let disposition = match (npc_id, action_data.pc_id) {
-            (Some(npc), Some(pc)) => match self.character.get_disposition(npc, pc).await {
+            (Some(npc), Some(pc)) => match self.ctx.character.get_disposition(npc, pc).await {
                 Ok(d) => d,
                 Err(e) => {
                     tracing::debug!(npc_id = %npc, pc_id = %pc, error = %e, "Failed to fetch NPC disposition for prompt context");
@@ -287,7 +422,7 @@ impl ProcessPlayerAction {
 
         // Fetch NPC wants (motivations) - optional context for prompt
         let wants = match npc_id {
-            Some(npc) => match self.character.get_wants(npc).await {
+            Some(npc) => match self.ctx.character.get_wants(npc).await {
                 Ok(w) => Some(w),
                 Err(e) => {
                     tracing::debug!(npc_id = %npc, error = %e, "Failed to fetch NPC wants for prompt context");
@@ -440,7 +575,8 @@ impl ProcessPlayerAction {
         // Default limit is 20 turns (can be made configurable via settings)
         let conversation_history = match (action_data.pc_id, npc_id) {
             (Some(pc_id), Some(npc_id)) => self
-                .narrative
+                .ctx
+                .narrative_ops
                 .get_conversation_turns(pc_id, npc_id, 20)
                 .await
                 .unwrap_or_else(|e| {
@@ -455,113 +591,15 @@ impl ProcessPlayerAction {
 
         // Fetch active challenges for this world
         let active_challenges = self
-            .challenge
-            .list_for_world(action_data.world_id)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to fetch active challenges");
-                vec![]
-            })
-            .into_iter()
-            .filter(|c| c.active())
-            .map(|c| {
-                // Extract trigger hints from trigger conditions, grouped by type
-                let mut trigger_hints = TriggerHints::default();
-
-                for tc in c.trigger_conditions() {
-                    match &tc.condition_type {
-                        wrldbldr_domain::TriggerType::DialogueTopic { topic_keywords } => {
-                            trigger_hints.pc_mentions.extend(topic_keywords.clone());
-                        }
-                        wrldbldr_domain::TriggerType::ObjectInteraction { keywords } => {
-                            trigger_hints.interacts_with.extend(keywords.clone());
-                        }
-                        wrldbldr_domain::TriggerType::Custom { description } => {
-                            trigger_hints.custom.push(description.clone());
-                        }
-                        _ => {}
-                    }
-                }
-
-                ActiveChallengeContext {
-                    id: c.id().to_string(),
-                    name: c.name().to_string(),
-                    description: c.description().to_string(),
-                    skill_name: c
-                        .check_stat()
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| "General".to_string()),
-                    difficulty_display: c.difficulty().display(),
-                    trigger_hints,
-                }
-            })
-            .collect();
+            .ctx
+            .fetch_active_challenges(action_data.world_id)
+            .await;
 
         // Fetch active narrative events for this world
         let active_narrative_events: Vec<ActiveNarrativeEventContext> = self
-            .narrative
-            .list_events(action_data.world_id)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to fetch narrative events");
-                vec![]
-            })
-            .into_iter()
-            // Include active events that are either:
-            // 1. Not yet triggered, OR
-            // 2. Repeatable (can trigger again even if already triggered)
-            .filter(|e| e.is_active() && (!e.is_triggered() || e.is_repeatable()))
-            .map(|e| {
-                // Extract trigger hints from trigger conditions, grouped by type
-                let mut trigger_hints = TriggerHints::default();
-
-                for tc in e.trigger_conditions() {
-                    match &tc.trigger_type {
-                        wrldbldr_domain::NarrativeTriggerType::DialogueTopic {
-                            keywords, ..
-                        } => {
-                            trigger_hints.pc_mentions.extend(keywords.clone());
-                        }
-                        wrldbldr_domain::NarrativeTriggerType::NpcAction {
-                            action_keywords,
-                            ..
-                        } => {
-                            trigger_hints
-                                .custom
-                                .push(format!("NPC action: {}", action_keywords.join(", ")));
-                        }
-                        wrldbldr_domain::NarrativeTriggerType::Custom { description, .. } => {
-                            trigger_hints.custom.push(description.clone());
-                        }
-                        wrldbldr_domain::NarrativeTriggerType::HasItem { item_name, .. } => {
-                            trigger_hints
-                                .custom
-                                .push(format!("PC has item: {}", item_name));
-                        }
-                        wrldbldr_domain::NarrativeTriggerType::FlagSet { flag_name } => {
-                            trigger_hints
-                                .custom
-                                .push(format!("flag set: {}", flag_name));
-                        }
-                        _ => {}
-                    }
-                }
-
-                // Get featured NPC names (if any are associated via graph)
-                // Note: This would require a separate query; for now, use empty vec
-                let featured_npc_names: Vec<String> = vec![];
-
-                ActiveNarrativeEventContext {
-                    id: e.id().to_string(),
-                    name: e.name().to_string(),
-                    description: e.description().to_string(),
-                    scene_direction: e.scene_direction().to_string(),
-                    trigger_hints,
-                    featured_npc_names,
-                    priority: e.priority(),
-                }
-            })
-            .collect();
+            .ctx
+            .fetch_active_narrative_events(action_data.world_id)
+            .await;
 
         Ok(GamePromptRequest {
             world_id: Some(action_data.world_id.to_string()),
@@ -659,26 +697,20 @@ pub struct LlmRequestProcessed {
 ///
 /// Dequeues LLM requests, calls the LLM, and enqueues DM approval requests.
 pub struct ProcessLlmRequest {
-    queue: Arc<dyn QueuePort>,
+    ctx: QueueProcessingContext,
     llm: Arc<dyn LlmPort>,
-    challenge: Arc<dyn ChallengeRepo>,
-    narrative: Arc<dyn NarrativeRepo>,
     prompt_templates: Arc<dyn PromptTemplateRepo>,
 }
 
 impl ProcessLlmRequest {
     pub fn new(
-        queue: Arc<dyn QueuePort>,
+        ctx: QueueProcessingContext,
         llm: Arc<dyn LlmPort>,
-        challenge: Arc<dyn ChallengeRepo>,
-        narrative: Arc<dyn NarrativeRepo>,
         prompt_templates: Arc<dyn PromptTemplateRepo>,
     ) -> Self {
         Self {
-            queue,
+            ctx,
             llm,
-            challenge,
-            narrative,
             prompt_templates,
         }
     }
@@ -695,7 +727,7 @@ impl ProcessLlmRequest {
         F: FnOnce(Vec<BroadcastEvent>),
     {
         // Dequeue the next LLM request
-        let item = match self.queue.dequeue_llm_request().await? {
+        let item = match self.ctx.queue.dequeue_llm_request().await? {
             Some(item) => item,
             None => return Ok(None),
         };
@@ -704,7 +736,8 @@ impl ProcessLlmRequest {
         let request_data = match &item.data {
             crate::infrastructure::ports::QueueItemData::LlmRequest(data) => data.clone(),
             _ => {
-                self.queue
+                self.ctx
+                    .queue
                     .mark_failed(item.id, "Invalid queue item type")
                     .await?;
                 return Err(QueueError::InvalidItemType);
@@ -784,7 +817,7 @@ impl ProcessLlmRequest {
                 };
 
                 // Mark the LLM request as complete
-                self.queue.mark_complete(item.id).await?;
+                self.ctx.queue.mark_complete(item.id).await?;
 
                 Ok(Some(LlmRequestProcessed {
                     request_id: item.id.to_uuid(),
@@ -852,6 +885,7 @@ impl ProcessLlmRequest {
                 // Persist for hydration.
                 let result_json = serde_json::json!({ "suggestions": suggestions });
                 if let Err(e) = self
+                    .ctx
                     .queue
                     .set_result_json(item.id, &result_json.to_string())
                     .await
@@ -866,7 +900,7 @@ impl ProcessLlmRequest {
                 }
 
                 // Mark the LLM request as complete.
-                self.queue.mark_complete(item.id).await?;
+                self.ctx.queue.mark_complete(item.id).await?;
 
                 // Return only the completion event (progress was already emitted via callback)
                 Ok(Some(LlmRequestProcessed {
@@ -1208,10 +1242,10 @@ impl ProcessLlmRequest {
                 };
 
                 // Enqueue for DM approval
-                let approval_id = self.queue.enqueue_dm_approval(&approval_data).await?;
+                let approval_id = self.ctx.queue.enqueue_dm_approval(&approval_data).await?;
 
                 // Mark the LLM request as complete
-                self.queue.mark_complete(item.id).await?;
+                self.ctx.queue.mark_complete(item.id).await?;
                 Ok(Some(LlmRequestProcessed {
                     request_id: item.id.to_uuid(),
                     approval_id: approval_id.to_uuid(),
@@ -1242,7 +1276,7 @@ impl ProcessLlmRequest {
         let challenge_id: wrldbldr_domain::ChallengeId = try_parse_typed_id(&challenge_id_str)?;
 
         // Fetch challenge from database
-        let challenge = match self.challenge.get(challenge_id).await {
+        let challenge = match self.ctx.challenge.get(challenge_id).await {
             Ok(Some(c)) => c,
             Ok(None) => {
                 tracing::warn!(
@@ -1295,7 +1329,7 @@ impl ProcessLlmRequest {
         let event_id: wrldbldr_domain::NarrativeEventId = try_parse_typed_id(&event_id_str)?;
 
         // Fetch event from database
-        let event = match self.narrative.get_event(event_id).await {
+        let event = match self.ctx.narrative.get_event(event_id).await {
             Ok(Some(e)) => e,
             Ok(None) => {
                 tracing::warn!(
@@ -1337,7 +1371,7 @@ impl ProcessLlmRequest {
         event_name: &str,
     ) -> Option<crate::queue_types::NarrativeEventSuggestion> {
         // Find the event by name in this world
-        let events = match self.narrative.list_events_for_world(world_id).await {
+        let events = match self.ctx.narrative.list_events_for_world(world_id).await {
             Ok(e) => e,
             Err(e) => {
                 tracing::error!(
@@ -1383,7 +1417,7 @@ impl ProcessLlmRequest {
         pc_id: Option<wrldbldr_domain::PlayerCharacterId>,
     ) -> Option<crate::queue_types::ChallengeSuggestion> {
         // Find the challenge by name in this world
-        let challenges = match self.challenge.list_for_world(world_id).await {
+        let challenges = match self.ctx.challenge.list_for_world(world_id).await {
             Ok(c) => c,
             Err(e) => {
                 tracing::error!(

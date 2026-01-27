@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    self as domain, ChallengeId, ChallengeName, Description, Difficulty, WorldId,
+    self as domain, ChallengeId, ChallengeName, Description, Difficulty, WorldId, DomainError,
 };
 
 use crate::infrastructure::ports::{ChallengeRepo, RepoError};
@@ -58,8 +58,7 @@ impl ChallengeOps {
         input: CreateChallengeInput,
     ) -> Result<ChallengeSummary, ChallengeError> {
         // Convert input name to ChallengeName with validation
-        let challenge_name = ChallengeName::new(&input.name)
-            .map_err(|e| ChallengeError::ValidationError(e.to_string()))?;
+        let challenge_name = ChallengeName::new(&input.name)?;
 
         // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
         // This is intentional to support freeform difficulty descriptions
@@ -83,10 +82,12 @@ impl ChallengeOps {
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
         if !trigger_errors.is_empty() {
-            return Err(ChallengeError::ValidationError(format!(
-                "Invalid triggers: {}",
-                trigger_errors.join("; ")
-            )));
+            return Err(ChallengeError::ValidationError(
+                DomainError::validation(format!(
+                    "Invalid triggers: {}",
+                    trigger_errors.join("; ")
+                ))
+            ));
         }
 
         self.challenge.save(&challenge).await?;
@@ -107,8 +108,7 @@ impl ChallengeOps {
         // Since Challenge has private fields, we need to rebuild with updated values
         // Use accessors to get current values, then rebuild with builder pattern
         let name = if let Some(new_name) = input.name {
-            ChallengeName::new(&new_name)
-                .map_err(|e| ChallengeError::ValidationError(e.to_string()))?
+            ChallengeName::new(&new_name)?
         } else {
             challenge.name().clone()
         };
@@ -154,10 +154,12 @@ impl ChallengeOps {
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
         if !trigger_errors.is_empty() {
-            return Err(ChallengeError::ValidationError(format!(
-                "Invalid triggers: {}",
-                trigger_errors.join("; ")
-            )));
+            return Err(ChallengeError::ValidationError(
+                DomainError::validation(format!(
+                    "Invalid triggers: {}",
+                    trigger_errors.join("; ")
+                ))
+            ));
         }
 
         self.challenge.save(&challenge).await?;
@@ -227,14 +229,14 @@ pub enum ChallengeError {
     #[error("Challenge not found")]
     NotFound,
     #[error("Validation error: {0}")]
-    ValidationError(String),
+    ValidationError(#[from] DomainError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
 
 impl From<ValidationError> for ChallengeError {
     fn from(err: ValidationError) -> Self {
-        ChallengeError::ValidationError(err.to_string())
+        ChallengeError::ValidationError(DomainError::validation(err.to_string()))
     }
 }
 
