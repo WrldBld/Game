@@ -176,7 +176,9 @@ impl TryFrom<StatBlockStored> for StatBlock {
     fn try_from(value: StatBlockStored) -> Result<Self, Self::Error> {
         let mut stat_block = StatBlock::new()
             .with_current_hp(value.current_hp)
-            .with_max_hp(value.max_hp);
+            .map_err(|e| RepoError::database("parse", format!("Invalid current_hp: {}", e)))?
+            .with_max_hp(value.max_hp)
+            .map_err(|e| RepoError::database("parse", format!("Invalid max_hp: {}", e)))?;
         for (k, v) in value.stats {
             stat_block = stat_block.with_stat(k, v);
         }
@@ -1335,14 +1337,21 @@ impl CharacterRepo for Neo4jCharacterRepo {
         let mut wants_builder: Vec<WantContext> = Vec::new();
 
         for details in wants {
-            let mut want_ctx = WantContext::new(
+            let want_ctx = WantContext::new(
                 details.want.id(),
                 details.want.description().to_string(),
                 details.want.intensity(),
                 details.priority,
             )
-            .with_visibility(details.want.visibility())
-            .with_tells(details.want.tells().to_vec());
+            .map_err(|e| RepoError::ConstraintViolation(format!(
+                "WantContext validation failed for want {}: {}",
+                details.want.id(),
+                e
+            )))?;
+
+            let mut want_ctx = want_ctx
+                .with_visibility(details.want.visibility())
+                .with_tells(details.want.tells().to_vec());
 
             if let Some(target) = details.target {
                 want_ctx = want_ctx.with_target(target);

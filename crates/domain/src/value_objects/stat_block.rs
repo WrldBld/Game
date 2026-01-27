@@ -140,10 +140,18 @@ impl StatBlock {
         self
     }
 
-    pub fn with_hp(mut self, current: i32, max: i32) -> Self {
-        self.current_hp = Some(current);
-        self.max_hp = Some(max);
-        self
+    /// Set both current and max HP with validation (builder-style).
+    ///
+    /// This is a convenience method that delegates to `with_hp_validated()`.
+    /// Use `with_hp_validated()` directly if you need to handle validation errors explicitly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Either value is negative
+    /// - Current HP exceeds max HP
+    pub fn with_hp(self, current: i32, max: i32) -> Result<Self, crate::DomainError> {
+        self.with_hp_validated(current, max)
     }
 
     /// Get the base value of a stat (without modifiers)
@@ -308,18 +316,52 @@ impl StatBlock {
     ///
     /// This sets the base HP value. Modifiers are applied on top when
     /// reading via `get_current_hp()`.
-    pub fn with_current_hp(mut self, hp: Option<i32>) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if HP value is negative or exceeds max HP (if max is set).
+    pub fn with_current_hp(mut self, hp: Option<i32>) -> Result<Self, crate::DomainError> {
+        if let Some(hp_value) = hp {
+            if hp_value < 0 {
+                return Err(crate::DomainError::validation(
+                    "Current HP cannot be negative",
+                ));
+            }
+            if let Some(max) = self.max_hp {
+                if hp_value > max {
+                    return Err(crate::DomainError::validation(
+                        "Current HP cannot exceed max HP",
+                    ));
+                }
+            }
+        }
         self.current_hp = hp;
-        self
+        Ok(self)
     }
 
     /// Set max HP directly (builder-style).
     ///
     /// This sets the base max HP value. Modifiers are applied on top when
     /// reading via `get_max_hp()`.
-    pub fn with_max_hp(mut self, hp: Option<i32>) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if HP value is negative or is less than current HP.
+    pub fn with_max_hp(mut self, hp: Option<i32>) -> Result<Self, crate::DomainError> {
+        if let Some(hp_value) = hp {
+            if hp_value < 0 {
+                return Err(crate::DomainError::validation("Max HP cannot be negative"));
+            }
+            if let Some(current) = self.current_hp {
+                if current > hp_value {
+                    return Err(crate::DomainError::validation(
+                        "Max HP cannot be less than current HP",
+                    ));
+                }
+            }
+        }
         self.max_hp = hp;
-        self
+        Ok(self)
     }
 
     /// Set both current and max HP with validation (builder-style).
@@ -622,14 +664,14 @@ mod tests {
 
     #[test]
     fn stat_block_hp_tracking() {
-        let stats = StatBlock::new().with_hp(45, 50);
+        let stats = StatBlock::new().with_hp_validated(45, 50).unwrap();
         assert_eq!(stats.current_hp(), Some(45));
         assert_eq!(stats.max_hp(), Some(50));
     }
 
     #[test]
     fn stat_block_hp_with_modifiers() {
-        let stats = StatBlock::new().with_hp(45, 50);
+        let stats = StatBlock::new().with_hp_validated(45, 50).unwrap();
 
         // Base values should be accessible
         assert_eq!(stats.get_base_current_hp(), Some(45));
@@ -653,7 +695,8 @@ mod tests {
     #[test]
     fn stat_block_hp_modifiers_stack() {
         let stats = StatBlock::new()
-            .with_hp(30, 30)
+            .with_hp_validated(30, 30)
+            .unwrap()
             .with_hp_modifier("Heroism", 10)
             .with_hp_modifier("Aid", 5)
             .with_hp_modifier("Inspiring Leader", 8);
@@ -665,7 +708,8 @@ mod tests {
     #[test]
     fn stat_block_hp_negative_modifiers() {
         let stats = StatBlock::new()
-            .with_hp(50, 50)
+            .with_hp_validated(50, 50)
+            .unwrap()
             .with_hp_modifier("Poison", -10)
             .with_max_hp_modifier("Exhaustion", -5);
 
@@ -676,7 +720,8 @@ mod tests {
     #[test]
     fn stat_block_hp_inactive_modifiers() {
         let stats = StatBlock::new()
-            .with_hp(40, 40)
+            .with_hp_validated(40, 40)
+            .unwrap()
             .with_hp_modifier_inactive("Dormant Blessing", 15);
 
         // Inactive modifier shouldn't affect effective HP
@@ -692,7 +737,8 @@ mod tests {
     #[test]
     fn stat_block_hp_toggle_modifier() {
         let stats = StatBlock::new()
-            .with_hp(30, 30)
+            .with_hp_validated(30, 30)
+            .unwrap()
             .with_hp_modifier("Rage Bonus", 10);
 
         let modifiers = stats.get_hp_modifiers();
@@ -728,5 +774,64 @@ mod tests {
         assert_eq!(v1.base(), 10);
         assert_eq!(v1.modifier_total(), 4);
         assert_eq!(v1.effective(), 14);
+    }
+
+    // HP validation tests
+    #[test]
+    fn with_current_hp_rejects_negative() {
+        let stats = StatBlock::new();
+        let result = stats.with_current_hp(Some(-1));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("negative"));
+    }
+
+    #[test]
+    fn with_current_hp_rejects_exceeds_max() {
+        let stats = StatBlock::new().with_max_hp(Some(50)).unwrap();
+        let result = stats.with_current_hp(Some(60));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("exceed"));
+    }
+
+    #[test]
+    fn with_max_hp_rejects_negative() {
+        let stats = StatBlock::new();
+        let result = stats.with_max_hp(Some(-1));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("negative"));
+    }
+
+    #[test]
+    fn with_max_hp_rejects_less_than_current() {
+        let stats = StatBlock::new().with_current_hp(Some(50)).unwrap();
+        let result = stats.with_max_hp(Some(40));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("less than"));
+    }
+
+    #[test]
+    fn with_hp_validated_rejects_negative() {
+        let stats = StatBlock::new();
+        let result = stats.with_hp_validated(-1, 50);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("negative"));
+    }
+
+    #[test]
+    fn with_hp_validated_rejects_current_exceeds_max() {
+        let stats = StatBlock::new();
+        let result = stats.with_hp_validated(60, 50);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("exceed"));
+    }
+
+    #[test]
+    fn with_hp_validated_accepts_valid_values() {
+        let stats = StatBlock::new();
+        let result = stats.with_hp_validated(30, 50);
+        assert!(result.is_ok());
+        let stats = result.unwrap();
+        assert_eq!(stats.current_hp(), Some(30));
+        assert_eq!(stats.max_hp(), Some(50));
     }
 }

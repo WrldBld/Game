@@ -77,12 +77,27 @@ impl RollResult {
     /// Create a new roll result with computed `passed` value.
     ///
     /// A roll passes when `rolled <= chance_percent`.
-    pub fn new(chance_percent: u8, rolled: u8) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - chance_percent is not in range 0..=100
+    /// - rolled is not in range 0..=100
+    pub fn new(chance_percent: u8, rolled: u8) -> Result<Self, String> {
+        if chance_percent > 100 {
+            return Err(format!(
+                "Chance percent must be 0..=100, got {}",
+                chance_percent
+            ));
+        }
+        if rolled > 100 {
+            return Err(format!("Rolled value must be 0..=100, got {}", rolled));
+        }
+        Ok(Self {
             chance_percent,
             rolled,
             passed: rolled <= chance_percent,
-        }
+        })
     }
 
     /// Get the success chance (0-100)
@@ -220,7 +235,10 @@ impl RuleBasedSuggestion {
 
     /// Add a roll result
     pub fn with_roll(mut self, chance_percent: u8, rolled: u8) -> Self {
-        self.roll_result = Some(RollResult::new(chance_percent, rolled));
+        self.roll_result = Some(
+            RollResult::new(chance_percent, rolled)
+                .expect("RollResult::new should succeed with valid percent values"),
+        );
         self
     }
 }
@@ -231,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_roll_result_pass_when_rolled_less_than_chance() {
-        let result = RollResult::new(50, 30);
+        let result = RollResult::new(50, 30).unwrap();
         assert_eq!(result.chance_percent(), 50);
         assert_eq!(result.rolled(), 30);
         assert!(result.passed());
@@ -239,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_roll_result_pass_when_equal() {
-        let result = RollResult::new(50, 50);
+        let result = RollResult::new(50, 50).unwrap();
         assert_eq!(result.chance_percent(), 50);
         assert_eq!(result.rolled(), 50);
         assert!(result.passed());
@@ -247,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_roll_result_fail_when_rolled_higher() {
-        let result = RollResult::new(30, 50);
+        let result = RollResult::new(30, 50).unwrap();
         assert_eq!(result.chance_percent(), 30);
         assert_eq!(result.rolled(), 50);
         assert!(!result.passed());
@@ -255,19 +273,19 @@ mod tests {
 
     #[test]
     fn test_roll_result_always_fail_at_zero_chance() {
-        let result = RollResult::new(0, 0);
+        let result = RollResult::new(0, 0).unwrap();
         assert!(!result.passed());
 
-        let result = RollResult::new(0, 100);
+        let result = RollResult::new(0, 100).unwrap();
         assert!(!result.passed());
     }
 
     #[test]
     fn test_roll_result_always_pass_at_100_chance() {
-        let result = RollResult::new(100, 0);
+        let result = RollResult::new(100, 0).unwrap();
         assert!(result.passed());
 
-        let result = RollResult::new(100, 100);
+        let result = RollResult::new(100, 100).unwrap();
         assert!(result.passed());
     }
 }

@@ -550,9 +550,17 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     .with_id(id)
     .with_current_location(current_location_id)
     .with_current_region(current_region_id)
-    .with_description(description.unwrap_or_default().as_str())
     .with_state(CharacterState::from_legacy(is_alive, is_active))
     .with_last_active_at(last_active_at);
+
+    // Set optional description if present
+    if let Some(desc_str) = description {
+        pc = pc.with_description(desc_str)
+            .map_err(|e| RepoError::ConstraintViolation(format!(
+                "Invalid description for PlayerCharacter {}: {}",
+                id, e
+            )))?;
+    }
 
     // Set optional assets (convert from String to AssetPath)
     if let Some(asset_str) = sprite_asset {

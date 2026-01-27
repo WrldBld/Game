@@ -233,6 +233,16 @@ pub struct CalendarDefinition {
 
 impl CalendarDefinition {
     /// Create a new calendar definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - months is empty
+    /// - day_names is empty
+    /// - hours_per_day is zero
+    /// - minutes_per_hour is zero
+    /// - any month has zero days
+    /// - any intercalary day has after_month index out of bounds
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: CalendarId,
@@ -243,8 +253,39 @@ impl CalendarDefinition {
         minutes_per_hour: u8,
         intercalary_days: Vec<IntercalaryDay>,
         era: Option<EraDefinition>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DomainError> {
+        if months.is_empty() {
+            return Err(DomainError::validation("Months cannot be empty"));
+        }
+        if day_names.is_empty() {
+            return Err(DomainError::validation("Day names cannot be empty"));
+        }
+        if hours_per_day == 0 {
+            return Err(DomainError::validation("Hours per day must be positive"));
+        }
+        if minutes_per_hour == 0 {
+            return Err(DomainError::validation("Minutes per hour must be positive"));
+        }
+        for (idx, month) in months.iter().enumerate() {
+            if month.days == 0 {
+                return Err(DomainError::validation(format!(
+                    "Month {} ({}) cannot have zero days",
+                    idx + 1,
+                    month.name
+                )));
+            }
+        }
+        for intercalary in &intercalary_days {
+            if intercalary.after_month as usize >= months.len() {
+                return Err(DomainError::validation(format!(
+                    "Intercalary day '{}' after_month {} is out of bounds (must be 0..{})",
+                    intercalary.name,
+                    intercalary.after_month,
+                    months.len()
+                )));
+            }
+        }
+        Ok(Self {
             id,
             name: name.into(),
             months,
@@ -253,7 +294,7 @@ impl CalendarDefinition {
             minutes_per_hour,
             intercalary_days,
             era,
-        }
+        })
     }
 
     // Accessors
@@ -325,10 +366,10 @@ impl CalendarDefinition {
     /// - 7-day week: Sunday through Saturday
     /// - 24 hours per day, 60 minutes per hour
     pub fn gregorian() -> Self {
-        Self {
-            id: CalendarId::new("gregorian").expect("gregorian is a valid calendar ID"),
-            name: "Gregorian Calendar".to_string(),
-            months: vec![
+        Self::new(
+            CalendarId::new("gregorian").expect("gregorian is a valid calendar ID"),
+            "Gregorian Calendar",
+            vec![
                 MonthDefinition::with_season("January", 31, Season::Winter),
                 MonthDefinition::with_season("February", 28, Season::Winter),
                 MonthDefinition::with_season("March", 31, Season::Spring),
@@ -342,7 +383,7 @@ impl CalendarDefinition {
                 MonthDefinition::with_season("November", 30, Season::Autumn),
                 MonthDefinition::with_season("December", 31, Season::Winter),
             ],
-            day_names: vec![
+            vec![
                 "Sunday".to_string(),
                 "Monday".to_string(),
                 "Tuesday".to_string(),
@@ -351,11 +392,12 @@ impl CalendarDefinition {
                 "Friday".to_string(),
                 "Saturday".to_string(),
             ],
-            hours_per_day: 24,
-            minutes_per_hour: 60,
-            intercalary_days: vec![],
-            era: Some(EraDefinition::new("AD", 1)),
-        }
+            24,
+            60,
+            vec![],
+            Some(EraDefinition::new("AD", 1)),
+        )
+        .expect("Built-in Gregorian calendar is valid")
     }
 
     /// Creates the Calendar of Harptos (Forgotten Realms).
@@ -366,10 +408,10 @@ impl CalendarDefinition {
     /// - 10-day "tendays" instead of 7-day weeks
     /// - Era: DR (Dalereckoning)
     pub fn harptos() -> Self {
-        Self {
-            id: CalendarId::new("harptos").expect("harptos is a valid calendar ID"),
-            name: "Calendar of Harptos".to_string(),
-            months: vec![
+        Self::new(
+            CalendarId::new("harptos").expect("harptos is a valid calendar ID"),
+            "Calendar of Harptos",
+            vec![
                 MonthDefinition::with_season("Hammer", 30, Season::Winter),
                 MonthDefinition::with_season("Alturiak", 30, Season::Winter),
                 MonthDefinition::with_season("Ches", 30, Season::Spring),
@@ -383,7 +425,7 @@ impl CalendarDefinition {
                 MonthDefinition::with_season("Uktar", 30, Season::Autumn),
                 MonthDefinition::with_season("Nightal", 30, Season::Winter),
             ],
-            day_names: vec![
+            vec![
                 "First-day".to_string(),
                 "Second-day".to_string(),
                 "Third-day".to_string(),
@@ -395,17 +437,18 @@ impl CalendarDefinition {
                 "Ninth-day".to_string(),
                 "Tenth-day".to_string(),
             ],
-            hours_per_day: 24,
-            minutes_per_hour: 60,
-            intercalary_days: vec![
+            24,
+            60,
+            vec![
                 IntercalaryDay::new("Midwinter", 0),  // After Hammer (index 0)
                 IntercalaryDay::new("Greengrass", 3), // After Tarsakh (index 3)
                 IntercalaryDay::new("Midsummer", 6),  // After Flamerule (index 6)
                 IntercalaryDay::new("Highharvestide", 8), // After Eleint (index 8)
                 IntercalaryDay::new("Feast of the Moon", 10), // After Uktar (index 10)
             ],
-            era: Some(EraDefinition::new("DR", 1)),
-        }
+            Some(EraDefinition::new("DR", 1)),
+        )
+        .expect("Built-in Harptos calendar is valid")
     }
 }
 
@@ -1334,6 +1377,143 @@ mod tests {
             assert_eq!(date.second, 0);
         }
     }
+}
+
+// Validation tests
+#[test]
+fn calendar_definition_new_rejects_empty_months() {
+    let id = CalendarId::new("test").unwrap();
+    let result = CalendarDefinition::new(
+        id.clone(),
+        "Test Calendar",
+        vec![],
+        vec!["Day 1".to_string()],
+        24,
+        60,
+        vec![],
+        None,
+    );
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Months cannot be empty"));
+}
+
+#[test]
+fn calendar_definition_new_rejects_empty_day_names() {
+    let id = CalendarId::new("test").unwrap();
+    let result = CalendarDefinition::new(
+        id.clone(),
+        "Test Calendar",
+        vec![MonthDefinition::new("Jan", 31)],
+        vec![],
+        24,
+        60,
+        vec![],
+        None,
+    );
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Day names cannot be empty"));
+}
+
+#[test]
+fn calendar_definition_new_rejects_zero_hours_per_day() {
+    let id = CalendarId::new("test").unwrap();
+    let result = CalendarDefinition::new(
+        id.clone(),
+        "Test Calendar",
+        vec![MonthDefinition::new("Jan", 31)],
+        vec!["Day 1".to_string()],
+        0,
+        60,
+        vec![],
+        None,
+    );
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Hours per day must be positive"));
+}
+
+#[test]
+fn calendar_definition_new_rejects_zero_minutes_per_hour() {
+    let id = CalendarId::new("test").unwrap();
+    let result = CalendarDefinition::new(
+        id.clone(),
+        "Test Calendar",
+        vec![MonthDefinition::new("Jan", 31)],
+        vec!["Day 1".to_string()],
+        24,
+        0,
+        vec![],
+        None,
+    );
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Minutes per hour must be positive"));
+}
+
+#[test]
+fn calendar_definition_new_rejects_zero_day_month() {
+    let id = CalendarId::new("test").unwrap();
+    let result = CalendarDefinition::new(
+        id.clone(),
+        "Test Calendar",
+        vec![MonthDefinition::new("Jan", 0)],
+        vec!["Day 1".to_string()],
+        24,
+        60,
+        vec![],
+        None,
+    );
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("cannot have zero days"));
+}
+
+#[test]
+fn calendar_definition_new_rejects_invalid_intercalary_placement() {
+    let id = CalendarId::new("test").unwrap();
+    let result = CalendarDefinition::new(
+        id.clone(),
+        "Test Calendar",
+        vec![MonthDefinition::new("Jan", 31)],
+        vec!["Day 1".to_string()],
+        24,
+        60,
+        vec![IntercalaryDay::new("Special", 5)], // After month index 5, but only 1 month exists
+        None,
+    );
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("out of bounds"));
+}
+
+#[test]
+fn calendar_definition_new_accepts_valid_values() {
+    let id = CalendarId::new("test").unwrap();
+    let result = CalendarDefinition::new(
+        id.clone(),
+        "Test Calendar",
+        vec![MonthDefinition::new("Jan", 31)],
+        vec!["Day 1".to_string()],
+        24,
+        60,
+        vec![],
+        None,
+    );
+    assert!(result.is_ok());
+    let cal = result.unwrap();
+    assert_eq!(cal.months().len(), 1);
+    assert_eq!(cal.day_names().len(), 1);
 }
 
 #[allow(unused_imports)]

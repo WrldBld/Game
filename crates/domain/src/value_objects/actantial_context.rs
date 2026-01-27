@@ -305,13 +305,31 @@ pub struct WantContext {
 
 impl WantContext {
     /// Create a new WantContext with minimal data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - intensity is not in range 0.0..=1.0
+    /// - priority is less than 1
     pub fn new(
         want_id: WantId,
         description: impl Into<String>,
         intensity: f32,
         priority: u32,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, crate::DomainError> {
+        if !(0.0..=1.0).contains(&intensity) {
+            return Err(crate::DomainError::validation(format!(
+                "Intensity must be in range 0.0..=1.0, got {}",
+                intensity
+            )));
+        }
+        if priority < 1 {
+            return Err(crate::DomainError::validation(format!(
+                "Priority must be >= 1, got {}",
+                priority
+            )));
+        }
+        Ok(Self {
             want_id,
             description: description.into(),
             intensity,
@@ -324,7 +342,7 @@ impl WantContext {
             opponents: Vec::new(),
             sender: None,
             receiver: None,
-        }
+        })
     }
 
     // -------------------------------------------------------------------------
@@ -928,5 +946,97 @@ impl ActantialLLMContext {
         lines.push(self.social_summary.clone());
 
         lines.join("\n")
+    }
+
+    // Validation tests
+    #[test]
+    fn want_context_new_rejects_invalid_intensity() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", 1.5, 1);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("0.0..=1.0"));
+    }
+
+    #[test]
+    fn want_context_new_rejects_negative_intensity() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", -0.1, 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn want_context_new_rejects_zero_priority() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", 0.5, 0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains(">= 1"));
+    }
+
+    #[test]
+    fn want_context_new_accepts_valid_values() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", 0.5, 1);
+        assert!(result.is_ok());
+        let want = result.unwrap();
+        assert_eq!(want.intensity(), 0.5);
+        assert_eq!(want.priority(), 1);
+    }
+
+    #[test]
+    fn want_context_new_accepts_boundary_values() {
+        let want_id = WantId::new();
+        let result1 = WantContext::new(want_id, "Test", 0.0, 1);
+        assert!(result1.is_ok());
+        assert_eq!(result1.unwrap().intensity(), 0.0);
+
+        let result2 = WantContext::new(want_id, "Test", 1.0, 1);
+        assert!(result2.is_ok());
+        assert_eq!(result2.unwrap().intensity(), 1.0);
+    }
+
+    // Validation tests
+    #[test]
+    fn want_context_new_rejects_invalid_intensity() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", 1.5, 1);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("0.0..=1.0"));
+    }
+
+    #[test]
+    fn want_context_new_rejects_negative_intensity() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", -0.1, 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn want_context_new_rejects_zero_priority() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", 0.5, 0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains(">= 1"));
+    }
+
+    #[test]
+    fn want_context_new_accepts_valid_values() {
+        let want_id = WantId::new();
+        let result = WantContext::new(want_id, "Test", 0.5, 1);
+        assert!(result.is_ok());
+        let want = result.unwrap();
+        assert_eq!(want.intensity(), 0.5);
+        assert_eq!(want.priority(), 1);
+    }
+
+    #[test]
+    fn want_context_new_accepts_boundary_values() {
+        let want_id = WantId::new();
+        let result1 = WantContext::new(want_id, "Test", 0.0, 1);
+        assert!(result1.is_ok());
+        assert_eq!(result1.unwrap().intensity(), 0.0);
+
+        let result2 = WantContext::new(want_id, "Test", 1.0, 1);
+        assert!(result2.is_ok());
+        assert_eq!(result2.unwrap().intensity(), 1.0);
     }
 }

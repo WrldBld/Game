@@ -332,9 +332,13 @@ impl PlayerCharacter {
     }
 
     /// Set the character description.
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Description::new(description).ok();
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the description is invalid.
+    pub fn with_description(mut self, description: impl Into<String>) -> Result<Self, DomainError> {
+        self.description = Some(Description::new(description)?);
+        Ok(self)
     }
 
     /// Set the character sheet data.
@@ -450,8 +454,19 @@ impl PlayerCharacter {
     }
 
     /// Set the character's description.
-    pub fn set_description(&mut self, description: Option<impl Into<String>>) {
-        self.description = description.and_then(|d| Description::new(d).ok());
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the description is invalid.
+    pub fn set_description(
+        &mut self,
+        description: Option<impl Into<String>>,
+    ) -> Result<(), DomainError> {
+        self.description = match description {
+            Some(d) => Some(Description::new(d)?),
+            None => None,
+        };
+        Ok(())
     }
 
     /// Set the character sheet data.
@@ -694,6 +709,7 @@ mod tests {
 
             let pc = PlayerCharacter::new(user_id, world_id, name, location_id, now)
                 .with_description("A loyal gardener")
+                .unwrap()
                 .with_starting_region(region_id)
                 .with_sprite(AssetPath::new("sprites/sam.png").unwrap())
                 .with_portrait(AssetPath::new("portraits/sam.png").unwrap());
@@ -861,6 +877,38 @@ mod tests {
         fn validate_passes_for_valid_pc() {
             let pc = create_test_pc();
             assert!(pc.validate().is_ok());
+        }
+
+        #[test]
+        fn with_description_rejects_empty_string() {
+            let world_id = WorldId::new();
+            let location_id = LocationId::new();
+            let name = CharacterName::new("Test").unwrap();
+            let now = fixed_time();
+            let user_id = UserId::new("user123").unwrap();
+
+            let result = PlayerCharacter::new(user_id, world_id, name, location_id, now)
+                .with_description("");
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("empty"));
+        }
+
+        #[test]
+        fn set_description_rejects_invalid() {
+            let mut pc = create_test_pc();
+            let result = pc.set_description(Some("   ".repeat(1000)));
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn set_description_clears_to_none() {
+            let mut pc = create_test_pc();
+            pc.set_description(Some("Valid")).unwrap();
+            assert_eq!(pc.description(), Some("Valid"));
+
+            let result = pc.set_description::<String>(None);
+            assert!(result.is_ok());
+            assert_eq!(pc.description(), None);
         }
     }
 }

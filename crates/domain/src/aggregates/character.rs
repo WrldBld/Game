@@ -361,7 +361,7 @@ impl Character {
     /// let world_id = WorldId::new();
     /// let name = CharacterName::new("Boromir").unwrap();
     /// let mut character = Character::new(world_id, name, CampbellArchetype::Hero)
-    ///     .with_stats(StatBlock::new().with_hp(50, 50));
+    ///     .with_stats(StatBlock::new().with_hp_validated(50, 50).unwrap());
     ///
     /// match character.apply_damage(30) {
     ///     DamageOutcome::Wounded { damage_dealt, remaining_hp } => {
@@ -387,7 +387,9 @@ impl Character {
 
         // Apply damage
         let new_hp = current_hp.saturating_sub(amount);
-        self.stats = std::mem::take(&mut self.stats).with_current_hp(Some(new_hp));
+        self.stats = std::mem::take(&mut self.stats)
+            .with_current_hp(Some(new_hp))
+            .expect("Damage logic ensures new_hp is non-negative and <= max_hp");
 
         if new_hp <= 0 {
             self.state = CharacterState::Dead;
@@ -420,7 +422,7 @@ impl Character {
     /// let world_id = WorldId::new();
     /// let name = CharacterName::new("Frodo").unwrap();
     /// let mut character = Character::new(world_id, name, CampbellArchetype::Hero)
-    ///     .with_stats(StatBlock::new().with_hp(20, 50));
+    ///     .with_stats(StatBlock::new().with_hp_validated(20, 50).unwrap());
     ///
     /// match character.heal(15) {
     ///     HealOutcome::Healed { amount_healed, new_hp } => {
@@ -457,7 +459,9 @@ impl Character {
         // Use saturating_add to prevent overflow, then cap at max_hp
         let new_hp: i32 = current_hp.saturating_add(amount).min(max_hp);
         let actual_healed = new_hp - current_hp;
-        self.stats = std::mem::take(&mut self.stats).with_current_hp(Some(new_hp));
+        self.stats = std::mem::take(&mut self.stats)
+            .with_current_hp(Some(new_hp))
+            .expect("Heal logic ensures new_hp is non-negative and <= max_hp");
 
         HealOutcome::Healed {
             amount_healed: actual_healed,
@@ -484,7 +488,7 @@ impl Character {
     /// let world_id = WorldId::new();
     /// let name = CharacterName::new("Gandalf").unwrap();
     /// let mut character = Character::new(world_id, name, CampbellArchetype::Mentor)
-    ///     .with_stats(StatBlock::new().with_hp(100, 100));
+    ///     .with_stats(StatBlock::new().with_hp_validated(100, 100).unwrap());
     ///
     /// // Kill the character
     /// character.apply_damage(200);
@@ -511,7 +515,9 @@ impl Character {
             None => 1,
         };
 
-        self.stats = std::mem::take(&mut self.stats).with_current_hp(Some(hp_restored_to));
+        self.stats = std::mem::take(&mut self.stats)
+            .with_current_hp(Some(hp_restored_to))
+            .expect("Resurrect logic ensures hp_restored_to is non-negative and <= max_hp");
         self.state = CharacterState::Active;
 
         ResurrectOutcome::Resurrected { hp_restored_to }
@@ -708,8 +714,8 @@ mod tests {
 
         #[test]
         fn apply_damage_wounds_character() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(50, 50));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp(50, 50).expect("valid HP"));
 
             let outcome = character.apply_damage(20);
             assert_eq!(
@@ -725,8 +731,8 @@ mod tests {
 
         #[test]
         fn apply_damage_kills_character() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(20, 50));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp_validated(20, 50).unwrap());
 
             let outcome = character.apply_damage(30);
             assert_eq!(outcome, DamageOutcome::Killed { damage_dealt: 30 });
@@ -735,8 +741,8 @@ mod tests {
 
         #[test]
         fn apply_damage_to_dead_character_returns_already_dead() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(10, 50));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp_validated(10, 50).unwrap());
 
             character.apply_damage(100); // Kill
             let outcome = character.apply_damage(10); // Try again
@@ -757,8 +763,8 @@ mod tests {
 
         #[test]
         fn heal_heals_character() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(20, 50));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp(20, 50).expect("valid HP"));
 
             let outcome = character.heal(15);
             assert_eq!(
@@ -773,8 +779,8 @@ mod tests {
 
         #[test]
         fn heal_caps_at_max_hp() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(45, 50));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp_validated(45, 50).unwrap());
 
             let outcome = character.heal(20);
             assert_eq!(
@@ -788,8 +794,8 @@ mod tests {
 
         #[test]
         fn heal_at_max_hp_returns_already_full() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(50, 50));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp_validated(50, 50).unwrap());
 
             let outcome = character.heal(10);
             assert_eq!(outcome, HealOutcome::AlreadyFull);
@@ -797,8 +803,8 @@ mod tests {
 
         #[test]
         fn heal_dead_character_returns_dead() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(10, 50));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp_validated(10, 50).unwrap());
 
             character.apply_damage(100); // Kill
             let outcome = character.heal(10);
@@ -819,8 +825,8 @@ mod tests {
 
         #[test]
         fn resurrect_dead_character_restores_to_half_hp() {
-            let mut character =
-                create_test_character().with_stats(StatBlock::new().with_hp(100, 100));
+            let mut character = create_test_character()
+                .with_stats(StatBlock::new().with_hp_validated(100, 100).unwrap());
 
             character.apply_damage(200); // Kill
             assert!(character.is_dead());
