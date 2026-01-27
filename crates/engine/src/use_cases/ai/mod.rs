@@ -39,7 +39,7 @@ pub struct SuggestionContextInput {
     pub world_setting: Option<String>,
     pub hints: Option<String>,
     pub additional_context: Option<String>,
-    pub world_id: Option<Uuid>,
+    pub world_id: Option<WorldId>,
 }
 
 pub struct AiUseCases {
@@ -87,7 +87,7 @@ impl SuggestionOps {
             world_setting,
             hints: context.hints,
             additional_context: context.additional_context,
-            world_id: context.world_id.map(WorldId::from_uuid),
+            world_id: context.world_id,
         };
 
         self.queue_suggestion(world_id, suggestion_type, None, Some(suggestion_context))

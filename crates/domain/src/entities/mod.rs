@@ -42,7 +42,7 @@ pub use character_content::{
 };
 pub use class_feature::{BackgroundFeature, ClassFeature, FeatureUses, RacialTrait};
 pub use content_types::{ContentSource, ContentType, SourceType};
-pub use event_chain::{ChainStatus, EventChain};
+pub use event_chain::{ChainStatus, EventChain, EventChainActivation, EventChainFavorite};
 pub use feat::{AbilityUses, Feat, FeatBenefit, Prerequisite, RechargeType, UsesFormula};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 pub use game_flag::{FlagScope, GameFlag};
@@ -78,10 +78,10 @@ pub use staging::{
     NpcPresence, ResolvedStateInfo, ResolvedVisualState, StagedNpc, Staging, StagingSource,
     VisualStateSource,
 };
-pub use story_event::InfoImportance as StoryEventInfoImportance;
 pub use story_event::{
-    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType,
-    InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventType,
+    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType,
+    InfoImportance as StoryEventInfoImportance, InfoType, InvolvedCharacter, ItemSource,
+    MarkerImportance, StoryEvent, StoryEventType, StoryEventVisibility,
 };
 pub use want::{ActantialRole, ActantialView, CharacterWant, Want, WantTargetType, WantVisibility};
 // Note: World is now exported from aggregates

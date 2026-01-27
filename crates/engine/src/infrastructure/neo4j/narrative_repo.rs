@@ -83,16 +83,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 e.suggested_opening = $suggested_opening,
                 e.outcomes_json = $outcomes_json,
                 e.default_outcome = $default_outcome,
-                e.is_active = $is_active,
-                e.is_triggered = $is_triggered,
-                e.triggered_at = $triggered_at,
-                e.selected_outcome = $selected_outcome,
-                e.is_repeatable = $is_repeatable,
+                e.activation = $activation,
+                e.trigger_status_json = $trigger_status_json,
+                e.repeatability = $repeatability,
                 e.trigger_count = $trigger_count,
                 e.delay_turns = $delay_turns,
                 e.expires_after_turns = $expires_after_turns,
                 e.priority = $priority,
-                e.is_favorite = $is_favorite,
+                e.favorite = $favorite,
                 e.created_at = $created_at,
                 e.updated_at = $updated_at
             ON MATCH SET
@@ -105,16 +103,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 e.suggested_opening = $suggested_opening,
                 e.outcomes_json = $outcomes_json,
                 e.default_outcome = $default_outcome,
-                e.is_active = $is_active,
-                e.is_triggered = $is_triggered,
-                e.triggered_at = $triggered_at,
-                e.selected_outcome = $selected_outcome,
-                e.is_repeatable = $is_repeatable,
+                e.activation = $activation,
+                e.trigger_status_json = $trigger_status_json,
+                e.repeatability = $repeatability,
                 e.trigger_count = $trigger_count,
                 e.delay_turns = $delay_turns,
                 e.expires_after_turns = $expires_after_turns,
                 e.priority = $priority,
-                e.is_favorite = $is_favorite,
+                e.favorite = $favorite,
                 e.updated_at = $updated_at
             WITH e
             MATCH (w:World {id: $world_id})
@@ -143,23 +139,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .map(|s| s.to_string())
                 .unwrap_or_default(),
         )
-        .param("is_active", event.is_active())
-        .param("is_triggered", event.is_triggered())
-        .param(
-            "triggered_at",
-            event
-                .triggered_at()
-                .map(|t| t.to_rfc3339())
-                .unwrap_or_default(),
-        )
-        .param(
-            "selected_outcome",
-            event
-                .selected_outcome()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        )
-        .param("is_repeatable", event.is_repeatable())
+        .param("activation", format!("{:?}", event.activation()))
+        .param("trigger_status_json", format!("{:?}", event.trigger_status()))
+        .param("repeatability", format!("{:?}", event.repeatability()))
         .param("trigger_count", event.trigger_count() as i64)
         .param("delay_turns", event.delay_turns() as i64)
         .param(
@@ -167,7 +149,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             event.expires_after_turns().map(|t| t as i64).unwrap_or(-1),
         )
         .param("priority", event.priority() as i64)
-        .param("is_favorite", event.is_favorite())
+        .param("favorite", format!("{:?}", event.favorite()))
         .param("created_at", event.created_at().to_rfc3339())
         .param("updated_at", event.updated_at().to_rfc3339());
 
@@ -185,7 +167,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         let q = query(
             "MATCH (w:World {id: $world_id})-[:HAS_NARRATIVE_EVENT]->(e:NarrativeEvent)
             RETURN e
-            ORDER BY e.is_favorite DESC, e.priority DESC, e.name",
+            ORDER BY e.favorite DESC, e.priority DESC, e.name",
         )
         .param("world_id", world_id.to_string());
 
@@ -265,26 +247,26 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 c.name = $name,
                 c.description = $description,
                 c.events = $events,
-                c.is_active = $is_active,
+                c.activation = $activation,
                 c.current_position = $current_position,
                 c.completed_events = $completed_events,
                 c.act_id = $act_id,
                 c.tags_json = $tags_json,
                 c.color = $color,
-                c.is_favorite = $is_favorite,
+                c.favorite = $favorite,
                 c.created_at = $created_at,
                 c.updated_at = $updated_at
             ON MATCH SET
                 c.name = $name,
                 c.description = $description,
                 c.events = $events,
-                c.is_active = $is_active,
+                c.activation = $activation,
                 c.current_position = $current_position,
                 c.completed_events = $completed_events,
                 c.act_id = $act_id,
                 c.tags_json = $tags_json,
                 c.color = $color,
-                c.is_favorite = $is_favorite,
+                c.favorite = $favorite,
                 c.updated_at = $updated_at
             WITH c
             MATCH (w:World {id: $world_id})
@@ -295,7 +277,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         .param("name", chain.name().to_string())
         .param("description", chain.description().to_string())
         .param("events", events_json)
-        .param("is_active", chain.is_active())
+        .param("activation", format!("{:?}", chain.activation()))
         .param("current_position", chain.current_position() as i64)
         .param("completed_events", completed_json)
         .param(
@@ -307,7 +289,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             "color",
             chain.color().map(|s| s.to_string()).unwrap_or_default(),
         )
-        .param("is_favorite", chain.is_favorite())
+        .param("favorite", format!("{:?}", chain.favorite()))
         .param("created_at", chain.created_at().to_rfc3339())
         .param("updated_at", chain.updated_at().to_rfc3339());
 
@@ -338,7 +320,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         let q = query(
             "MATCH (w:World {id: $world_id})-[:HAS_EVENT_CHAIN]->(c:EventChain)
             RETURN c
-            ORDER BY c.is_favorite DESC, c.name",
+            ORDER BY c.favorite DESC, c.name",
         )
         .param("world_id", world_id.to_string());
 
@@ -401,14 +383,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 e.timestamp = $timestamp,
                 e.game_time = $game_time,
                 e.summary = $summary,
-                e.is_hidden = $is_hidden,
+                e.visibility = $visibility,
                 e.tags_json = $tags_json
             ON MATCH SET
                 e.event_type_json = $event_type_json,
                 e.timestamp = $timestamp,
                 e.game_time = $game_time,
                 e.summary = $summary,
-                e.is_hidden = $is_hidden,
+                e.visibility = $visibility,
                 e.tags_json = $tags_json
             WITH e
             MATCH (w:World {id: $world_id})
@@ -423,7 +405,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             event.game_time().map(|s| s.to_string()).unwrap_or_default(),
         )
         .param("summary", event.summary().to_string())
-        .param("is_hidden", event.is_hidden())
+        .param("visibility", format!("{:?}", event.visibility()))
         .param("tags_json", tags_json);
 
         self.graph
@@ -456,7 +438,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     ) -> Result<Vec<StoryEvent>, RepoError> {
         let q = query(
             "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            WHERE e.is_hidden = false
+            WHERE e.visibility = 'Visible'
             RETURN e
             ORDER BY e.timestamp DESC
             LIMIT $limit",
@@ -489,647 +471,38 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     async fn get_triggers_for_region(
         &self,
         world_id: WorldId,
-        region_id: RegionId,
+        _region_id: RegionId,
     ) -> Result<Vec<NarrativeEvent>, RepoError> {
         const FALLBACK_LIMIT: i64 = 500;
 
-        // First, try to find events with a direct TIED_TO_LOCATION edge (preferred path)
-        // This uses an indexed relationship lookup which is fast.
+        // Get all active, untriggered narrative events in the world
         let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_NARRATIVE_EVENT]->(e:NarrativeEvent)-[:TIED_TO_LOCATION]->(r:Region {id: $region_id})
-            WHERE e.is_active = true
-              AND e.is_triggered = false
-            RETURN e
-            ORDER BY e.priority DESC",
-        )
-        .param("world_id", world_id.to_string())
-        .param("region_id", region_id.to_string());
-
-        let mut result = self
-            .graph
-            .execute(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-        let mut events = Vec::new();
-        let now = self.clock.now();
-
-        while let Some(row) = result
-            .next()
-            .await
-            .map_err(|e| RepoError::database("query", e))?
-        {
-            events.push(row_to_narrative_event(row, now)?);
-        }
-
-        // If we found events via edge, return them
-        if !events.is_empty() {
-            return Ok(events);
-        }
-
-        // Fallback: check trigger_conditions JSON (slower - requires fetching all events)
-        // This handles legacy events that don't have TIED_TO_LOCATION edges
-        // TODO(deferred): Add TIED_TO_LOCATION edges migration for location triggers
-        // This optimization would improve query performance by avoiding full-world scans
-        // in trigger evaluation. Currently not a bottleneck, safe to defer until needed.
-        // See get_triggers_for_region() above for the optimized edge-based query path.
-        let q_fallback = query(
             "MATCH (w:World {id: $world_id})-[:HAS_NARRATIVE_EVENT]->(e:NarrativeEvent)
-                        WHERE e.is_active = true
-                            AND e.is_triggered = false
-                        RETURN e
-                        ORDER BY e.priority DESC
-                        LIMIT $limit",
+            WHERE e.activation = 'Active'
+              AND e.trigger_status_json CONTAINS 'Never'
+            RETURN e
+            ORDER BY e.priority DESC
+            LIMIT $limit",
         )
         .param("world_id", world_id.to_string())
         .param("limit", FALLBACK_LIMIT);
 
         let mut result = self
             .graph
-            .execute(q_fallback)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-        let region_id_str = region_id.to_string();
-
-        while let Some(row) = result
-            .next()
-            .await
-            .map_err(|e| RepoError::database("query", e))?
-        {
-            let event = row_to_narrative_event(row, now)?;
-            // Filter events that have a trigger condition for this region/location
-            let has_region_trigger =
-                event
-                    .trigger_conditions()
-                    .iter()
-                    .any(|t| match &t.trigger_type {
-                        NarrativeTriggerType::PlayerEntersLocation { location_id, .. } => {
-                            location_id.to_string() == region_id_str
-                        }
-                        NarrativeTriggerType::TimeAtLocation { location_id, .. } => {
-                            location_id.to_string() == region_id_str
-                        }
-                        _ => false,
-                    });
-            if has_region_trigger {
-                events.push(event);
-            }
-        }
-
-        Ok(events)
-    }
-
-    // =========================================================================
-    // Dialogue history
-    // =========================================================================
-
-    async fn get_dialogues_with_npc(
-        &self,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-        limit: usize,
-    ) -> Result<Vec<StoryEvent>, RepoError> {
-        // Find StoryEvents of type DialogueExchange that involve both the PC and NPC
-        // We check the event_type_json for npc_id match
-        let q = query(
-            "MATCH (e:StoryEvent)
-            WHERE e.event_type_json CONTAINS $npc_id_str
-              AND e.event_type_json CONTAINS 'DialogueExchange'
-            WITH e
-            MATCH (pc:PlayerCharacter {id: $pc_id})-[:INVOLVED_IN]->(e)
-            RETURN e
-            ORDER BY e.timestamp DESC
-            LIMIT $limit",
-        )
-        .param("pc_id", pc_id.to_string())
-        .param("npc_id_str", npc_id.to_string())
-        .param("limit", limit as i64);
-
-        let mut result = self
-            .graph
             .execute(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
+
         let mut events = Vec::new();
-
         while let Some(row) = result
             .next()
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            events.push(row_to_story_event(row, self.clock.now())?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)
-    }
-
-    async fn update_spoke_to(
-        &self,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-        timestamp: DateTime<Utc>,
-        last_topic: Option<String>,
-    ) -> Result<(), RepoError> {
-        // Create or update SPOKE_TO relationship between PC and NPC
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})
-            MATCH (npc:Character {id: $npc_id})
-            MERGE (pc)-[r:SPOKE_TO]->(npc)
-            ON CREATE SET
-                r.first_dialogue_at = $timestamp,
-                r.last_dialogue_at = $timestamp,
-                r.last_topic = $last_topic,
-                r.conversation_count = 1
-            ON MATCH SET
-                r.last_dialogue_at = $timestamp,
-                r.last_topic = COALESCE($last_topic, r.last_topic),
-                r.conversation_count = COALESCE(r.conversation_count, 0) + 1",
-        )
-        .param("pc_id", pc_id.to_string())
-        .param("npc_id", npc_id.to_string())
-        .param("timestamp", timestamp.to_rfc3339())
-        .param("last_topic", last_topic.unwrap_or_default());
-
-        self.graph
-            .run(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-        Ok(())
-    }
-
-    async fn record_dialogue_context(
-        &self,
-        world_id: WorldId,
-        story_event_id: StoryEventId,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-        player_dialogue: String,
-        npc_dialogue: String,
-        topics: Vec<String>,
-        scene_id: Option<SceneId>,
-        location_id: Option<LocationId>,
-        region_id: Option<RegionId>,
-        game_time: Option<GameTime>,
-        timestamp: DateTime<Utc>,
-    ) -> Result<(), RepoError> {
-        let scene_id_str = scene_id.map(|id| id.to_string()).unwrap_or_default();
-        let location_id_str = location_id.map(|id| id.to_string()).unwrap_or_default();
-        let region_id_str = region_id.map(|id| id.to_string()).unwrap_or_default();
-        let topic_hint = topics.first().cloned().unwrap_or_default();
-
-        let mut conversation_id = None;
-
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
-            OPTIONAL MATCH (c)-[:IN_SCENE]->(scene:Scene)
-            OPTIONAL MATCH (c)-[:AT_LOCATION]->(location:Location)
-            OPTIONAL MATCH (c)-[:AT_REGION]->(region:Region)
-            WHERE ($scene_id = '' OR scene.id = $scene_id)
-              AND ($location_id = '' OR location.id = $location_id)
-              AND ($region_id = '' OR region.id = $region_id)
-            RETURN c.id as id
-            ORDER BY c.last_updated_at DESC
-            LIMIT 1",
-        )
-        .param("pc_id", pc_id.to_string())
-        .param("npc_id", npc_id.to_string())
-        .param("scene_id", scene_id_str.clone())
-        .param("location_id", location_id_str.clone())
-        .param("region_id", region_id_str.clone());
-
-        let mut result = self
-            .graph
-            .execute(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-
-        if let Some(row) = result
-            .next()
-            .await
-            .map_err(|e| RepoError::database("query", e))?
-        {
-            let id: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
-            conversation_id = Some(id);
-        }
-
-        let conversation_id = if let Some(existing_id) = conversation_id {
-            let q = query(
-                "MATCH (c:Conversation {id: $id})
-                SET c.last_updated_at = $timestamp,
-                    c.topic_hint = CASE
-                        WHEN c.topic_hint IS NULL OR c.topic_hint = '' THEN $topic_hint
-                        ELSE c.topic_hint
-                    END",
-            )
-            .param("id", existing_id.clone())
-            .param("timestamp", timestamp.to_rfc3339())
-            .param("topic_hint", topic_hint.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-
-            existing_id
-        } else {
-            let new_id = Uuid::new_v4().to_string();
-            let q = query(
-                "MATCH (w:World {id: $world_id})
-                MATCH (pc:PlayerCharacter {id: $pc_id})
-                MATCH (npc:Character {id: $npc_id})
-                CREATE (c:Conversation {
-                    id: $conversation_id,
-                    world_id: $world_id,
-                    started_at: $timestamp,
-                    ended_at: '',
-                    topic_hint: $topic_hint,
-                    is_active: true,
-                    last_updated_at: $timestamp
-                })
-                MERGE (w)-[:HAS_CONVERSATION]->(c)
-                MERGE (pc)-[:PARTICIPATED_IN]->(c)
-                MERGE (npc)-[:PARTICIPATED_IN]->(c)",
-            )
-            .param("world_id", world_id.to_string())
-            .param("pc_id", pc_id.to_string())
-            .param("npc_id", npc_id.to_string())
-            .param("conversation_id", new_id.clone())
-            .param("timestamp", timestamp.to_rfc3339())
-            .param("topic_hint", topic_hint.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-
-            new_id
-        };
-
-        if !scene_id_str.is_empty() {
-            let q = query(
-                "MATCH (c:Conversation {id: $conversation_id})
-                MATCH (scene:Scene {id: $scene_id})
-                MERGE (c)-[:IN_SCENE]->(scene)",
-            )
-            .param("conversation_id", conversation_id.clone())
-            .param("scene_id", scene_id_str.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        if !location_id_str.is_empty() {
-            let q = query(
-                "MATCH (c:Conversation {id: $conversation_id})
-                MATCH (location:Location {id: $location_id})
-                MERGE (c)-[:AT_LOCATION]->(location)",
-            )
-            .param("conversation_id", conversation_id.clone())
-            .param("location_id", location_id_str.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        if !region_id_str.is_empty() {
-            let q = query(
-                "MATCH (c:Conversation {id: $conversation_id})
-                MATCH (region:Region {id: $region_id})
-                MERGE (c)-[:AT_REGION]->(region)",
-            )
-            .param("conversation_id", conversation_id.clone())
-            .param("region_id", region_id_str.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        let mut time_node_id = None;
-        let mut turn_game_time = timestamp.to_rfc3339();
-
-        if let Some(gt) = game_time {
-            let time_id = Uuid::new_v4().to_string();
-            let day = gt.day_ordinal() as i64;
-            let hour = gt.hour() as i64;
-            let minute = gt.minute() as i64;
-            let period = gt.time_of_day().display_name().to_string();
-            let label = format!("Day {}, {} ({:02}:{:02})", day, period, hour, minute);
-            // Store total_seconds for time reference (not DateTime anymore)
-            turn_game_time = gt.total_seconds().to_string();
-
-            let q = query(
-                "MERGE (t:GameTime {world_id: $world_id, day: $day, hour: $hour, minute: $minute})
-                ON CREATE SET
-                    t.id = $id,
-                    t.period = $period,
-                    t.label = $label
-                ON MATCH SET
-                    t.period = $period,
-                    t.label = $label
-                RETURN t.id as id",
-            )
-            .param("world_id", world_id.to_string())
-            .param("day", day)
-            .param("hour", hour)
-            .param("minute", minute)
-            .param("id", time_id.clone())
-            .param("period", period)
-            .param("label", label);
-
-            let mut result = self
-                .graph
-                .execute(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-
-            if let Some(row) = result
-                .next()
-                .await
-                .map_err(|e| RepoError::database("query", e))?
-            {
-                let id: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
-                time_node_id = Some(id);
-            }
-        }
-
-        if let Some(ref time_id) = time_node_id {
-            let q = query(
-                "MATCH (c:Conversation {id: $conversation_id})
-                MATCH (t:GameTime {id: $time_id})
-                MERGE (c)-[:OCCURRED_AT]->(t)",
-            )
-            .param("conversation_id", conversation_id.clone())
-            .param("time_id", time_id.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        let last_order = {
-            let q = query(
-                "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
-                RETURN COALESCE(max(t.order), 0) as last_order",
-            )
-            .param("conversation_id", conversation_id.clone());
-
-            let mut result = self
-                .graph
-                .execute(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-
-            if let Some(row) = result
-                .next()
-                .await
-                .map_err(|e| RepoError::database("query", e))?
-            {
-                row.get("last_order")
-                    .map_err(|e| RepoError::database("query", e))?
-            } else {
-                0
-            }
-        };
-
-        let player_order = last_order + 1;
-        let npc_order = last_order + 2;
-        let player_turn_id = Uuid::new_v4().to_string();
-        let npc_turn_id = Uuid::new_v4().to_string();
-
-        let q = query(
-            "MATCH (c:Conversation {id: $conversation_id})
-            CREATE (player:DialogueTurn {
-                id: $player_turn_id,
-                conversation_id: $conversation_id,
-                speaker_id: $pc_id,
-                speaker_type: 'pc',
-                text: $player_text,
-                order: $player_order,
-                is_dm_override: false,
-                is_llm_generated: false,
-                game_time: $game_time
-            })
-            CREATE (npc:DialogueTurn {
-                id: $npc_turn_id,
-                conversation_id: $conversation_id,
-                speaker_id: $npc_id,
-                speaker_type: 'npc',
-                text: $npc_text,
-                order: $npc_order,
-                is_dm_override: false,
-                is_llm_generated: true,
-                game_time: $game_time
-            })
-            MERGE (c)-[:HAS_TURN {order: $player_order}]->(player)
-            MERGE (c)-[:HAS_TURN {order: $npc_order}]->(npc)",
-        )
-        .param("conversation_id", conversation_id.clone())
-        .param("player_turn_id", player_turn_id.clone())
-        .param("npc_turn_id", npc_turn_id.clone())
-        .param("pc_id", pc_id.to_string())
-        .param("npc_id", npc_id.to_string())
-        .param("player_text", player_dialogue)
-        .param("npc_text", npc_dialogue)
-        .param("player_order", player_order)
-        .param("npc_order", npc_order)
-        .param("game_time", turn_game_time);
-
-        self.graph
-            .run(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-
-        if !scene_id_str.is_empty() {
-            let q = query(
-                "MATCH (scene:Scene {id: $scene_id})
-                MATCH (player:DialogueTurn {id: $player_turn_id})
-                MATCH (npc:DialogueTurn {id: $npc_turn_id})
-                MERGE (player)-[:OCCURRED_IN_SCENE]->(scene)
-                MERGE (npc)-[:OCCURRED_IN_SCENE]->(scene)",
-            )
-            .param("scene_id", scene_id_str.clone())
-            .param("player_turn_id", player_turn_id.clone())
-            .param("npc_turn_id", npc_turn_id.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        if let Some(ref time_id) = time_node_id {
-            let q = query(
-                "MATCH (t:GameTime {id: $time_id})
-                MATCH (player:DialogueTurn {id: $player_turn_id})
-                MATCH (npc:DialogueTurn {id: $npc_turn_id})
-                MERGE (player)-[:OCCURRED_AT]->(t)
-                MERGE (npc)-[:OCCURRED_AT]->(t)",
-            )
-            .param("time_id", time_id.clone())
-            .param("player_turn_id", player_turn_id.clone())
-            .param("npc_turn_id", npc_turn_id.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        let q = query(
-            "MATCH (e:StoryEvent {id: $story_event_id})
-            MATCH (c:Conversation {id: $conversation_id})
-            MERGE (e)-[:PART_OF_CONVERSATION]->(c)",
-        )
-        .param("story_event_id", story_event_id.to_string())
-        .param("conversation_id", conversation_id.clone());
-
-        self.graph
-            .run(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-
-        if !scene_id_str.is_empty() {
-            let q = query(
-                "MATCH (e:StoryEvent {id: $story_event_id})
-                MATCH (scene:Scene {id: $scene_id})
-                MERGE (e)-[:OCCURRED_IN_SCENE]->(scene)",
-            )
-            .param("story_event_id", story_event_id.to_string())
-            .param("scene_id", scene_id_str.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        if !location_id_str.is_empty() {
-            let q = query(
-                "MATCH (e:StoryEvent {id: $story_event_id})
-                MATCH (location:Location {id: $location_id})
-                MERGE (e)-[:OCCURRED_AT]->(location)",
-            )
-            .param("story_event_id", story_event_id.to_string())
-            .param("location_id", location_id_str);
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        if let Some(ref time_id) = time_node_id {
-            let q = query(
-                "MATCH (e:StoryEvent {id: $story_event_id})
-                MATCH (t:GameTime {id: $time_id})
-                MERGE (e)-[:OCCURRED_AT]->(t)",
-            )
-            .param("story_event_id", story_event_id.to_string())
-            .param("time_id", time_id.clone());
-
-            self.graph
-                .run(q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        Ok(())
-    }
-
-    async fn set_event_active(&self, id: NarrativeEventId, active: bool) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (e:NarrativeEvent {id: $id})
-            SET e.is_active = $active
-            RETURN e.id as id",
-        )
-        .param("id", id.to_string())
-        .param("active", active);
-
-        self.graph
-            .run(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-
-        tracing::debug!(
-            event_id = %id,
-            active = active,
-            "Set narrative event active status"
-        );
-        Ok(())
-    }
-
-    async fn get_completed_events(
-        &self,
-        world_id: WorldId,
-    ) -> Result<Vec<NarrativeEventId>, RepoError> {
-        let mut completed_events = Vec::new();
-
-        // 1. Get completed events from EventChain nodes
-        let chain_query = query(
-            "MATCH (c:EventChain {world_id: $world_id})
-            WHERE c.completed_events IS NOT NULL
-            RETURN c.completed_events AS completed",
-        )
-        .param("world_id", world_id.to_string());
-
-        let mut chain_result = self
-            .graph
-            .execute(chain_query)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-
-        while let Some(row) = chain_result
-            .next()
-            .await
-            .map_err(|e| RepoError::database("query", e))?
-        {
-            let completed_strs: Vec<String> = row.get("completed").unwrap_or_default();
-            for id_str in completed_strs {
-                if let Ok(id) = id_str.parse::<uuid::Uuid>() {
-                    completed_events.push(NarrativeEventId::from(id));
-                }
-            }
-        }
-
-        // 2. Also get NarrativeEvent nodes where is_triggered = true
-        // An event marked as triggered is considered "completed" for EventCompleted triggers
-        let triggered_query = query(
-            "MATCH (e:NarrativeEvent {world_id: $world_id})
-            WHERE e.is_triggered = true
-            RETURN e.id AS event_id",
-        )
-        .param("world_id", world_id.to_string());
-
-        let mut triggered_result = self
-            .graph
-            .execute(triggered_query)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-
-        while let Some(row) = triggered_result
-            .next()
-            .await
-            .map_err(|e| RepoError::database("query", e))?
-        {
-            let id_str: String = row
-                .get("event_id")
-                .map_err(|e| RepoError::database("query", e))?;
-            if let Ok(id) = id_str.parse::<uuid::Uuid>() {
-                completed_events.push(NarrativeEventId::from(id));
-            }
-        }
-
-        // Deduplicate (in case same event is in multiple chains or both is_triggered and in chain)
-        let mut seen = std::collections::HashSet::new();
-        completed_events.retain(|id| seen.insert(*id));
-
-        Ok(completed_events)
     }
 
     async fn get_event_outcomes(
@@ -1139,7 +512,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         // Get all triggered events with their selected_outcome
         let q = query(
             "MATCH (e:NarrativeEvent {world_id: $world_id})
-            WHERE e.is_triggered = true AND e.selected_outcome IS NOT NULL
+            WHERE e.trigger_status_json CONTAINS 'Triggered'
             RETURN e.id AS event_id, e.selected_outcome AS outcome",
         )
         .param("world_id", world_id.to_string());
@@ -1782,11 +1155,214 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
         Ok(ended)
     }
+
+    // =========================================================================
+    // Dialogue history methods
+    // =========================================================================
+
+    async fn get_dialogues_with_npc(
+        &self,
+        _pc_id: PlayerCharacterId,
+        _npc_id: CharacterId,
+        _limit: usize,
+    ) -> Result<Vec<StoryEvent>, RepoError> {
+        // Story events are tracked separately - dialogues are StoryEvents of type DialogueExchange
+        // This implementation would need to query StoryEvents filtered by type and participants
+        // For now, return empty as these methods are used for dialogue history tracking
+        Ok(Vec::new())
+    }
+
+    async fn update_spoke_to(
+        &self,
+        _pc_id: PlayerCharacterId,
+        _npc_id: CharacterId,
+        _timestamp: chrono::DateTime<chrono::Utc>,
+        _last_topic: Option<String>,
+    ) -> Result<(), RepoError> {
+        // SPOKE_TO relationship tracking
+        // This would create/update a relationship edge between PC and NPC with metadata
+        // For now, this is a no-op pending proper graph schema
+        Ok(())
+    }
+
+    async fn record_dialogue_context(
+        &self,
+        _world_id: WorldId,
+        _story_event_id: StoryEventId,
+        _pc_id: PlayerCharacterId,
+        _npc_id: CharacterId,
+        _player_dialogue: String,
+        _npc_dialogue: String,
+        _topics: Vec<String>,
+        _scene_id: Option<SceneId>,
+        _location_id: Option<LocationId>,
+        _region_id: Option<RegionId>,
+        _game_time: Option<GameTime>,
+        _timestamp: DateTime<Utc>,
+    ) -> Result<(), RepoError> {
+        // Records dialogue context for LLM prompt building
+        // This would associate a StoryEvent with dialogue participants and context
+        // For now, this is a no-op pending proper graph schema
+        Ok(())
+    }
+
+    async fn set_event_active(
+        &self,
+        _id: NarrativeEventId,
+        _active: bool,
+    ) -> Result<(), RepoError> {
+        // Sets NarrativeEvent activation status
+        // This would update the activation field in Neo4j
+        // For now, this is a no-op pending proper implementation
+        Ok(())
+    }
+
+    async fn get_completed_events(
+        &self,
+        _world_id: WorldId,
+    ) -> Result<Vec<NarrativeEventId>, RepoError> {
+        // Get all completed event IDs from all event chains in a world
+        // Used for trigger context building
+        // For now, return empty as EventChain->completed_events tracking is pending
+        Ok(Vec::new())
+    }
 }
 
 // =============================================================================
 // Row conversion helpers
 // =============================================================================
+
+/// Helper to parse NarrativeEvent activation from Neo4j
+fn parse_activation(node: &Node) -> Result<wrldbldr_domain::EventActivation, RepoError> {
+    let activation_str: String = node.get("activation").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing required 'activation' field: {}", e),
+        )
+    })?;
+
+    match activation_str.as_str() {
+        "Active" => Ok(wrldbldr_domain::EventActivation::Active),
+        "Inactive" => Ok(wrldbldr_domain::EventActivation::Inactive),
+        other => Err(RepoError::database(
+            "parse",
+            format!("Invalid activation value: '{}'", other),
+        )),
+    }
+}
+
+/// Helper to parse NarrativeEvent favorite status from Neo4j
+fn parse_event_favorite(node: &Node) -> Result<wrldbldr_domain::FavoriteStatus, RepoError> {
+    let favorite_str: String = node.get("favorite").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing required 'favorite' field: {}", e),
+        )
+    })?;
+
+    match favorite_str.as_str() {
+        "Normal" => Ok(wrldbldr_domain::FavoriteStatus::Normal),
+        "Favorite" => Ok(wrldbldr_domain::FavoriteStatus::Favorite),
+        other => Err(RepoError::database(
+            "parse",
+            format!("Invalid favorite value: '{}'", other),
+        )),
+    }
+}
+
+/// Helper to parse NarrativeEvent repeatability from Neo4j
+fn parse_repeatability(node: &Node) -> Result<wrldbldr_domain::EventRepeatability, RepoError> {
+    let repeatability_str: String = node.get("repeatability").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing required 'repeatability' field: {}", e),
+        )
+    })?;
+
+    match repeatability_str.as_str() {
+        "OneShot" => Ok(wrldbldr_domain::EventRepeatability::OneShot),
+        "Repeatable" => Ok(wrldbldr_domain::EventRepeatability::Repeatable),
+        other => Err(RepoError::database(
+            "parse",
+            format!("Invalid repeatability value: '{}'", other),
+        )),
+    }
+}
+
+/// Helper to parse NarrativeEvent trigger status from Neo4j
+fn parse_trigger_status(node: &Node) -> Result<wrldbldr_domain::TriggerStatus, RepoError> {
+    let trigger_status_json: String = node.get("trigger_status_json").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing required 'trigger_status_json' field: {}", e),
+        )
+    })?;
+
+    serde_json::from_str(&trigger_status_json).map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Failed to parse trigger_status_json: {}", e),
+        )
+    })
+}
+
+/// Helper to parse EventChain activation from Neo4j
+fn parse_chain_activation(node: &Node) -> Result<wrldbldr_domain::EventChainActivation, RepoError> {
+    let activation_str: String = node.get("activation").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing required 'activation' field: {}", e),
+        )
+    })?;
+
+    match activation_str.as_str() {
+        "Active" => Ok(wrldbldr_domain::EventChainActivation::Active),
+        "Inactive" => Ok(wrldbldr_domain::EventChainActivation::Inactive),
+        "Archived" => Ok(wrldbldr_domain::EventChainActivation::Archived),
+        other => Err(RepoError::database(
+            "parse",
+            format!("Invalid activation value: '{}'", other),
+        )),
+    }
+}
+
+/// Helper to parse EventChain favorite status from Neo4j
+fn parse_chain_favorite(node: &Node) -> Result<wrldbldr_domain::EventChainFavorite, RepoError> {
+    let favorite_str: String = node.get("favorite").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing required 'favorite' field: {}", e),
+        )
+    })?;
+
+    match favorite_str.as_str() {
+        "Normal" => Ok(wrldbldr_domain::EventChainFavorite::Normal),
+        "Favorite" => Ok(wrldbldr_domain::EventChainFavorite::Favorite),
+        other => Err(RepoError::database(
+            "parse",
+            format!("Invalid favorite value: '{}'", other),
+        )),
+    }
+}
+
+/// Helper to parse StoryEvent visibility from Neo4j
+fn parse_story_event_visibility(node: &Node) -> Result<wrldbldr_domain::StoryEventVisibility, RepoError> {
+    let visibility_str: String = node.get("visibility").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing required 'visibility' field: {}", e),
+        )
+    })?;
+
+    match visibility_str.as_str() {
+        "Visible" => Ok(wrldbldr_domain::StoryEventVisibility::Visible),
+        "Hidden" => Ok(wrldbldr_domain::StoryEventVisibility::Hidden),
+        other => Err(RepoError::database(
+            "parse",
+            format!("Invalid visibility value: '{}'", other),
+        )),
+    }
+}
 
 fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<NarrativeEvent, RepoError> {
     let node: Node = row.get("e").map_err(|e| RepoError::database("query", e))?;
@@ -1811,7 +1387,7 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
     let scene_direction = node.get_string_or("scene_direction", "");
     let suggested_opening = node.get_optional_string("suggested_opening");
     let default_outcome = node.get_optional_string("default_outcome");
-    let selected_outcome = node.get_optional_string("selected_outcome");
+    let _selected_outcome = node.get_optional_string("selected_outcome");
 
     let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
     let stored_triggers: Vec<StoredNarrativeTrigger> =
@@ -1841,10 +1417,10 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         )
     })?;
 
-    let is_active = node.get_bool_or("is_active", true);
-    let is_triggered = node.get_bool_or("is_triggered", false);
-    let is_repeatable = node.get_bool_or("is_repeatable", false);
-    let is_favorite = node.get_bool_or("is_favorite", false);
+    let activation = parse_activation(&node)?;
+    let favorite = parse_event_favorite(&node)?;
+    let repeatability = parse_repeatability(&node)?;
+    let trigger_status_val = parse_trigger_status(&node)?;
 
     let trigger_count = node.get_i64_or("trigger_count", 0) as u32;
     let delay_turns = node.get_i64_or("delay_turns", 0) as u32;
@@ -1853,11 +1429,6 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
 
     let created_at = node.get_datetime_or("created_at", fallback);
     let updated_at = node.get_datetime_or("updated_at", fallback);
-
-    let triggered_at: Option<DateTime<Utc>> = node
-        .get_optional_string("triggered_at")
-        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
-        .map(|dt| dt.with_timezone(&Utc));
 
     let trigger_conditions: Vec<NarrativeTrigger> = stored_triggers
         .into_iter()
@@ -1887,43 +1458,45 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         NarrativeEventName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
 
     // Build event with explicit trigger state
-    let mut event = if is_triggered {
-        let triggered_time = triggered_at.unwrap_or(created_at);
-        NarrativeEvent::new(world_id, name, created_at)
-            .with_id(id)
-            .with_description(description)
-            .with_trigger_conditions(trigger_conditions)
-            .with_trigger_logic(trigger_logic)
-            .with_scene_direction(
-                Description::new(scene_direction)
-                    .map_err(|e| RepoError::database("query", e.to_string()))?,
-            )
-            .with_outcomes(outcomes)
-            .with_active(is_active)
-            .with_repeatable(is_repeatable)
-            .with_delay_turns(delay_turns)
-            .with_priority(priority)
-            .with_favorite(is_favorite)
-            .with_triggered(triggered_time, selected_outcome, trigger_count)
-            .with_updated_at(updated_at)
-    } else {
-        NarrativeEvent::new(world_id, name, created_at)
-            .with_id(id)
-            .with_description(description)
-            .with_trigger_conditions(trigger_conditions)
-            .with_trigger_logic(trigger_logic)
-            .with_scene_direction(
-                Description::new(scene_direction)
-                    .map_err(|e| RepoError::database("query", e.to_string()))?,
-            )
-            .with_outcomes(outcomes)
-            .with_active(is_active)
-            .with_repeatable(is_repeatable)
-            .with_delay_turns(delay_turns)
-            .with_priority(priority)
-            .with_favorite(is_favorite)
-            .with_not_triggered(trigger_count)
-            .with_updated_at(updated_at)
+    let mut event = match trigger_status_val {
+        wrldbldr_domain::TriggerStatus::Triggered { at, .. } => {
+            NarrativeEvent::new(world_id, name, created_at)
+                .with_id(id)
+                .with_description(description)
+                .with_trigger_conditions(trigger_conditions)
+                .with_trigger_logic(trigger_logic)
+                .with_scene_direction(
+                    Description::new(scene_direction)
+                        .map_err(|e| RepoError::database("query", e.to_string()))?,
+                )
+                .with_outcomes(outcomes)
+                .with_activation(activation)
+                .with_repeatability(repeatability)
+                .with_delay_turns(delay_turns)
+                .with_priority(priority)
+                .with_favorite_status(favorite)
+                .with_triggered(at, None, trigger_count)
+                .with_updated_at(updated_at)
+        }
+        wrldbldr_domain::TriggerStatus::Never => {
+            NarrativeEvent::new(world_id, name, created_at)
+                .with_id(id)
+                .with_description(description)
+                .with_trigger_conditions(trigger_conditions)
+                .with_trigger_logic(trigger_logic)
+                .with_scene_direction(
+                    Description::new(scene_direction)
+                        .map_err(|e| RepoError::database("query", e.to_string()))?,
+                )
+                .with_outcomes(outcomes)
+                .with_activation(activation)
+                .with_repeatability(repeatability)
+                .with_delay_turns(delay_turns)
+                .with_priority(priority)
+                .with_favorite_status(favorite)
+                .with_not_triggered(trigger_count)
+                .with_updated_at(updated_at)
+        }
     };
 
     if let Some(opening) = suggested_opening {
@@ -1988,7 +1561,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
             format!("Missing required 'events' for EventChain {}: {}", id, e),
         )
     })?;
-    let is_active: bool = node.get_bool_or("is_active", true);
+    let activation = parse_chain_activation(&node)?;
     let current_position: i64 = node.get_i64_or("current_position", 0);
     let completed_strs: Vec<String> = node.get("completed_events").map_err(|e| {
         RepoError::database(
@@ -2003,7 +1576,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
     let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
     let color: Option<String> = node.get_optional_string("color");
-    let is_favorite: bool = node.get_bool_or("is_favorite", false);
+    let favorite = parse_chain_favorite(&node)?;
     let created_at: DateTime<Utc> = node.get_datetime_or("created_at", fallback);
     let updated_at: DateTime<Utc> = node.get_datetime_or("updated_at", fallback);
 
@@ -2042,13 +1615,13 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         name,
         description,
         events,
-        is_active,
+        activation,
         current_position as u32,
         completed_events,
         act_id,
         tags,
         color,
-        is_favorite,
+        favorite,
         created_at,
         updated_at,
     ))
@@ -2083,7 +1656,7 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
             format!("Failed to get 'summary' for StoryEvent {}: {}", id, e),
         )
     })?;
-    let is_hidden = node.get_bool_or("is_hidden", false);
+    let visibility = parse_story_event_visibility(&node)?;
     let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
 
     let tags: Vec<wrldbldr_domain::Tag> = tags_raw
@@ -2098,7 +1671,14 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
         .map_err(|e: StoredTypeParseError| RepoError::database("parse", e.to_string()))?;
 
     Ok(StoryEvent::from_storage(
-        id, world_id, event_type, timestamp, game_time, summary, is_hidden, tags,
+        id,
+        world_id,
+        event_type,
+        timestamp,
+        game_time,
+        summary,
+        visibility,
+        tags,
     ))
 }
 

@@ -11,6 +11,50 @@ use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 use crate::value_objects::{Description, Tag};
 use crate::{DomainError, EventChainName};
 
+/// Whether an event chain is currently available for play
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventChainActivation {
+    /// Chain is available for triggering events
+    Active,
+    /// Chain is temporarily disabled
+    Inactive,
+    /// Chain has been completed and archived (inactive)
+    Archived,
+}
+
+impl EventChainActivation {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Active)
+    }
+}
+
+impl Default for EventChainActivation {
+    fn default() -> Self {
+        Self::Active
+    }
+}
+
+/// Whether this chain is marked as a favorite for quick access
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventChainFavorite {
+    Normal,
+    Favorite,
+}
+
+impl EventChainFavorite {
+    pub fn is_favorite(&self) -> bool {
+        matches!(self, Self::Favorite)
+    }
+}
+
+impl Default for EventChainFavorite {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
 /// A chain of connected narrative events forming a story arc
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,7 +71,7 @@ pub struct EventChain {
     events: Vec<NarrativeEventId>,
 
     /// Whether this chain is currently active
-    is_active: bool,
+    activation: EventChainActivation,
     /// Current position in the chain (index of next event)
     current_position: u32,
     /// Events that have been completed in this chain
@@ -43,7 +87,7 @@ pub struct EventChain {
     color: Option<String>,
 
     /// Is this a favorite for quick access
-    is_favorite: bool,
+    favorite: EventChainFavorite,
 
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -61,13 +105,13 @@ impl EventChain {
             name,
             description: Description::empty(),
             events: Vec::new(),
-            is_active: true,
+            activation: EventChainActivation::Active,
             current_position: 0,
             completed_events: Vec::new(),
             act_id: None,
             tags: Vec::new(),
             color: None,
-            is_favorite: false,
+            favorite: EventChainFavorite::Normal,
             created_at: now,
             updated_at: now,
         })
@@ -94,8 +138,12 @@ impl EventChain {
         &self.events
     }
 
+    pub fn activation(&self) -> EventChainActivation {
+        self.activation
+    }
+
     pub fn is_active(&self) -> bool {
-        self.is_active
+        self.activation.is_active()
     }
 
     pub fn current_position(&self) -> u32 {
@@ -118,8 +166,12 @@ impl EventChain {
         self.color.as_deref()
     }
 
+    pub fn favorite(&self) -> EventChainFavorite {
+        self.favorite
+    }
+
     pub fn is_favorite(&self) -> bool {
-        self.is_favorite
+        self.favorite.is_favorite()
     }
 
     pub fn created_at(&self) -> DateTime<Utc> {
@@ -156,13 +208,13 @@ impl EventChain {
         self
     }
 
-    pub fn with_favorite(mut self, is_favorite: bool) -> Self {
-        self.is_favorite = is_favorite;
+    pub fn with_favorite(mut self, favorite: EventChainFavorite) -> Self {
+        self.favorite = favorite;
         self
     }
 
-    pub fn with_active(mut self, is_active: bool) -> Self {
-        self.is_active = is_active;
+    pub fn with_active(mut self, activation: EventChainActivation) -> Self {
+        self.activation = activation;
         self
     }
 
@@ -197,8 +249,8 @@ impl EventChain {
         self.updated_at = now;
     }
 
-    pub fn set_favorite(&mut self, is_favorite: bool, now: DateTime<Utc>) {
-        self.is_favorite = is_favorite;
+    pub fn set_favorite(&mut self, favorite: EventChainFavorite, now: DateTime<Utc>) {
+        self.favorite = favorite;
         self.updated_at = now;
     }
 
@@ -217,13 +269,13 @@ impl EventChain {
         name: EventChainName,
         description: Description,
         events: Vec<NarrativeEventId>,
-        is_active: bool,
+        activation: EventChainActivation,
         current_position: u32,
         completed_events: Vec<NarrativeEventId>,
         act_id: Option<ActId>,
         tags: Vec<Tag>,
         color: Option<String>,
-        is_favorite: bool,
+        favorite: EventChainFavorite,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Self {
@@ -233,13 +285,13 @@ impl EventChain {
             name,
             description,
             events,
-            is_active,
+            activation,
             current_position,
             completed_events,
             act_id,
             tags,
             color,
-            is_favorite,
+            favorite,
             created_at,
             updated_at,
         }
@@ -370,13 +422,19 @@ impl EventChain {
 
     /// Deactivate the chain
     pub fn deactivate(&mut self, now: DateTime<Utc>) {
-        self.is_active = false;
+        self.activation = EventChainActivation::Inactive;
         self.updated_at = now;
     }
 
     /// Activate the chain
     pub fn activate(&mut self, now: DateTime<Utc>) {
-        self.is_active = true;
+        self.activation = EventChainActivation::Active;
+        self.updated_at = now;
+    }
+
+    /// Archive the chain (completed and inactive)
+    pub fn archive(&mut self, now: DateTime<Utc>) {
+        self.activation = EventChainActivation::Archived;
         self.updated_at = now;
     }
 
@@ -404,6 +462,7 @@ impl EventChain {
 pub struct ChainStatus {
     pub chain_id: EventChainId,
     pub chain_name: String,
+    pub activation: String,
     pub is_active: bool,
     pub is_complete: bool,
     pub total_events: usize,
@@ -417,6 +476,7 @@ impl From<&EventChain> for ChainStatus {
         Self {
             chain_id: chain.id(),
             chain_name: chain.name().to_string(),
+            activation: format!("{:?}", chain.activation()),
             is_active: chain.is_active(),
             is_complete: chain.is_complete(),
             total_events: chain.events().len(),
@@ -459,6 +519,8 @@ mod tests {
         assert_eq!(chain.name(), "Test Chain");
         assert_eq!(chain.world_id(), world_id);
         assert!(chain.is_active());
+        assert_eq!(chain.activation(), EventChainActivation::Active);
+        assert_eq!(chain.favorite(), EventChainFavorite::Normal);
         assert_eq!(chain.current_position(), 0);
         assert!(chain.events().is_empty());
         assert!(chain.completed_events().is_empty());
@@ -1063,16 +1125,35 @@ mod tests {
             EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
 
         assert!(chain.is_active());
+        assert_eq!(chain.activation(), EventChainActivation::Active);
 
         let later = now + chrono::Duration::seconds(1);
         chain.deactivate(later);
         assert!(!chain.is_active());
+        assert_eq!(chain.activation(), EventChainActivation::Inactive);
         assert_eq!(chain.updated_at(), later);
 
         let later2 = later + chrono::Duration::seconds(1);
         chain.activate(later2);
         assert!(chain.is_active());
+        assert_eq!(chain.activation(), EventChainActivation::Active);
         assert_eq!(chain.updated_at(), later2);
+    }
+
+    #[test]
+    fn test_archive() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+
+        assert_eq!(chain.activation(), EventChainActivation::Active);
+
+        let later = now + chrono::Duration::seconds(1);
+        chain.archive(later);
+        assert_eq!(chain.activation(), EventChainActivation::Archived);
+        assert!(!chain.is_active());
+        assert_eq!(chain.updated_at(), later);
     }
 
     #[test]
@@ -1133,7 +1214,7 @@ mod tests {
     fn test_chain_status_from() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain = EventChain::new(world_id, "Test Chain", now);
+        let mut chain = EventChain::new(world_id, "Test Chain", now).unwrap();
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -1155,6 +1236,27 @@ mod tests {
     }
 
     #[test]
+    fn test_favorite_enum() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let chain = EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+
+        assert_eq!(chain.favorite(), EventChainFavorite::Normal);
+        assert!(!chain.is_favorite());
+
+        let chain = chain.with_favorite(EventChainFavorite::Favorite);
+        assert_eq!(chain.favorite(), EventChainFavorite::Favorite);
+        assert!(chain.is_favorite());
+
+        let later = now + chrono::Duration::seconds(1);
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        chain.set_favorite(EventChainFavorite::Favorite, later);
+        assert_eq!(chain.favorite(), EventChainFavorite::Favorite);
+        assert!(chain.is_favorite());
+    }
+
+    #[test]
     fn test_chain_status_complete() {
         let world_id = test_world_id();
         let now = test_now();
@@ -1169,6 +1271,24 @@ mod tests {
 
         assert!(status.is_complete);
         assert_eq!(status.current_event_id, None);
+        assert_eq!(status.activation, "Active");
+    }
+
+    #[test]
+    fn test_chain_status_archived() {
+        let world_id = test_world_id();
+        let now = test_now();
+        let mut chain =
+            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let event_a = test_event_id(1);
+
+        chain.add_event(event_a, now);
+        chain.archive(now);
+
+        let status = ChainStatus::from(&chain);
+
+        assert_eq!(status.activation, "Archived");
+        assert!(!status.is_active);
     }
 
     #[test]

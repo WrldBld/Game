@@ -42,7 +42,7 @@ pub enum EventActivation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-enum EventRepeatability {
+pub enum EventRepeatability {
     OneShot,
     Repeatable,
 }
@@ -54,7 +54,7 @@ pub enum FavoriteStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-enum TriggerStatus {
+pub enum TriggerStatus {
     Never,
     Triggered {
         at: DateTime<Utc>,
@@ -314,10 +314,22 @@ impl NarrativeEvent {
         matches!(self.activation, EventActivation::Active)
     }
 
+    /// Returns the event's activation status.
+    #[inline]
+    pub fn activation(&self) -> EventActivation {
+        self.activation
+    }
+
     /// Returns true if the event has been triggered.
     #[inline]
     pub fn is_triggered(&self) -> bool {
         matches!(self.trigger_status, TriggerStatus::Triggered { .. })
+    }
+
+    /// Returns the event's trigger status.
+    #[inline]
+    pub fn trigger_status(&self) -> TriggerStatus {
+        self.trigger_status.clone()
     }
 
     /// Returns when the event was triggered, if it was.
@@ -344,6 +356,12 @@ impl NarrativeEvent {
     #[inline]
     pub fn is_repeatable(&self) -> bool {
         matches!(self.repeatability, EventRepeatability::Repeatable)
+    }
+
+    /// Returns the event's repeatability status.
+    #[inline]
+    pub fn repeatability(&self) -> EventRepeatability {
+        self.repeatability
     }
 
     /// Returns the number of times this event has been triggered.
@@ -382,6 +400,12 @@ impl NarrativeEvent {
     #[inline]
     pub fn is_favorite(&self) -> bool {
         matches!(self.favorite, FavoriteStatus::Favorite)
+    }
+
+    /// Returns the event's favorite status.
+    #[inline]
+    pub fn favorite(&self) -> FavoriteStatus {
+        self.favorite
     }
 
     // =========================================================================
@@ -521,6 +545,24 @@ impl NarrativeEvent {
         } else {
             FavoriteStatus::Normal
         };
+        self
+    }
+
+    /// Set the event's favorite status directly from enum.
+    pub fn with_favorite_status(mut self, favorite: FavoriteStatus) -> Self {
+        self.favorite = favorite;
+        self
+    }
+
+    /// Set the event's activation status directly from enum.
+    pub fn with_activation(mut self, activation: EventActivation) -> Self {
+        self.activation = activation;
+        self
+    }
+
+    /// Set the event's repeatability directly from enum.
+    pub fn with_repeatability(mut self, repeatability: EventRepeatability) -> Self {
+        self.repeatability = repeatability;
         self
     }
 
@@ -1201,6 +1243,101 @@ mod tests {
             context.flags = flags;
             let eval = event.evaluate_triggers(&context);
             assert!(eval.is_triggered);
+        }
+    }
+
+    mod state_transitions {
+        use super::*;
+
+        #[test]
+        fn event_activation_enum() {
+            let world_id = WorldId::new();
+            let now = fixed_time();
+
+            let mut event =
+                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+
+            // Default is Active
+            assert_eq!(event.activation(), EventActivation::Active);
+            assert!(event.is_active());
+
+            // Set to Inactive
+            event.set_active(EventActivation::Inactive, now);
+            assert_eq!(event.activation(), EventActivation::Inactive);
+            assert!(!event.is_active());
+
+            // Back to Active
+            event.set_active(EventActivation::Active, now);
+            assert_eq!(event.activation(), EventActivation::Active);
+            assert!(event.is_active());
+        }
+
+        #[test]
+        fn event_repeatability_enum() {
+            let world_id = WorldId::new();
+            let now = fixed_time();
+
+            let mut event =
+                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+
+            // Default is OneShot
+            assert_eq!(event.repeatability(), EventRepeatability::OneShot);
+            assert!(!event.is_repeatable());
+
+            // Set to Repeatable
+            event = event.with_repeatability(EventRepeatability::Repeatable);
+            assert_eq!(event.repeatability(), EventRepeatability::Repeatable);
+            assert!(event.is_repeatable());
+        }
+
+        #[test]
+        fn event_favorite_enum() {
+            let world_id = WorldId::new();
+            let now = fixed_time();
+
+            let mut event =
+                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+
+            // Default is Normal
+            assert_eq!(event.favorite(), FavoriteStatus::Normal);
+            assert!(!event.is_favorite());
+
+            // Set to Favorite
+            event.set_favorite(FavoriteStatus::Favorite, now);
+            assert_eq!(event.favorite(), FavoriteStatus::Favorite);
+            assert!(event.is_favorite());
+        }
+
+        #[test]
+        fn event_trigger_status_enum() {
+            let world_id = WorldId::new();
+            let now = fixed_time();
+
+            let mut event =
+                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+
+            // Default is Never
+            assert!(matches!(event.trigger_status(), TriggerStatus::Never));
+            assert!(!event.is_triggered());
+            assert!(event.triggered_at().is_none());
+
+            // Trigger the event
+            event.trigger(Some("success".to_string()), now);
+            assert!(matches!(
+                event.trigger_status(),
+                TriggerStatus::Triggered {
+                    at: _,
+                    selected_outcome: _
+                }
+            ));
+            assert!(event.is_triggered());
+            assert_eq!(event.triggered_at(), Some(now));
+            assert_eq!(event.selected_outcome(), Some("success"));
+
+            // Reset the event
+            event.reset(now);
+            assert!(matches!(event.trigger_status(), TriggerStatus::Never));
+            assert!(!event.is_triggered());
         }
     }
 }

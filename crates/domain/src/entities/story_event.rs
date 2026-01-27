@@ -1,14 +1,14 @@
 //! StoryEvent entity - Immutable records of gameplay events
 //!
 //! StoryEvents are automatically created when actions occur during gameplay,
-//! forming a complete timeline of the game session.
+//! forming a complete timeline of game session.
 //!
 //! # Graph Relationships (stored as Neo4j edges, not embedded fields)
 //!
 //! - `OCCURRED_IN_SESSION` -> Session: The session where this event occurred
-//! - `OCCURRED_AT` -> Location: Optional location where the event occurred
-//! - `OCCURRED_IN_SCENE` -> Scene: Optional scene where the event occurred
-//! - `INVOLVES` -> Character/PlayerCharacter: Characters involved in the event (with role)
+//! - `OCCURRED_AT` -> Location: Optional location where event event occurred
+//! - `OCCURRED_IN_SCENE` -> Scene: Optional scene where event event occurred
+//! - `INVOLVES` -> Character/PlayerCharacter: Characters involved in event (with role)
 //! - `TRIGGERED_BY_NARRATIVE` -> NarrativeEvent: Optional causative narrative event
 //! - `RECORDS_CHALLENGE` -> Challenge: Optional challenge this event records
 //!
@@ -23,6 +23,28 @@ use wrldbldr_domain::{
 };
 
 use crate::value_objects::Tag;
+
+/// Visibility status for story events in the timeline UI
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoryEventVisibility {
+    /// Event is visible in the timeline
+    Visible,
+    /// Event is hidden from timeline (but still tracked in system)
+    Hidden,
+}
+
+impl StoryEventVisibility {
+    pub fn is_hidden(&self) -> bool {
+        matches!(self, Self::Hidden)
+    }
+}
+
+impl Default for StoryEventVisibility {
+    fn default() -> Self {
+        Self::Visible
+    }
+}
 
 /// A story event - an immutable record of something that happened
 ///
@@ -42,7 +64,7 @@ pub struct StoryEvent {
     world_id: WorldId,
     // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
     // NOTE: location_id stored as OCCURRED_AT edge
-    /// The type and details of the event
+    /// The type and details of event
     /// (Kept as JSON - contains complex discriminated union data)
     event_type: StoryEventType,
     /// When this event occurred (real-world timestamp)
@@ -52,8 +74,8 @@ pub struct StoryEvent {
     /// Narrative summary (auto-generated or DM-edited)
     summary: String,
     // NOTE: involved_characters moved to INVOLVES edges
-    /// Whether this event is hidden from timeline UI (but still tracked)
-    is_hidden: bool,
+    /// Whether this event is visible in timeline UI
+    visibility: StoryEventVisibility,
     /// Tags for filtering/searching
     tags: Vec<Tag>,
     // NOTE: triggered_by moved to TRIGGERED_BY_NARRATIVE edge
@@ -81,7 +103,7 @@ impl StoryEvent {
             game_time: None,
             summary: String::new(),
             // NOTE: involved_characters now stored as INVOLVES edges
-            is_hidden: false,
+            visibility: StoryEventVisibility::Visible,
             tags: Vec::new(),
             // NOTE: triggered_by now stored as TRIGGERED_BY_NARRATIVE edge
         }
@@ -112,8 +134,12 @@ impl StoryEvent {
         &self.summary
     }
 
+    pub fn visibility(&self) -> StoryEventVisibility {
+        self.visibility
+    }
+
     pub fn is_hidden(&self) -> bool {
-        self.is_hidden
+        self.visibility.is_hidden()
     }
 
     pub fn tags(&self) -> &[Tag] {
@@ -147,7 +173,12 @@ impl StoryEvent {
     }
 
     pub fn hidden(mut self) -> Self {
-        self.is_hidden = true;
+        self.visibility = StoryEventVisibility::Hidden;
+        self
+    }
+
+    pub fn visible(mut self) -> Self {
+        self.visibility = StoryEventVisibility::Visible;
         self
     }
 
@@ -164,7 +195,7 @@ impl StoryEvent {
         timestamp: DateTime<Utc>,
         game_time: Option<String>,
         summary: String,
-        is_hidden: bool,
+        visibility: StoryEventVisibility,
         tags: Vec<Tag>,
     ) -> Self {
         Self {
@@ -174,7 +205,7 @@ impl StoryEvent {
             timestamp,
             game_time,
             summary,
-            is_hidden,
+            visibility,
             tags,
         }
     }

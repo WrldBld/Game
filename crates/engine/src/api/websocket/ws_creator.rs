@@ -366,7 +366,7 @@ pub(super) async fn handle_ai_request(
                 world_setting: context.world_setting,
                 hints: context.hints,
                 additional_context: context.additional_context,
-                world_id: context.world_id,
+                world_id: context.world_id.map(WorldId::from_uuid),
             };
 
             let result = state

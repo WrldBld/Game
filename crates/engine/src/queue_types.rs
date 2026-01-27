@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
 
 use crate::llm_context::GamePromptRequest;
 
@@ -157,8 +157,8 @@ pub enum LlmRequestType {
     /// Generate alternative outcome descriptions for a challenge
     OutcomeSuggestion {
         /// The approval queue ID (resolution_id) for this challenge outcome
-        resolution_id: Uuid,
-        /// World ID for broadcasting the result
+        resolution_id: wrldbldr_domain::ApprovalRequestId,
+        /// World ID for broadcasting result
         world_id: WorldId,
         /// Challenge name for context
         challenge_name: String,
@@ -296,9 +296,9 @@ pub enum ApprovalDecisionType {
 /// LLM-proposed outcomes for a resolved challenge.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChallengeOutcomeData {
-    pub resolution_id: String,
+    pub resolution_id: wrldbldr_domain::ApprovalRequestId,
     pub world_id: WorldId,
-    pub challenge_id: String,
+    pub challenge_id: ChallengeId,
     pub challenge_name: String,
     pub challenge_description: String,
     pub skill_name: Option<String>,

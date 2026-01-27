@@ -58,6 +58,8 @@ pub use entities::{
     DurationUnit,
     EntityType,
     EventChain,
+    EventChainActivation,
+    EventChainFavorite,
     EventChainMembership,
     EventEffect,
     EventOutcome,
@@ -137,6 +139,7 @@ pub use entities::{
     StoryEvent,
     StoryEventInfoImportance,
     StoryEventType,
+    StoryEventVisibility,
     TimeAdvanceResult,
     TimeContext,
     TriggerCondition,
@@ -154,6 +157,11 @@ pub use entities::{
 // Re-export Character from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::Character with public fields
 pub use aggregates::Character;
+
+// Re-export NarrativeEvent enums for use in repositories
+pub use aggregates::narrative_event::{
+    EventActivation, EventRepeatability, FavoriteStatus, TriggerStatus,
+};
 
 // Re-export Location from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::Location with public fields

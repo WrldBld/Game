@@ -12,7 +12,6 @@
 
 use std::sync::Arc;
 
-use uuid::Uuid;
 use wrldbldr_domain::value_objects::DiceParseError;
 use wrldbldr_domain::{
     ChallengeId, ChallengeOutcomeDecision, DiceRollInput, OutcomeTrigger, OutcomeType,
@@ -282,9 +281,9 @@ impl RollChallenge {
 
         // 5. Build outcome data for DM approval
         let outcome_data = ChallengeOutcomeData {
-            resolution_id: uuid::Uuid::new_v4().to_string(),
+            resolution_id: wrldbldr_domain::ApprovalRequestId::new(),
             world_id,
-            challenge_id: challenge_id.to_string(),
+            challenge_id,
             challenge_name: challenge.name().to_string(),
             challenge_description: challenge.description().to_string(),
             skill_name: None, // Would need to fetch from edge
@@ -686,8 +685,7 @@ impl OutcomeDecision {
             .challenge_outcome
             .ok_or(OutcomeDecisionError::MissingOutcomeData)?;
 
-        let challenge_id = parse_challenge_id_str(&outcome_data.challenge_id)
-            .ok_or(OutcomeDecisionError::InvalidChallengeId)?;
+        let challenge_id = outcome_data.challenge_id;
         let outcome_type = parse_outcome_type(&outcome_data.outcome_type);
 
         match decision {
@@ -705,7 +703,7 @@ impl OutcomeDecision {
                     .await?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
-                    challenge_id: outcome_data.challenge_id.clone(),
+                    challenge_id: outcome_data.challenge_id.to_string(),
                     challenge_name: outcome_data.challenge_name.clone(),
                     character_name: outcome_data.character_name.clone(),
                     roll: outcome_data.roll,
@@ -732,7 +730,7 @@ impl OutcomeDecision {
                     .await?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
-                    challenge_id: outcome_data.challenge_id.clone(),
+                    challenge_id: outcome_data.challenge_id.to_string(),
                     challenge_name: outcome_data.challenge_name.clone(),
                     character_name: outcome_data.character_name.clone(),
                     roll: outcome_data.roll,
@@ -746,7 +744,7 @@ impl OutcomeDecision {
             ChallengeOutcomeDecision::Suggest { guidance } => {
                 let llm_request = LlmRequestData {
                     request_type: LlmRequestType::OutcomeSuggestion {
-                        resolution_id: approval_queue_id.into(),
+                        resolution_id: wrldbldr_domain::ApprovalRequestId::from_uuid(approval_queue_id.to_uuid()),
                         world_id,
                         challenge_name: outcome_data.challenge_name.clone(),
                         current_description: outcome_data.outcome_description.clone(),
@@ -803,10 +801,6 @@ pub struct ChallengeResolvedPayload {
 pub enum OutcomeDecisionError {
     #[error("Approval request not found")]
     ApprovalNotFound,
-    #[error("Invalid resolution ID: {0}")]
-    InvalidResolutionId(String),
-    #[error("Invalid challenge ID")]
-    InvalidChallengeId,
     #[error("No challenge outcome data in approval request")]
     MissingOutcomeData,
     #[error("Missing target PC")]
@@ -817,10 +811,6 @@ pub enum OutcomeDecisionError {
     Queue(#[from] QueueError),
     #[error("Resolve error: {0}")]
     Resolve(#[from] ChallengeError),
-}
-
-fn parse_challenge_id_str(id_str: &str) -> Option<ChallengeId> {
-    Uuid::parse_str(id_str).ok().map(ChallengeId::from_uuid)
 }
 
 fn parse_outcome_type(outcome_type: &str) -> OutcomeType {

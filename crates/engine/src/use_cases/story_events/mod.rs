@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use serde::Serialize;
-use uuid::Uuid;
 
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::narrative_operations::NarrativeOps;
@@ -95,6 +94,12 @@ impl StoryEventOps {
             None => event.tags().to_vec(),
         };
 
+        let visibility = if event.is_hidden() {
+            wrldbldr_domain::StoryEventVisibility::Hidden
+        } else {
+            wrldbldr_domain::StoryEventVisibility::Visible
+        };
+
         let event = wrldbldr_domain::StoryEvent::from_storage(
             event.id(),
             event.world_id(),
@@ -102,7 +107,7 @@ impl StoryEventOps {
             event.timestamp(),
             event.game_time().map(|s| s.to_string()),
             new_summary,
-            event.is_hidden(),
+            visibility,
             new_tags,
         );
 
@@ -115,7 +120,7 @@ impl StoryEventOps {
         world_id: WorldId,
         title: String,
         content: Option<String>,
-    ) -> Result<Uuid, StoryEventError> {
+    ) -> Result<StoryEventId, StoryEventError> {
         let now = self.narrative.now();
         let event = wrldbldr_domain::StoryEvent::new(
             world_id,
@@ -130,7 +135,7 @@ impl StoryEventOps {
         .with_summary("DM Marker");
 
         self.narrative.save_story_event(&event).await?;
-        Ok(Uuid::from(event.id()))
+        Ok(event.id())
     }
 
     pub async fn set_visibility(
@@ -145,6 +150,12 @@ impl StoryEventOps {
             .ok_or(StoryEventError::NotFound)?;
 
         // Rebuild event with updated visibility using from_storage
+        let visibility = if visible {
+            wrldbldr_domain::StoryEventVisibility::Visible
+        } else {
+            wrldbldr_domain::StoryEventVisibility::Hidden
+        };
+
         let event = wrldbldr_domain::StoryEvent::from_storage(
             event.id(),
             event.world_id(),
@@ -152,7 +163,7 @@ impl StoryEventOps {
             event.timestamp(),
             event.game_time().map(|s| s.to_string()),
             event.summary().to_string(),
-            !visible, // is_hidden = !visible
+            visibility,
             event.tags().to_vec(),
         );
 

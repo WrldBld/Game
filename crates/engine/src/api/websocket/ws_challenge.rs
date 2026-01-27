@@ -779,12 +779,9 @@ pub(super) async fn handle_challenge_outcome_decision(
                 "Challenge outcome is missing target PC context",
             ))
         }
-        Err(crate::use_cases::challenge::OutcomeDecisionError::InvalidResolutionId(_)) => Some(
-            error_response(ErrorCode::ValidationError, "Invalid resolution ID format"),
-        ),
         Err(e) => Some(error_response(
             ErrorCode::InternalError,
-            &sanitize_repo_error(&e, "process challenge outcome decision"),
+            &sanitize_repo_error(&e, "process challenge outcome outcome decision"),
         )),
     }
 }

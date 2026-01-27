@@ -230,7 +230,14 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        chain.set_favorite(favorite, self.narrative.now());
+
+        let favorite_status = if favorite {
+            domain::EventChainFavorite::Favorite
+        } else {
+            domain::EventChainFavorite::Normal
+        };
+
+        chain.set_favorite(favorite_status, self.narrative.now());
         self.narrative.save_chain(&chain).await?;
         Ok(())
     }

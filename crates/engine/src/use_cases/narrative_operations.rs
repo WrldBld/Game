@@ -401,7 +401,7 @@ impl NarrativeOps {
             timestamp,
             resolved_game_time,
             summary,
-            false, // is_hidden
+            wrldbldr_domain::StoryEventVisibility::Visible,
             tags,
         );
 

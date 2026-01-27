@@ -779,7 +779,7 @@ impl ProcessLlmRequest {
                 // Create broadcast event for DMs
                 let broadcast_event = BroadcastEvent::OutcomeSuggestionReady {
                     world_id: *world_id,
-                    resolution_id: *resolution_id,
+                    resolution_id: resolution_id.to_uuid(),
                     suggestions: suggestions.clone(),
                 };
 
@@ -788,7 +788,7 @@ impl ProcessLlmRequest {
 
                 Ok(Some(LlmRequestProcessed {
                     request_id: item.id.to_uuid(),
-                    approval_id: *resolution_id, // Use resolution_id as the "approval" for tracking
+                    approval_id: resolution_id.to_uuid(), // Convert ApprovalRequestId to Uuid for tracking
                     npc_dialogue: llm_response.content,
                     broadcast_events: vec![broadcast_event],
                 }))
