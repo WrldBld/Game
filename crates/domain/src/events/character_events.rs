@@ -87,3 +87,36 @@ pub enum ResurrectOutcome {
     /// Character was resurrected
     Resurrected { hp_restored_to: i32 },
 }
+
+/// Outcome of updating a player character's location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LocationUpdateOutcome {
+    /// Location was changed
+    Changed {
+        previous: crate::LocationId,
+        new: crate::LocationId,
+    },
+    /// Location was unchanged (already at that location)
+    Unchanged { location: crate::LocationId },
+}
+
+/// Outcome of updating a player character's region.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegionUpdateOutcome {
+    /// Region was changed
+    Changed {
+        previous: Option<crate::RegionId>,
+        new: crate::RegionId,
+    },
+    /// Region was unchanged (already at that region)
+    Unchanged { region: crate::RegionId },
+}
+
+/// Outcome of updating a player character's last_active timestamp.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TouchOutcome {
+    /// Timestamp was updated
+    Updated,
+    /// Timestamp was unchanged (same time as before)
+    Unchanged,
+}

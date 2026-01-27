@@ -25,9 +25,9 @@
 - [x] Reduce constructor dependency fan-in
 
 ### Phase 3 — Domain events for PlayerCharacter mutations (domain + engine)
-- [ ] Introduce event enums for location/region/touch updates
-- [ ] Update mutation methods to return events
-- [ ] Update use cases to handle outcomes
+- [x] Introduce event enums for location/region/touch updates
+- [x] Update mutation methods to return events
+- [x] Update use cases to handle outcomes
 
 ---
 
@@ -35,6 +35,6 @@
 
 - [x] Phase 1 complete
 - [x] Phase 2 complete
-- [ ] Phase 3 complete
+- [x] Phase 3 complete
 - [ ] Architecture review (re-run)
-- [ ] Checks/tests clean
+- [x] Checks/tests clean

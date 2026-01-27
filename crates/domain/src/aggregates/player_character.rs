@@ -14,6 +14,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::DomainError;
+use crate::events::character_events::{LocationUpdateOutcome, RegionUpdateOutcome, TouchOutcome};
 use crate::types::character_sheet::CharacterSheetValues;
 use crate::value_objects::{AssetPath, CharacterName, CharacterState, Description};
 use crate::{LocationId, PlayerCharacterId, RegionId, UserId, WorldId};
@@ -419,16 +420,44 @@ impl PlayerCharacter {
     // =========================================================================
 
     /// Update the character's current location (clears region).
-    pub fn update_location(&mut self, location_id: LocationId, now: DateTime<Utc>) {
-        self.current_location_id = location_id;
-        self.current_region_id = None; // Region needs to be set separately
-        self.last_active_at = now;
+    pub fn update_location(
+        &mut self,
+        location_id: LocationId,
+        now: DateTime<Utc>,
+    ) -> LocationUpdateOutcome {
+        if self.current_location_id == location_id {
+            LocationUpdateOutcome::Unchanged {
+                location: self.current_location_id,
+            }
+        } else {
+            let previous = self.current_location_id;
+            self.current_location_id = location_id;
+            self.current_region_id = None; // Region needs to be set separately
+            self.last_active_at = now;
+            LocationUpdateOutcome::Changed {
+                previous,
+                new: location_id,
+            }
+        }
     }
 
     /// Update the character's current region (within current location).
-    pub fn update_region(&mut self, region_id: RegionId, now: DateTime<Utc>) {
-        self.current_region_id = Some(region_id);
-        self.last_active_at = now;
+    pub fn update_region(
+        &mut self,
+        region_id: RegionId,
+        now: DateTime<Utc>,
+    ) -> RegionUpdateOutcome {
+        if self.current_region_id == Some(region_id) {
+            RegionUpdateOutcome::Unchanged { region: region_id }
+        } else {
+            let previous = self.current_region_id;
+            self.current_region_id = Some(region_id);
+            self.last_active_at = now;
+            RegionUpdateOutcome::Changed {
+                previous,
+                new: region_id,
+            }
+        }
     }
 
     /// Update both location and region at once.
@@ -444,8 +473,13 @@ impl PlayerCharacter {
     }
 
     /// Update the last active timestamp.
-    pub fn touch(&mut self, now: DateTime<Utc>) {
-        self.last_active_at = now;
+    pub fn touch(&mut self, now: DateTime<Utc>) -> TouchOutcome {
+        if self.last_active_at == now {
+            TouchOutcome::Unchanged
+        } else {
+            self.last_active_at = now;
+            TouchOutcome::Updated
+        }
     }
 
     /// Set the character's name.
@@ -738,11 +772,12 @@ mod tests {
             let now = fixed_time();
 
             // Set a region first
-            pc.update_region(region_id, now);
+            _ = pc.update_region(region_id, now);
             assert_eq!(pc.current_region_id(), Some(region_id));
 
             // Update location should clear region
-            pc.update_location(new_location, now);
+            let outcome = pc.update_location(new_location, now);
+            assert!(matches!(outcome, LocationUpdateOutcome::Changed { .. }));
             assert_eq!(pc.current_location_id(), new_location);
             assert!(pc.current_region_id().is_none());
         }
@@ -753,8 +788,52 @@ mod tests {
             let region_id = RegionId::new();
             let now = fixed_time();
 
-            pc.update_region(region_id, now);
+            let outcome = pc.update_region(region_id, now);
+            assert!(matches!(outcome, RegionUpdateOutcome::Changed { .. }));
             assert_eq!(pc.current_region_id(), Some(region_id));
+        }
+
+        #[test]
+        fn update_location_unchanged_returns_event() {
+            let mut pc = create_test_pc();
+            let location_id = pc.current_location_id();
+            let now = fixed_time();
+
+            // Updating to the same location returns Unchanged
+            let outcome = pc.update_location(location_id, now);
+            assert!(matches!(outcome, LocationUpdateOutcome::Unchanged { .. }));
+        }
+
+        #[test]
+        fn update_region_unchanged_returns_event() {
+            let mut pc = create_test_pc();
+            let region_id = RegionId::new();
+            let now = fixed_time();
+
+            _ = pc.update_region(region_id, now);
+            // Updating to the same region returns Unchanged
+            let outcome = pc.update_region(region_id, now);
+            assert!(matches!(outcome, RegionUpdateOutcome::Unchanged { .. }));
+        }
+
+        #[test]
+        fn touch_returns_updated() {
+            let mut pc = create_test_pc();
+            let now = fixed_time();
+            let later = Utc.timestamp_opt(1_700_000_001, 0).unwrap();
+
+            let outcome = pc.touch(later);
+            assert!(matches!(outcome, TouchOutcome::Updated));
+            assert_eq!(pc.last_active_at(), later);
+        }
+
+        #[test]
+        fn touch_unchanged_returns_unchanged() {
+            let mut pc = create_test_pc();
+            let now = fixed_time();
+
+            let outcome = pc.touch(now);
+            assert!(matches!(outcome, TouchOutcome::Unchanged));
         }
 
         #[test]

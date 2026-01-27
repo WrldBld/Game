@@ -114,7 +114,7 @@ impl PlayerCharacterManagement {
         if let Some(sheet_data) = sheet_data {
             pc.set_sheet_data(Some(sheet_data));
         }
-        pc.touch(self.clock.now());
+        let _ = pc.touch(self.clock.now());
 
         self.player_character.save(&pc).await?;
         Ok(pc)
