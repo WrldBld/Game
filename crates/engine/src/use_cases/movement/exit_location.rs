@@ -4,11 +4,14 @@
 //! Determines the arrival region and coordinates with staging/narrative/scene/time systems.
 
 use std::sync::Arc;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{PlayerCharacterId, RegionId, WorldId};
+
+// Import LocationId for use in return types
+use wrldbldr_domain::LocationId;
 
 use crate::infrastructure::ports::{
     ClockPort, FlagRepo, LocationRepo, LocationStateRepo, ObservationRepo, PlayerCharacterRepo,
-    RegionStateRepo, RepoError, SceneRepo, StagingRepo, WorldRepo,
+    RegionStateRepo, SceneRepo, StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
 use crate::use_cases::observation::RecordVisit;
@@ -18,24 +21,21 @@ use crate::use_cases::time::SuggestTime;
 use super::enter_region::EnterRegionResult;
 use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_for_movement};
 
+// StagingStatus is now defined in mod.rs and re-exported from there
+use super::StagingStatus;
+
 /// Exit to location use case.
 ///
 /// Handles moving to a different location entirely.
 pub struct ExitLocation {
     player_character: Arc<dyn PlayerCharacterRepo>,
     location: Arc<dyn LocationRepo>,
-    staging: Arc<dyn StagingRepo>,
-    location_state: Arc<dyn LocationStateRepo>,
-    region_state: Arc<dyn RegionStateRepo>,
-    observation: Arc<dyn ObservationRepo>,
+    arrival_determiner: LocationArrivalDeterminer,
+    staging_resolver: MovementStagingResolver,
+    scene_resolver: MovementSceneResolver,
+    narrative_checker: MovementNarrativeChecker,
+    time_suggester: MovementTimeSuggester,
     record_visit: Arc<RecordVisit>,
-    narrative: Arc<NarrativeOps>,
-    resolve_scene: Arc<ResolveScene>,
-    scene: Arc<dyn SceneRepo>,
-    flag: Arc<dyn FlagRepo>,
-    world: Arc<dyn WorldRepo>,
-    suggest_time: Arc<SuggestTime>,
-    clock: Arc<dyn ClockPort>,
 }
 
 impl ExitLocation {
@@ -55,21 +55,32 @@ impl ExitLocation {
         suggest_time: Arc<SuggestTime>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
-        Self {
-            player_character,
-            location,
+        let arrival_determiner = LocationArrivalDeterminer { location: location.clone() };
+        let staging_resolver = MovementStagingResolver {
             staging,
             location_state,
             region_state,
-            observation,
-            record_visit,
-            narrative,
+            world: world.clone(),
+            clock: clock.clone(),
+        };
+        let scene_resolver = MovementSceneResolver {
             resolve_scene,
             scene,
+            player_character: player_character.clone(),
+            observation,
             flag,
-            world,
-            suggest_time,
-            clock,
+        };
+        let narrative_checker = MovementNarrativeChecker { narrative };
+        let time_suggester = MovementTimeSuggester { suggest_time };
+        Self {
+            player_character,
+            location,
+            arrival_determiner,
+            staging_resolver,
+            scene_resolver,
+            narrative_checker,
+            time_suggester,
+            record_visit,
         }
     }
 
@@ -96,19 +107,13 @@ impl ExitLocation {
             .await?
             .ok_or(ExitLocationError::PlayerCharacterNotFound(pc_id))?;
 
-        // 2. Get the target location
-        let location = self
-            .location
-            .get_location(target_location_id)
-            .await?
-            .ok_or(ExitLocationError::LocationNotFound(target_location_id))?;
-
-        // 3. Determine arrival region
+        // 2. Determine arrival region
         let region_id = self
-            .determine_arrival_region(target_location_id, arrival_region_id)
+            .arrival_determiner
+            .determine(target_location_id, arrival_region_id)
             .await?;
 
-        // 4. Get the arrival region
+        // 3. Get the arrival region
         let region = self
             .location
             .get_region(region_id)
@@ -116,80 +121,68 @@ impl ExitLocation {
             .ok_or(ExitLocationError::RegionNotFound(region_id))?;
 
         // Verify region belongs to target location
-        if region.location_id() != location.id() {
+        if region.location_id() != target_location_id {
             return Err(ExitLocationError::RegionLocationMismatch);
         }
 
-        // 5. Update player character position (both location and region)
+        // 4. Update player character position (both location and region)
         self.player_character
             .update_position(pc_id, target_location_id, region_id)
             .await?;
 
-        // 6. Get fresh PC data after position update
+        // 5. Get fresh PC data after position update
         let pc = self
             .player_character
             .get(pc_id)
             .await?
             .ok_or(ExitLocationError::PlayerCharacterNotFound(pc_id))?;
 
-        // 7. Get the world to access game time for TTL checks and observations
+        // 6. Resolve staging, scene, narrative triggers, and time suggestion
         let world_id = pc.world_id();
-        let world_data = self
-            .world
-            .get(world_id)
-            .await?
-            .ok_or(ExitLocationError::WorldNotFound(world_id))?;
-        let current_game_time_seconds = world_data.game_time().total_seconds();
-        let real_timestamp = self.clock.now();
+        let location_id = region.location_id();
 
-        // 8. Check for valid staging (with TTL check using game time)
-        let (npcs, staging_status, visual_state) = resolve_staging_for_region(
-            self.staging.as_ref(),
-            self.location_state.as_ref(),
-            self.region_state.as_ref(),
-            region_id,
-            region.location_id(),
-            pc.world_id(),
-            current_game_time_seconds,
-            real_timestamp,
-        )
-        .await?;
+        let (npcs, staging_status, visual_state) = self
+            .staging_resolver
+            .resolve_for_region(region_id, location_id, world_id)
+            .await?;
 
-        // 9. Update observation (only if staging ready)
+        // 7. Update observation (only if staging ready)
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
+            let current_game_time_seconds = self.staging_resolver.get_game_time(world_id).await?;
             self.record_visit
                 .execute(pc_id, region_id, &npcs, current_game_time_seconds)
                 .await?;
         }
 
-        // 10. Check triggers
-        let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
+        let game_time = self.staging_resolver.get_game_time(world_id).await?;
 
-        // 11. Generate time suggestion for location travel
-        let time_suggestion = suggest_time_for_movement(
-            &self.suggest_time,
-            pc.world_id(),
-            pc_id,
-            pc.name().to_string(),
-            "travel_location",
-            location.name().as_str(),
-        )
-        .await;
+        let triggered_events = self
+            .narrative_checker
+            .check_triggers(region_id, pc_id)
+            .await?;
 
-        // 12. Resolve scene for the arrival region
-        let resolved_scene = resolve_scene_for_region(
-            &self.resolve_scene,
-            self.scene.as_ref(),
-            self.player_character.as_ref(),
-            self.observation.as_ref(),
-            self.flag.as_ref(),
-            pc_id,
-            pc.world_id(),
-            region_id,
-            world_data.game_time(),
-        )
-        .await?;
+        let time_suggestion = self
+            .time_suggester
+            .suggest_for_movement(
+                pc_id,
+                world_id,
+                &pc.name().to_string(),
+                "travel_location",
+                self.location
+                    .get_location(target_location_id)
+                    .await?
+                    .ok_or(ExitLocationError::LocationNotFound(target_location_id))?
+                    .name()
+                    .as_str(),
+            )
+            .await;
+
+        let resolved_scene = self
+            .scene_resolver
+            .resolve_for_region(pc_id, world_id, region_id, game_time)
+            .await?;
+
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
                 pc_id = %pc_id,
@@ -211,9 +204,20 @@ impl ExitLocation {
             visual_state,
         })
     }
+}
 
+/// Helper for determining arrival region when exiting to a location.
+///
+/// Encapsulates arrival region selection logic.
+struct LocationArrivalDeterminer {
+    location: Arc<dyn LocationRepo>,
+}
+
+impl LocationArrivalDeterminer {
     /// Determine the arrival region for a location.
-    async fn determine_arrival_region(
+    ///
+    /// Returns the region ID where the player should arrive.
+    async fn determine(
         &self,
         location_id: LocationId,
         specified_region_id: Option<RegionId>,
@@ -258,6 +262,150 @@ impl ExitLocation {
     }
 }
 
+/// Helper for resolving movement staging.
+///
+/// Encapsulates staging resolution logic, including TTL checking and visual state loading.
+/// Shared between EnterRegion and ExitLocation.
+struct MovementStagingResolver {
+    staging: Arc<dyn StagingRepo>,
+    location_state: Arc<dyn LocationStateRepo>,
+    region_state: Arc<dyn RegionStateRepo>,
+    world: Arc<dyn WorldRepo>,
+    clock: Arc<dyn ClockPort>,
+}
+
+impl MovementStagingResolver {
+    /// Resolve staging for a region.
+    ///
+    /// Returns the visible NPCs, staging status, and optional visual state.
+    async fn resolve_for_region(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+    ) -> Result<(Vec<wrldbldr_domain::StagedNpc>, StagingStatus, Option<crate::use_cases::staging::ResolvedVisualState>), ExitLocationError>
+    {
+        let current_game_time_seconds = self.get_game_time(world_id).await?;
+        let real_timestamp = self.clock.now();
+
+        resolve_staging_for_region(
+            self.staging.as_ref(),
+            self.location_state.as_ref(),
+            self.region_state.as_ref(),
+            region_id,
+            location_id,
+            world_id,
+            current_game_time_seconds,
+            real_timestamp,
+        )
+        .await
+        .map_err(ExitLocationError::from)
+    }
+
+    /// Get the current game time in seconds for the given world.
+    async fn get_game_time(&self, world_id: WorldId) -> Result<i64, ExitLocationError> {
+        let world_data = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(ExitLocationError::WorldNotFound(world_id))?;
+        Ok(world_data.game_time().total_seconds())
+    }
+}
+
+/// Helper for resolving scenes during movement.
+///
+/// Encapsulates scene resolution logic, including building evaluation context.
+/// Shared between EnterRegion and ExitLocation.
+struct MovementSceneResolver {
+    resolve_scene: Arc<ResolveScene>,
+    scene: Arc<dyn SceneRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    observation: Arc<dyn ObservationRepo>,
+    flag: Arc<dyn FlagRepo>,
+}
+
+impl MovementSceneResolver {
+    /// Resolve which scene to display for a PC entering a region.
+    async fn resolve_for_region(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        region_id: RegionId,
+        game_time: i64,
+    ) -> Result<Option<wrldbldr_domain::Scene>, ExitLocationError> {
+        use wrldbldr_domain::GameTime;
+
+        let game_time = GameTime::from_seconds(game_time);
+
+        resolve_scene_for_region(
+            &self.resolve_scene,
+            self.scene.as_ref(),
+            self.player_character.as_ref(),
+            self.observation.as_ref(),
+            self.flag.as_ref(),
+            pc_id,
+            world_id,
+            region_id,
+            &game_time,
+        )
+        .await
+        .map_err(ExitLocationError::from)
+    }
+}
+
+/// Helper for checking narrative triggers during movement.
+///
+/// Encapsulates narrative trigger checking logic.
+/// Shared between EnterRegion and ExitLocation.
+struct MovementNarrativeChecker {
+    narrative: Arc<NarrativeOps>,
+}
+
+impl MovementNarrativeChecker {
+    /// Check for triggered narrative events for a region/PC pair.
+    async fn check_triggers(
+        &self,
+        region_id: RegionId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<wrldbldr_domain::NarrativeEvent>, ExitLocationError> {
+        self.narrative
+            .check_triggers(region_id, pc_id)
+            .await
+            .map_err(ExitLocationError::from)
+    }
+}
+
+/// Helper for generating time suggestions during movement.
+///
+/// Encapsulates time suggestion logic for movement actions.
+/// Shared between EnterRegion and ExitLocation.
+struct MovementTimeSuggester {
+    suggest_time: Arc<SuggestTime>,
+}
+
+impl MovementTimeSuggester {
+    /// Generate a time suggestion for movement.
+    async fn suggest_for_movement(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        pc_name: &str,
+        action_type: &str,
+        destination_name: &str,
+    ) -> Option<crate::use_cases::time::TimeSuggestion> {
+        suggest_time_for_movement(
+            &self.suggest_time,
+            world_id,
+            pc_id,
+            pc_name.to_string(),
+            action_type,
+            destination_name,
+        )
+        .await
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExitLocationError {
     #[error("Player character not found: {0}")]
@@ -273,7 +421,7 @@ pub enum ExitLocationError {
     #[error("Region does not belong to target location")]
     RegionLocationMismatch,
     #[error("Repository error: {0}")]
-    Repo(#[from] RepoError),
+    Repo(#[from] crate::infrastructure::ports::RepoError),
 }
 
 #[cfg(test)]
@@ -367,7 +515,6 @@ mod tests {
             staging_repo,
             location_state_repo,
             region_state_repo,
-            observation_repo,
             record_visit,
             narrative,
             resolve_scene,
@@ -606,6 +753,7 @@ mod tests {
                 .with_id(target_location_id);
 
         let arrival_region_id = RegionId::new();
+        let other_location_id = LocationId::new();
         let arrival_region = Region::from_storage(
             arrival_region_id,
             other_location_id,
@@ -654,6 +802,7 @@ mod tests {
         location_repo
             .expect_get_location()
             .withf(move |id| *id == target_location_id)
+            .times(2)
             .returning(move |_| Ok(Some(location_for_get.clone())));
 
         let arrival_region_for_get_1 = arrival_region.clone();
@@ -662,13 +811,6 @@ mod tests {
             .withf(move |id| *id == arrival_region_id)
             .times(1)
             .returning(move |_| Ok(Some(arrival_region_for_get_1.clone())));
-
-        let arrival_region_for_get_2 = arrival_region.clone();
-        location_repo
-            .expect_get_region()
-            .withf(move |id| *id == arrival_region_id)
-            .times(1)
-            .returning(move |_| Ok(Some(arrival_region_for_get_2.clone())));
 
         let mut world_repo = MockWorldRepo::new();
         world_repo

@@ -566,25 +566,68 @@ pub const fn match_character_by_id() -> &'static str {
 pub fn match_character_by_param(param_name: &str) -> String {
     format!("MATCH (c:Character {{id: ${}}})", param_name)
 }
-
+ 
 // =============================================================================
-// Common Character RETURN Field Fragments
+// Common World MATCH Fragments
 // =============================================================================
-
-/// Fragment for returning character name only.
+ 
+/// Fragment for matching a World node by ID (using parameter `$id`).
 ///
-/// Returns `c.name as name` for RETURN clauses.
+/// Returns the MATCH clause `MATCH (w:World {id: $id})`.
 ///
 /// # Example
 /// ```ignore
-/// use crate::infrastructure::neo4j::helpers::return_character_name;
+/// use crate::infrastructure::neo4j::helpers::match_world_by_id;
 ///
-/// let q = query(&format!("{} {}", match_character_by_id(), return_character_name()))
-///     .param("id", character_id.to_string());
+/// let q = query(&format!("{} RETURN w", match_world_by_id()))
+///     .param("id", world_id.to_string());
 /// ```
-pub const fn return_character_name() -> &'static str {
-    "RETURN c.name as name"
+pub const fn match_world_by_id() -> &'static str {
+    "MATCH (w:World {id: $id})"
 }
+ 
+// =============================================================================
+// Common Item MATCH Fragments
+// =============================================================================
+ 
+/// Fragment for matching an Item node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (i:Item {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_item_by_id;
+///
+/// let q = query(&format!("{} RETURN i", match_item_by_id()))
+///     .param("id", item_id.to_string());
+/// ```
+pub const fn match_item_by_id() -> &'static str {
+    "MATCH (i:Item {id: $id})"
+}
+ 
+// =============================================================================
+// Common PlayerCharacter MATCH Fragments
+// =============================================================================
+  
+/// Fragment for matching a PlayerCharacter node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (pc:PlayerCharacter {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_player_character_by_id;
+///
+/// let q = query(&format!("{} RETURN pc", match_player_character_by_id()))
+///     .param("id", pc_id.to_string());
+/// ```
+pub const fn match_player_character_by_id() -> &'static str {
+    "MATCH (pc:PlayerCharacter {id: $id})"
+}
+ 
+// =============================================================================
+// Common Lore MATCH Fragments
+// =============================================================================
+
 
 // =============================================================================
 // Common Lore MATCH Fragments
@@ -746,6 +789,36 @@ pub const fn return_scene() -> &'static str {
     "RETURN s"
 }
 
+/// Fragment for returning a World node as 'w'.
+///
+/// Returns `RETURN w` for RETURN clauses.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_world;
+///
+/// let q = query(&format!("{} {}", match_world_by_id(), return_world()))
+///     .param("id", world_id.to_string());
+/// ```
+pub const fn return_world() -> &'static str {
+    "RETURN w"
+}
+
+/// Fragment for returning an Item node as 'i'.
+///
+/// Returns `RETURN i` for RETURN clauses.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_item;
+///
+/// let q = query(&format!("{} {}", match_item_by_id(), return_item()))
+///     .param("id", item_id.to_string());
+/// ```
+pub const fn return_item() -> &'static str {
+    "RETURN i"
+}
+
 /// Fragment for returning a NarrativeEvent node as 'e'.
 ///
 /// Returns `RETURN e` for RETURN clauses.
@@ -792,7 +865,7 @@ pub const fn return_story_event() -> &'static str {
 }
 
 // =============================================================================
-// Common DELETE Fragments
+// Common DELETE Fragments (Basic Node Deletes)
 // =============================================================================
 
 /// Fragment for deleting a Scene node and all relationships.

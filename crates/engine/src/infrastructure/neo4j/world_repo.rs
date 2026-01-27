@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt};
+use super::helpers::{parse_typed_id, NodeExt, match_world_by_id, return_world};
 use crate::infrastructure::ports::{ClockPort, RepoError, WorldRepo};
 
 /// Repository for World aggregate operations.
@@ -88,7 +88,8 @@ impl Neo4jWorldRepo {
 #[async_trait]
 impl WorldRepo for Neo4jWorldRepo {
     async fn get(&self, id: WorldId) -> Result<Option<World>, RepoError> {
-        let q = query("MATCH (w:World {id: $id}) RETURN w").param("id", id.to_string());
+        let q = query(&format!("{} {}", match_world_by_id(), return_world()))
+            .param("id", id.to_string());
 
         let mut result = self
             .graph

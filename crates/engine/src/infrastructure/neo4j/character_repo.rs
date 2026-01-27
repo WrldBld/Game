@@ -18,7 +18,7 @@ use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, parse_typed_id_from_row, row_to_item, NodeExt,
-    match_character_by_id, match_character_by_param, return_character_name};
+    match_character_by_id, match_character_by_param};
 use crate::infrastructure::ports::{
     ActantialViewRecord, CharacterRepo, NpcRegionRelationType, NpcRegionRelationship,
     NpcWithRegionInfo, RepoError, WantDetails, WantTargetRef,
@@ -1307,7 +1307,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         id: CharacterId,
     ) -> Result<Option<ActantialContext>, RepoError> {
         // Get character info first
-        let char_q = query(&format!("{}", return_character_name()))
+        let char_q = query("MATCH (c:Character {id: $id}) RETURN c.name AS name")
             .param("id", id.to_string());
 
         let mut char_result = self

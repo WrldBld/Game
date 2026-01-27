@@ -9,7 +9,7 @@ pub mod scene_change;
 #[cfg(test)]
 mod tests;
 
-pub use enter_region::{EnterRegion, EnterRegionError, StagingStatus};
+pub use enter_region::{EnterRegion, EnterRegionError};
 pub use exit_location::{ExitLocation, ExitLocationError};
 pub use get_exits::GetRegionExits;
 pub use scene_change::SceneChangeBuilder;
@@ -25,8 +25,20 @@ use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use wrldbldr_domain::{
     GameTime, LocationId, LocationStateId, PlayerCharacterId, RegionId, RegionStateId,
-    Scene as DomainScene, StagedNpc, Staging, StagingSource, WorldId,
+    Scene as DomainScene, StagedNpc,     Staging, StagingSource, WorldId,
 };
+
+/// Status of staging for a region.
+///
+/// `Ready` - Active staging exists with valid TTL and visual state IDs
+/// `Pending` - No valid staging, DM approval required
+#[derive(Debug, Clone)]
+pub enum StagingStatus {
+    /// Staging is ready to use (NPCs and visual state available)
+    Ready,
+    /// Staging pending DM approval (may have previous staging for reference)
+    Pending { previous_staging: Box<Option<Staging>> },
+}
 
 /// Container for movement use cases.
 pub struct MovementUseCases {

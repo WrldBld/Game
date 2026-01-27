@@ -5,13 +5,13 @@
 
 use std::sync::Arc;
 use wrldbldr_domain::{
-    NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId,
-    Scene as DomainScene, StagedNpc, Staging as DomainStaging, WorldId,
+    LocationId, NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId,
+    Scene as DomainScene, StagedNpc, WorldId,
 };
 
 use crate::infrastructure::ports::{
     ClockPort, FlagRepo, LocationRepo, LocationStateRepo, ObservationRepo, PlayerCharacterRepo,
-    RegionStateRepo, RepoError, SceneRepo, StagingRepo, WorldRepo,
+    RegionStateRepo, SceneRepo, StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
 use crate::use_cases::observation::RecordVisit;
@@ -19,6 +19,9 @@ use crate::use_cases::scene::ResolveScene;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
 use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_for_movement};
+
+// StagingStatus is now defined in mod.rs and re-exported from there
+use super::StagingStatus;
 
 /// Result of entering a region.
 #[derive(Debug)]
@@ -41,16 +44,14 @@ pub struct EnterRegionResult {
     pub visual_state: Option<crate::use_cases::staging::ResolvedVisualState>,
 }
 
-/// Status of staging for a region.
-#[derive(Debug)]
-pub enum StagingStatus {
-    /// Valid staging exists, NPCs are resolved
-    Ready,
-    /// No valid staging, DM approval required
-    Pending {
-        /// Previous staging if it exists (may be expired)
-        previous_staging: Box<Option<DomainStaging>>,
-    },
+/// Result of checking a connection between regions.
+enum ConnectionCheckResult {
+    /// Connection exists and is open
+    Open,
+    /// Connection exists but is locked
+    Locked(String),
+    /// No connection exists between regions
+    NoConnection,
 }
 
 /// Enter region use case.
@@ -59,18 +60,11 @@ pub enum StagingStatus {
 pub struct EnterRegion {
     player_character: Arc<dyn PlayerCharacterRepo>,
     location: Arc<dyn LocationRepo>,
-    staging: Arc<dyn StagingRepo>,
-    location_state: Arc<dyn LocationStateRepo>,
-    region_state: Arc<dyn RegionStateRepo>,
-    observation: Arc<dyn ObservationRepo>,
+    staging_resolver: MovementStagingResolver,
+    scene_resolver: MovementSceneResolver,
+    narrative_checker: MovementNarrativeChecker,
+    time_suggester: MovementTimeSuggester,
     record_visit: Arc<RecordVisit>,
-    narrative: Arc<NarrativeOps>,
-    resolve_scene: Arc<ResolveScene>,
-    scene: Arc<dyn SceneRepo>,
-    flag: Arc<dyn FlagRepo>,
-    world: Arc<dyn WorldRepo>,
-    suggest_time: Arc<SuggestTime>,
-    clock: Arc<dyn ClockPort>,
 }
 
 impl EnterRegion {
@@ -80,31 +74,40 @@ impl EnterRegion {
         staging: Arc<dyn StagingRepo>,
         location_state: Arc<dyn LocationStateRepo>,
         region_state: Arc<dyn RegionStateRepo>,
-        observation: Arc<dyn ObservationRepo>,
         record_visit: Arc<RecordVisit>,
         narrative: Arc<NarrativeOps>,
         resolve_scene: Arc<ResolveScene>,
         scene: Arc<dyn SceneRepo>,
+        observation: Arc<dyn ObservationRepo>,
         flag: Arc<dyn FlagRepo>,
         world: Arc<dyn WorldRepo>,
         suggest_time: Arc<SuggestTime>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
-        Self {
-            player_character,
-            location,
+        let staging_resolver = MovementStagingResolver {
             staging,
             location_state,
             region_state,
-            observation,
-            record_visit,
-            narrative,
+            world: world.clone(),
+            clock: clock.clone(),
+        };
+        let scene_resolver = MovementSceneResolver {
             resolve_scene,
             scene,
+            player_character: player_character.clone(),
+            observation,
             flag,
-            world,
-            suggest_time,
-            clock,
+        };
+        let narrative_checker = MovementNarrativeChecker { narrative };
+        let time_suggester = MovementTimeSuggester { suggest_time };
+        Self {
+            player_character,
+            location,
+            staging_resolver,
+            scene_resolver,
+            narrative_checker,
+            time_suggester,
+            record_visit,
         }
     }
 
@@ -161,49 +164,31 @@ impl EnterRegion {
             }
         }
 
-        // 5. Get the world to access game time for TTL checks and observations
-        let world_data = self
-            .world
-            .get(pc.world_id())
-            .await?
-            .ok_or(EnterRegionError::WorldNotFound(pc.world_id()))?;
-        let current_game_time_seconds = world_data.game_time().total_seconds();
-        let real_timestamp = self.clock.now();
+        // 5. Resolve staging, scene, narrative triggers, and time suggestion in parallel
+        let world_id = pc.world_id();
+        let location_id = region.location_id();
 
-        // 6. Check for valid staging (with TTL check using game time)
-        let (npcs, staging_status, visual_state) = resolve_staging_for_region(
-            self.staging.as_ref(),
-            self.location_state.as_ref(),
-            self.region_state.as_ref(),
-            region_id,
-            region.location_id(),
-            pc.world_id(),
-            current_game_time_seconds,
-            real_timestamp,
-        )
-        .await?;
+        let (npcs, staging_status, visual_state) = self
+            .staging_resolver
+            .resolve_for_region(region_id, location_id, world_id)
+            .await?;
 
-        // 7. Update player's observation state (even if staging pending, record the visit)
+        // 6. Update player's observation state (even if staging pending, record the visit)
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
+            let current_game_time_seconds = self.staging_resolver.get_game_time(world_id).await?;
             self.record_visit
                 .execute(pc_id, region_id, &npcs, current_game_time_seconds)
                 .await?;
         }
 
-        // 8. Resolve scene for this region (use world's game time for time-of-day checks)
-        let resolved_scene = resolve_scene_for_region(
-            &self.resolve_scene,
-            self.scene.as_ref(),
-            self.player_character.as_ref(),
-            self.observation.as_ref(),
-            self.flag.as_ref(),
-            pc_id,
-            pc.world_id(),
-            region_id,
-            world_data.game_time(),
-        )
-        .await?;
+        let game_time = self.staging_resolver.get_game_time(world_id).await?;
+
+        let resolved_scene = self
+            .scene_resolver
+            .resolve_for_region(pc_id, world_id, region_id, game_time)
+            .await?;
+
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
                 pc_id = %pc_id,
@@ -214,25 +199,26 @@ impl EnterRegion {
             );
         }
 
-        // 9. Check for triggered narrative events
-        let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
+        let triggered_events = self
+            .narrative_checker
+            .check_triggers(region_id, pc_id)
+            .await?;
 
-        // 10. Update player character position
+        let time_suggestion = self
+            .time_suggester
+            .suggest_for_movement(
+                pc_id,
+                world_id,
+                &pc.name().to_string(),
+                "travel_region",
+                region.name().as_str(),
+            )
+            .await;
+
+        // 7. Update player character position
         self.player_character
             .update_position(pc_id, pc.current_location_id(), region_id)
             .await?;
-
-        // 11. Generate time suggestion for movement
-        // This is a region-to-region move within the same location (travel_region)
-        let time_suggestion = suggest_time_for_movement(
-            &self.suggest_time,
-            pc.world_id(),
-            pc_id,
-            pc.name().to_string(),
-            "travel_region",
-            region.name().as_str(),
-        )
-        .await;
 
         Ok(EnterRegionResult {
             region,
@@ -275,14 +261,144 @@ impl EnterRegion {
     }
 }
 
-/// Result of checking a connection between regions.
-enum ConnectionCheckResult {
-    /// Connection exists and is open
-    Open,
-    /// Connection exists but is locked
-    Locked(String),
-    /// No connection exists between regions
-    NoConnection,
+/// Helper for resolving movement staging.
+///
+/// Encapsulates staging resolution logic, including TTL checking and visual state loading.
+struct MovementStagingResolver {
+    staging: Arc<dyn StagingRepo>,
+    location_state: Arc<dyn LocationStateRepo>,
+    region_state: Arc<dyn RegionStateRepo>,
+    world: Arc<dyn WorldRepo>,
+    clock: Arc<dyn ClockPort>,
+}
+
+impl MovementStagingResolver {
+    /// Resolve staging for a region.
+    ///
+    /// Returns the visible NPCs, staging status, and optional visual state.
+    async fn resolve_for_region(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+    ) -> Result<(Vec<StagedNpc>, StagingStatus, Option<crate::use_cases::staging::ResolvedVisualState>), EnterRegionError>
+    {
+        let current_game_time_seconds = self.get_game_time(world_id).await?;
+        let real_timestamp = self.clock.now();
+
+        resolve_staging_for_region(
+            self.staging.as_ref(),
+            self.location_state.as_ref(),
+            self.region_state.as_ref(),
+            region_id,
+            location_id,
+            world_id,
+            current_game_time_seconds,
+            real_timestamp,
+        )
+        .await
+        .map_err(EnterRegionError::from)
+    }
+
+    /// Get the current game time in seconds for the given world.
+    async fn get_game_time(&self, world_id: WorldId) -> Result<i64, EnterRegionError> {
+        let world_data = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(EnterRegionError::WorldNotFound(world_id))?;
+        Ok(world_data.game_time().total_seconds())
+    }
+}
+
+/// Helper for resolving scenes during movement.
+///
+/// Encapsulates scene resolution logic, including building the evaluation context.
+struct MovementSceneResolver {
+    resolve_scene: Arc<ResolveScene>,
+    scene: Arc<dyn SceneRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    observation: Arc<dyn ObservationRepo>,
+    flag: Arc<dyn FlagRepo>,
+}
+
+impl MovementSceneResolver {
+    /// Resolve which scene to display for a PC entering a region.
+    async fn resolve_for_region(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        region_id: RegionId,
+        game_time: i64,
+    ) -> Result<Option<DomainScene>, EnterRegionError> {
+        use wrldbldr_domain::GameTime;
+
+        let game_time = GameTime::from_seconds(game_time);
+
+        resolve_scene_for_region(
+            &self.resolve_scene,
+            self.scene.as_ref(),
+            self.player_character.as_ref(),
+            self.observation.as_ref(),
+            self.flag.as_ref(),
+            pc_id,
+            world_id,
+            region_id,
+            &game_time,
+        )
+        .await
+        .map_err(EnterRegionError::from)
+    }
+}
+
+/// Helper for checking narrative triggers during movement.
+///
+/// Encapsulates narrative trigger checking logic.
+struct MovementNarrativeChecker {
+    narrative: Arc<NarrativeOps>,
+}
+
+impl MovementNarrativeChecker {
+    /// Check for triggered narrative events for a region/PC pair.
+    async fn check_triggers(
+        &self,
+        region_id: RegionId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NarrativeEvent>, EnterRegionError> {
+        self.narrative
+            .check_triggers(region_id, pc_id)
+            .await
+            .map_err(EnterRegionError::from)
+    }
+}
+
+/// Helper for generating time suggestions during movement.
+///
+/// Encapsulates time suggestion logic for movement actions.
+struct MovementTimeSuggester {
+    suggest_time: Arc<SuggestTime>,
+}
+
+impl MovementTimeSuggester {
+    /// Generate a time suggestion for movement.
+    async fn suggest_for_movement(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        pc_name: &str,
+        action_type: &str,
+        destination_name: &str,
+    ) -> Option<TimeSuggestion> {
+        suggest_time_for_movement(
+            &self.suggest_time,
+            world_id,
+            pc_id,
+            pc_name.to_string(),
+            action_type,
+            destination_name,
+        )
+        .await
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -300,7 +416,7 @@ pub enum EnterRegionError {
     #[error("Movement blocked: {0}")]
     MovementBlocked(String),
     #[error("Repository error: {0}")]
-    Repo(#[from] RepoError),
+    Repo(#[from] crate::infrastructure::ports::RepoError),
 }
 
 #[cfg(test)]
@@ -394,11 +510,11 @@ mod tests {
             staging_repo,
             location_state_repo,
             region_state_repo,
-            observation_repo,
             record_visit,
             narrative,
             resolve_scene,
             scene_repo,
+            observation_repo,
             flag_repo,
             world_repo,
             suggest_time,
@@ -726,7 +842,7 @@ mod tests {
 
         let region_id = RegionId::new();
         let region = Region::from_storage(
-            to_region_id,
+            region_id,
             location_id,
             RegionName::new("Target").unwrap(),
             Description::default(),

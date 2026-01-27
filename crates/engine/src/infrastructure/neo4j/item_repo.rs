@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use neo4rs::query;
 use wrldbldr_domain::*;
 
-use super::helpers::row_to_item;
+use super::helpers::{row_to_item, match_item_by_id, return_item};
 use crate::infrastructure::ports::{ItemRepo, RepoError};
 
 #[allow(unused_imports)]
@@ -27,7 +27,8 @@ impl Neo4jItemRepo {
 impl ItemRepo for Neo4jItemRepo {
     /// Get an item by ID
     async fn get(&self, id: ItemId) -> Result<Option<Item>, RepoError> {
-        let q = query("MATCH (i:Item {id: $id}) RETURN i").param("id", id.to_string());
+        let q = query(&format!("{} {}", match_item_by_id(), return_item()))
+            .param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -94,11 +95,8 @@ impl ItemRepo for Neo4jItemRepo {
     /// Delete an item by ID.
     /// Uses DETACH DELETE to remove all relationships.
     async fn delete(&self, id: ItemId) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (i:Item {id: $id})
-            DETACH DELETE i",
-        )
-        .param("id", id.to_string());
+        let q = query(&format!("{} DETACH DELETE i", match_item_by_id()))
+            .param("id", id.to_string());
 
         self.graph
             .run(q)

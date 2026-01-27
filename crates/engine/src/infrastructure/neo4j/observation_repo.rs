@@ -11,6 +11,8 @@ use wrldbldr_domain::*;
 
 use crate::infrastructure::ports::{ClockPort, ObservationRepo, RepoError};
 
+use super::helpers::{match_player_character_by_id};
+
 pub struct Neo4jObservationRepo {
     graph: Neo4jGraph,
     clock: std::sync::Arc<dyn ClockPort>,
@@ -29,15 +31,16 @@ impl ObservationRepo for Neo4jObservationRepo {
         &self,
         pc_id: PlayerCharacterId,
     ) -> Result<Vec<NpcObservation>, RepoError> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character)
+        let q = query(&format!(
+            "{}-[r:OBSERVED_NPC]->(npc:Character)
             RETURN r.location_id as location_id, r.region_id as region_id,
                    r.game_time as game_time, r.observation_type as observation_type,
                    coalesce(r.is_revealed_to_player, true) as is_revealed_to_player,
                    r.notes as notes, r.created_at as created_at,
                    npc.id as npc_id
             ORDER BY r.game_time DESC",
-        )
+            match_player_character_by_id().replace("$id", "$pc_id")
+        ))
         .param("pc_id", pc_id.to_string());
 
         let mut result = self
@@ -109,10 +112,11 @@ impl ObservationRepo for Neo4jObservationRepo {
         pc_id: PlayerCharacterId,
         target_id: CharacterId,
     ) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character {id: $npc_id})
+        let q = query(&format!(
+            "{}-[r:OBSERVED_NPC]->(npc:Character {{id: $npc_id}})
             DELETE r",
-        )
+            match_player_character_by_id().replace("$id", "$pc_id")
+        ))
         .param("pc_id", pc_id.to_string())
         .param("npc_id", target_id.to_string());
 
@@ -126,8 +130,8 @@ impl ObservationRepo for Neo4jObservationRepo {
 
     /// Save an observation (upsert - updates if exists)
     async fn save_observation(&self, observation: &NpcObservation) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id}), (npc:Character {id: $npc_id})
+        let q = query(&format!(
+            "MATCH {}, (npc:Character {{id: $npc_id}})
             MERGE (pc)-[r:OBSERVED_NPC]->(npc)
             SET r.location_id = $location_id,
                 r.region_id = $region_id,
@@ -136,7 +140,8 @@ impl ObservationRepo for Neo4jObservationRepo {
                 r.is_revealed_to_player = $is_revealed_to_player,
                 r.notes = $notes,
                 r.created_at = $created_at",
-        )
+            match_player_character_by_id().replace("$id", "$pc_id")
+        ))
         .param("pc_id", observation.pc_id().to_string())
         .param("npc_id", observation.npc_id().to_string())
         .param("location_id", observation.location_id().to_string())
@@ -163,10 +168,11 @@ impl ObservationRepo for Neo4jObservationRepo {
         pc_id: PlayerCharacterId,
         target_id: CharacterId,
     ) -> Result<bool, RepoError> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character {id: $npc_id})
+        let q = query(&format!(
+            "{}-[r:OBSERVED_NPC]->(npc:Character {{id: $npc_id}})
             RETURN count(r) > 0 as has_observed",
-        )
+            match_player_character_by_id().replace("$id", "$pc_id")
+        ))
         .param("pc_id", pc_id.to_string())
         .param("npc_id", target_id.to_string());
 
@@ -189,7 +195,7 @@ impl ObservationRepo for Neo4jObservationRepo {
     }
 
     /// Save deduced information from a challenge outcome.
-    /// Creates a JournalEntry node linked to the PC for persistent info storage.
+    /// Creates a JournalEntry node linked to PC for persistent info storage.
     async fn save_deduced_info(
         &self,
         pc_id: PlayerCharacterId,
@@ -198,16 +204,16 @@ impl ObservationRepo for Neo4jObservationRepo {
         let now = self.clock.now();
         let entry_id = uuid::Uuid::new_v4().to_string();
 
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})
-            CREATE (je:JournalEntry {
+        let q = query(&format!(
+            "{} CREATE (je:JournalEntry {{
                 id: $entry_id,
                 content: $info,
                 entry_type: 'deduced',
                 created_at: $created_at
-            })
+            }})
             CREATE (pc)-[:HAS_JOURNAL_ENTRY]->(je)",
-        )
+            match_player_character_by_id().replace("$id", "$pc_id")
+        ))
         .param("pc_id", pc_id.to_string())
         .param("entry_id", entry_id)
         .param("info", info)

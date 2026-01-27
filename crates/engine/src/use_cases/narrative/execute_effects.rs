@@ -63,26 +63,26 @@ pub struct EffectExecutionContext {
 
 /// Executes event effects when narrative events trigger.
 ///
-/// Orchestrates multiple port traits to apply effects like:
-/// - GiveItem / TakeItem via ItemRepo + PlayerCharacterRepo
-/// - EnableChallenge / DisableChallenge via ChallengeRepo
-/// - EnableEvent / DisableEvent via NarrativeOps
-/// - ModifyRelationship via CharacterRepo
-/// - RevealInformation via ObservationRepo
-/// - ModifyStat via PlayerCharacterRepo
-/// - TriggerScene via SceneRepo
-/// - SetFlag via FlagRepo
+/// Orchestrates multiple effect executor helpers to apply effects like:
+/// - GiveItem / TakeItem via ItemEffectExecutor
+/// - EnableChallenge / DisableChallenge via ChallengeEffectExecutor
+/// - EnableEvent / DisableEvent via NarrativeEffectExecutor
+/// - ModifyRelationship via RelationshipEffectExecutor
+/// - RevealInformation via ObservationEffectExecutor
+/// - ModifyStat via StatEffectExecutor
+/// - TriggerScene via SceneEffectExecutor
+/// - SetFlag via FlagEffectExecutor
+/// - AddReward via RewardEffectExecutor
 pub struct ExecuteEffects {
-    item: Arc<dyn ItemRepo>,
-    pc: Arc<dyn PlayerCharacterRepo>,
-    challenge: Arc<dyn ChallengeRepo>,
-    narrative: Arc<NarrativeOps>,
-    character: Arc<dyn CharacterRepo>,
-    observation: Arc<dyn ObservationRepo>,
-    scene: Arc<dyn SceneRepo>,
-    flag: Arc<dyn FlagRepo>,
-    world: Arc<dyn WorldRepo>,
-    clock: Arc<dyn ClockPort>,
+    item_executor: ItemEffectExecutor,
+    challenge_executor: ChallengeEffectExecutor,
+    narrative_executor: NarrativeEffectExecutor,
+    relationship_executor: RelationshipEffectExecutor,
+    observation_executor: ObservationEffectExecutor,
+    scene_executor: SceneEffectExecutor,
+    flag_executor: FlagEffectExecutor,
+    stat_executor: StatEffectExecutor,
+    reward_executor: RewardEffectExecutor,
 }
 
 impl ExecuteEffects {
@@ -98,17 +98,36 @@ impl ExecuteEffects {
         world: Arc<dyn WorldRepo>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
-        Self {
-            item,
-            pc,
-            challenge,
-            narrative,
-            character,
-            observation,
-            scene,
-            flag,
+        let item_executor = ItemEffectExecutor {
+            item: item.clone(),
+            pc: pc.clone(),
+        };
+        let challenge_executor = ChallengeEffectExecutor { challenge };
+        let narrative_executor = NarrativeEffectExecutor { narrative };
+        let relationship_executor = RelationshipEffectExecutor {
+            character: character.clone(),
+            clock: clock.clone(),
+        };
+        let observation_executor = ObservationEffectExecutor { observation };
+        let scene_executor = SceneEffectExecutor { scene };
+        let flag_executor = FlagEffectExecutor { flag };
+        let stat_executor = StatEffectExecutor { pc: pc.clone() };
+        let reward_executor = RewardEffectExecutor {
             world,
+            pc,
             clock,
+        };
+
+        Self {
+            item_executor,
+            challenge_executor,
+            narrative_executor,
+            relationship_executor,
+            observation_executor,
+            scene_executor,
+            flag_executor,
+            stat_executor,
+            reward_executor,
         }
     }
 
@@ -180,20 +199,22 @@ impl ExecuteEffects {
                 item_description,
                 quantity,
             } => {
-                self.execute_give_item(
-                    context.pc_id,
-                    item_name.clone(),
-                    item_description.clone(),
-                    *quantity,
-                )
-                .await
+                self.item_executor
+                    .execute_give_item(
+                        context.pc_id,
+                        item_name.clone(),
+                        item_description.clone(),
+                        *quantity,
+                    )
+                    .await
             }
 
             EventEffect::TakeItem {
                 item_name,
                 quantity,
             } => {
-                self.execute_take_item(context.pc_id, item_name, *quantity)
+                self.item_executor
+                    .execute_take_item(context.pc_id, item_name, *quantity)
                     .await
             }
 
@@ -201,7 +222,8 @@ impl ExecuteEffects {
                 challenge_id,
                 challenge_name,
             } => {
-                self.execute_enable_challenge(*challenge_id, challenge_name)
+                self.challenge_executor
+                    .execute_enable(*challenge_id, challenge_name)
                     .await
             }
 
@@ -209,19 +231,20 @@ impl ExecuteEffects {
                 challenge_id,
                 challenge_name,
             } => {
-                self.execute_disable_challenge(*challenge_id, challenge_name)
+                self.challenge_executor
+                    .execute_disable(*challenge_id, challenge_name)
                     .await
             }
 
             EventEffect::EnableEvent {
                 event_id,
                 event_name,
-            } => self.execute_enable_event(*event_id, event_name).await,
+            } => self.narrative_executor.execute_enable(*event_id, event_name).await,
 
             EventEffect::DisableEvent {
                 event_id,
                 event_name,
-            } => self.execute_disable_event(*event_id, event_name).await,
+            } => self.narrative_executor.execute_disable(*event_id, event_name).await,
 
             EventEffect::ModifyRelationship {
                 from_character,
@@ -231,15 +254,16 @@ impl ExecuteEffects {
                 sentiment_change,
                 reason,
             } => {
-                self.execute_modify_relationship(
-                    *from_character,
-                    from_name,
-                    *to_character,
-                    to_name,
-                    *sentiment_change,
-                    reason,
-                )
-                .await
+                self.relationship_executor
+                    .execute_modify(
+                        *from_character,
+                        from_name,
+                        *to_character,
+                        to_name,
+                        *sentiment_change,
+                        reason,
+                    )
+                    .await
             }
 
             EventEffect::RevealInformation {
@@ -248,14 +272,15 @@ impl ExecuteEffects {
                 content,
                 persist_to_journal,
             } => {
-                self.execute_reveal_information(
-                    context.pc_id,
-                    info_type,
-                    title,
-                    content,
-                    *persist_to_journal,
-                )
-                .await
+                self.observation_executor
+                    .execute_reveal(
+                        context.pc_id,
+                        info_type,
+                        title,
+                        content,
+                        *persist_to_journal,
+                    )
+                    .await
             }
 
             EventEffect::ModifyStat {
@@ -264,26 +289,29 @@ impl ExecuteEffects {
                 stat_name,
                 modifier,
             } => {
-                self.execute_modify_stat(
-                    context.pc_id, // Note: Uses PC from context, not character_id (which may be NPC)
-                    *character_id,
-                    character_name,
-                    stat_name,
-                    *modifier,
-                )
-                .await
+                self.stat_executor
+                    .execute_modify(
+                        context.pc_id,
+                        *character_id,
+                        character_name,
+                        stat_name,
+                        *modifier,
+                    )
+                    .await
             }
 
             EventEffect::TriggerScene {
                 scene_id,
                 scene_name,
             } => {
-                self.execute_trigger_scene(context.world_id, *scene_id, scene_name)
+                self.scene_executor
+                    .execute_trigger(context.world_id, *scene_id, scene_name)
                     .await
             }
 
             EventEffect::SetFlag { flag_name, value } => {
-                self.execute_set_flag(context.world_id, flag_name, *value)
+                self.flag_executor
+                    .execute_set(context.world_id, flag_name, *value)
                     .await
             }
 
@@ -291,134 +319,22 @@ impl ExecuteEffects {
                 participants,
                 participant_names,
                 combat_description,
-            } => {
-                // Validate parameters before reporting unimplemented
-                if participants.is_empty() && participant_names.is_empty() {
-                    return EffectExecutionResult {
-                        description: "Start combat effect has no participants".to_string(),
-                        success: false,
-                        error: Some("Combat effect requires at least one participant".to_string()),
-                        requires_dm_action: false,
-                    };
-                }
-                if combat_description.trim().is_empty() {
-                    return EffectExecutionResult {
-                        description: "Start combat effect has empty description".to_string(),
-                        success: false,
-                        error: Some("Combat effect requires a description".to_string()),
-                        requires_dm_action: false,
-                    };
-                }
-
-                // Combat system not implemented - DM should handle manually
-                let participants_display = if !participant_names.is_empty() {
-                    participant_names.join(", ")
-                } else {
-                    // Fall back to showing IDs when names aren't provided
-                    participants
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                };
-
-                EffectExecutionResult {
-                    description: format!(
-                        "Start combat: {} with {} (NOT IMPLEMENTED - combat system needed)",
-                        combat_description, participants_display
-                    ),
-                    success: false,
-                    error: Some("Combat system not implemented".to_string()),
-                    requires_dm_action: true,
-                }
-            }
+            } => execute_start_combat(participants, participant_names, combat_description),
 
             EventEffect::AddReward {
                 reward_type,
                 amount,
                 description,
             } => {
-                // Validate parameters
-                if reward_type.trim().is_empty() {
-                    return EffectExecutionResult {
-                        description: "Add reward effect has empty reward type".to_string(),
-                        success: false,
-                        error: Some(
-                            "Reward effect requires a reward type (e.g., 'gold', 'xp', 'item')"
-                                .to_string(),
-                        ),
-                        requires_dm_action: false,
-                    };
-                }
-                if *amount == 0 {
-                    return EffectExecutionResult {
-                        description: format!("Add {} reward with zero amount", reward_type),
-                        success: false,
-                        error: Some("Reward amount must be greater than zero".to_string()),
-                        requires_dm_action: false,
-                    };
-                }
-                if description.trim().is_empty() {
-                    return EffectExecutionResult {
-                        description: format!(
-                            "Add {} x{} reward with empty description",
-                            reward_type, amount
-                        ),
-                        success: false,
-                        error: Some("Reward effect requires a description".to_string()),
-                        requires_dm_action: false,
-                    };
-                }
-
-                // Handle XP rewards - use system-aware field mapping
-                let reward_type_lower = reward_type.to_lowercase();
-                if reward_type_lower == "xp"
-                    || reward_type_lower == "experience"
-                    || reward_type_lower == "exp"
-                {
-                    self.execute_add_xp_reward_system_aware(
+                self.reward_executor
+                    .execute_add_reward(
                         context.pc_id,
                         context.world_id,
+                        reward_type,
                         *amount,
                         description,
                     )
                     .await
-                } else if reward_type_lower == "gold"
-                    || reward_type_lower == "gp"
-                    || reward_type_lower == "coins"
-                {
-                    // Gold rewards - use system-aware gold field
-                    self.execute_add_gold_reward_system_aware(
-                        context.pc_id,
-                        context.world_id,
-                        *amount,
-                        description,
-                    )
-                    .await
-                } else if reward_type_lower == "fate"
-                    || reward_type_lower == "fate_points"
-                    || reward_type_lower == "fp"
-                {
-                    // FATE points - for FATE Core system
-                    self.execute_add_stat_reward(
-                        context.pc_id,
-                        "CURRENT_FATE_POINTS",
-                        *amount,
-                        description,
-                    )
-                    .await
-                } else {
-                    // Other reward types - mark for DM handling
-                    EffectExecutionResult {
-                        description: format!(
-                            "Add {} {} reward: {} (requires DM to apply)",
-                            amount, reward_type, description
-                        ),
-                        success: true,
-                        error: None,
-                        requires_dm_action: true,
-                    }
-                }
             }
 
             EventEffect::Custom {
@@ -426,17 +342,21 @@ impl ExecuteEffects {
                 requires_dm_action,
             } => EffectExecutionResult {
                 description: format!("Custom effect: {}", description),
-                success: true, // Custom effects are "successful" in that they're noted
+                success: true,
                 error: None,
                 requires_dm_action: *requires_dm_action,
             },
         }
     }
+}
 
-    // =========================================================================
-    // Individual effect implementations
-    // =========================================================================
+/// Helper for executing item-related effects.
+struct ItemEffectExecutor {
+    item: Arc<dyn ItemRepo>,
+    pc: Arc<dyn PlayerCharacterRepo>,
+}
 
+impl ItemEffectExecutor {
     async fn execute_give_item(
         &self,
         pc_id: PlayerCharacterId,
@@ -512,8 +432,15 @@ impl ExecuteEffects {
             },
         }
     }
+}
 
-    async fn execute_enable_challenge(
+/// Helper for executing challenge-related effects.
+struct ChallengeEffectExecutor {
+    challenge: Arc<dyn ChallengeRepo>,
+}
+
+impl ChallengeEffectExecutor {
+    async fn execute_enable(
         &self,
         challenge_id: wrldbldr_domain::ChallengeId,
         challenge_name: &str,
@@ -534,7 +461,7 @@ impl ExecuteEffects {
         }
     }
 
-    async fn execute_disable_challenge(
+    async fn execute_disable(
         &self,
         challenge_id: wrldbldr_domain::ChallengeId,
         challenge_name: &str,
@@ -554,8 +481,15 @@ impl ExecuteEffects {
             },
         }
     }
+}
 
-    async fn execute_enable_event(
+/// Helper for executing narrative event-related effects.
+struct NarrativeEffectExecutor {
+    narrative: Arc<NarrativeOps>,
+}
+
+impl NarrativeEffectExecutor {
+    async fn execute_enable(
         &self,
         event_id: NarrativeEventId,
         event_name: &str,
@@ -576,7 +510,7 @@ impl ExecuteEffects {
         }
     }
 
-    async fn execute_disable_event(
+    async fn execute_disable(
         &self,
         event_id: NarrativeEventId,
         event_name: &str,
@@ -596,8 +530,16 @@ impl ExecuteEffects {
             },
         }
     }
+}
 
-    async fn execute_modify_relationship(
+/// Helper for executing relationship-related effects.
+struct RelationshipEffectExecutor {
+    character: Arc<dyn CharacterRepo>,
+    clock: Arc<dyn ClockPort>,
+}
+
+impl RelationshipEffectExecutor {
+    async fn execute_modify(
         &self,
         from_character: CharacterId,
         from_name: &str,
@@ -710,8 +652,15 @@ impl ExecuteEffects {
             },
         }
     }
+}
 
-    async fn execute_reveal_information(
+/// Helper for executing observation-related effects.
+struct ObservationEffectExecutor {
+    observation: Arc<dyn ObservationRepo>,
+}
+
+impl ObservationEffectExecutor {
+    async fn execute_reveal(
         &self,
         pc_id: PlayerCharacterId,
         info_type: &str,
@@ -749,36 +698,15 @@ impl ExecuteEffects {
             }
         }
     }
+}
 
-    async fn execute_modify_stat(
-        &self,
-        pc_id: PlayerCharacterId,
-        _character_id: CharacterId,
-        character_name: &str,
-        stat_name: &str,
-        modifier: i32,
-    ) -> EffectExecutionResult {
-        // Use the PC from context for stat modification
-        match self.pc.modify_stat(pc_id, stat_name, modifier).await {
-            Ok(()) => EffectExecutionResult {
-                description: format!(
-                    "Modified stat {} by {:+} for {}",
-                    stat_name, modifier, character_name
-                ),
-                success: true,
-                error: None,
-                requires_dm_action: false,
-            },
-            Err(e) => EffectExecutionResult {
-                description: format!("Failed to modify stat {} for {}", stat_name, character_name),
-                success: false,
-                error: Some(e.to_string()),
-                requires_dm_action: false,
-            },
-        }
-    }
+/// Helper for executing scene-related effects.
+struct SceneEffectExecutor {
+    scene: Arc<dyn SceneRepo>,
+}
 
-    async fn execute_trigger_scene(
+impl SceneEffectExecutor {
+    async fn execute_trigger(
         &self,
         world_id: WorldId,
         scene_id: SceneId,
@@ -799,8 +727,15 @@ impl ExecuteEffects {
             },
         }
     }
+}
 
-    async fn execute_set_flag(
+/// Helper for executing flag-related effects.
+struct FlagEffectExecutor {
+    flag: Arc<dyn FlagRepo>,
+}
+
+impl FlagEffectExecutor {
+    async fn execute_set(
         &self,
         world_id: WorldId,
         flag_name: &str,
@@ -831,22 +766,127 @@ impl ExecuteEffects {
             },
         }
     }
+}
 
-    /// Add XP reward to a player character.
-    /// Updates XP_CURRENT in the character's sheet_data.
-    #[allow(dead_code)]
-    async fn execute_add_xp_reward(
+/// Helper for executing stat modification effects.
+struct StatEffectExecutor {
+    pc: Arc<dyn PlayerCharacterRepo>,
+}
+
+impl StatEffectExecutor {
+    async fn execute_modify(
         &self,
         pc_id: PlayerCharacterId,
+        _character_id: CharacterId,
+        character_name: &str,
+        stat_name: &str,
+        modifier: i32,
+    ) -> EffectExecutionResult {
+        // Use the PC from context for stat modification
+        match self.pc.modify_stat(pc_id, stat_name, modifier).await {
+            Ok(()) => EffectExecutionResult {
+                description: format!(
+                    "Modified stat {} by {:+} for {}",
+                    stat_name, modifier, character_name
+                ),
+                success: true,
+                error: None,
+                requires_dm_action: false,
+            },
+            Err(e) => EffectExecutionResult {
+                description: format!("Failed to modify stat {} for {}", stat_name, character_name),
+                success: false,
+                error: Some(e.to_string()),
+                requires_dm_action: false,
+            },
+        }
+    }
+}
+
+/// Helper for executing reward-related effects.
+struct RewardEffectExecutor {
+    world: Arc<dyn WorldRepo>,
+    pc: Arc<dyn PlayerCharacterRepo>,
+    clock: Arc<dyn ClockPort>,
+}
+
+impl RewardEffectExecutor {
+    async fn execute_add_reward(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        reward_type: &str,
         amount: i32,
         description: &str,
     ) -> EffectExecutionResult {
-        self.execute_add_stat_reward(pc_id, "XP_CURRENT", amount, description)
-            .await
+        // Validate parameters
+        if reward_type.trim().is_empty() {
+            return EffectExecutionResult {
+                description: "Add reward effect has empty reward type".to_string(),
+                success: false,
+                error: Some(
+                    "Reward effect requires a reward type (e.g., 'gold', 'xp', 'item')"
+                        .to_string(),
+                ),
+                requires_dm_action: false,
+            };
+        }
+        if amount == 0 {
+            return EffectExecutionResult {
+                description: format!("Add {} reward with zero amount", reward_type),
+                success: false,
+                error: Some("Reward amount must be greater than zero".to_string()),
+                requires_dm_action: false,
+            };
+        }
+        if description.trim().is_empty() {
+            return EffectExecutionResult {
+                description: format!(
+                    "Add {} x{} reward with empty description",
+                    reward_type, amount
+                ),
+                success: false,
+                error: Some("Reward effect requires a description".to_string()),
+                requires_dm_action: false,
+            };
+        }
+
+        // Handle XP rewards - use system-aware field mapping
+        let reward_type_lower = reward_type.to_lowercase();
+        if reward_type_lower == "xp"
+            || reward_type_lower == "experience"
+            || reward_type_lower == "exp"
+        {
+            self.execute_add_xp_system_aware(pc_id, world_id, amount, description)
+                .await
+        } else if reward_type_lower == "gold"
+            || reward_type_lower == "gp"
+            || reward_type_lower == "coins"
+        {
+            // Gold rewards - use system-aware gold field
+            self.execute_add_gold_system_aware(pc_id, world_id, amount, description)
+                .await
+        } else if reward_type_lower == "fate"
+            || reward_type_lower == "fate_points"
+            || reward_type_lower == "fp"
+        {
+            // FATE points - for FATE Core system
+            self.execute_add_stat_reward(pc_id, "CURRENT_FATE_POINTS", amount, description)
+                .await
+        } else {
+            // Other reward types - mark for DM handling
+            EffectExecutionResult {
+                description: format!(
+                    "Add {} {} reward: {} (requires DM to apply)",
+                    amount, reward_type, description
+                ),
+                success: true,
+                error: None,
+                requires_dm_action: true,
+            }
+        }
     }
 
-    /// Add a numeric stat reward to a player character.
-    /// Updates the specified stat in the character's sheet_data.
     async fn execute_add_stat_reward(
         &self,
         pc_id: PlayerCharacterId,
@@ -925,13 +965,7 @@ impl ExecuteEffects {
         }
     }
 
-    /// Add XP reward using system-appropriate field name.
-    /// Different game systems track XP differently:
-    /// - D&D 5e, Pathfinder 2e: XP_CURRENT
-    /// - Powered by the Apocalypse: XP
-    /// - Blades in the Dark: PLAYBOOK_XP
-    /// - FATE Core, Call of Cthulhu: No XP (milestone/skill-based advancement)
-    async fn execute_add_xp_reward_system_aware(
+    async fn execute_add_xp_system_aware(
         &self,
         pc_id: PlayerCharacterId,
         world_id: WorldId,
@@ -1006,13 +1040,7 @@ impl ExecuteEffects {
             .await
     }
 
-    /// Add gold/currency reward using system-appropriate field name.
-    /// Different game systems track currency differently:
-    /// - D&D 5e, Pathfinder 2e: GP (gold pieces)
-    /// - Blades in the Dark: COIN
-    /// - Call of Cthulhu: SPENDING_LEVEL or specific currency
-    /// - FATE Core, PbtA: Usually narrative-based (no currency tracking)
-    async fn execute_add_gold_reward_system_aware(
+    async fn execute_add_gold_system_aware(
         &self,
         pc_id: PlayerCharacterId,
         world_id: WorldId,
@@ -1091,5 +1119,54 @@ impl ExecuteEffects {
                     .await
             }
         }
+    }
+}
+
+/// Execute start combat effect.
+///
+/// Combat system not implemented - validates parameters and marks for DM action.
+fn execute_start_combat(
+    participants: &[CharacterId],
+    participant_names: &[String],
+    combat_description: &str,
+) -> EffectExecutionResult {
+    // Validate parameters before reporting unimplemented
+    if participants.is_empty() && participant_names.is_empty() {
+        return EffectExecutionResult {
+            description: "Start combat effect has no participants".to_string(),
+            success: false,
+            error: Some("Combat effect requires at least one participant".to_string()),
+            requires_dm_action: false,
+        };
+    }
+    if combat_description.trim().is_empty() {
+        return EffectExecutionResult {
+            description: "Start combat effect has empty description".to_string(),
+            success: false,
+            error: Some("Combat effect requires a description".to_string()),
+            requires_dm_action: false,
+        };
+    }
+
+    // Combat system not implemented - DM should handle manually
+    let participants_display = if !participant_names.is_empty() {
+        participant_names.join(", ")
+    } else {
+        // Fall back to showing IDs when names aren't provided
+        participants
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    EffectExecutionResult {
+        description: format!(
+            "Start combat: {} with {} (NOT IMPLEMENTED - combat system needed)",
+            combat_description, participants_display
+        ),
+        success: false,
+        error: Some("Combat system not implemented".to_string()),
+        requires_dm_action: true,
     }
 }
