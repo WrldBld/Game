@@ -145,7 +145,7 @@ pub enum LlmRequestType {
     /// Generate an NPC's response to player action
     NpcResponse {
         /// Reference to the action item being responded to
-        action_item_id: Uuid,
+        action_item_id: wrldbldr_domain::QueueItemId,
     },
     /// Generate a suggestion for a field value
     Suggestion {
@@ -185,11 +185,11 @@ pub struct LlmRequestData {
     pub prompt: Option<GamePromptRequest>,
     /// Context for suggestion requests
     pub suggestion_context: Option<SuggestionContext>,
-    /// Callback ID for routing the response
+    /// Callback ID for routing response
     pub callback_id: String,
     /// Conversation ID for dialogue tracking (flows through to ApprovalRequestData)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub conversation_id: Option<uuid::Uuid>,
+    pub conversation_id: Option<wrldbldr_domain::ConversationId>,
 }
 
 /// Context for LLM suggestion requests.
@@ -320,7 +320,7 @@ pub struct ChallengeOutcomeData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalRequestData {
     pub world_id: WorldId,
-    pub source_action_id: Uuid,
+    pub source_action_id: wrldbldr_domain::QueueItemId,
     pub decision_type: ApprovalDecisionType,
     pub urgency: ApprovalUrgency,
     pub pc_id: Option<PlayerCharacterId>,
@@ -338,7 +338,7 @@ pub struct ApprovalRequestData {
     pub location_id: Option<LocationId>,
     pub game_time: Option<String>,
     pub topics: Vec<String>,
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<wrldbldr_domain::ConversationId>,
 }
 
 // =============================================================================

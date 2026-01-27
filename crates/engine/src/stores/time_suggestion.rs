@@ -3,16 +3,15 @@
 //! TTL-based cache for pending time suggestions awaiting DM approval.
 //! Suggestions expire after 30 minutes if not resolved.
 
-use uuid::Uuid;
-
 use crate::infrastructure::cache::TtlCache;
 use crate::infrastructure::ports::TimeSuggestion;
+use wrldbldr_domain::TimeSuggestionId;
 
 const TIME_SUGGESTION_TTL: std::time::Duration = std::time::Duration::from_secs(30 * 60);
 
 /// TTL-based store for time suggestions (30 minute TTL).
 pub struct TimeSuggestionStore {
-    inner: TtlCache<Uuid, TimeSuggestion>,
+    inner: TtlCache<TimeSuggestionId, TimeSuggestion>,
 }
 
 impl TimeSuggestionStore {
@@ -23,23 +22,23 @@ impl TimeSuggestionStore {
     }
 
     /// Insert a time suggestion.
-    pub async fn insert(&self, key: Uuid, suggestion: TimeSuggestion) {
+    pub async fn insert(&self, key: TimeSuggestionId, suggestion: TimeSuggestion) {
         self.inner.insert(key, suggestion).await;
     }
 
     /// Get a time suggestion by key.
-    pub async fn get(&self, key: &Uuid) -> Option<TimeSuggestion> {
+    pub async fn get(&self, key: &TimeSuggestionId) -> Option<TimeSuggestion> {
         self.inner.get(key).await
     }
 
     /// Remove and return a time suggestion.
-    pub async fn remove(&self, key: &Uuid) -> Option<TimeSuggestion> {
+    pub async fn remove(&self, key: &TimeSuggestionId) -> Option<TimeSuggestion> {
         self.inner.remove(key).await
     }
 
     /// Remove all suggestions for a given PC.
     /// This prevents unbounded growth when a player performs multiple actions
-    /// before the DM resolves the first suggestion.
+    /// before DM resolves the first suggestion.
     pub async fn remove_for_pc(&self, pc_id: wrldbldr_domain::PlayerCharacterId) {
         let entries = self.inner.entries().await;
         for (key, suggestion) in entries {

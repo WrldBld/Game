@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 
-use uuid::Uuid;
-use wrldbldr_domain::{LocationId, NpcPresence, RegionId, StagingSource, WorldId};
+use wrldbldr_domain::{
+    LocationId, NpcPresence, RegionId, StagingSource, WorldId,
+};
 
 use crate::infrastructure::ports::{
     CharacterRepo, ClockPort, LocationRepo, LocationStateRepo, RegionStateRepo, RepoError,
@@ -22,8 +23,8 @@ pub struct ApproveStagingInput {
     pub ttl_hours: i32,
     pub source: StagingSource,
     pub approved_npcs: Vec<ApprovedNpc>,
-    pub location_state_id: Option<String>,
-    pub region_state_id: Option<String>,
+    pub location_state_id: Option<wrldbldr_domain::LocationStateId>,
+    pub region_state_id: Option<wrldbldr_domain::RegionStateId>,
 }
 
 /// Result of staging approval.
@@ -343,8 +344,8 @@ impl ApproveStagingRequest {
         &self,
         location_id: LocationId,
         region_id: RegionId,
-        provided_location_state_id: &Option<String>,
-        provided_region_state_id: &Option<String>,
+        provided_location_state_id: &Option<wrldbldr_domain::LocationStateId>,
+        provided_region_state_id: &Option<wrldbldr_domain::RegionStateId>,
         source: &StagingSource,
     ) -> Result<(
         Option<wrldbldr_domain::LocationStateId>,
@@ -354,45 +355,35 @@ impl ApproveStagingRequest {
         // Determine visual state source based on whether states were provided
         if provided_location_state_id.is_some() || provided_region_state_id.is_some() {
             // DM provided explicit IDs - validate they exist
-            let resolved_location_id = if let Some(loc_state_str) = provided_location_state_id {
-                let loc_uuid = Uuid::parse_str(loc_state_str).map_err(|e| {
-                    StagingError::Validation(format!("Invalid location_state_id UUID: {}", e))
-                })?;
-                let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
-
+            let resolved_location_id = if let Some(loc_state_id) = provided_location_state_id {
                 // Validate that the location state exists
                 self.location_state
-                    .get(loc_state_id)
+                    .get(*loc_state_id)
                     .await
                     .map_err(|e| StagingError::Repo(e))?
                     .ok_or_else(|| {
                         StagingError::Validation(format!(
                             "Location state not found: {}",
-                            loc_state_str
+                            loc_state_id
                         ))
                     })?;
 
-                Some(loc_state_id)
+                Some(*loc_state_id)
             } else {
                 None
             };
 
-            let resolved_region_id = if let Some(reg_state_str) = provided_region_state_id {
-                let reg_uuid = Uuid::parse_str(reg_state_str).map_err(|e| {
-                    StagingError::Validation(format!("Invalid region_state_id UUID: {}", e))
-                })?;
-                let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
-
+            let resolved_region_id = if let Some(reg_state_id) = provided_region_state_id {
                 // Validate that the region state exists
                 self.region_state
-                    .get(reg_state_id)
+                    .get(*reg_state_id)
                     .await
                     .map_err(|e| StagingError::Repo(e))?
                     .ok_or_else(|| {
-                        StagingError::Validation(format!("Region state not found: {}", reg_state_str))
+                        StagingError::Validation(format!("Region state not found: {}", reg_state_id))
                     })?;
 
-                Some(reg_state_id)
+                Some(*reg_state_id)
             } else {
                 None
             };

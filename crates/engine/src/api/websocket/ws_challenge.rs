@@ -733,12 +733,18 @@ pub(super) async fn handle_challenge_outcome_decision(
         }
     };
 
+    // Parse resolution_id as typed QueueItemId at API boundary
+    let queue_item_id = match parse_id(&resolution_id, |u| wrldbldr_domain::QueueItemId::from(u), "Invalid request ID") {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+
     match state
         .app
         .use_cases
         .challenge
         .outcome_decision
-        .execute(world_id, resolution_id.clone(), domain_decision)
+        .execute(world_id, queue_item_id, domain_decision)
         .await
     {
         Ok(crate::use_cases::challenge::OutcomeDecisionResult::Resolved(payload)) => {

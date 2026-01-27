@@ -410,7 +410,7 @@ impl TimeSuggestions {
         decision: TimeSuggestionDecision,
     ) -> Result<Option<TimeSuggestionResolution>, TimeSuggestionError> {
         // Get first to validate world before removing (prevents data loss on mismatch)
-        let suggestion = match store.get(&suggestion_id.to_uuid()).await {
+        let suggestion = match store.get(&suggestion_id).await {
             Some(s) => s,
             None => return Err(TimeSuggestionError::NotFound(suggestion_id.to_string())),
         };
@@ -420,7 +420,7 @@ impl TimeSuggestions {
         }
 
         // Now remove after validation succeeds
-        let suggestion = match store.remove(&suggestion_id.to_uuid()).await {
+        let suggestion = match store.remove(&suggestion_id).await {
             Some(s) => s,
             None => {
                 // Shouldn't happen since we just got it, but handle gracefully

@@ -96,10 +96,10 @@ pub(super) async fn handle_staging_approval(
         None => return Some(error_response(ErrorCode::BadRequest, "World not joined")),
     };
 
-    // Validate location_state_id as UUID if provided
+    // Parse and validate location_state_id as typed ID if provided
     let validated_location_state_id = match &location_state_id {
         Some(id_str) => match uuid::Uuid::parse_str(id_str) {
-            Ok(_) => Some(id_str.clone()),
+            Ok(uuid) => Some(wrldbldr_domain::LocationStateId::from_uuid(uuid)),
             Err(e) => {
                 return Some(error_response(
                     ErrorCode::ValidationError,
@@ -110,10 +110,10 @@ pub(super) async fn handle_staging_approval(
         None => None,
     };
 
-    // Validate region_state_id as UUID if provided
+    // Parse and validate region_state_id as typed ID if provided
     let validated_region_state_id = match &region_state_id {
         Some(id_str) => match uuid::Uuid::parse_str(id_str) {
-            Ok(_) => Some(id_str.clone()),
+            Ok(uuid) => Some(wrldbldr_domain::RegionStateId::from_uuid(uuid)),
             Err(e) => {
                 return Some(error_response(
                     ErrorCode::ValidationError,
@@ -490,10 +490,10 @@ pub(super) async fn handle_pre_stage_region(
         None => return Some(error_response(ErrorCode::BadRequest, "World not joined")),
     };
 
-    // Validate location_state_id as UUID if provided
+    // Parse and validate location_state_id as typed ID if provided
     let validated_location_state_id = match &location_state_id {
         Some(id_str) => match uuid::Uuid::parse_str(id_str) {
-            Ok(_) => Some(id_str.clone()),
+            Ok(uuid) => Some(wrldbldr_domain::LocationStateId::from_uuid(uuid)),
             Err(e) => {
                 return Some(error_response(
                     ErrorCode::ValidationError,
@@ -504,10 +504,10 @@ pub(super) async fn handle_pre_stage_region(
         None => None,
     };
 
-    // Validate region_state_id as UUID if provided
+    // Parse and validate region_state_id as typed ID if provided
     let validated_region_state_id = match &region_state_id {
         Some(id_str) => match uuid::Uuid::parse_str(id_str) {
-            Ok(_) => Some(id_str.clone()),
+            Ok(uuid) => Some(wrldbldr_domain::RegionStateId::from_uuid(uuid)),
             Err(e) => {
                 return Some(error_response(
                     ErrorCode::ValidationError,

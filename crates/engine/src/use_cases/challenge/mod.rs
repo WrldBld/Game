@@ -317,7 +317,7 @@ impl RollChallenge {
         // 6. Queue for DM approval
         let approval_data = ApprovalRequestData {
             world_id,
-            source_action_id: uuid::Uuid::new_v4(), // Generate a new action ID
+            source_action_id: QueueItemId::new(), // Generate a new action ID
             decision_type: ApprovalDecisionType::ChallengeOutcome,
             urgency: ApprovalUrgency::AwaitingPlayer,
             pc_id: Some(pc_id),
@@ -673,15 +673,12 @@ impl OutcomeDecision {
     pub async fn execute(
         &self,
         world_id: WorldId,
-        resolution_id: String,
+        approval_queue_id: wrldbldr_domain::QueueItemId,
         decision: ChallengeOutcomeDecision,
     ) -> Result<OutcomeDecisionResult, OutcomeDecisionError> {
-        let approval_id = Uuid::parse_str(&resolution_id)
-            .map_err(|e| OutcomeDecisionError::InvalidResolutionId(format!("{}", e)))?;
-
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
-            .get_approval_request(QueueItemId::from(approval_id))
+            .get_approval_request(approval_queue_id)
             .await?
             .ok_or(OutcomeDecisionError::ApprovalNotFound)?;
 
@@ -704,7 +701,7 @@ impl OutcomeDecision {
                     .map_err(OutcomeDecisionError::Resolve)?;
 
                 self.queue
-                    .mark_complete(QueueItemId::from(approval_id))
+                    .mark_complete(approval_queue_id)
                     .await?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
@@ -731,7 +728,7 @@ impl OutcomeDecision {
                     .map_err(OutcomeDecisionError::Resolve)?;
 
                 self.queue
-                    .mark_complete(QueueItemId::from(approval_id))
+                    .mark_complete(approval_queue_id)
                     .await?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
@@ -749,7 +746,7 @@ impl OutcomeDecision {
             ChallengeOutcomeDecision::Suggest { guidance } => {
                 let llm_request = LlmRequestData {
                     request_type: LlmRequestType::OutcomeSuggestion {
-                        resolution_id: approval_id,
+                        resolution_id: approval_queue_id.into(),
                         world_id,
                         challenge_name: outcome_data.challenge_name.clone(),
                         current_description: outcome_data.outcome_description.clone(),
@@ -772,8 +769,8 @@ impl OutcomeDecision {
                             outcome_data.total
                         )),
                         world_id: Some(world_id),
-                    }),
-                    callback_id: format!("outcome_suggestion:{}", approval_id),
+                        }),
+                    callback_id: format!("outcome_suggestion:{}", approval_queue_id),
                     conversation_id: None,
                 };
 

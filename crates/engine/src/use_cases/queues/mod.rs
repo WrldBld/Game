@@ -165,14 +165,14 @@ impl ProcessPlayerAction {
 
         let llm_request = LlmRequestData {
             request_type: LlmRequestType::NpcResponse {
-                action_item_id: item.id.to_uuid(),
+                action_item_id: item.id,
             },
             world_id: action_data.world_id,
             pc_id: action_data.pc_id,
             prompt: Some(prompt),
             suggestion_context: None,
             callback_id: item.id.to_string(),
-            conversation_id: action_data.conversation_id,
+            conversation_id: action_data.conversation_id.map(|id| wrldbldr_domain::ConversationId::from(id)),
         };
 
         // Enqueue the LLM request
@@ -1186,7 +1186,7 @@ impl ProcessLlmRequest {
                 // Create approval request
                 let approval_data = crate::queue_types::ApprovalRequestData {
                     world_id: request_data.world_id,
-                    source_action_id: item.id.to_uuid(),
+                    source_action_id: item.id,
                     decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
                     urgency: crate::queue_types::ApprovalUrgency::AwaitingPlayer,
                     pc_id: request_data.pc_id,
@@ -1204,7 +1204,7 @@ impl ProcessLlmRequest {
                     location_id,
                     game_time,
                     topics: parsed.topics,
-                    conversation_id: request_data.conversation_id,
+                    conversation_id: request_data.conversation_id.map(|id| wrldbldr_domain::ConversationId::from(id)),
                 };
 
                 // Enqueue for DM approval

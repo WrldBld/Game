@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use serde::Serialize;
-use uuid::Uuid;
 
 use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
 use wrldbldr_domain::{
@@ -179,7 +178,7 @@ pub struct UpdateLoreChunkInput {
 #[derive(Debug, Clone)]
 pub enum LoreDiscoverySourceInput {
     ReadBook { book_name: String },
-    Conversation { npc_id: String, npc_name: String },
+    Conversation { npc_id: CharacterId, npc_name: String },
     Investigation,
     DmGranted { reason: Option<String> },
     CommonKnowledge,
@@ -724,8 +723,6 @@ pub enum LoreError {
     InvalidCategory(String),
     #[error("Invalid chunk IDs: {0}")]
     InvalidChunkIds(String),
-    #[error("Invalid NPC ID in conversation source: {0}")]
-    InvalidNpcId(String),
     #[error("Duplicate chunk order: {0}")]
     DuplicateChunkOrder(u32),
     #[error("Empty chunk list provided - omit chunkIds for full revocation")]
@@ -742,14 +739,8 @@ fn lore_discovery_source(
             Ok(LoreDiscoverySource::ReadBook { book_name })
         }
         LoreDiscoverySourceInput::Conversation { npc_id, npc_name } => {
-            let npc_uuid = Uuid::parse_str(&npc_id)
-                .map(CharacterId::from_uuid)
-                .map_err(|e| {
-                    tracing::debug!(input = %npc_id, error = %e, "NPC ID parsing failed");
-                    LoreError::InvalidNpcId(npc_id)
-                })?;
             Ok(LoreDiscoverySource::Conversation {
-                npc_id: npc_uuid,
+                npc_id,
                 npc_name,
             })
         }

@@ -18,23 +18,28 @@ const MAX_LORE_TAGS: usize = 50;
 const MAX_TAG_LENGTH: usize = 50;
 
 /// Convert protocol discovery source to domain input type.
-fn proto_discovery_source_to_domain(source: LoreDiscoverySourceData) -> LoreDiscoverySourceInput {
+fn proto_discovery_source_to_domain(source: LoreDiscoverySourceData) -> Result<LoreDiscoverySourceInput, String> {
     match source {
         LoreDiscoverySourceData::ReadBook { book_name } => {
-            LoreDiscoverySourceInput::ReadBook { book_name }
+            Ok(LoreDiscoverySourceInput::ReadBook { book_name })
         }
         LoreDiscoverySourceData::Conversation { npc_id, npc_name } => {
-            LoreDiscoverySourceInput::Conversation { npc_id, npc_name }
+            let npc_uuid = uuid::Uuid::parse_str(&npc_id)
+                .map_err(|e| format!("Invalid NPC ID: {}", e))?;
+            Ok(LoreDiscoverySourceInput::Conversation {
+                npc_id: wrldbldr_domain::CharacterId::from_uuid(npc_uuid),
+                npc_name,
+            })
         }
-        LoreDiscoverySourceData::Investigation => LoreDiscoverySourceInput::Investigation,
+        LoreDiscoverySourceData::Investigation => Ok(LoreDiscoverySourceInput::Investigation),
         LoreDiscoverySourceData::DmGranted { reason } => {
-            LoreDiscoverySourceInput::DmGranted { reason }
+            Ok(LoreDiscoverySourceInput::DmGranted { reason })
         }
-        LoreDiscoverySourceData::CommonKnowledge => LoreDiscoverySourceInput::CommonKnowledge,
+        LoreDiscoverySourceData::CommonKnowledge => Ok(LoreDiscoverySourceInput::CommonKnowledge),
         LoreDiscoverySourceData::LlmDiscovered { context } => {
-            LoreDiscoverySourceInput::LlmDiscovered { context }
+            Ok(LoreDiscoverySourceInput::LlmDiscovered { context })
         }
-        LoreDiscoverySourceData::Unknown => LoreDiscoverySourceInput::Unknown,
+        LoreDiscoverySourceData::Unknown => Ok(LoreDiscoverySourceInput::Unknown),
     }
 }
 
@@ -517,7 +522,15 @@ pub(super) async fn handle_lore_request(
             };
 
             // Convert protocol discovery source to domain input
-            let source_input = proto_discovery_source_to_domain(discovery_source);
+            let source_input = match proto_discovery_source_to_domain(discovery_source) {
+                Ok(s) => s,
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        &format!("Invalid discovery source: {}", e),
+                    ))
+                }
+            };
             match state
                 .app
                 .use_cases
@@ -534,12 +547,6 @@ pub(super) async fn handle_lore_request(
                     Ok(ResponseResult::error(
                         ErrorCode::BadRequest,
                         format!("Invalid chunk IDs: {}", msg),
-                    ))
-                }
-                Err(crate::use_cases::lore::LoreError::InvalidNpcId(npc_id)) => {
-                    Ok(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        format!("Invalid NPC ID in conversation source: {}", npc_id),
                     ))
                 }
                 Err(e) => Ok(ResponseResult::error(

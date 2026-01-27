@@ -123,7 +123,7 @@ pub(super) async fn handle_approval_decision(
                         .await;
                     state
                         .pending_time_suggestions
-                        .insert(time_suggestion.id.to_uuid(), time_suggestion.clone())
+                        .insert(time_suggestion.id, time_suggestion.clone())
                         .await;
 
                     let suggestion_msg = ServerMessage::TimeSuggestion {

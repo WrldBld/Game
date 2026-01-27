@@ -8,7 +8,7 @@
 pub mod expression_sheet;
 
 use std::sync::Arc;
-use uuid::Uuid;
+
 use wrldbldr_domain::{
     AssetId, AssetPath, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata,
     QueueItemId, WorldId,
@@ -84,7 +84,7 @@ impl GenerateAsset {
     ///
     /// # Arguments
     /// * `entity_type` - Type of entity (Character, Location, Item)
-    /// * `entity_id` - ID of the entity
+    /// * `owner_id` - Typed owner ID (AssetOwnerId)
     /// * `asset_type` - Type of asset (Portrait, Sprite, etc.)
     /// * `prompt` - Generation prompt
     /// * `workflow` - ComfyUI workflow to use
@@ -95,7 +95,7 @@ impl GenerateAsset {
     pub async fn execute(
         &self,
         entity_type: EntityType,
-        entity_id: Uuid,
+        owner_id: wrldbldr_domain::AssetOwnerId,
         asset_type: AssetType,
         prompt: &str,
         workflow: &str,
@@ -139,12 +139,12 @@ impl GenerateAsset {
 
         // Create asset
         let now = self.clock.now();
-        let file_path_str = format!("assets/{:?}/{}.png", entity_type, entity_id);
+        let file_path_str = format!("assets/{:?}/{}.png", entity_type, owner_id.as_uuid());
         let file_path = AssetPath::new(file_path_str)
             .map_err(|e| GenerateError::InvalidPath(e.to_string()))?;
         let asset = GalleryAsset::new_generated(
             entity_type,
-            entity_id.to_string(),
+            owner_id.to_string(),
             asset_type,
             file_path,
             metadata,
