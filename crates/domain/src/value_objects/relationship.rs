@@ -14,17 +14,20 @@ use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, DomainError, RelationshipId};
 
 /// A relationship between two characters
+///
+/// **Tier 3a: Composite VO (Simple Data)** - Public fields, no invariants.
+/// Builder methods are provided for convenience (new, new_with_sentiment, from_persisted).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Relationship {
-    id: RelationshipId,
-    from_character: CharacterId,
-    to_character: CharacterId,
-    relationship_type: RelationshipType,
+    pub id: RelationshipId,
+    pub from_character: CharacterId,
+    pub to_character: CharacterId,
+    pub relationship_type: RelationshipType,
     /// Sentiment from -1.0 (hatred) to 1.0 (love)
-    sentiment: f32,
-    history: Vec<RelationshipEvent>,
+    pub sentiment: f32,
+    pub history: Vec<RelationshipEvent>,
     /// Whether players know about this relationship
-    known_to_player: bool,
+    pub known_to_player: bool,
 }
 
 impl Relationship {
@@ -119,44 +122,7 @@ impl Relationship {
         }
     }
 
-    // --- Accessors ---
-
-    /// Get the relationship ID
-    pub fn id(&self) -> RelationshipId {
-        self.id
-    }
-
-    /// Get the source character ID
-    pub fn from_character(&self) -> CharacterId {
-        self.from_character
-    }
-
-    /// Get the target character ID
-    pub fn to_character(&self) -> CharacterId {
-        self.to_character
-    }
-
-    /// Get the relationship type
-    pub fn relationship_type(&self) -> &RelationshipType {
-        &self.relationship_type
-    }
-
-    /// Get the sentiment value (-1.0 to 1.0)
-    pub fn sentiment(&self) -> f32 {
-        self.sentiment
-    }
-
-    /// Get the history of relationship events
-    pub fn history(&self) -> &[RelationshipEvent] {
-        &self.history
-    }
-
-    /// Check if this relationship is known to the player
-    pub fn known_to_player(&self) -> bool {
-        self.known_to_player
-    }
-
-    // --- Builder methods ---
+    // --- Builder Methods ---
 
     /// Set the sentiment of this relationship using builder pattern.
     ///

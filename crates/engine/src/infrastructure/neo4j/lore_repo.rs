@@ -11,7 +11,10 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt};
+use super::helpers::{
+    parse_typed_id, NodeExt, match_lore_by_id, match_lore_by_world,
+    match_character_by_param, return_knowledge_fields,
+};
 use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
 
 /// Repository for Lore operations.
@@ -233,7 +236,7 @@ impl Neo4jLoreRepo {
 #[async_trait]
 impl LoreRepo for Neo4jLoreRepo {
     async fn get(&self, id: LoreId) -> Result<Option<Lore>, RepoError> {
-        let q = query("MATCH (l:Lore {id: $id}) RETURN l").param("id", id.to_string());
+        let q = query(&format!("{} RETURN l", match_lore_by_id())).param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -385,11 +388,8 @@ impl LoreRepo for Neo4jLoreRepo {
     }
 
     async fn list_for_world(&self, world_id: WorldId) -> Result<Vec<Lore>, RepoError> {
-        let q = query(
-            "MATCH (l:Lore {world_id: $world_id})
-            RETURN l ORDER BY l.title",
-        )
-        .param("world_id", world_id.to_string());
+        let q = query(&format!("{} RETURN l ORDER BY l.title", match_lore_by_world()))
+            .param("world_id", world_id.to_string());
 
         let mut result = self
             .graph
@@ -536,16 +536,16 @@ impl LoreRepo for Neo4jLoreRepo {
         let discovery_source_json = serde_json::to_string(&knowledge.discovery_source)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
-        let q = query(
-            "MATCH (c:Character {id: $character_id})
-            MATCH (l:Lore {id: $lore_id})
+        let q = query(&format!(
+            "{} MATCH (l:Lore {{id: $lore_id}})
             MERGE (c)-[k:KNOWS_LORE]->(l)
             SET k.known_chunk_ids = $known_chunk_ids,
                 k.discovery_source = $discovery_source,
                 k.discovered_at = $discovered_at,
                 k.notes = $notes
             RETURN c.id as character_id",
-        )
+            match_character_by_param("character_id")
+        ))
         .param("character_id", knowledge.character_id.to_string())
         .param("lore_id", knowledge.lore_id.to_string())
         .param("known_chunk_ids", known_chunk_ids_json)
@@ -594,14 +594,11 @@ impl LoreRepo for Neo4jLoreRepo {
         &self,
         character_id: CharacterId,
     ) -> Result<Vec<LoreKnowledge>, RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore)
-            RETURN l.id as lore_id, c.id as character_id,
-                   k.known_chunk_ids as known_chunk_ids,
-                   k.discovery_source as discovery_source,
-                   k.discovered_at as discovered_at,
-                   k.notes as notes",
-        )
+        let q = query(&format!(
+            "{}-[k:KNOWS_LORE]->(l:Lore) {}",
+            match_character_by_param("character_id"),
+            return_knowledge_fields()
+        ))
         .param("character_id", character_id.to_string());
 
         let mut result = self
@@ -626,14 +623,10 @@ impl LoreRepo for Neo4jLoreRepo {
         &self,
         lore_id: LoreId,
     ) -> Result<Vec<LoreKnowledge>, RepoError> {
-        let q = query(
-            "MATCH (c:Character)-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
-            RETURN l.id as lore_id, c.id as character_id,
-                   k.known_chunk_ids as known_chunk_ids,
-                   k.discovery_source as discovery_source,
-                   k.discovered_at as discovered_at,
-                   k.notes as notes",
-        )
+        let q = query(&format!(
+            "MATCH (c:Character)-[k:KNOWS_LORE]->(l:Lore {{id: $lore_id}}) {}",
+            return_knowledge_fields()
+        ))
         .param("lore_id", lore_id.to_string());
 
         let mut result = self
@@ -659,14 +652,11 @@ impl LoreRepo for Neo4jLoreRepo {
         character_id: CharacterId,
         lore_id: LoreId,
     ) -> Result<Option<LoreKnowledge>, RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
-            RETURN l.id as lore_id, c.id as character_id,
-                   k.known_chunk_ids as known_chunk_ids,
-                   k.discovery_source as discovery_source,
-                   k.discovered_at as discovered_at,
-                   k.notes as notes",
-        )
+        let q = query(&format!(
+            "{}-[k:KNOWS_LORE]->(l:Lore {{id: $lore_id}}) {}",
+            match_character_by_param("character_id"),
+            return_knowledge_fields()
+        ))
         .param("character_id", character_id.to_string())
         .param("lore_id", lore_id.to_string());
 
@@ -698,10 +688,11 @@ impl LoreRepo for Neo4jLoreRepo {
         }
 
         // First, fetch the current known_chunk_ids (stored as JSON string)
-        let fetch_q = query(
-            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
+        let fetch_q = query(&format!(
+            "{}-[k:KNOWS_LORE]->(l:Lore {{id: $lore_id}})
             RETURN k.known_chunk_ids as known_chunk_ids",
-        )
+            match_character_by_param("character_id")
+        ))
         .param("character_id", character_id.to_string())
         .param("lore_id", lore_id.to_string());
 
@@ -792,10 +783,11 @@ impl LoreRepo for Neo4jLoreRepo {
         }
 
         // First, fetch the current known_chunk_ids (stored as JSON string)
-        let fetch_q = query(
-            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
+        let fetch_q = query(&format!(
+            "{}-[k:KNOWS_LORE]->(l:Lore {{id: $lore_id}})
             RETURN k.known_chunk_ids as known_chunk_ids",
-        )
+            match_character_by_param("character_id")
+        ))
         .param("character_id", character_id.to_string())
         .param("lore_id", lore_id.to_string());
 
@@ -854,11 +846,12 @@ impl LoreRepo for Neo4jLoreRepo {
         let remaining_json = serde_json::to_string(&remaining)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
-        let update_q = query(
-            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
+        let update_q = query(&format!(
+            "{}-[k:KNOWS_LORE]->(l:Lore {{id: $lore_id}})
             SET k.known_chunk_ids = $known_chunk_ids
             RETURN c.id as character_id",
-        )
+            match_character_by_param("character_id")
+        ))
         .param("character_id", character_id.to_string())
         .param("lore_id", lore_id.to_string())
         .param("known_chunk_ids", remaining_json);

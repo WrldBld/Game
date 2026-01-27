@@ -17,7 +17,8 @@ use uuid::Uuid;
 use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, parse_typed_id_from_row, row_to_item, NodeExt};
+use super::helpers::{parse_typed_id, parse_typed_id_from_row, row_to_item, NodeExt,
+    match_character_by_id, match_character_by_param, return_character_name};
 use crate::infrastructure::ports::{
     ActantialViewRecord, CharacterRepo, NpcRegionRelationType, NpcRegionRelationship,
     NpcWithRegionInfo, RepoError, WantDetails, WantTargetRef,
@@ -430,7 +431,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
     // =========================================================================
 
     async fn get(&self, id: CharacterId) -> Result<Option<Character>, RepoError> {
-        let q = query("MATCH (c:Character {id: $id}) RETURN c")
+        let q = query(&format!("{} RETURN c", match_character_by_id()))
             .param("id", id.to_string());
 
         let mut result = self
@@ -555,11 +556,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
     async fn delete(&self, id: CharacterId) -> Result<(), RepoError> {
         // Delete the character and all connected Want nodes in a single atomic query
         // Using OPTIONAL MATCH ensures we don't fail if there are no wants
-        let q = query(
-            "MATCH (c:Character {id: $id})
-            OPTIONAL MATCH (c)-[:HAS_WANT]->(w:Want)
+        let q = query(&format!(
+            "{} OPTIONAL MATCH (c)-[:HAS_WANT]->(w:Want)
             DETACH DELETE w, c",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string());
 
         self.graph
@@ -658,15 +659,15 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
     async fn update_position(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
         // Remove any existing STAGED_IN edges and create new one
-        let q = query(
-            "MATCH (c:Character {id: $id})
-            OPTIONAL MATCH (c)-[old:STAGED_IN]->()
+        let q = query(&format!(
+            "{} OPTIONAL MATCH (c)-[old:STAGED_IN]->()
             DELETE old
             WITH c
-            MATCH (r:Region {id: $region_id})
+            MATCH (r:Region {{id: $region_id}})
             CREATE (c)-[:STAGED_IN]->(r)
             RETURN c.id as id",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string())
         .param("region_id", region_id.to_string());
 
@@ -703,11 +704,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
     // =========================================================================
 
     async fn get_relationships(&self, id: CharacterId) -> Result<Vec<Relationship>, RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $id})-[r:RELATES_TO]->(other:Character)
+        let q = query(&format!(
+            "{}-[r:RELATES_TO]->(other:Character)
             RETURN r.id as rel_id, other.id as other_id, r.relationship_type as rel_type, 
                    r.sentiment as sentiment, r.known_to_player as known_to_player",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string());
 
         let mut result = self
@@ -768,7 +770,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
     async fn save_relationship(&self, relationship: &Relationship) -> Result<(), RepoError> {
         // Convert relationship type to string for storage
-        let rel_type_str = match relationship.relationship_type() {
+        let rel_type_str = match &relationship.relationship_type {
             RelationshipType::Family(family) => format!("family:{:?}", family),
             RelationshipType::Romantic => "romantic".to_string(),
             RelationshipType::Professional => "professional".to_string(),
@@ -787,12 +789,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 r.sentiment = $sentiment,
                 r.known_to_player = $known_to_player",
         )
-        .param("from_id", relationship.from_character().to_string())
-        .param("to_id", relationship.to_character().to_string())
-        .param("rel_id", relationship.id().to_string())
+        .param("from_id", relationship.from_character.to_string())
+        .param("to_id", relationship.to_character.to_string())
+        .param("rel_id", relationship.id.to_string())
         .param("rel_type", rel_type_str)
-        .param("sentiment", relationship.sentiment() as f64)
-        .param("known_to_player", relationship.known_to_player());
+        .param("sentiment", relationship.sentiment as f64)
+        .param("known_to_player", relationship.known_to_player);
 
         self.graph
             .run(q)
@@ -801,8 +803,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
         tracing::debug!(
             "Saved relationship from {} to {}",
-            relationship.from_character(),
-            relationship.to_character()
+            relationship.from_character,
+            relationship.to_character
         );
         Ok(())
     }
@@ -828,11 +830,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
     // =========================================================================
 
     async fn get_inventory(&self, id: CharacterId) -> Result<Vec<Item>, RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $id})-[:POSSESSES]->(i:Item)
-            RETURN i",
-        )
-        .param("id", id.to_string());
+        let q = query(&format!("{}-[:POSSESSES]->(i:Item) RETURN i", match_character_by_id()))
+            .param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -857,11 +856,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
         character_id: CharacterId,
         item_id: ItemId,
     ) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $character_id})
-            MATCH (i:Item {id: $item_id})
-            MERGE (c)-[:POSSESSES]->(i)",
-        )
+        let q = query(&format!(
+            "{} MATCH (i:Item {{id: $item_id}}) MERGE (c)-[:POSSESSES]->(i)",
+            match_character_by_param("character_id")
+        ))
         .param("character_id", character_id.to_string())
         .param("item_id", item_id.to_string());
 
@@ -879,10 +877,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
         character_id: CharacterId,
         item_id: ItemId,
     ) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $character_id})-[r:POSSESSES]->(i:Item {id: $item_id})
-            DELETE r",
-        )
+        let q = query(&format!(
+            "{}-[r:POSSESSES]->(i:Item {{id: $item_id}}) DELETE r",
+            match_character_by_param("character_id")
+        ))
         .param("character_id", character_id.to_string())
         .param("item_id", item_id.to_string());
 
@@ -900,11 +898,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
     // =========================================================================
 
     async fn get_wants(&self, id: CharacterId) -> Result<Vec<WantDetails>, RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $id})-[r:HAS_WANT]->(w:Want)
+        let q = query(&format!(
+            "{}-[r:HAS_WANT]->(w:Want)
             OPTIONAL MATCH (w)-[:TARGETS]->(target)
             RETURN w, r.priority as priority, target, labels(target) as target_labels",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string());
 
         let mut result = self
@@ -987,9 +986,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
         let tells_json = serde_json::to_string(want.tells())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
-        let q = query(
-            "MATCH (c:Character {id: $character_id})
-            MERGE (w:Want {id: $want_id})
+        let q = query(&format!(
+            "{} MERGE (w:Want {{id: $want_id}})
             SET w.description = $description,
                 w.intensity = $intensity,
                 w.visibility = $visibility,
@@ -998,7 +996,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 w.tells = $tells
             MERGE (c)-[r:HAS_WANT]->(w)
             SET r.priority = $priority",
-        )
+            match_character_by_param("character_id")
+        ))
         .param("character_id", character_id.to_string())
         .param("want_id", want.id().to_string())
         .param("description", want.description().to_string())
@@ -1306,7 +1305,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         id: CharacterId,
     ) -> Result<Option<ActantialContext>, RepoError> {
         // Get character info first
-        let char_q = query("MATCH (c:Character {id: $id}) RETURN c.name as name")
+        let char_q = query(&format!("{}", return_character_name()))
             .param("id", id.to_string());
 
         let mut char_result = self
@@ -1447,11 +1446,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
         &self,
         id: CharacterId,
     ) -> Result<Vec<ActantialViewRecord>, RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $id})-[r:VIEWS_AS_HELPER|VIEWS_AS_OPPONENT|VIEWS_AS_SENDER|VIEWS_AS_RECEIVER]->(target)
+        let q = query(&format!(
+            "{}-[r:VIEWS_AS_HELPER|VIEWS_AS_OPPONENT|VIEWS_AS_SENDER|VIEWS_AS_RECEIVER]->(target)
             RETURN type(r) as role, r.want_id as want_id, r.reason as reason,
                    target.id as target_id, target.name as target_name, labels(target) as target_labels",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string());
 
         let mut result = self
@@ -1529,11 +1529,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
         let target_id = target.id_string();
 
         let q = query(&format!(
-            "MATCH (c:Character {{id: $character_id}})
-            MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)
+            "{} MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)
             MERGE (c)-[r:{relationship_type} {{want_id: $want_id}}]->(target)
             SET r.reason = $reason
-            RETURN target.name as target_name, labels(target) as target_labels"
+            RETURN target.name as target_name, labels(target) as target_labels",
+            match_character_by_param("character_id")
         ))
         .param("character_id", character_id.to_string())
         .param("want_id", want_id.to_string())
@@ -1597,9 +1597,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
         let relationship_type = safe_fragments::actantial_role_relationship(&role);
 
         let q = query(&format!(
-            "MATCH (c:Character {{id: $character_id}})-[r:{relationship_type}]->(target)
+            "{}-[r:{relationship_type}]->(target)
             WHERE r.want_id = $want_id AND target.id = $target_id
-            DELETE r"
+            DELETE r",
+            match_character_by_param("character_id")
         ))
         .param("character_id", character_id.to_string())
         .param("want_id", want_id.to_string())
@@ -1621,18 +1622,18 @@ impl CharacterRepo for Neo4jCharacterRepo {
         &self,
         id: CharacterId,
     ) -> Result<Vec<NpcRegionRelationship>, RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $id})
-            OPTIONAL MATCH (c)-[h:HOME_REGION]->(hr:Region)
+        let q = query(&format!(
+            "{} OPTIONAL MATCH (c)-[h:HOME_REGION]->(hr:Region)
             OPTIONAL MATCH (c)-[w:WORKS_AT_REGION]->(wr:Region)
             OPTIONAL MATCH (c)-[f:FREQUENTS_REGION]->(fr:Region)
             OPTIONAL MATCH (c)-[a:AVOIDS_REGION]->(ar:Region)
-            RETURN 
-                collect(DISTINCT {region_id: hr.id, type: 'HOME_REGION'}) as home,
-                collect(DISTINCT {region_id: wr.id, type: 'WORKS_AT_REGION', shift: w.shift}) as works,
-                collect(DISTINCT {region_id: fr.id, type: 'FREQUENTS_REGION', frequency: f.frequency, time_of_day: f.time_of_day}) as frequents,
-                collect(DISTINCT {region_id: ar.id, type: 'AVOIDS_REGION', reason: a.reason}) as avoids",
-        )
+            RETURN
+                collect(DISTINCT {{region_id: hr.id, type: 'HOME_REGION'}}) as home,
+                collect(DISTINCT {{region_id: wr.id, type: 'WORKS_AT_REGION', shift: w.shift}}) as works,
+                collect(DISTINCT {{region_id: fr.id, type: 'FREQUENTS_REGION', frequency: f.frequency, time_of_day: f.time_of_day}}) as frequents,
+                collect(DISTINCT {{region_id: ar.id, type: 'AVOIDS_REGION', reason: a.reason}}) as avoids",
+            match_character_by_id()
+        ))
         .param("id", id.to_string());
 
         let mut result = self
@@ -1749,14 +1750,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
     async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
         // Remove existing HOME_REGION and create new one
-        let q = query(
-            "MATCH (c:Character {id: $id})
-            OPTIONAL MATCH (c)-[old:HOME_REGION]->()
+        let q = query(&format!(
+            "{} OPTIONAL MATCH (c)-[old:HOME_REGION]->()
             DELETE old
             WITH c
-            MATCH (r:Region {id: $region_id})
+            MATCH (r:Region {{id: $region_id}})
             CREATE (c)-[:HOME_REGION]->(r)",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string())
         .param("region_id", region_id.to_string());
 
@@ -1779,14 +1780,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
         let shift_str = shift
             .map(|s| s.to_string())
             .unwrap_or_else(|| "always".to_string());
-        let q = query(
-            "MATCH (c:Character {id: $id})
-            OPTIONAL MATCH (c)-[old:WORKS_AT_REGION]->()
+        let q = query(&format!(
+            "{} OPTIONAL MATCH (c)-[old:WORKS_AT_REGION]->()
             DELETE old
             WITH c
-            MATCH (r:Region {id: $region_id})
-            CREATE (c)-[:WORKS_AT_REGION {shift: $shift}]->(r)",
-        )
+            MATCH (r:Region {{id: $region_id}})
+            CREATE (c)-[:WORKS_AT_REGION {{shift: $shift}}]->(r)",
+            match_character_by_id()
+        ))
         .param("id", id.to_string())
         .param("region_id", region_id.to_string())
         .param("shift", shift_str);
@@ -1807,12 +1808,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
         frequency: RegionFrequency,
         time_of_day: Option<TimeOfDay>,
     ) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $id})
-            MATCH (r:Region {id: $region_id})
-            MERGE (c)-[f:FREQUENTS_REGION]->(r)
+        let q = query(&format!(
+            "{} MATCH (r:Region {{id: $region_id}}) MERGE (c)-[f:FREQUENTS_REGION]->(r)
             SET f.frequency = $frequency, f.time_of_day = $time_of_day",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string())
         .param("region_id", region_id.to_string())
         .param("frequency", frequency.to_string())
@@ -1840,12 +1840,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
         region_id: RegionId,
         reason: Option<String>,
     ) -> Result<(), RepoError> {
-        let q = query(
-            "MATCH (c:Character {id: $id})
-            MATCH (r:Region {id: $region_id})
-            MERGE (c)-[a:AVOIDS_REGION]->(r)
+        let q = query(&format!(
+            "{} MATCH (r:Region {{id: $region_id}}) MERGE (c)-[a:AVOIDS_REGION]->(r)
             SET a.reason = $reason",
-        )
+            match_character_by_id()
+        ))
         .param("id", id.to_string())
         .param("region_id", region_id.to_string())
         .param("reason", reason.unwrap_or_default());
@@ -1865,23 +1864,23 @@ impl CharacterRepo for Neo4jCharacterRepo {
         region_id: RegionId,
         relationship_type: NpcRegionRelationType,
     ) -> Result<(), RepoError> {
-        // Use the enum's Display implementation to get the relationship type string
+        // Use enum's Display implementation to get relationship type string
         let cypher = match relationship_type {
             NpcRegionRelationType::HomeRegion => {
-                "MATCH (c:Character {id: $id})-[r:HOME_REGION]->(region:Region {id: $region_id}) DELETE r"
+                format!("{}-[r:HOME_REGION]->(region:Region {{id: $region_id}}) DELETE r", match_character_by_id())
             }
             NpcRegionRelationType::WorksAt => {
-                "MATCH (c:Character {id: $id})-[r:WORKS_AT_REGION]->(region:Region {id: $region_id}) DELETE r"
+                format!("{}-[r:WORKS_AT_REGION]->(region:Region {{id: $region_id}}) DELETE r", match_character_by_id())
             }
             NpcRegionRelationType::Frequents => {
-                "MATCH (c:Character {id: $id})-[r:FREQUENTS_REGION]->(region:Region {id: $region_id}) DELETE r"
+                format!("{}-[r:FREQUENTS_REGION]->(region:Region {{id: $region_id}}) DELETE r", match_character_by_id())
             }
             NpcRegionRelationType::Avoids => {
-                "MATCH (c:Character {id: $id})-[r:AVOIDS_REGION]->(region:Region {id: $region_id}) DELETE r"
+                format!("{}-[r:AVOIDS_REGION]->(region:Region {{id: $region_id}}) DELETE r", match_character_by_id())
             }
         };
 
-        let q = query(cypher)
+        let q = query(&cypher)
             .param("id", id.to_string())
             .param("region_id", region_id.to_string());
 

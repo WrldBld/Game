@@ -612,7 +612,7 @@ impl ExecuteEffects {
                 // Find existing relationship to target
                 let existing_relationship = relationships
                     .into_iter()
-                    .find(|r| r.to_character() == to_character);
+                    .find(|r| r.to_character == to_character);
 
                 // If no existing relationship, create a new one with logging
                 let (relationship, is_new_relationship) = match existing_relationship {
@@ -657,7 +657,7 @@ impl ExecuteEffects {
                 }
 
                 // Apply sentiment change and add event to history
-                let old_sentiment = relationship.sentiment();
+                let old_sentiment = relationship.sentiment;
                 let new_sentiment = (old_sentiment + sentiment_change).clamp(-1.0, 1.0);
                 let relationship =
                     relationship
@@ -683,7 +683,7 @@ impl ExecuteEffects {
                                 from_name,
                                 to_name,
                                 old_sentiment,
-                                relationship.sentiment(),
+                                relationship.sentiment,
                                 reason
                             ),
                             success: true,

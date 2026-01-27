@@ -41,19 +41,19 @@
 - [x] Update tests and API handlers
 
 ### Phase 2 — ADR-008 alignment (domain)
-- [ ] Make Relationship a Tier‑4 simple data struct (public fields) or reclassify docs
-- [ ] Consolidate string validation using common/string.rs helpers
+- [x] Make Relationship a Tier‑4 simple data struct (public fields) or reclassify docs
+- [x] Consolidate string validation using common/string.rs helpers
 
 ### Phase 3 — Neo4j query deduplication
-- [ ] Extend helpers.rs query fragments to lore/character repos
-- [ ] Replace duplicated MATCH/RETURN fragments where practical
+- [x] Extend helpers.rs query fragments to lore/character repos
+- [x] Replace duplicated MATCH/RETURN fragments where practical
 
 ---
 
 ## Progress
 
-- [ ] Phase 1 complete
-- [ ] Phase 2 complete
-- [ ] Phase 3 complete
-- [ ] Code review + architecture review
-- [ ] Checks/tests clean
+- [x] Phase 1 complete
+- [x] Phase 2 complete
+- [x] Phase 3 complete
+- [x] Code review + architecture review
+- [x] Checks/tests clean

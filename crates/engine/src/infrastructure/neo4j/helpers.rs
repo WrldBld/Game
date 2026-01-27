@@ -532,3 +532,121 @@ pub const fn return_staged_character_fields() -> &'static str {
 pub const fn collect_staged_character_fields() -> &'static str {
     "character_id: c.id, name: c.name, sprite_asset: c.sprite_asset, portrait_asset: c.portrait_asset, is_present: rel.is_present, is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false), reasoning: rel.reasoning, mood: COALESCE(rel.mood, c.default_mood, 'calm'), has_incomplete_data: COALESCE(rel.has_incomplete_data, false)"
 }
+
+// =============================================================================
+// Common Character MATCH Fragments
+// =============================================================================
+
+/// Fragment for matching a Character node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (c:Character {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_character_by_id;
+///
+/// let q = query(&format!("{} RETURN c", match_character_by_id()))
+///     .param("id", character_id.to_string());
+/// ```
+pub const fn match_character_by_id() -> &'static str {
+    "MATCH (c:Character {id: $id})"
+}
+
+/// Fragment for matching a Character node by ID with custom parameter name.
+///
+/// Returns MATCH clause with specified parameter name.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_character_by_param;
+///
+/// let q = query(&format!("{} RETURN c", match_character_by_param("character_id")))
+///     .param("character_id", character_id.to_string());
+/// ```
+pub fn match_character_by_param(param_name: &str) -> String {
+    format!("MATCH (c:Character {{id: ${}}})", param_name)
+}
+
+// =============================================================================
+// Common Character RETURN Field Fragments
+// =============================================================================
+
+/// Fragment for returning character name only.
+///
+/// Returns `c.name as name` for RETURN clauses.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_character_name;
+///
+/// let q = query(&format!("{} {}", match_character_by_id(), return_character_name()))
+///     .param("id", character_id.to_string());
+/// ```
+pub const fn return_character_name() -> &'static str {
+    "RETURN c.name as name"
+}
+
+// =============================================================================
+// Common Lore MATCH Fragments
+// =============================================================================
+
+/// Fragment for matching a Lore node by ID (using parameter `$id`).
+///
+/// Returns the MATCH clause `MATCH (l:Lore {id: $id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_lore_by_id;
+///
+/// let q = query(&format!("{} RETURN l", match_lore_by_id()))
+///     .param("id", lore_id.to_string());
+/// ```
+pub const fn match_lore_by_id() -> &'static str {
+    "MATCH (l:Lore {id: $id})"
+}
+
+/// Fragment for matching a Lore node by world ID.
+///
+/// Returns the MATCH clause `MATCH (l:Lore {world_id: $world_id})`.
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::match_lore_by_world;
+///
+/// let q = query(&format!("{} RETURN l ORDER BY l.title", match_lore_by_world()))
+///     .param("world_id", world_id.to_string());
+/// ```
+pub const fn match_lore_by_world() -> &'static str {
+    "MATCH (l:Lore {world_id: $world_id})"
+}
+
+// =============================================================================
+// Common Lore Knowledge RETURN Fragments
+// =============================================================================
+
+/// Fragment for returning lore knowledge relationship fields.
+///
+/// Returns a comma-separated list of knowledge relationship fields for RETURN clauses.
+///
+/// # Fields
+/// - `l.id as lore_id`
+/// - `c.id as character_id`
+/// - `k.known_chunk_ids as known_chunk_ids`
+/// - `k.discovery_source as discovery_source`
+/// - `k.discovered_at as discovered_at`
+/// - `k.notes as notes`
+///
+/// # Example
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::return_knowledge_fields;
+///
+/// let q = query(&format!(
+///     "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore)
+///      {}",
+///     return_knowledge_fields()
+/// ))
+/// .param("character_id", character_id.to_string());
+/// ```
+pub const fn return_knowledge_fields() -> &'static str {
+    "RETURN l.id as lore_id, c.id as character_id, k.known_chunk_ids as known_chunk_ids, k.discovery_source as discovery_source, k.discovered_at as discovered_at, k.notes as notes"
+}

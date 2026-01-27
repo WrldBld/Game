@@ -81,7 +81,7 @@ impl RelationshipManagement {
         let relationships = self.character.get_relationships(from_id).await?;
         let mut relationship = relationships
             .into_iter()
-            .find(|r| r.to_character() == to_id)
+            .find(|r| r.to_character == to_id)
             .ok_or(ManagementError::NotFound {
                 entity_type: "Relationship",
                 id: format!("{}→{}", from_id, to_id),
