@@ -36,5 +36,5 @@
 - [x] Phase 1 complete
 - [x] Phase 2 complete
 - [x] Phase 3 complete
-- [ ] Architecture review (re-run)
+- [x] Architecture review (re-run)
 - [x] Checks/tests clean
