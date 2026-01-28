@@ -69,7 +69,21 @@
   - ApprovalRequired and LLMProcessing include conversation_id
   - Dialogue state scoped by conversation_id
   - ConversationEnded clears only matching conversation
-- [ ] P1 Staging defaults + LLM gating complete
+- [x] P1 Staging defaults + LLM gating complete (backend)
+  - Added optional `presence_cache_ttl_hours` and `use_llm_presence` to `StagingApprovalInput`
+  - Location defaults are fetched and merged with input overrides (input takes precedence)
+  - LLM suggestions are gated based on effective `use_llm_presence` flag
+  - Effective TTL is used in result instead of settings default
+  - Added unit tests:
+    - `test_llm_presence_disabled_skips_llm_calls`: Verifies LLM port is not called when disabled
+    - `test_location_defaults_applied_when_input_omitted`: Verifies location defaults are applied
+    - `test_input_overrides_take_precedence`: Verifies input overrides take precedence over location defaults
+- [x] P1 Staging defaults + LLM gating complete (review)
+  - Added validation for `presence_cache_ttl_hours` (effective value must be > 0)
+  - Added unit tests for invalid TTL (zero and negative values)
+  - Mapped `StagingError` to proper `ErrorCode` in `ws_movement.rs` (ValidationError, NotFound)
+  - Fixed `staging_game_time_to_protocol` to guard against day=0 causing negative total_seconds
+- [ ] P1 Staging defaults + LLM gating complete (frontend)
 - [ ] P1 Challenge skill binding + stat sync complete
 - [ ] P2 Lore pipeline complete
 - [ ] P2 Creator/NPC refresh complete

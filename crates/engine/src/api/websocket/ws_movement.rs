@@ -183,7 +183,9 @@ fn staging_game_time_to_protocol(
     let formatted_time = Some(format!("{}:{:02} {}", display_hour, gt.minute, am_pm));
 
     // Calculate total_seconds from day/hour/minute/second
-    let total_seconds = (gt.day as i64 - 1) * 24 * 60 * 60
+    // Guard against day=0 causing negative total_seconds
+    let day_adjusted = gt.day.checked_sub(1).unwrap_or(0);
+    let total_seconds = (day_adjusted as i64) * 24 * 60 * 60
         + (gt.hour as i64) * 60 * 60
         + (gt.minute as i64) * 60
         + (gt.second as i64);
@@ -297,6 +299,8 @@ pub(super) async fn handle_move_to_region(
                         previous_staging: *previous_staging,
                         time_suggestion: result.time_suggestion.clone(),
                         guidance: None,
+                        presence_cache_ttl_hours: None,
+                        use_llm_presence: None,
                     };
 
                     match state
@@ -337,10 +341,16 @@ pub(super) async fn handle_move_to_region(
 
                             None
                         }
-                        Err(e) => Some(error_response(
-                            ErrorCode::InternalError,
-                            &sanitize_repo_error(&e, "process staging"),
-                        )),
+                        Err(e) => {
+                            let code = match &e {
+                                crate::use_cases::staging::StagingError::WorldNotFound(_) => ErrorCode::NotFound,
+                                crate::use_cases::staging::StagingError::RegionNotFound(_) => ErrorCode::NotFound,
+                                crate::use_cases::staging::StagingError::CharacterNotFound(_) => ErrorCode::NotFound,
+                                crate::use_cases::staging::StagingError::Validation(_) => ErrorCode::ValidationError,
+                                _ => ErrorCode::InternalError,
+                            };
+                            Some(error_response(code, &sanitize_repo_error(&e, "process staging")))
+                        }
                     }
                 }
                 StagingStatus::Ready => {
@@ -493,6 +503,8 @@ pub(super) async fn handle_exit_to_location(
                         previous_staging: *previous_staging,
                         time_suggestion: result.time_suggestion.clone(),
                         guidance: None,
+                        presence_cache_ttl_hours: None,
+                        use_llm_presence: None,
                     };
 
                     match state
@@ -533,10 +545,16 @@ pub(super) async fn handle_exit_to_location(
 
                             None
                         }
-                        Err(e) => Some(error_response(
-                            ErrorCode::InternalError,
-                            &sanitize_repo_error(&e, "process staging"),
-                        )),
+                        Err(e) => {
+                            let code = match &e {
+                                crate::use_cases::staging::StagingError::WorldNotFound(_) => ErrorCode::NotFound,
+                                crate::use_cases::staging::StagingError::RegionNotFound(_) => ErrorCode::NotFound,
+                                crate::use_cases::staging::StagingError::CharacterNotFound(_) => ErrorCode::NotFound,
+                                crate::use_cases::staging::StagingError::Validation(_) => ErrorCode::ValidationError,
+                                _ => ErrorCode::InternalError,
+                            };
+                            Some(error_response(code, &sanitize_repo_error(&e, "process staging")))
+                        }
                     }
                 }
                 StagingStatus::Ready => {
