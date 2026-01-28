@@ -171,7 +171,7 @@ async fn npc_set_disposition_emits_entity_changed_broadcast() {
 }
 
 #[tokio::test]
-async fn npc_set_mood_emits_entity_changed_broadcast() {
+async fn npc_set_home_region_emits_entity_changed_broadcast() {
     let now = chrono::Utc::now();
     let world_id = WorldId::new();
     let world = create_test_world(world_id, now);
@@ -192,32 +192,14 @@ async fn npc_set_mood_emits_entity_changed_broadcast() {
         .returning(move |_| Ok(Some(npc.clone())));
 
     character_repo
-        .expect_set_mood()
-        .returning(move |_, _, _| {
-            Ok(wrldbldr_domain::MoodChange {
-                npc_id,
-                npc_name: "Test NPC".to_string(),
-                old_mood: MoodState::Calm,
-                new_mood: MoodState::Anxious,
-            })
-        });
+        .expect_set_home_region()
+        .returning(|_, _| Ok(()));
 
     character_repo
         .expect_list_in_world()
         .returning(|_, _, _| Ok(Vec::new()));
 
-    // Setup staging repo for mood
-    let mut staging_repo = MockStagingRepo::new();
-    staging_repo
-        .expect_get_mood()
-        .returning(|_, _| Ok(MoodState::Calm));
-
-    staging_repo
-        .expect_set_mood()
-        .returning(|_, _, _| Ok(()));
-
-    let mut repos = TestAppRepos::new(world_repo);
-    repos.staging_repo = staging_repo;
+    let repos = TestAppRepos::new(world_repo);
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -250,17 +232,15 @@ async fn npc_set_mood_emits_entity_changed_broadcast() {
     })
     .await;
 
-    // Set NPC mood
+    // Set NPC home region
     let request_id = uuid::Uuid::new_v4().to_string();
     ws_send_client(
         &mut ws,
         &ClientMessage::Request {
             request_id: request_id.clone(),
-            payload: RequestPayload::Npc(wrldbldr_shared::NpcRequest::SetNpcMood {
-                npc_id: npc_id.to_string(),
+            payload: RequestPayload::Npc(wrldbldr_shared::NpcRequest::SetCharacterHomeRegion {
+                character_id: npc_id.to_string(),
                 region_id: region_id.to_string(),
-                mood: MoodState::Anxious,
-                reason: Some("Test reason".to_string()),
             }),
         },
     )
@@ -276,6 +256,238 @@ async fn npc_set_mood_emits_entity_changed_broadcast() {
         } else {
             false
         }
+    })
+    .await;
+
+    // Expect EntityChanged broadcast
+    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::EntityChanged { .. })
+    })
+    .await;
+
+    if let ServerMessage::EntityChanged(data) = entity_changed {
+        assert_eq!(data.entity_type, EntityType::Relationship);
+        assert_eq!(data.change_type, ChangeType::Updated);
+        assert!(data.data.is_some());
+    } else {
+        panic!("Expected EntityChanged message");
+    }
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn npc_set_work_region_emits_entity_changed_broadcast() {
+    let now = chrono::Utc::now();
+    let world_id = WorldId::new();
+    let world = create_test_world(world_id, now);
+    let npc_id = CharacterId::new();
+    let npc = create_test_npc(npc_id, world_id, now);
+    let region_id = RegionId::new();
+
+    // Setup world repo
+    let mut world_repo = MockWorldRepo::new();
+    world_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(world.clone())));
+
+    // Setup character repo
+    let mut character_repo = MockCharacterRepo::new();
+    character_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(npc.clone())));
+
+    character_repo
+        .expect_set_work_region()
+        .returning(|_, _| Ok(()));
+
+    character_repo
+        .expect_list_in_world()
+        .returning(|_, _, _| Ok(Vec::new()));
+
+    let repos = TestAppRepos::new(world_repo);
+    let app = build_test_app(repos, now);
+    let connections = Arc::new(ConnectionManager::new());
+
+    let ws_state = Arc::new(WsState {
+        app,
+        connections,
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
+    });
+
+    let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+    let mut ws = ws_connect(addr).await;
+
+    // Join world as DM
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::JoinWorld {
+            world_id: *world_id.as_uuid(),
+            role: ProtoWorldRole::Dm,
+            user_id: "test-user".to_string(),
+            pc_id: None,
+            spectate_pc_id: None,
+        },
+    )
+    .await;
+
+    let _ = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::WorldJoined { .. })
+    })
+    .await;
+
+    // Set NPC work region
+    let request_id = uuid::Uuid::new_v4().to_string();
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::Request {
+            request_id: request_id.clone(),
+            payload: RequestPayload::Npc(wrldbldr_shared::NpcRequest::SetCharacterWorkRegion {
+                character_id: npc_id.to_string(),
+                region_id: region_id.to_string(),
+            }),
+        },
+    )
+    .await;
+
+    // Expect response
+    let _response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
+            rid == &request_id
+        } else {
+            false
+        }
+    })
+    .await;
+
+    // Expect EntityChanged broadcast
+    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::EntityChanged { .. })
+    })
+    .await;
+
+    if let ServerMessage::EntityChanged(data) = entity_changed {
+        assert_eq!(data.entity_type, EntityType::Relationship);
+        assert_eq!(data.change_type, ChangeType::Updated);
+        assert!(data.data.is_some());
+    } else {
+        panic!("Expected EntityChanged message");
+    }
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn npc_remove_region_relationship_emits_entity_changed_broadcast() {
+    let now = chrono::Utc::now();
+    let world_id = WorldId::new();
+    let world = create_test_world(world_id, now);
+    let npc_id = CharacterId::new();
+    let npc = create_test_npc(npc_id, world_id, now);
+    let region_id = RegionId::new();
+
+    // Setup world repo
+    let mut world_repo = MockWorldRepo::new();
+    world_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(world.clone())));
+
+    // Setup character repo
+    let mut character_repo = MockCharacterRepo::new();
+    character_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(npc.clone())));
+
+    character_repo
+        .expect_remove_region_relationship()
+        .returning(|_, _, _| Ok(()));
+
+    character_repo
+        .expect_list_in_world()
+        .returning(|_, _, _| Ok(Vec::new()));
+
+    let repos = TestAppRepos::new(world_repo);
+    let app = build_test_app(repos, now);
+    let connections = Arc::new(ConnectionManager::new());
+
+    let ws_state = Arc::new(WsState {
+        app,
+        connections,
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
+    });
+
+    let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+    let mut ws = ws_connect(addr).await;
+
+    // Join world as DM
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::JoinWorld {
+            world_id: *world_id.as_uuid(),
+            role: ProtoWorldRole::Dm,
+            user_id: "test-user".to_string(),
+            pc_id: None,
+            spectate_pc_id: None,
+        },
+    )
+    .await;
+
+    let _ = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::WorldJoined { .. })
+    })
+    .await;
+
+    // Remove NPC region relationship
+    let request_id = uuid::Uuid::new_v4().to_string();
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::Request {
+            request_id: request_id.clone(),
+            payload: RequestPayload::Npc(wrldbldr_shared::NpcRequest::RemoveCharacterRegionRelationship {
+                character_id: npc_id.to_string(),
+                region_id: region_id.to_string(),
+                relationship_type: "HOME_REGION".to_string(),
+            }),
+        },
+    )
+    .await;
+
+    // Expect response
+    let _response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
+            rid == &request_id
+        } else {
+            false
+        }
+    })
+    .await;
+
+    // Expect EntityChanged broadcast
+    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::EntityChanged { .. })
+    })
+    .await;
+
+    if let ServerMessage::EntityChanged(data) = entity_changed {
+        assert_eq!(data.entity_type, EntityType::Relationship);
+        assert_eq!(data.change_type, ChangeType::Deleted);
+    } else {
+        panic!("Expected EntityChanged message");
+    }
+
+    server.abort();
+}
+
     })
     .await;
 

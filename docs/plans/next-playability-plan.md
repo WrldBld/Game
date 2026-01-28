@@ -7,11 +7,11 @@
 
 ## Ordered Priorities
 
-1) Dialogue conversation scoping + DM recovery controls (US-DLG-018/019/020/021/022/023)
-2) Visual state surfaced in staging + player backdrop updates (US-VS-007/008/009)
-3) Dialogue-driven time suggestions + player time-advance toast (US-TIME-013/011)
-4) Staging settings UI for world/location defaults (US-STG-016/017)
-5) Creator flow: character/NPC editing WS wiring
+1) ✅ Dialogue conversation scoping + DM recovery controls (US-DLG-018/019/020/021/022/023)
+2) ✅ Visual state surfaced in staging + player backdrop updates (US-VS-007/008/009)
+3) ✅ Dialogue-driven time suggestions + player time-advance toast (US-TIME-013/011)
+4) ✅ Staging settings UI for world/location defaults (US-STG-016/017)
+5) ✅ Creator flow: character/NPC editing WS wiring
 
 ---
 
@@ -115,23 +115,33 @@
 
 ## Priority 5 — Creator flow wiring (character/NPC)
 
-**Status:** 🟡 In progress
+**Status:** ✅ Complete
 
-**Backend**
-- Ensure WS handlers route character/NPC edits and broadcast `EntityChanged`.
+**Backend** ✅ Complete
+- ✅ Ensure WS handlers route character/NPC edits and broadcast `EntityChanged`.
+- ✅ NPC region relationships (home/work/remove) emit `EntityChanged` broadcasts.
+- ✅ Character sheet field updates (UpdateField/UpdateFields) emit `EntityChanged` broadcasts.
+- ✅ WS integration tests for creator flow entity changed emissions.
 
-**Frontend**
-- Character form: send archetype changes + sheet updates.
-- Add NPC service for mood/disposition/region relationships.
+**Frontend** ✅ Complete
+- ✅ Character form: send archetype changes + sheet updates using CharacterService + CharacterSheetService.
+- ✅ NPC disposition/relationship changes use NpcService instead of direct message builder.
+- ✅ EntityChanged events trigger appropriate refresh via game_state.trigger_entity_refresh().
 
-**Tests**
-- WS integration for character edits + NPC relationship changes.
+**Tests** ✅ Complete
+- ✅ WS integration for character edits + NPC relationship changes.
+- ✅ creator_flow.rs: character create/update/delete/archetype change assert EntityChanged.
+- ✅ creator_flow_npc.rs: home/work/remove region relationships assert EntityChanged.
+- ✅ creator_flow_sheet.rs: UpdateField/UpdateFields assert EntityChanged.
 
-**Files (expected)**
-- `crates/engine/src/api/websocket/ws_character.rs`
-- `crates/engine/src/api/websocket/ws_npc.rs`
-- `crates/player/src/application/services/npc_service.rs`
-- `crates/player/src/ui/presentation/components/creator/character_form.rs`
+**Files modified**
+- `crates/engine/src/api/websocket/ws_character.rs` (completed)
+- `crates/engine/src/api/websocket/ws_npc.rs` (completed)
+- `crates/engine/src/api/websocket/ws_character_sheet.rs` (completed)
+- `crates/player/src/application/services/npc_service.rs` (completed)
+- `crates/player/src/ui/presentation/components/creator/character_form.rs` (verified using services)
+- `crates/player/src/ui/presentation/views/director/content.rs` (wired to NpcService)
+- `crates/player/src/ui/presentation/handlers/session_message_handler.rs` (EntityChanged handler exists)
 
 ---
 

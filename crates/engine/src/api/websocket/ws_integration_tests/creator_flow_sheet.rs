@@ -46,10 +46,12 @@ async fn character_sheet_update_field_emits_entity_changed() {
 
     // Setup character repo
     let mut character_repo = MockCharacterRepo::new();
-    let character_for_get = character.clone();
+    // update_field internally calls get() once, and we also call it for world_id resolution
+    let character_clone = character.clone();
     character_repo
         .expect_get()
-        .returning(move |_| Ok(Some(character_for_get.clone())));
+        .times(2)
+        .returning(move |_| Ok(Some(character_clone.clone())));
 
     character_repo
         .expect_update_sheet_value()
@@ -128,10 +130,20 @@ async fn character_sheet_update_field_emits_entity_changed() {
         panic!("Expected Response message");
     }
 
-    // Note: EntityChanged broadcast for sheet updates is currently limited
-    // by world_id availability in the handler. This test verifies the response
-    // is successful, but EntityChanged broadcast may not be sent
-    // until world_id tracking is improved.
+    // Expect EntityChanged broadcast
+    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::EntityChanged { .. })
+    })
+    .await;
+
+    if let ServerMessage::EntityChanged(data) = entity_changed {
+        assert_eq!(data.entity_type, EntityType::Character);
+        assert_eq!(data.change_type, ChangeType::Updated);
+        assert_eq!(data.entity_id, character_id.to_string());
+        assert!(data.data.is_some());
+    } else {
+        panic!("Expected EntityChanged message");
+    }
 
     server.abort();
 }
@@ -152,10 +164,12 @@ async fn character_sheet_update_fields_emits_entity_changed() {
 
     // Setup character repo
     let mut character_repo = MockCharacterRepo::new();
-    let character_for_get = character.clone();
+    // update_fields internally calls get() once, and we also call it for world_id resolution
+    let character_clone = character.clone();
     character_repo
         .expect_get()
-        .returning(move |_| Ok(Some(character_for_get.clone())));
+        .times(2)
+        .returning(move |_| Ok(Some(character_clone.clone())));
 
     character_repo
         .expect_update_sheet_values()
@@ -242,10 +256,20 @@ async fn character_sheet_update_fields_emits_entity_changed() {
         panic!("Expected Response message");
     }
 
-    // Note: EntityChanged broadcast for sheet updates is currently limited
-    // by world_id availability in the handler. This test verifies the response
-    // is successful, but EntityChanged broadcast may not be sent
-    // until world_id tracking is improved.
+    // Expect EntityChanged broadcast
+    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::EntityChanged { .. })
+    })
+    .await;
+
+    if let ServerMessage::EntityChanged(data) = entity_changed {
+        assert_eq!(data.entity_type, EntityType::Character);
+        assert_eq!(data.change_type, ChangeType::Updated);
+        assert_eq!(data.entity_id, character_id.to_string());
+        assert!(data.data.is_some());
+    } else {
+        panic!("Expected EntityChanged message");
+    }
 
     server.abort();
 }

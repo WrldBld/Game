@@ -125,735 +125,734 @@ pub fn DirectorModeContent() -> Element {
     // Check if we're in view-as-character mode
     let view_mode = game_state.view_mode.read().clone();
 
-    // Use conditional rendering instead of early return to avoid hook ordering issues
-    rsx! {
-        if let ViewMode::ViewingAsCharacter { character_id, character_name } = view_mode {
+    // Compute derived values BEFORE rendering
+    let split_locations = game_state.split_party_locations.read().clone();
+    let show_split_banner = split_locations.len() > 1;
+
+    let npc_dispositions = game_state.npc_dispositions.read().clone();
+    let selected_pc_id = game_state.selected_pc_id.read().clone();
+    let has_dispositions = !npc_dispositions.is_empty();
+    let pc_name = selected_pc_id.clone().unwrap_or_else(|| "Unknown".to_string());
+    let scene_npcs: Vec<SceneNpcInfo> = npc_dispositions
+        .iter()
+        .map(|d| SceneNpcInfo {
+            id: d.npc_id.clone(),
+            name: d.npc_name.clone(),
+            current_disposition: Some(d.disposition.clone()),
+            current_relationship: Some(d.relationship.clone()),
+        })
+        .collect();
+
+    let world_id_for_library = game_state.world.read().as_ref().map(|w| w.world.id.clone());
+    let world_id_for_preview = game_state.world.read().as_ref().map(|w| w.world.id.clone());
+    let world_id_for_character_perspective = game_state.world.read().as_ref().map(|w| w.world.id.clone());
+    let loc_id = preview_location_id.read().clone();
+    let show_location_preview = loc_id.is_some() && world_id_for_preview.is_some();
+    let preview_loc_id = loc_id.clone();
+    let preview_world_id = world_id_for_preview.clone();
+
+    let active_challenges: Vec<ChallengeData> = challenges.read().iter()
+        .filter(|c| c.active)
+        .cloned()
+        .collect();
+    let has_active_challenges = !active_challenges.is_empty();
+    let scene_characters_for_challenge = scene_characters.clone();
+
+    let has_selected_conversation = selected_conversation_id.read().is_some();
+
+    let mut game_state_for_approve = game_state.clone();
+    let mut game_state_for_close = game_state.clone();
+    let mut game_state_for_character_perspective = game_state.clone();
+    let mut game_state_for_conversation_close = game_state.clone();
+    let mut game_state_for_conversation_end = game_state.clone();
+    let conversation_service_for_conversation_end = conversation_service.clone();
+    let session_state_for_conversation_end = session_state.clone();
+    let selected_conversation_id_for_read = selected_conversation_id.clone();
+    let mut show_conversations_for_end = show_conversations.clone();
+    let mut details_loading_for_end = details_loading.clone();
+
+    // Prepare clones for modal handlers
+
+    // Render based on view mode
+    let body = if let ViewMode::ViewingAsCharacter { character_id, character_name } = view_mode {
+        rsx! {
             ViewAsCharacterMode {
                 character_id: character_id,
                 character_name: character_name,
                 game_state: game_state.clone(),
                 session_state: session_state.clone(),
             }
-        } else {
-        div {
-            class: "h-full grid grid-cols-[1fr_350px] gap-4 p-4",
-
-            // Left panel - Scene preview and conversation
+        }
+    } else {
+        rsx! {
             div {
-                class: "main-panel flex flex-col gap-4",
+                class: "h-full grid grid-cols-[1fr_350px] gap-4 p-4",
 
-                // Split party warning banner (shown when party is at multiple locations)
-                {
-                    let split_locations = game_state.split_party_locations.read().clone();
-                    if split_locations.len() > 1 {
-                        rsx! {
-                            SplitPartyBanner {
-                                locations: split_locations,
-                            }
-                        }
-                    } else {
-                        rsx! {}
-                    }
-                }
-
-                // Scene preview (smaller version of what players see)
+                // Left panel - Scene preview and conversation
                 div {
-                    class: "scene-preview h-[200px] bg-gradient-to-b from-dark-surface to-dark-purple-end rounded-lg relative overflow-hidden",
+                    class: "main-panel flex flex-col gap-4",
 
-                    // Show actual characters in scene
+                    // Split party warning banner (shown when party is at multiple locations)
+                    if show_split_banner {
+                        SplitPartyBanner {
+                            locations: split_locations,
+                        }
+                    }
+
+                    // Scene preview (smaller version of what players see)
                     div {
-                        class: "absolute bottom-[20%] left-1/2 -translate-x-1/2 flex gap-8",
-                        for character in scene_characters.iter() {
-                            div {
-                                key: "{character.id}",
-                                class: "flex flex-col items-center",
-                                div {
-                                    class: "w-20 h-[120px] bg-blue-500/20 rounded flex items-center justify-center",
-                                    if character.sprite_asset.is_some() {
-                                        // Would show actual sprite here
-                                        span { class: "text-blue-400 text-4xl", "🧑" }
-                                    } else {
-                                        span { class: "text-blue-400 text-4xl", "🧑" }
-                                    }
-                                }
-                                span { class: "text-gray-400 text-xs mt-1", "{character.name}" }
-                            }
-                        }
-                        if scene_characters.is_empty() {
-                            div { class: "text-gray-500 italic", "No characters in scene" }
-                        }
-                    }
-                }
+                        class: "scene-preview h-[200px] bg-gradient-to-b from-dark-surface to-dark-purple-end rounded-lg relative overflow-hidden",
 
-                // Conversation log
-                div {
-                    class: "conversation-log flex-1 bg-dark-surface rounded-lg p-4 overflow-y-auto",
-
-                    h3 { class: "text-gray-400 mb-4 text-sm uppercase", "Conversation Log" }
-
-                    div {
-                        class: "flex flex-col gap-3",
-
-                        if conversation_log.is_empty() {
-                            div { class: "text-gray-500 italic text-center p-8",
-                                "Waiting for session activity..."
-                            }
-                        }
-
-                        for (idx, entry) in conversation_log.iter().enumerate() {
-                            DynamicLogEntry {
-                                key: "{idx}",
-                                speaker: entry.speaker.clone(),
-                                text: entry.text.clone(),
-                                is_system: entry.is_system,
-                            }
-                        }
-                    }
-                }
-
-                // Approval popup(s)
-                for approval in pending_approvals.iter() {
-                    ApprovalPopup {
-                        key: "{approval.request_id}",
-                        approval: approval.clone(),
-                    }
-                }
-
-                if pending_approvals.is_empty() && !conversation_log.is_empty() {
-                    div {
-                        class: "bg-gray-800 border border-gray-700 rounded-lg p-4 text-center text-gray-400",
-                        "No pending approvals"
-                    }
-                }
-            }
-
-            // Right panel - Directorial controls
-            div {
-                class: "control-panel flex flex-col gap-4 overflow-y-auto",
-
-                // Game Time Control Panel
-                TimeControlPanel {}
-
-                // Connection status
-                div {
-                    class: "panel-section bg-dark-surface rounded-lg p-4",
-
-                    h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Connection Info" }
-
-                    div { class: "text-white text-sm",
-                        if let Some(world_id) = session_state.world_id().read().as_ref() {
-                            p { class: "my-1", "World: {world_id}" }
-                        } else {
-                            p { class: "my-1 text-amber-500", "Not connected to world" }
-                        }
-                    }
-                }
-
-                // Decision queue (pending approvals + recent decisions)
-                div {
-                    class: "panel-section bg-dark-surface rounded-lg p-4",
-
-                    DecisionQueuePanel {}
-                }
-
-                // Scene notes
-                div {
-                    class: "panel-section bg-dark-surface rounded-lg p-4",
-
-                    h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Scene Notes" }
-                    textarea {
-                        value: "{scene_notes}",
-                        oninput: move |e| scene_notes.set(e.value()),
-                        placeholder: "Add notes for the current scene...",
-                        class: "w-full h-[100px] p-3 bg-dark-bg border border-gray-700 rounded-lg text-white resize-y box-border",
-                    }
-                }
-
-                // Tone selection
-                div {
-                    class: "panel-section bg-dark-surface rounded-lg p-4",
-
-                    h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Tone" }
-                    select {
-                        value: "{current_tone}",
-                        onchange: move |e| current_tone.set(e.value()),
-                        class: "w-full p-2 bg-dark-bg border border-gray-700 rounded-lg text-white",
-                        option { value: "Serious", "Serious" }
-                        option { value: "Lighthearted", "Lighthearted" }
-                        option { value: "Tense", "Tense" }
-                        option { value: "Mysterious", "Mysterious" }
-                        option { value: "Comedic", "Comedic" }
-                    }
-                }
-
-                // Scene NPCs (from real data)
-                div {
-                    class: "panel-section bg-dark-surface rounded-lg p-4",
-
-                    h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Scene Characters" }
-
-                    div { class: "flex flex-col gap-2",
-                        if scene_characters.is_empty() {
-                            div { class: "text-gray-500 italic", "No characters loaded" }
-                        }
-                        for character in scene_characters.iter() {
-                            div {
-                                key: "{character.id}",
-                                class: "flex items-center gap-2 p-2 bg-dark-bg rounded",
-                                span { class: "text-blue-400", "🧑" }
-                                span { class: "text-white", "{character.name}" }
-                                if character.is_speaking {
-                                    span { class: "text-green-400 text-xs ml-auto", "(speaking)" }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // NPC Dispositions Panel (shows dispositions for selected PC)
-                {
-                    let npc_dispositions = game_state.npc_dispositions.read().clone();
-                    let selected_pc_id = game_state.selected_pc_id.read().clone();
-
-                    // Only show if we have dispositions data
-                    if !npc_dispositions.is_empty() {
-                        let pc_name = selected_pc_id.clone().unwrap_or_else(|| "Unknown".to_string());
-                        let scene_npcs: Vec<SceneNpcInfo> = npc_dispositions.iter()
-                            .map(|d| SceneNpcInfo {
-                                id: d.npc_id.clone(),
-                                name: d.npc_name.clone(),
-                                current_disposition: Some(d.disposition.clone()),
-                                current_relationship: Some(d.relationship.clone()),
-                            })
-                            .collect();
-
-                        // NOTE: command_bus hooks are now called at the top of the component
-
-                        rsx! {
-                            div {
-                                class: "panel-section bg-dark-surface rounded-lg p-4",
-
-                                h3 { class: "text-gray-400 mb-3 text-sm uppercase", "NPC Dispositions" }
-
-                                NpcDispositionListPanel {
-                                    pc_id: selected_pc_id.clone().unwrap_or_default(),
-                                    pc_name: pc_name,
-                                    scene_npcs: scene_npcs,
-                                    on_disposition_change: move |evt: DispositionChangeEvent| {
-                                        tracing::info!(
-                                            npc_id = %evt.npc_id,
-                                            pc_id = %evt.pc_id,
-                                            disposition = %evt.disposition,
-                                            "DM changed NPC disposition"
-                                        );
-                                        // Parse disposition string to enum
-                                        let disposition = match evt.disposition.parse::<DispositionLevel>() {
-                                            Ok(d) => d,
-                                            Err(_) => {
-                                                tracing::warn!(
-                                                    disposition = %evt.disposition,
-                                                    "Invalid disposition value, using Neutral"
-                                                );
-                                                DispositionLevel::Neutral
-                                            }
-                                        };
-                                        // Send disposition change to engine
-                                        let msg = ClientMessageBuilder::set_npc_disposition(
-                                            &evt.npc_id,
-                                            &evt.pc_id,
-                                            disposition,
-                                            evt.reason.as_deref(),
-                                        );
-                                        if let Err(e) = command_bus_disposition.send(msg) {
-                                            tracing::error!("Failed to send disposition change: {}", e);
-                                        }
-                                    },
-                                    on_relationship_change: move |evt: RelationshipChangeEvent| {
-                                        tracing::info!(
-                                            npc_id = %evt.npc_id,
-                                            pc_id = %evt.pc_id,
-                                            relationship = %evt.relationship,
-                                            "DM changed NPC relationship"
-                                        );
-                                        // Send relationship change to engine
-                                        let msg = ClientMessageBuilder::set_npc_relationship(
-                                            &evt.npc_id,
-                                            &evt.pc_id,
-                                            &evt.relationship,
-                                        );
-                                        if let Err(e) = command_bus_rel.send(msg) {
-                                            tracing::error!("Failed to send relationship change: {}", e);
-                                        }
-                                    },
-                                }
-                            }
-                        }
-                    } else {
-                        rsx! {}
-                    }
-                }
-
-                // Quick actions
-                div {
-                    class: "panel-section bg-dark-surface rounded-lg p-4",
-
-                    h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Quick Actions" }
-
-                    div { class: "flex flex-col gap-2",
-                        button {
-                            onclick: move |_| show_challenge_library.set(true),
-                            class: "p-2 bg-amber-500 text-white border-none rounded-lg cursor-pointer",
-                            "Manage Challenges"
-                        }
-                        button {
-                            onclick: move |_| show_trigger_challenge.set(true),
-                            class: "p-2 bg-pink-500 text-white border-none rounded-lg cursor-pointer",
-                            "⚔️ Trigger Challenge"
-                        }
-                         button {
-                             onclick: {
-                                 let conversation_service = conversation_service.clone();
-                                 let session_state = session_state.clone();
-                                 let mut conversations_loading = conversations_loading.clone();
-                                 let mut show_conversations = show_conversations.clone();
-                                 move |_| {
-                                    // Load conversations when opening panel
-                                    if let Some(world_id) = session_state.world_id().read().clone() {
-                                        conversations_loading.set(true);
-                                         if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
-                                            tracing::error!("Failed to list conversations: {}", e);
-                                            conversations_loading.set(false);
-                                        }
-                                    }
-                                    show_conversations.set(true);
-                                 }
-                             },
-                             class: "p-2 bg-cyan-500 text-white border-none rounded-lg cursor-pointer",
-                             "Conversations"
-                         }
-                        button { class: "p-2 bg-blue-500 text-white border-none rounded-lg cursor-pointer", "View Social Graph" }
-                        button { class: "p-2 bg-purple-500 text-white border-none rounded-lg cursor-pointer", "View Timeline" }
-                        button { class: "p-2 bg-red-500 text-white border-none rounded-lg cursor-pointer", "Start Combat" }
-                    }
-                }
-            }  // Close right panel div
-
-            // Challenge Library Modal
-            if *show_challenge_library.read() {
-                {
-                    let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
-                    if let Some(world_id) = world_id {
-                        rsx! {
-                            ChallengeLibrary {
-                                world_id: world_id,
-                                skills: skills.read().clone(),
-                                on_close: move |_| show_challenge_library.set(false),
-                                on_trigger_challenge: None,
-                            }
-                        }
-                    } else {
-                        rsx! {
-                            div {
-                                class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
-                                onclick: move |_| show_challenge_library.set(false),
-                                div {
-                                    class: "bg-dark-surface p-8 rounded-lg text-center",
-                                    onclick: move |e| e.stop_propagation(),
-                                    p { class: "text-red-500", "No world loaded. Start a session first." }
-                                    button {
-                                        onclick: move |_| show_challenge_library.set(false),
-                                        class: "mt-4 px-4 py-2 bg-gray-700 text-white border-none rounded cursor-pointer",
-                                        "Close"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // PC Management Modal
-            if *show_pc_management.read() {
-                if let Some(world_id) = session_state.world_id().read().as_ref() {
-                    div {
-                        class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
-                        onclick: move |_| show_pc_management.set(false),
+                        // Show actual characters in scene
                         div {
-                            class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
-                            onclick: move |e| e.stop_propagation(),
-                            div {
-                                class: "flex justify-between items-center mb-4",
-                                h2 {
-                                    class: "m-0 text-white text-xl",
-                                    "Player Character Management"
-                                }
-                                button {
-                                    onclick: move |_| show_pc_management.set(false),
-                                    class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
-                                    "×"
-                                }
-                            }
-                            crate::presentation::components::dm_panel::pc_management::PCManagementPanel {
-                                world_id: world_id.to_string(),
-                                on_view_as_character: move |character_id| {
-                                    // TODO (Phase 23 Player Perspective): Implement view-as-character mode
-                                    tracing::info!("View as character: {}", character_id);
-                                    show_pc_management.set(false);
-                                },
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Director Queue Panel
-            if *show_queue_panel.read() {
-                crate::presentation::components::dm_panel::director_queue_panel::DirectorQueuePanel {
-                    on_close: move |_| show_queue_panel.set(false),
-                }
-            }
-
-            // Location Navigator Modal
-            if *show_location_navigator.read() {
-                if let Some(world_id) = game_state.world.read().as_ref().map(|w| w.world.id.clone()) {
-                    div {
-                        class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
-                        onclick: move |_| show_location_navigator.set(false),
-                        div {
-                            class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
-                            onclick: move |e| e.stop_propagation(),
-                            div {
-                                class: "flex justify-between items-center mb-4",
-                                h2 {
-                                    class: "m-0 text-white text-xl",
-                                    "Location Navigator"
-                                }
-                                button {
-                                    onclick: move |_| show_location_navigator.set(false),
-                                    class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
-                                    "×"
-                                }
-                            }
-                            crate::presentation::components::dm_panel::location_navigator::LocationNavigator {
-                                world_id: world_id.clone(),
-                                on_preview: move |location_id: String| {
-                                    // Open location preview modal
-                                    preview_location_id.set(Some(location_id.clone()));
-                                    tracing::info!("Preview location: {}", location_id);
-                                    show_location_navigator.set(false);
-                                },
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Character Perspective Viewer Modal
-            if *show_character_perspective.read() {
-                {
-                    let mut game_state_for_view = game_state.clone();
-                    let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
-
-                    if let Some(world_id) = world_id {
-                        rsx! {
-                            div {
-                                class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
-                                onclick: move |_| show_character_perspective.set(false),
+                            class: "absolute bottom-[20%] left-1/2 -translate-x-1/2 flex gap-8",
+                            for character in scene_characters.iter() {
                                 div {
-                                    class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
-                                    onclick: move |e| e.stop_propagation(),
+                                    key: "{character.id}",
+                                    class: "flex flex-col items-center",
                                     div {
-                                        class: "flex justify-between items-center mb-4",
-                                        h2 {
-                                            class: "m-0 text-white text-xl",
-                                            "Character Perspective Viewer"
-                                        }
-                                        button {
-                                            onclick: move |_| show_character_perspective.set(false),
-                                            class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
-                                            "×"
+                                        class: "w-20 h-[120px] bg-blue-500/20 rounded flex items-center justify-center",
+                                        if character.sprite_asset.is_some() {
+                                            // Would show actual sprite here
+                                            span { class: "text-blue-400 text-4xl", "🧑" }
+                                        } else {
+                                            span { class: "text-blue-400 text-4xl", "🧑" }
                                         }
                                     }
-                                    crate::presentation::components::dm_panel::character_perspective::CharacterPerspectiveViewer {
-                                        world_id: world_id.clone(),
-                                        on_view_as: move |data: ViewAsData| {
-                                            // Switch to view-as-character mode
-                                            tracing::info!("View as character: {} ({})", data.character_name, data.character_id);
-                                            game_state_for_view.start_viewing_as(data.character_id, data.character_name);
-                                            show_character_perspective.set(false);
-                                        },
-                                    }
+                                    span { class: "text-gray-400 text-xs mt-1", "{character.name}" }
+                                }
+                            }
+                            if scene_characters.is_empty() {
+                                div { class: "text-gray-500 italic", "No characters in scene" }
+                            }
+                        }
+                    }
+
+                    // Conversation log
+                    div {
+                        class: "conversation-log flex-1 bg-dark-surface rounded-lg p-4 overflow-y-auto",
+
+                        h3 { class: "text-gray-400 mb-4 text-sm uppercase", "Conversation Log" }
+
+                        div {
+                            class: "flex flex-col gap-3",
+
+                            if conversation_log.is_empty() {
+                                div { class: "text-gray-500 italic text-center p-8",
+                                    "Waiting for session activity..."
+                                }
+                            }
+
+                            for (idx, entry) in conversation_log.iter().enumerate() {
+                                DynamicLogEntry {
+                                    key: "{idx}",
+                                    speaker: entry.speaker.clone(),
+                                    text: entry.text.clone(),
+                                    is_system: entry.is_system,
                                 }
                             }
                         }
-                    } else {
-                        rsx! {}
+                    }
+
+                    // Approval popup(s)
+                    for approval in pending_approvals.iter() {
+                        ApprovalPopup {
+                            key: "{approval.request_id}",
+                            approval: approval.clone(),
+                        }
+                    }
+
+                    if pending_approvals.is_empty() && !conversation_log.is_empty() {
+                        div {
+                            class: "bg-gray-800 border border-gray-700 rounded-lg p-4 text-center text-gray-400",
+                            "No pending approvals"
+                        }
                     }
                 }
-            }
 
-            // Trigger Challenge Modal
-            if *show_trigger_challenge.read() {
-                {
-                    let active_challenges: Vec<ChallengeData> = challenges.read().iter()
-                        .filter(|c| c.active)
-                        .cloned()
-                        .collect();
-                    let chars = scene_characters.clone();
+                // Right panel - Directorial controls
+                div {
+                    class: "control-panel flex flex-col gap-4 overflow-y-auto",
 
-                    if active_challenges.is_empty() {
-                        rsx! {
-                            div {
-                                class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
-                                onclick: move |_| show_trigger_challenge.set(false),
+                    // Game Time Control Panel
+                    TimeControlPanel {}
+
+                    // Connection status
+                    div {
+                        class: "panel-section bg-dark-surface rounded-lg p-4",
+
+                        h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Connection Info" }
+
+                        div { class: "text-white text-sm",
+                            if let Some(world_id) = session_state.world_id().read().as_ref() {
+                                p { class: "my-1", "World: {world_id}" }
+                            } else {
+                                p { class: "my-1 text-amber-500", "Not connected to world" }
+                            }
+                        }
+                    }
+
+                    // Decision queue (pending approvals + recent decisions)
+                    div {
+                        class: "panel-section bg-dark-surface rounded-lg p-4",
+
+                        DecisionQueuePanel {}
+                    }
+
+                    // Scene notes
+                    div {
+                        class: "panel-section bg-dark-surface rounded-lg p-4",
+
+                        h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Scene Notes" }
+                        textarea {
+                            value: "{scene_notes}",
+                            oninput: move |e| scene_notes.set(e.value()),
+                            placeholder: "Add notes for the current scene...",
+                            class: "w-full h-[100px] p-3 bg-dark-bg border border-gray-700 rounded-lg text-white resize-y box-border",
+                        }
+                    }
+
+                    // Tone selection
+                    div {
+                        class: "panel-section bg-dark-surface rounded-lg p-4",
+
+                        h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Tone" }
+                        select {
+                            value: "{current_tone}",
+                            onchange: move |e| current_tone.set(e.value()),
+                            class: "w-full p-2 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                            option { value: "Serious", "Serious" }
+                            option { value: "Lighthearted", "Lighthearted" }
+                            option { value: "Tense", "Tense" }
+                            option { value: "Mysterious", "Mysterious" }
+                            option { value: "Comedic", "Comedic" }
+                        }
+                    }
+
+                    // Scene NPCs (from real data)
+                    div {
+                        class: "panel-section bg-dark-surface rounded-lg p-4",
+
+                        h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Scene Characters" }
+
+                        div { class: "flex flex-col gap-2",
+                            if scene_characters.is_empty() {
+                                div { class: "text-gray-500 italic", "No characters loaded" }
+                            }
+                            for character in scene_characters.iter() {
                                 div {
-                                    class: "bg-dark-surface p-8 rounded-lg text-center max-w-[400px]",
-                                    onclick: move |e| e.stop_propagation(),
-                                    h3 { class: "text-amber-500 mb-4", "⚔️ No Active Challenges" }
-                                    p { class: "text-gray-400 mb-4", "Create and activate challenges in the Challenge Library first." }
-                                    button {
-                                        onclick: move |_| {
-                                            show_trigger_challenge.set(false);
-                                            show_challenge_library.set(true);
-                                        },
-                                        class: "px-4 py-2 bg-amber-500 text-white border-none rounded cursor-pointer mr-2",
-                                        "Open Challenge Library"
-                                    }
-                                    button {
-                                        onclick: move |_| show_trigger_challenge.set(false),
-                                        class: "px-4 py-2 bg-gray-700 text-white border-none rounded cursor-pointer",
-                                        "Close"
+                                    key: "{character.id}",
+                                    class: "flex items-center gap-2 p-2 bg-dark-bg rounded",
+                                    span { class: "text-blue-400", "🧑" }
+                                    span { class: "text-white", "{character.name}" }
+                                    if character.is_speaking {
+                                        span { class: "text-green-400 text-xs ml-auto", "(speaking)" }
                                     }
                                 }
                             }
                         }
-                    } else {
-                        // NOTE: command_bus_trigger hook is now called at the top of the component
-                        rsx! {
-                            TriggerChallengeModal {
-                                challenges: active_challenges,
-                                scene_characters: chars,
-                                on_trigger: move |(challenge_id, character_id): (String, String)| {
-                                    tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
-                                    let msg = ClientMessageBuilder::trigger_challenge(&challenge_id, &character_id);
-                                    if let Err(e) = command_bus_trigger.send(msg) {
-                                        tracing::error!("Failed to trigger challenge: {}", e);
+                    }
+
+                    // NPC Dispositions Panel (shows dispositions for selected PC)
+                    if has_dispositions {
+                        div {
+                            class: "panel-section bg-dark-surface rounded-lg p-4",
+
+                            h3 { class: "text-gray-400 mb-3 text-sm uppercase", "NPC Dispositions" }
+
+                            NpcDispositionListPanel {
+                                pc_id: selected_pc_id.clone().unwrap_or_default(),
+                                pc_name: pc_name,
+                                scene_npcs: scene_npcs,
+                                on_disposition_change: move |evt: DispositionChangeEvent| {
+                                    tracing::info!(
+                                        npc_id = %evt.npc_id,
+                                        pc_id = %evt.pc_id,
+                                        disposition = %evt.disposition,
+                                        "DM changed NPC disposition"
+                                    );
+                                    // Parse disposition string to enum
+                                    let disposition = match evt.disposition.parse::<DispositionLevel>() {
+                                        Ok(d) => d,
+                                        Err(_) => {
+                                            tracing::warn!(
+                                                disposition = %evt.disposition,
+                                                "Invalid disposition value, using Neutral"
+                                            );
+                                            DispositionLevel::Neutral
+                                        }
+                                    };
+                                    // Send disposition change to engine
+                                    let msg = ClientMessageBuilder::set_npc_disposition(
+                                        &evt.npc_id,
+                                        &evt.pc_id,
+                                        disposition,
+                                        evt.reason.as_deref(),
+                                    );
+                                    if let Err(e) = command_bus_disposition.send(msg) {
+                                        tracing::error!("Failed to send disposition change: {}", e);
                                     }
-                                    show_trigger_challenge.set(false);
                                 },
-                                on_close: move |_| show_trigger_challenge.set(false),
+                                on_relationship_change: move |evt: RelationshipChangeEvent| {
+                                    tracing::info!(
+                                        npc_id = %evt.npc_id,
+                                        pc_id = %evt.pc_id,
+                                        relationship = %evt.relationship,
+                                        "DM changed NPC relationship"
+                                    );
+                                    // Send relationship change to engine
+                                    let msg = ClientMessageBuilder::set_npc_relationship(
+                                        &evt.npc_id,
+                                        &evt.pc_id,
+                                        &evt.relationship,
+                                    );
+                                    if let Err(e) = command_bus_rel.send(msg) {
+                                        tracing::error!("Failed to send relationship change: {}", e);
+                                    }
+                                },
+                            }
+                        }
+                    }
+
+                    // Quick actions
+                    div {
+                        class: "panel-section bg-dark-surface rounded-lg p-4",
+
+                        h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Quick Actions" }
+
+                        div { class: "flex flex-col gap-2",
+                            button {
+                                onclick: move |_| show_challenge_library.set(true),
+                                class: "p-2 bg-amber-500 text-white border-none rounded-lg cursor-pointer",
+                                "Manage Challenges"
+                            }
+                            button {
+                                onclick: move |_| show_trigger_challenge.set(true),
+                                class: "p-2 bg-pink-500 text-white border-none rounded-lg cursor-pointer",
+                                "⚔️ Trigger Challenge"
+                            }
+                             button {
+                                 onclick: {
+                                     let conversation_service = conversation_service.clone();
+                                     let session_state = session_state.clone();
+                                     let mut conversations_loading = conversations_loading.clone();
+                                     let mut show_conversations = show_conversations.clone();
+                                     move |_| {
+                                        // Load conversations when opening panel
+                                        if let Some(world_id) = session_state.world_id().read().clone() {
+                                            conversations_loading.set(true);
+                                             if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
+                                                tracing::error!("Failed to list conversations: {}", e);
+                                                conversations_loading.set(false);
+                                            }
+                                        }
+                                        show_conversations.set(true);
+                                     }
+                                 },
+                                 class: "p-2 bg-cyan-500 text-white border-none rounded-lg cursor-pointer",
+                                 "Conversations"
+                             }
+                            button { class: "p-2 bg-blue-500 text-white border-none rounded-lg cursor-pointer", "View Social Graph" }
+                            button { class: "p-2 bg-purple-500 text-white border-none rounded-lg cursor-pointer", "View Timeline" }
+                            button { class: "p-2 bg-red-500 text-white border-none rounded-lg cursor-pointer", "Start Combat" }
+                        }
+                    }
+                }
+
+                // Challenge Library Modal
+                if *show_challenge_library.read() {
+                    if let Some(ref world_id) = world_id_for_library {
+                        ChallengeLibrary {
+                            world_id: world_id.clone(),
+                            skills: skills.read().clone(),
+                            on_close: move |_| show_challenge_library.set(false),
+                            on_trigger_challenge: None,
+                        }
+                    } else {
+                        div {
+                            class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                            onclick: move |_| show_challenge_library.set(false),
+                            div {
+                                class: "bg-dark-surface p-8 rounded-lg text-center",
+                                onclick: move |e| e.stop_propagation(),
+                                p { class: "text-red-500", "No world loaded. Start a session first." }
+                                button {
+                                    onclick: move |_| show_challenge_library.set(false),
+                                    class: "mt-4 px-4 py-2 bg-gray-700 text-white border-none rounded cursor-pointer",
+                                    "Close"
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Location Preview Modal
-            {
-                let loc_id = preview_location_id.read().clone();
-                let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
-                if let (Some(loc_id), Some(world_id)) = (loc_id, world_id) {
-                    rsx! {
+                // PC Management Modal
+                if *show_pc_management.read() {
+                    if let Some(world_id) = session_state.world_id().read().as_ref() {
+                        div {
+                            class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                            onclick: move |_| show_pc_management.set(false),
+                            div {
+                                class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
+                                onclick: move |e| e.stop_propagation(),
+                                div {
+                                    class: "flex justify-between items-center mb-4",
+                                    h2 {
+                                        class: "m-0 text-white text-xl",
+                                        "Player Character Management"
+                                    }
+                                    button {
+                                        onclick: move |_| show_pc_management.set(false),
+                                        class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
+                                        "×"
+                                    }
+                                }
+                                crate::presentation::components::dm_panel::pc_management::PCManagementPanel {
+                                    world_id: world_id.to_string(),
+                                    on_view_as_character: move |character_id| {
+                                        // TODO (Phase 23 Player Perspective): Implement view-as-character mode
+                                        tracing::info!("View as character: {}", character_id);
+                                        show_pc_management.set(false);
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Director Queue Panel
+                if *show_queue_panel.read() {
+                    crate::presentation::components::dm_panel::director_queue_panel::DirectorQueuePanel {
+                        on_close: move |_| show_queue_panel.set(false),
+                    }
+                }
+
+                // Location Navigator Modal
+                if *show_location_navigator.read() {
+                    if let Some(world_id) = game_state.world.read().as_ref().map(|w| w.world.id.clone()) {
+                        div {
+                            class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                            onclick: move |_| show_location_navigator.set(false),
+                            div {
+                                class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
+                                onclick: move |e| e.stop_propagation(),
+                                div {
+                                    class: "flex justify-between items-center mb-4",
+                                    h2 {
+                                        class: "m-0 text-white text-xl",
+                                        "Location Navigator"
+                                    }
+                                    button {
+                                        onclick: move |_| show_location_navigator.set(false),
+                                        class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
+                                        "×"
+                                    }
+                                }
+                                crate::presentation::components::dm_panel::location_navigator::LocationNavigator {
+                                    world_id: world_id.clone(),
+                                    on_preview: move |location_id: String| {
+                                        // Open location preview modal
+                                        preview_location_id.set(Some(location_id.clone()));
+                                        tracing::info!("Preview location: {}", location_id);
+                                        show_location_navigator.set(false);
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Character Perspective Viewer Modal
+                if *show_character_perspective.read() {
+                    if let Some(ref world_id) = world_id_for_character_perspective {
+                        div {
+                            class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                            onclick: move |_| show_character_perspective.set(false),
+                            div {
+                                class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
+                                onclick: move |e| e.stop_propagation(),
+                                div {
+                                    class: "flex justify-between items-center mb-4",
+                                    h2 {
+                                        class: "m-0 text-white text-xl",
+                                        "Character Perspective Viewer"
+                                    }
+                                    button {
+                                        onclick: move |_| show_character_perspective.set(false),
+                                        class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
+                                        "×"
+                                    }
+                                }
+                                crate::presentation::components::dm_panel::character_perspective::CharacterPerspectiveViewer {
+                                    world_id: world_id.clone(),
+                                    on_view_as: move |data: ViewAsData| {
+                                        // Switch to view-as-character mode
+                                        tracing::info!("View as character: {} ({})", data.character_name, data.character_id);
+                                        game_state_for_character_perspective.start_viewing_as(data.character_id, data.character_name);
+                                        show_character_perspective.set(false);
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Trigger Challenge Modal
+                if *show_trigger_challenge.read() {
+                    if !has_active_challenges {
+                        div {
+                            class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                            onclick: move |_| show_trigger_challenge.set(false),
+                            div {
+                                class: "bg-dark-surface p-8 rounded-lg text-center max-w-[400px]",
+                                onclick: move |e| e.stop_propagation(),
+                                h3 { class: "text-amber-500 mb-4", "⚔️ No Active Challenges" }
+                                p { class: "text-gray-400 mb-4", "Create and activate challenges in the Challenge Library first." }
+                                button {
+                                    onclick: move |_| {
+                                        show_trigger_challenge.set(false);
+                                        show_challenge_library.set(true);
+                                    },
+                                    class: "px-4 py-2 bg-amber-500 text-white border-none rounded cursor-pointer mr-2",
+                                    "Open Challenge Library"
+                                }
+                                button {
+                                    onclick: move |_| show_trigger_challenge.set(false),
+                                    class: "px-4 py-2 bg-gray-700 text-white border-none rounded cursor-pointer",
+                                    "Close"
+                                }
+                            }
+                        }
+                    } else {
+                        TriggerChallengeModal {
+                            challenges: active_challenges,
+                            scene_characters: scene_characters_for_challenge,
+                            on_trigger: move |(challenge_id, character_id): (String, String)| {
+                                tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
+                                let msg = ClientMessageBuilder::trigger_challenge(&challenge_id, &character_id);
+                                if let Err(e) = command_bus_trigger.send(msg) {
+                                    tracing::error!("Failed to trigger challenge: {}", e);
+                                }
+                                show_trigger_challenge.set(false);
+                            },
+                            on_close: move |_| show_trigger_challenge.set(false),
+                        }
+                    }
+                }
+
+                // Location Preview Modal
+                if show_location_preview {
+                    if let (Some(loc_id), Some(world_id)) = (preview_loc_id, preview_world_id) {
                         LocationPreviewModal {
                             location_id: loc_id,
                             world_id: world_id,
                             on_close: move |_| preview_location_id.set(None),
                         }
                     }
-                } else {
-                    rsx! {}
                 }
-            }
 
-            // Staging Approval Popup - shown when a PC is trying to enter a region
-            if let Some(staging_data) = game_state.pending_staging_approval.read().as_ref() {
-                {
-                    // NOTE: command_bus hooks are now called at the top of the component
-                    let mut game_state_for_approve = game_state.clone();
-                    let mut game_state_for_close = game_state.clone();
+                // Staging Approval Popup - shown when a PC is trying to enter a region
+                if let Some(staging_data) = game_state.pending_staging_approval.read().as_ref() {
+                    StagingApprovalPopup {
+                        data: staging_data.clone(),
+                        on_approve: move |result: StagingApprovalResult| {
+                            tracing::info!("Staging approved for request {}: {} NPCs, ttl={} hours",
+                                result.request_id, result.approved_npcs.len(), result.ttl_hours);
 
-                    rsx! {
-                        StagingApprovalPopup {
-                            data: staging_data.clone(),
-                            on_approve: move |result: StagingApprovalResult| {
-                                tracing::info!("Staging approved for request {}: {} NPCs, ttl={} hours",
-                                    result.request_id, result.approved_npcs.len(), result.ttl_hours);
+                            // Send approval to engine
+                            let approved_npcs: Vec<wrldbldr_shared::ApprovedNpcInfo> = result.approved_npcs
+                                .into_iter()
+                                .map(|(character_id, is_present, is_hidden_from_players)| {
+                                    let local = ApprovedNpcInfo {
+                                        character_id,
+                                        is_present,
+                                        reasoning: None,
+                                        is_hidden_from_players,
+                                        mood: None, // Use character's default_mood
+                                    };
+                                    local.into()
+                                })
+                                .collect();
 
-                                // Send approval to engine
-                                let approved_npcs: Vec<wrldbldr_shared::ApprovedNpcInfo> = result.approved_npcs
-                                    .into_iter()
-                                    .map(|(character_id, is_present, is_hidden_from_players)| {
-                                        let local = ApprovedNpcInfo {
-                                            character_id,
-                                            is_present,
-                                            reasoning: None,
-                                            is_hidden_from_players,
-                                            mood: None, // Use character's default_mood
-                                        };
-                                        local.into()
-                                    })
-                                    .collect();
+                            let msg = ClientMessageBuilder::staging_approval_response(
+                                &result.request_id,
+                                approved_npcs,
+                                result.ttl_hours,
+                                &result.source,
+                                result.location_state_id,
+                                result.region_state_id,
+                            );
+                            if let Err(e) = command_bus_approve.send(msg) {
+                                tracing::error!("Failed to send staging approval: {}", e);
+                            }
 
-                                let msg = ClientMessageBuilder::staging_approval_response(
-                                    &result.request_id,
-                                    approved_npcs,
-                                    result.ttl_hours,
-                                    &result.source,
-                                    result.location_state_id,
-                                    result.region_state_id,
-                                );
-                                if let Err(e) = command_bus_approve.send(msg) {
-                                    tracing::error!("Failed to send staging approval: {}", e);
-                                }
+                            // Clear the pending approval
+                            game_state_for_approve.clear_pending_staging_approval();
+                        },
+                        on_regenerate: move |request: StagingRegenerateRequest| {
+                            tracing::info!("Regenerating staging for request {}: {}",
+                                request.request_id, request.guidance);
 
-                                // Clear the pending approval
-                                game_state_for_approve.clear_pending_staging_approval();
-                            },
-                            on_regenerate: move |request: StagingRegenerateRequest| {
-                                tracing::info!("Regenerating staging for request {}: {}",
-                                    request.request_id, request.guidance);
-
-                                // Send regenerate request to engine
-                                let msg = ClientMessageBuilder::staging_regenerate_request(
-                                    &request.request_id,
-                                    &request.guidance,
-                                );
-                                if let Err(e) = command_bus_regenerate.send(msg) {
-                                    tracing::error!("Failed to send staging regenerate request: {}", e);
-                                }
-                            },
-                            on_close: move |_| {
-                                // Clear without sending approval (dismiss)
-                                game_state_for_close.clear_pending_staging_approval();
-                            },
-                        }
+                            // Send regenerate request to engine
+                            let msg = ClientMessageBuilder::staging_regenerate_request(
+                                &request.request_id,
+                                &request.guidance,
+                            );
+                            if let Err(e) = command_bus_regenerate.send(msg) {
+                                tracing::error!("Failed to send staging regenerate request: {}", e);
+                            }
+                        },
+                        on_close: move |_| {
+                            // Clear without sending approval (dismiss)
+                            game_state_for_close.clear_pending_staging_approval();
+                        },
                     }
                 }
-            }
 
-            // Conversations Modal - DM can manage active conversations
-            if *show_conversations.read() {
-                {
-                    let has_selected = selected_conversation_id.read().is_some();
-                    if has_selected {
+                // Conversations Modal - DM can manage active conversations
+                if *show_conversations.read() {
+                    if has_selected_conversation {
                         // Show conversation details
-                        let mut game_state_for_close = game_state.clone();
-                        let mut game_state_for_end = game_state.clone();
-                        let conversation_service_for_end = conversation_service.clone();
-                        let session_state_for_end = session_state.clone();
-                        let selected_conversation_id_for_read = selected_conversation_id.clone();
-                        let mut show_conversations_for_end = show_conversations.clone();
-                        let mut details_loading_for_end = details_loading.clone();
-                        rsx! {
-                            ConversationDetailsPanel {
-                                details: game_state.conversation_details.read().clone(),
-                                loading: *details_loading.read(),
-                                on_close: move |_| {
-                                    selected_conversation_id.set(None);
-                                    game_state_for_close.clear_conversation_details();
-                                },
-                                on_end: move |_| {
-                                    let conv_id = selected_conversation_id_for_read.read().clone();
-                                    if let Some(conv_id_str) = conv_id {
-                                        match uuid::Uuid::parse_str(&conv_id_str) {
-                                            Ok(uuid) => {
-                                                // Clear conversation_details and details_loading before closing modal
-                                                game_state_for_end.clear_conversation_details();
-                                                details_loading_for_end.set(false);
+                        ConversationDetailsPanel {
+                            details: game_state.conversation_details.read().clone(),
+                            loading: *details_loading.read(),
+                            on_close: move |_| {
+                                selected_conversation_id.set(None);
+                                game_state_for_conversation_close.clear_conversation_details();
+                            },
+                            on_end: move |_| {
+                                let conv_id = selected_conversation_id_for_read.read().clone();
+                                if let Some(conv_id_str) = conv_id {
+                                    match uuid::Uuid::parse_str(&conv_id_str) {
+                                        Ok(uuid) => {
+                                            // Clear conversation_details and details_loading before closing modal
+                                            game_state_for_conversation_end.clear_conversation_details();
+                                            details_loading_for_end.set(false);
 
-                                                if let Err(e) = conversation_service_for_end.end_conversation_by_id(uuid, None) {
-                                                    tracing::error!("Failed to end conversation: {}", e);
-                                                }
-                                                if let Some(world_id) = session_state_for_end.world_id().read().clone() {
-                                                    let _ = conversation_service_for_end.list_active_conversations(world_id, false);
-                                                }
-                                                selected_conversation_id.set(None);
-                                                show_conversations_for_end.set(false);
+                                            if let Err(e) = conversation_service_for_conversation_end.end_conversation_by_id(uuid, None) {
+                                                tracing::error!("Failed to end conversation: {}", e);
                                             }
-                                            Err(e) => {
-                                                tracing::error!("Invalid conversation_id format: {}", e);
+                                            if let Some(world_id) = session_state_for_conversation_end.world_id().read().clone() {
+                                                let _ = conversation_service_for_conversation_end.list_active_conversations(world_id, false);
                                             }
+                                            selected_conversation_id.set(None);
+                                            show_conversations_for_end.set(false);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Invalid conversation_id format: {}", e);
                                         }
                                     }
-                                },
-                                on_view_history: move |_| {
-                                    tracing::info!("View full history for conversation");
-                                },
-                            }
+                                }
+                            },
+                            on_view_history: move |_| {
+                                tracing::info!("View full history for conversation");
+                            },
                         }
                     } else {
                         // Show conversation list
-                        rsx! {
+                        div {
+                            class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                            onclick: move |_| show_conversations.set(false),
                             div {
-                                class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
-                                onclick: move |_| show_conversations.set(false),
+                                class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col",
+                                onclick: move |e| e.stop_propagation(),
+
                                 div {
-                                    class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col",
-                                    onclick: move |e| e.stop_propagation(),
+                                    class: "flex justify-between items-center p-4 border-b border-gray-700",
 
-                                    div {
-                                        class: "flex justify-between items-center p-4 border-b border-gray-700",
-
-                                        h2 {
-                                            class: "m-0 text-white text-xl",
-                                            "Active Conversations"
-                                        }
-
-                                        button {
-                                            onclick: move |_| show_conversations.set(false),
-                                            class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
-                                            "×"
-                                        }
+                                    h2 {
+                                        class: "m-0 text-white text-xl",
+                                        "Active Conversations"
                                     }
 
-                                    ActiveConversationsPanel {
-                                        conversations: game_state.active_conversations.read().clone(),
-                                        loading: *conversations_loading.read(),
-                                        on_refresh: {
-                                            let conversation_service = conversation_service.clone();
-                                            let session_state = session_state.clone();
-                                            let mut conversations_loading = conversations_loading.clone();
-                                            move |_| {
-                                                if let Some(world_id) = session_state.world_id().read().clone() {
-                                                    conversations_loading.set(true);
-                                                    if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
-                                                        tracing::error!("Failed to refresh conversations: {}", e);
-                                                        conversations_loading.set(false);
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        on_view_details: {
-                                            let conversation_service = conversation_service.clone();
-                                            let mut selected_conversation_id = selected_conversation_id.clone();
-                                            let mut details_loading = details_loading.clone();
-                                            move |conv_id: String| {
-                                                selected_conversation_id.set(Some(conv_id.clone()));
-                                                details_loading.set(true);
-                                                match uuid::Uuid::parse_str(&conv_id) {
-                                                    Ok(uuid) => {
-                                                        if let Err(e) = conversation_service.get_conversation_details(uuid) {
-                                                            tracing::error!("Failed to get conversation details: {}", e);
-                                                        }
-                                                    }
-                                                    Err(e) => {
-                                                        tracing::error!("Invalid conversation ID format: {}", e);
-                                                        details_loading.set(false);
-                                                    }
-                                                }
-                                            }
-                                        },
+                                    button {
+                                        onclick: move |_| show_conversations.set(false),
+                                        class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
+                                        "×"
                                     }
+                                }
+
+                                ActiveConversationsPanel {
+                                    conversations: game_state.active_conversations.read().clone(),
+                                    loading: *conversations_loading.read(),
+                                    on_refresh: {
+                                        let conversation_service = conversation_service.clone();
+                                        let session_state = session_state.clone();
+                                        let mut conversations_loading = conversations_loading.clone();
+                                        move |_| {
+                                            if let Some(world_id) = session_state.world_id().read().clone() {
+                                                conversations_loading.set(true);
+                                                if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
+                                                    tracing::error!("Failed to refresh conversations: {}", e);
+                                                    conversations_loading.set(false);
+                                                }
+                                            }
+                                        }
+                                    },
+                                    on_view_details: {
+                                        let conversation_service = conversation_service.clone();
+                                        let mut selected_conversation_id = selected_conversation_id.clone();
+                                        let mut details_loading = details_loading.clone();
+                                        move |conv_id: String| {
+                                            selected_conversation_id.set(Some(conv_id.clone()));
+                                            details_loading.set(true);
+                                            match uuid::Uuid::parse_str(&conv_id) {
+                                                Ok(uuid) => {
+                                                    if let Err(e) = conversation_service.get_conversation_details(uuid) {
+                                                        tracing::error!("Failed to get conversation details: {}", e);
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!("Invalid conversation ID format: {}", e);
+                                                    details_loading.set(false);
+                                                }
+                                            }
+                                        }
+                                    },
                                 }
                             }
                         }
                     }
                 }
-            }  // Close conversations modal if
-        }  // Close main container div
-        } // end else block for ViewMode::ViewingAsCharacter
-    } // Close rsx!
-} // Close DirectorModeContent fn
+            }
+        }
+    };
+
+    body
+}
+
+/// Checklist item for a single tool in the approval popup
+#[derive(Props, Clone, PartialEq)]
+struct ToolChecklistItemProps {
+    tool_id: String,
+    tool_name: String,
+    tool_desc: String,
+    approved_tools: Signal<std::collections::HashMap<String, bool>>,
+}
+
+#[component]
+fn ToolChecklistItem(mut props: ToolChecklistItemProps) -> Element {
+    rsx! {
+        div {
+            key: "{props.tool_id}",
+            class: "flex items-center gap-2 p-2 bg-black/20 rounded",
+            input {
+                r#type: "checkbox",
+                checked: *props.approved_tools.read().get(&props.tool_id).unwrap_or(&true),
+                onchange: move |_| {
+                    let mut tools = props.approved_tools.write();
+                    if let Some(val) = tools.get_mut(&props.tool_id) {
+                        *val = !*val;
+                    }
+                },
+            }
+            div {
+                span { class: "text-white text-sm", "{props.tool_name}" }
+                span { class: "text-gray-400 text-xs ml-2", "- {props.tool_desc}" }
+            }
+        }
+    }
+}
 
 /// Approval popup for DM to approve/reject LLM responses
 #[derive(Props, Clone, PartialEq)]
@@ -863,7 +862,7 @@ struct ApprovalPopupProps {
 
 #[component]
 fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
-    let session_state = use_session_state();
+    let mut session_state = use_session_state();
     let platform = crate::use_platform();
     let mut modified_dialogue = use_signal(|| props.approval.proposed_dialogue.clone());
     let mut show_reasoning = use_signal(|| false);
@@ -871,7 +870,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
     let mut show_reject_input = use_signal(|| false);
 
     // Track which tools are approved
-    let mut approved_tools = use_signal(|| {
+    let approved_tools = use_signal(|| {
         props
             .approval
             .proposed_tools
@@ -882,6 +881,30 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
 
     let request_id = props.approval.request_id.clone();
     let npc_name = props.approval.npc_name.clone();
+
+    // Compute derived values before rendering
+    let current_showing_reasoning = *show_reasoning.read();
+    let show_reject_input_state = *show_reject_input.read();
+    let has_tools = !props.approval.proposed_tools.is_empty();
+    let _has_narrative_suggestion = props.approval.narrative_event_suggestion.is_some();
+    let rejection_feedback_value = rejection_feedback.read().clone();
+
+    // For the tools for loop, we need a different approach to avoid both:
+    // 1. Nested rsx! blocks
+    // 2. let statements inside rsx
+    // Solution: Extract into a sub-component
+
+    // Prepare values for action buttons (needed to avoid let statements in rsx if blocks)
+    let request_id_for_accept = request_id.clone();
+    let mut session_state_for_accept = session_state.clone();
+    let request_id_for_modify = request_id.clone();
+    let session_state_for_modify = session_state.clone();
+    let platform_for_accept = platform.clone();
+    let platform_for_modify = platform.clone();
+    let dialogue_for_modify = modified_dialogue.read().clone();
+    let dialogue_original = props.approval.proposed_dialogue.clone();
+    let approved_for_modify = approved_tools.read().clone();
+    let tools_for_modify = props.approval.proposed_tools.clone();
 
     rsx! {
         div {
@@ -902,53 +925,30 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
             }
 
             // Show/hide reasoning
-            {
-                let current_showing = *show_reasoning.read();
-                rsx! {
-                    button {
-                        onclick: move |_| show_reasoning.set(!current_showing),
-                        class: "bg-none border-none text-blue-400 cursor-pointer text-sm mb-2",
-                        if current_showing { "Hide reasoning ▲" } else { "Show reasoning ▼" }
-                    }
-                }
+            button {
+                onclick: move |_| show_reasoning.set(!current_showing_reasoning),
+                class: "bg-none border-none text-blue-400 cursor-pointer text-sm mb-2",
+                if current_showing_reasoning { "Hide reasoning ▲" } else { "Show reasoning ▼" }
             }
 
-            if *show_reasoning.read() {
+            if current_showing_reasoning {
                 div { class: "mb-4 p-3 bg-black/30 rounded-lg",
                     p { class: "text-gray-400 text-xs m-0", "{props.approval.internal_reasoning}" }
                 }
             }
 
             // Proposed tools
-            if !props.approval.proposed_tools.is_empty() {
+            if has_tools {
                 div { class: "mb-4",
                     p { class: "text-gray-400 text-sm mb-2", "Proposed Actions:" }
                     div { class: "flex flex-col gap-2",
                         for tool in props.approval.proposed_tools.iter() {
-                            {
-                                let tool_id = tool.id.clone();
-                                let tool_id_for_change = tool.id.clone();
-                                let is_approved = *approved_tools.read().get(&tool_id).unwrap_or(&true);
-                                rsx! {
-                                    div {
-                                        key: "{tool_id}",
-                                        class: "flex items-center gap-2 p-2 bg-black/20 rounded",
-                                        input {
-                                            r#type: "checkbox",
-                                            checked: is_approved,
-                                            onchange: move |_| {
-                                                let mut tools = approved_tools.write();
-                                                if let Some(val) = tools.get_mut(&tool_id_for_change) {
-                                                    *val = !*val;
-                                                }
-                                            },
-                                        }
-                                        div {
-                                            span { class: "text-white text-sm", "{tool.name}" }
-                                            span { class: "text-gray-400 text-xs ml-2", "- {tool.description}" }
-                                        }
-                                    }
-                                }
+                            ToolChecklistItem {
+                                key: "{tool.id}",
+                                tool_id: tool.id.clone(),
+                                tool_name: tool.name.clone(),
+                                tool_desc: tool.description.clone(),
+                                approved_tools: approved_tools.clone(),
                             }
                         }
                     }
@@ -956,7 +956,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
             }
 
             // Narrative event suggestion section
-            if let Some(suggestion) = &props.approval.narrative_event_suggestion {
+            if let Some(ref suggestion) = props.approval.narrative_event_suggestion {
                 div {
                     class: "mb-4 p-4 bg-purple-500/10 border border-purple-500 rounded-lg",
 
@@ -983,7 +983,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                         "\"{suggestion.reasoning}\""
                     }
 
-                    if let Some(outcome) = &suggestion.suggested_outcome {
+                    if let Some(ref outcome) = suggestion.suggested_outcome {
                         p {
                             class: "text-purple-300 text-xs m-0 mb-3 leading-snug",
                             "Suggested Outcome: {outcome}"
@@ -998,7 +998,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
             }
 
             // Rejection feedback input
-            if *show_reject_input.read() {
+            if show_reject_input_state {
                 div { class: "mb-4",
                     p { class: "text-gray-400 text-sm mb-1", "Feedback for LLM:" }
                     textarea {
@@ -1008,26 +1008,18 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                         class: "w-full min-h-[60px] p-2 bg-dark-bg border border-red-500 rounded-lg text-white resize-y box-border",
                     }
                     div { class: "flex gap-2 mt-2",
-                        {
-                            let feedback = rejection_feedback.read().clone();
-                            let request_id = request_id.clone();
-                            let mut session_state = session_state.clone();
-                            let platform_reject = platform.clone();
-                            rsx! {
-                                button {
-                                    onclick: move |_| {
-                                        session_state.record_approval_decision(
-                                            request_id.clone(),
-                                            &ApprovalDecision::Reject {
-                                                feedback: feedback.clone(),
-                                            },
-                                            platform_reject.as_ref(),
-                                        );
+                        button {
+                            onclick: move |_| {
+                                session_state.record_approval_decision(
+                                    request_id.clone(),
+                                    &ApprovalDecision::Reject {
+                                        feedback: rejection_feedback_value.clone(),
                                     },
-                                    class: "flex-1 p-2 bg-red-500 text-white border-none rounded-lg cursor-pointer",
-                                    "Send Rejection"
-                                }
-                            }
+                                    platform.as_ref(),
+                                );
+                            },
+                            class: "flex-1 p-2 bg-red-500 text-white border-none rounded-lg cursor-pointer",
+                            "Send Rejection"
                         }
                         button {
                             onclick: move |_| show_reject_input.set(false),
@@ -1039,83 +1031,68 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
             }
 
             // Action buttons
-            if !*show_reject_input.read() {
-                {
-                    let request_id_accept = request_id.clone();
-                    let mut session_state_accept = session_state.clone();
-                    let request_id_modify = request_id.clone();
-                    let session_state_modify = session_state.clone();
-                    let platform_accept = platform.clone();
-                    let platform_modify = platform.clone();
-                    let dialogue = modified_dialogue.read().clone();
-                    let original = props.approval.proposed_dialogue.clone();
-                    let approved = approved_tools.read().clone();
-                    let tools = props.approval.proposed_tools.clone();
-
-                    rsx! {
-                        div { class: "flex gap-2",
-                            button {
-                                onclick: move |_| {
-                                    session_state_accept.record_approval_decision(
-                                        request_id_accept.clone(),
-                                        &ApprovalDecision::Accept,
-                                        platform_accept.as_ref(),
+            if !show_reject_input_state {
+                div { class: "flex gap-2",
+                    button {
+                        onclick: move |_| {
+                            session_state_for_accept.record_approval_decision(
+                                request_id_for_accept.clone(),
+                                &ApprovalDecision::Accept,
+                                platform_for_accept.as_ref(),
+                            );
+                        },
+                        class: "flex-1 p-3 bg-green-500 text-white border-none rounded-lg cursor-pointer font-semibold",
+                        "Accept"
+                    }
+                    button {
+                        onclick: {
+                            let dialogue = dialogue_for_modify.clone();
+                            let original = dialogue_original.clone();
+                            let approved = approved_for_modify.clone();
+                            let tools = tools_for_modify.clone();
+                            let request_id = request_id_for_modify.clone();
+                            let mut session_state = session_state_for_modify.clone();
+                            let platform = platform_for_modify.clone();
+                            move |_| {
+                                // Only send modification if something changed
+                                if dialogue != original || approved.values().any(|&v| !v) {
+                                    let approved_list: Vec<String> = tools.iter()
+                                        .filter(|t| *approved.get(&t.id).unwrap_or(&true))
+                                        .map(|t| t.id.clone())
+                                        .collect();
+                                    let rejected_list: Vec<String> = tools.iter()
+                                        .filter(|t| !*approved.get(&t.id).unwrap_or(&true))
+                                        .map(|t| t.id.clone())
+                                        .collect();
+                                    session_state.record_approval_decision(
+                                        request_id.clone(),
+                                        &ApprovalDecision::AcceptWithModification {
+                                            modified_dialogue: dialogue.clone(),
+                                            approved_tools: approved_list,
+                                            rejected_tools: rejected_list,
+                                            item_recipients: std::collections::HashMap::new(),
+                                        },
+                                        platform.as_ref(),
                                     );
-                                },
-                                class: "flex-1 p-3 bg-green-500 text-white border-none rounded-lg cursor-pointer font-semibold",
-                                "Accept"
+                                } else {
+                                    session_state.record_approval_decision(
+                                        request_id.clone(),
+                                        &ApprovalDecision::Accept,
+                                        platform.as_ref(),
+                                    );
+                                }
                             }
-                            button {
-                                onclick: {
-                                    let dialogue = dialogue.clone();
-                                    let original = original.clone();
-                                    let approved = approved.clone();
-                                    let tools = tools.clone();
-                                    let request_id = request_id_modify.clone();
-                                    let mut session_state = session_state_modify.clone();
-                                    let platform = platform_modify.clone();
-                                    move |_| {
-                                        // Only send modification if something changed
-                                        if dialogue != original || approved.values().any(|&v| !v) {
-                                            let approved_list: Vec<String> = tools.iter()
-                                                .filter(|t| *approved.get(&t.id).unwrap_or(&true))
-                                                .map(|t| t.id.clone())
-                                                .collect();
-                                            let rejected_list: Vec<String> = tools.iter()
-                                                .filter(|t| !*approved.get(&t.id).unwrap_or(&true))
-                                                .map(|t| t.id.clone())
-                                                .collect();
-                                            session_state.record_approval_decision(
-                                                request_id.clone(),
-                                                &ApprovalDecision::AcceptWithModification {
-                                                    modified_dialogue: dialogue.clone(),
-                                                    approved_tools: approved_list,
-                                                    rejected_tools: rejected_list,
-                                                    item_recipients: std::collections::HashMap::new(),
-                                                },
-                                                platform.as_ref(),
-                                            );
-                                        } else {
-                                            session_state.record_approval_decision(
-                                                request_id.clone(),
-                                                &ApprovalDecision::Accept,
-                                                platform.as_ref(),
-                                            );
-                                        }
-                                    }
-                                },
-                                class: "flex-1 p-3 bg-blue-500 text-white border-none rounded-lg cursor-pointer font-semibold",
-                                "Accept Modified"
-                            }
-                            button {
-                                onclick: move |_| show_reject_input.set(true),
-                                class: "flex-1 p-3 bg-red-500 text-white border-none rounded-lg cursor-pointer font-semibold",
-                                "Reject"
-                            }
-                        }
+                        },
+                        class: "flex-1 p-3 bg-blue-500 text-white border-none rounded-lg cursor-pointer font-semibold",
+                        "Accept Modified"
+                    }
+                    button {
+                        onclick: move |_| show_reject_input.set(true),
+                        class: "flex-1 p-3 bg-red-500 text-white border-none rounded-lg cursor-pointer font-semibold",
+                        "Reject"
                     }
                 }
-                }
+            }
         }
     }
 }
@@ -1189,7 +1166,7 @@ fn ViewAsCharacterMode(props: ViewAsCharacterModeProps) -> Element {
                     class: "flex flex-col gap-4 overflow-hidden",
 
                     // Current location info
-                    if let Some(region) = current_region.as_ref() {
+                    if let Some(ref region) = current_region {
                         div {
                             class: "bg-dark-surface rounded-lg p-4",
 
@@ -1313,8 +1290,7 @@ fn ViewAsCharacterMode(props: ViewAsCharacterModeProps) -> Element {
                         }
                     }
                 }
-
+            }
         }
-    }
     }
 }

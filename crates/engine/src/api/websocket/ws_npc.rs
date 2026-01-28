@@ -303,9 +303,29 @@ pub(super) async fn handle_npc_request(
                 .set_home_region(char_uuid, region_uuid)
                 .await
             {
-                Ok(()) => Ok(ResponseResult::success(
-                    serde_json::json!({"success": true}),
-                )),
+                Ok(()) => {
+                    if let Some(world_id) = conn_info.world_id {
+                        let entity_data = serde_json::json!({
+                            "character_id": character_id,
+                            "region_id": region_id,
+                            "relationship_type": "HOME_REGION",
+                        });
+
+                        let entity_changed_msg = ServerMessage::EntityChanged(
+                            EntityChangedData::updated(
+                                EntityType::Relationship,
+                                format!("home_{}_{}", character_id, region_id),
+                                world_id.to_string(),
+                                &entity_data,
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+                    }
+
+                    Ok(ResponseResult::success(
+                        serde_json::json!({"success": true}),
+                    ))
+                },
                 Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
@@ -344,9 +364,29 @@ pub(super) async fn handle_npc_request(
                 .set_work_region(char_uuid, region_uuid)
                 .await
             {
-                Ok(()) => Ok(ResponseResult::success(
-                    serde_json::json!({"success": true}),
-                )),
+                Ok(()) => {
+                    if let Some(world_id) = conn_info.world_id {
+                        let entity_data = serde_json::json!({
+                            "character_id": character_id,
+                            "region_id": region_id,
+                            "relationship_type": "WORKS_AT_REGION",
+                        });
+
+                        let entity_changed_msg = ServerMessage::EntityChanged(
+                            EntityChangedData::updated(
+                                EntityType::Relationship,
+                                format!("work_{}_{}", character_id, region_id),
+                                world_id.to_string(),
+                                &entity_data,
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+                    }
+
+                    Ok(ResponseResult::success(
+                        serde_json::json!({"success": true}),
+                    ))
+                },
                 Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
@@ -401,9 +441,22 @@ pub(super) async fn handle_npc_request(
                 .remove_relationship(char_uuid, region_uuid, relationship_type_enum)
                 .await
             {
-                Ok(()) => Ok(ResponseResult::success(
-                    serde_json::json!({"success": true}),
-                )),
+                Ok(()) => {
+                    if let Some(world_id) = conn_info.world_id {
+                        let entity_changed_msg = ServerMessage::EntityChanged(
+                            EntityChangedData::deleted(
+                                EntityType::Relationship,
+                                format!("{}_{}_{}", relationship_type, character_id, region_id),
+                                world_id.to_string(),
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+                    }
+
+                    Ok(ResponseResult::success(
+                        serde_json::json!({"success": true}),
+                    ))
+                },
                 Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
