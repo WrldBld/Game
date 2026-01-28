@@ -15,6 +15,7 @@ pub mod event_chain_service;
 pub mod generation_service;
 pub mod location_service;
 pub mod narrative_event_service;
+pub mod npc_service;
 pub mod observation_service;
 pub mod player_character_service;
 pub mod prompt_template_service;
@@ -120,6 +121,13 @@ pub use character_sheet_service::{
 
 // Re-export conversation service types
 pub use conversation_service::ConversationService;
+
+// Re-export NPC service types
+pub use npc_service::{
+    CharacterRegionRelationship, CharacterRegionRelationshipsResponse, NpcDispositionInfo,
+    NpcDispositionsResponse, NpcMoodResponse, NpcService, RegionNpcInfo,
+    RegionNpcsResponse,
+};
 
 // Re-export visual state service types
 pub use visual_state_service::{VisualStateDetailResult, VisualStateService};

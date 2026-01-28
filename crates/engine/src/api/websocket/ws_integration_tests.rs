@@ -10,6 +10,9 @@ use std::{
 mod approval_suggestions;
 mod character_sheet;
 mod conversation_end;
+mod creator_flow;
+mod creator_flow_npc;
+mod creator_flow_sheet;
 mod e2e_conversation;
 mod staging_approval;
 mod staging_prestage;

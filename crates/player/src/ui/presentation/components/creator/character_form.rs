@@ -13,7 +13,7 @@ use crate::application::services::SuggestionContext;
 use crate::infrastructure::spawn_task;
 use crate::presentation::components::common::FormField;
 use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
-use crate::presentation::services::{use_character_service, use_world_service};
+use crate::presentation::services::{use_character_service, use_character_sheet_service, use_world_service};
 use crate::use_platform;
 use wrldbldr_domain::{ExpressionConfig, MoodState};
 use wrldbldr_shared::character_sheet::CharacterSheetValues;
@@ -44,11 +44,13 @@ pub fn CharacterForm(
     let is_new = character_id.is_empty();
     let platform = use_platform();
     let char_service = use_character_service();
+    let char_sheet_service = use_character_sheet_service();
     let world_service = use_world_service();
 
     // Form state
     let mut name = use_signal(String::new);
     let mut description = use_signal(String::new);
+    let mut original_archetype = use_signal(|| Option::<String>::None);
     let mut archetype = use_signal(|| "Hero".to_string());
     let mut wants = use_signal(String::new);
     let mut fears = use_signal(String::new);
@@ -104,8 +106,9 @@ pub fn CharacterForm(
                         Ok(char_data) => {
                             name.set(char_data.name);
                             description.set(char_data.description.unwrap_or_default());
-                            archetype
-                                .set(char_data.archetype.unwrap_or_else(|| "Hero".to_string()));
+                            let arch = char_data.archetype.clone().unwrap_or_else(|| "Hero".to_string());
+                            archetype.set(arch.clone());
+                            original_archetype.set(char_data.archetype.clone());
                             wants.set(char_data.wants.unwrap_or_default());
                             fears.set(char_data.fears.unwrap_or_default());
                             backstory.set(char_data.backstory.unwrap_or_default());
@@ -470,7 +473,7 @@ pub fn CharacterForm(
                     ),
                     disabled: *is_saving.read(),
                     onclick: {
-                        let char_svc = char_service.clone();
+                        let _char_svc = char_service.clone();
                         move |_| {
                             let char_name = name.read().clone();
                             if char_name.is_empty() {
@@ -482,13 +485,19 @@ pub fn CharacterForm(
                             success_message.set(None);
                             is_saving.set(true);
 
-                            let char_id = character_id.clone();
-                            let on_close = on_close;
-                            let svc = char_svc.clone();
-                            let world_id_clone = world_id.clone();
+                             let char_id = character_id.clone();
+                             let on_close = on_close;
+                             let svc = char_service.clone();
+                             let sheet_svc = char_sheet_service.clone();
+                             let world_id_clone = world_id.clone();
 
-                            spawn_task(async move {
-                                    // Get sheet values
+                             spawn_task(async move {
+                                    // Get sheet values and check for archetype change
+                                    let current_archetype = archetype.read().clone();
+                                    let arch_changed = original_archetype.read().as_ref()
+                                        .map(|orig| orig != &current_archetype)
+                                        .unwrap_or(!current_archetype.is_empty());
+
                                     let sheet_data_to_save = {
                                         let values = sheet_values.read().clone();
                                         if values.is_empty() {
@@ -526,15 +535,48 @@ pub fn CharacterForm(
                                         },
                                         sprite_asset: None,
                                         portrait_asset: None,
-                                        sheet_data: sheet_data_to_save,
+                                        sheet_data: None, // Sheet values will be persisted separately
                                     };
 
+                                    // Save character first (without sheet data)
                                     match if is_new {
                                         svc.create_character(&world_id_clone, &char_data).await
                                     } else {
                                         svc.update_character(&char_id, &char_data).await
                                     } {
                                         Ok(saved_character) => {
+                                            let char_id_for_updates = saved_character.id.clone().unwrap_or(char_id.clone());
+
+                                            // If archetype changed for existing character, call change_archetype
+                                            if !is_new && arch_changed {
+                                                if let Some(ref arch) = char_data.archetype {
+                                                    match svc.change_archetype(&char_id_for_updates, arch, "Updated via character form").await {
+                                                        Ok(_) => {
+                                                            tracing::info!("Archetype changed to {}", arch);
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Failed to change archetype: {}", e);
+                                                            // Non-fatal error - still proceed with save
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Persist sheet values if present
+                                            if let Some(sheet_data) = sheet_data_to_save {
+                                                for (field_id, value) in sheet_data.values {
+                                                    match sheet_svc.update_field(&char_id_for_updates, &field_id, value.clone()).await {
+                                                        Ok(_) => {
+                                                            // Sheet field updated successfully
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Failed to update sheet field {}: {}", field_id, e);
+                                                            // Non-fatal error - still proceed with save
+                                                        }
+                                                    }
+                                                }
+                                            }
+
                                             // Update the characters signal reactively
                                             if is_new {
                                                 // Add new character to list

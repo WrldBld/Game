@@ -3,8 +3,9 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::api::websocket::apply_pagination_limits;
+use wrldbldr_domain::types::EntityType;
 
-use wrldbldr_shared::CharacterRequest;
+use wrldbldr_shared::{CharacterRequest, EntityChangedData};
 
 pub(super) async fn handle_character_request(
     state: &WsState,
@@ -155,15 +156,32 @@ pub(super) async fn handle_character_request(
                 )
                 .await
             {
-                Ok(character) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": character.id().to_string(),
-                    "name": character.name().to_string(),
-                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
-                    "archetype": Some(character.current_archetype().to_string()),
-                    "sprite_asset": character.sprite_asset(),
-                    "portrait_asset": character.portrait_asset(),
-                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
-                }))),
+                Ok(character) => {
+                    // Emit EntityChanged for create
+                    let entity_data = serde_json::json!({
+                        "id": character.id().to_string(),
+                        "name": character.name().to_string(),
+                        "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                        "archetype": Some(character.current_archetype().to_string()),
+                        "sprite_asset": character.sprite_asset(),
+                        "portrait_asset": character.portrait_asset(),
+                        "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
+                    });
+
+                    if let Some(world_id) = conn_info.world_id {
+                        let msg = ServerMessage::EntityChanged(
+                            EntityChangedData::created(
+                                EntityType::Character,
+                                character.id().to_string(),
+                                world_id.to_string(),
+                                &entity_data,
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, msg).await;
+                    }
+
+                    Ok(ResponseResult::success(entity_data))
+                }
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -206,15 +224,30 @@ pub(super) async fn handle_character_request(
                 )
                 .await
             {
-                Ok(character) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": character.id().to_string(),
-                    "name": character.name().to_string(),
-                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
-                    "archetype": Some(character.current_archetype().to_string()),
-                    "sprite_asset": character.sprite_asset(),
-                    "portrait_asset": character.portrait_asset(),
-                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
-                }))),
+                Ok(character) => {
+                    // Emit EntityChanged for update
+                    let entity_data = serde_json::json!({
+                        "id": character.id().to_string(),
+                        "name": character.name().to_string(),
+                        "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                        "archetype": Some(character.current_archetype().to_string()),
+                        "sprite_asset": character.sprite_asset(),
+                        "portrait_asset": character.portrait_asset(),
+                        "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
+                    });
+
+                    let msg = ServerMessage::EntityChanged(
+                        EntityChangedData::updated(
+                            EntityType::Character,
+                            character.id().to_string(),
+                            world_id.to_string(),
+                            &entity_data,
+                        )
+                    );
+                    state.connections.broadcast_to_world(world_id, msg).await;
+
+                    Ok(ResponseResult::success(entity_data))
+                }
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
                 ),
@@ -239,6 +272,13 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
@@ -247,7 +287,19 @@ pub(super) async fn handle_character_request(
                 .delete(char_id)
                 .await
             {
-                Ok(()) => Ok(ResponseResult::success_empty()),
+                Ok(()) => {
+                    // Emit EntityChanged for delete
+                    let msg = ServerMessage::EntityChanged(
+                        EntityChangedData::deleted(
+                            EntityType::Character,
+                            character_id,
+                            world_id.to_string(),
+                        )
+                    );
+                    state.connections.broadcast_to_world(world_id, msg).await;
+
+                    Ok(ResponseResult::success_empty())
+                }
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
                 ),
@@ -266,6 +318,13 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
@@ -274,7 +333,20 @@ pub(super) async fn handle_character_request(
                 .change_archetype(char_id, data.new_archetype, data.reason)
                 .await
             {
-                Ok(()) => Ok(ResponseResult::success_empty()),
+                Ok(()) => {
+                    // Emit EntityChanged for archetype change
+                    let msg = ServerMessage::EntityChanged(
+                        EntityChangedData::updated(
+                            EntityType::Character,
+                            character_id,
+                            world_id.to_string(),
+                            &serde_json::json!({"archetype_changed": true}),
+                        )
+                    );
+                    state.connections.broadcast_to_world(world_id, msg).await;
+
+                    Ok(ResponseResult::success_empty())
+                }
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
                 ),

@@ -52,7 +52,7 @@
 
 ## Priority 2 — Visual state staging + player backdrop (US-VS-007/008/009)
 
-**Status:** 🟡 In progress
+**Status:** ✅ Complete
 
 **Backend**
 - Validate override IDs against available options (store in pending staging or recompute).
@@ -115,7 +115,7 @@
 
 ## Priority 5 — Creator flow wiring (character/NPC)
 
-**Status:** 🔴 Not started
+**Status:** 🟡 In progress
 
 **Backend**
 - Ensure WS handlers route character/NPC edits and broadcast `EntityChanged`.

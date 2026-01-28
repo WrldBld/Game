@@ -1,8 +1,9 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use wrldbldr_domain::types::EntityType;
 
-use wrldbldr_shared::NpcRequest;
+use wrldbldr_shared::{EntityChangedData, NpcRequest, ServerMessage};
 
 pub(super) async fn handle_npc_request(
     state: &WsState,
@@ -56,6 +57,27 @@ pub(super) async fn handle_npc_request(
             };
 
             if let Some(world_id) = conn_info.world_id {
+                let entity_data = serde_json::json!({
+                    "npc_id": update.npc_id.to_string(),
+                    "npc_name": update.npc_name,
+                    "pc_id": update.pc_id.to_string(),
+                    "disposition": update.disposition.to_string(),
+                    "relationship": update.relationship.to_string(),
+                    "reason": update.reason,
+                });
+
+                // Emit EntityChanged for disposition update
+                let entity_changed_msg = ServerMessage::EntityChanged(
+                    EntityChangedData::updated(
+                        EntityType::Relationship,
+                        format!("{}_{}", update.npc_id, update.pc_id),
+                        world_id.to_string(),
+                        &entity_data,
+                    )
+                );
+                state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                // Legacy broadcast for backward compatibility
                 let msg = ServerMessage::NpcDispositionChanged {
                     npc_id: update.npc_id.to_string(),
                     npc_name: update.npc_name,
@@ -122,6 +144,27 @@ pub(super) async fn handle_npc_request(
             };
 
             if let Some(world_id) = conn_info.world_id {
+                let entity_data = serde_json::json!({
+                    "npc_id": update.npc_id.to_string(),
+                    "npc_name": update.npc_name,
+                    "pc_id": update.pc_id.to_string(),
+                    "disposition": update.disposition.to_string(),
+                    "relationship": update.relationship.to_string(),
+                    "reason": update.reason,
+                });
+
+                // Emit EntityChanged for relationship update
+                let entity_changed_msg = ServerMessage::EntityChanged(
+                    EntityChangedData::updated(
+                        EntityType::Relationship,
+                        format!("{}_{}", update.npc_id, update.pc_id),
+                        world_id.to_string(),
+                        &entity_data,
+                    )
+                );
+                state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                // Legacy broadcast for backward compatibility
                 let msg = ServerMessage::NpcDispositionChanged {
                     npc_id: update.npc_id.to_string(),
                     npc_name: update.npc_name,
@@ -479,6 +522,30 @@ pub(super) async fn handle_npc_request(
                 .await
             {
                 Ok(change) => {
+                    let entity_data = serde_json::json!({
+                        "npc_id": change.npc_id.to_string(),
+                        "npc_name": change.npc_name.clone(),
+                        "old_mood": change.old_mood.to_string(),
+                        "new_mood": change.new_mood.to_string(),
+                        "reason": reason.as_ref().map(|s| s.to_string()),
+                        "region_id": region_id.to_string(),
+                    });
+
+                    // Emit EntityChanged for mood update
+                    let entity_changed_msg = ServerMessage::EntityChanged(
+                        EntityChangedData::updated(
+                            EntityType::Character,
+                            change.npc_id.to_string(),
+                            world_id.to_string(),
+                            &entity_data,
+                        )
+                    );
+                    state
+                        .connections
+                        .broadcast_to_world(world_id, entity_changed_msg)
+                        .await;
+
+                    // Legacy broadcast for backward compatibility
                     let mood_changed_msg = ServerMessage::NpcMoodChanged {
                         npc_id: change.npc_id.to_string(),
                         npc_name: change.npc_name.clone(),

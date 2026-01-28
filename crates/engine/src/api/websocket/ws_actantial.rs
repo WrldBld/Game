@@ -6,13 +6,14 @@ use wrldbldr_domain::{
     ActantialActor, ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, WantId,
     WantTarget, WantVisibility,
 };
+use wrldbldr_domain::types::EntityType;
 use wrldbldr_shared::{
     messages::{
         ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
         SocialRelationData, SocialViewsData, WantData, WantTargetData, WantTargetTypeData,
         WantVisibilityData,
     },
-    ActantialRequest, GoalRequest, WantRequest,
+    ActantialRequest, EntityChangedData, GoalRequest, ServerMessage, WantRequest,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -115,9 +116,23 @@ pub(super) async fn handle_goal_request(
             {
                 Ok(details) => {
                     if let Some(world_id) = conn_info.world_id {
+                        let goal_data = goal_details_to_data(&details);
+
+                        // Emit EntityChanged for create
+                        let entity_changed_msg = ServerMessage::EntityChanged(
+                            EntityChangedData::created(
+                                EntityType::Goal,
+                                details.goal.id().to_string(),
+                                world_id.to_string(),
+                                &goal_data,
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                        // Legacy broadcast for backward compatibility
                         let msg = ServerMessage::GoalCreated {
                             world_id: world_id.to_string(),
-                            goal: goal_details_to_data(&details),
+                            goal: goal_data,
                         };
                         state.connections.broadcast_to_world(world_id, msg).await;
                     }
@@ -162,8 +177,22 @@ pub(super) async fn handle_goal_request(
                 .await
             {
                 Ok(details) => {
+                    let goal_data = goal_details_to_data(&details);
+
+                    // Emit EntityChanged for update
+                    let entity_changed_msg = ServerMessage::EntityChanged(
+                        EntityChangedData::updated(
+                            EntityType::Goal,
+                            details.goal.id().to_string(),
+                            world_id.to_string(),
+                            &goal_data,
+                        )
+                    );
+                    state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                    // Legacy broadcast for backward compatibility
                     let msg = ServerMessage::GoalUpdated {
-                        goal: goal_details_to_data(&details),
+                        goal: goal_data,
                     };
                     state.connections.broadcast_to_world(world_id, msg).await;
 
@@ -213,6 +242,17 @@ pub(super) async fn handle_goal_request(
                 .await
             {
                 Ok(()) => {
+                    // Emit EntityChanged for delete
+                    let entity_changed_msg = ServerMessage::EntityChanged(
+                        EntityChangedData::deleted(
+                            EntityType::Goal,
+                            goal_id_typed.to_string(),
+                            world_id.to_string(),
+                        )
+                    );
+                    state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                    // Legacy broadcast for backward compatibility
                     let msg = ServerMessage::GoalDeleted {
                         goal_id: goal_id_typed.to_string(),
                     };
@@ -389,6 +429,19 @@ pub(super) async fn handle_want_request(
                 let want_data = resolve_want_data(state, details.character_id, details.want.id())
                     .await
                     .unwrap_or_else(|| want_details_to_data(&details));
+
+                // Emit EntityChanged for create
+                let entity_changed_msg = ServerMessage::EntityChanged(
+                    EntityChangedData::created(
+                        EntityType::Want,
+                        details.want.id().to_string(),
+                        world_id.to_string(),
+                        &want_data,
+                    )
+                );
+                state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                // Legacy broadcast for backward compatibility
                 let msg = ServerMessage::NpcWantCreated {
                     npc_id: details.character_id.to_string(),
                     want: want_data,
@@ -444,6 +497,19 @@ pub(super) async fn handle_want_request(
                 let want_data = resolve_want_data(state, details.character_id, details.want.id())
                     .await
                     .unwrap_or_else(|| want_details_to_data(&details));
+
+                // Emit EntityChanged for update
+                let entity_changed_msg = ServerMessage::EntityChanged(
+                    EntityChangedData::updated(
+                        EntityType::Want,
+                        details.want.id().to_string(),
+                        world_id.to_string(),
+                        &want_data,
+                    )
+                );
+                state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                // Legacy broadcast for backward compatibility
                 let msg = ServerMessage::NpcWantUpdated {
                     npc_id: details.character_id.to_string(),
                     want: want_data,
@@ -485,6 +551,17 @@ pub(super) async fn handle_want_request(
             {
                 Ok(()) => {
                     if let Some(world_id) = conn_info.world_id {
+                        // Emit EntityChanged for delete
+                        let entity_changed_msg = ServerMessage::EntityChanged(
+                            EntityChangedData::deleted(
+                                EntityType::Want,
+                                want_id_typed.to_string(),
+                                world_id.to_string(),
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                        // Legacy broadcast for backward compatibility
                         let msg = ServerMessage::NpcWantDeleted {
                             npc_id: details.character_id.to_string(),
                             want_id: want_id_typed.to_string(),
@@ -655,9 +732,23 @@ pub(super) async fn handle_actantial_request(
             {
                 Ok(record) => {
                     if let Some(world_id) = conn_info.world_id {
+                        let view_data = actantial_view_record_to_data(&record);
+
+                        // Emit EntityChanged for create
+                        let entity_changed_msg = ServerMessage::EntityChanged(
+                            EntityChangedData::created(
+                                EntityType::ActantialView,
+                                format!("{}_{}", want_id_typed, record.target.id_string()),
+                                world_id.to_string(),
+                                &view_data,
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                        // Legacy broadcast for backward compatibility
                         let msg = ServerMessage::ActantialViewAdded {
                             npc_id: character_id_typed.to_string(),
-                            view: actantial_view_record_to_data(&record),
+                            view: view_data,
                         };
                         state.connections.broadcast_to_dms(world_id, msg).await;
                     }
@@ -710,6 +801,17 @@ pub(super) async fn handle_actantial_request(
             {
                 Ok(()) => {
                     if let Some(world_id) = conn_info.world_id {
+                        // Emit EntityChanged for delete
+                        let entity_changed_msg = ServerMessage::EntityChanged(
+                            EntityChangedData::deleted(
+                                EntityType::ActantialView,
+                                format!("{}_{}", want_id_typed, target.id_string()),
+                                world_id.to_string(),
+                            )
+                        );
+                        state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+
+                        // Legacy broadcast for backward compatibility
                         let msg = ServerMessage::ActantialViewRemoved {
                             npc_id: character_id_typed.to_string(),
                             want_id: want_id_typed.to_string(),
