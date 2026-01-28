@@ -17,6 +17,8 @@
 
 ## Priority 1 — Dialogue scoping + DM recovery (US-DLG-018..023)
 
+**Status:** ✅ Complete
+
 **Acceptance criteria (summary)**
 - Dialogue payloads include `conversation_id` everywhere (responses, approvals, processing, ended).
 - Player renders only the active conversation thread.
@@ -50,6 +52,8 @@
 
 ## Priority 2 — Visual state staging + player backdrop (US-VS-007/008/009)
 
+**Status:** 🟡 In progress
+
 **Backend**
 - Validate override IDs against available options (store in pending staging or recompute).
 - Always broadcast `VisualStateChanged` after approval/auto‑approve.
@@ -72,6 +76,8 @@
 
 ## Priority 3 — Time suggestions + toast (US-TIME-013/011)
 
+**Status:** ✅ Complete
+
 **Backend**
 - Ensure dialogue approvals emit `TimeSuggestion` only in Suggested mode.
 - Ensure manual `AdvanceGameTime` also emits `GameTimeAdvanced` with a reason.
@@ -92,6 +98,8 @@
 
 ## Priority 4 — Staging settings UI (US-STG-016/017)
 
+**Status:** ✅ Complete
+
 **UI**
 - World staging auto‑approve timeout fields in settings.
 - Location staging defaults (TTL + LLM presence) in DM location view.
@@ -106,6 +114,8 @@
 ---
 
 ## Priority 5 — Creator flow wiring (character/NPC)
+
+**Status:** 🔴 Not started
 
 **Backend**
 - Ensure WS handlers route character/NPC edits and broadcast `EntityChanged`.

@@ -81,8 +81,13 @@ pub(super) async fn handle_staging_approval(
 
     let pending = state.pending_staging_requests.remove_and_mark_processed(&request_id).await;
 
-    let (region_id, location_id) = match pending {
-        Some(pending) => (pending.region_id, Some(pending.location_id)),
+    let (region_id, location_id, allowed_location_ids, allowed_region_ids) = match pending {
+        Some(pending) => (
+            pending.region_id,
+            Some(pending.location_id),
+            pending.allowed_location_state_ids,
+            pending.allowed_region_state_ids,
+        ),
         None => {
             return Some(error_response(
                 ErrorCode::Conflict,
@@ -123,6 +128,26 @@ pub(super) async fn handle_staging_approval(
         },
         None => None,
     };
+
+    // Validate that provided location_state_id is in allowed list
+    if let Some(loc_id_str) = &location_state_id {
+        if !allowed_location_ids.contains(loc_id_str) {
+            return Some(error_response(
+                ErrorCode::ValidationError,
+                "Invalid location_state_id: not in available options for this staging request",
+            ));
+        }
+    }
+
+    // Validate that provided region_state_id is in allowed list
+    if let Some(reg_id_str) = &region_state_id {
+        if !allowed_region_ids.contains(reg_id_str) {
+            return Some(error_response(
+                ErrorCode::ValidationError,
+                "Invalid region_state_id: not in available options for this staging request",
+            ));
+        }
+    }
 
     // Convert protocol types to domain types
     let domain_approved_npcs: Vec<crate::use_cases::staging::ApprovedNpc> = match approved_npcs

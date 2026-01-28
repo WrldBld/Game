@@ -109,6 +109,8 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
                 location_id,
                 world_id,
                 created_at: now,
+                allowed_location_state_ids: vec![],
+                allowed_region_state_ids: vec![],
             },
         )
         .await;

@@ -25,6 +25,7 @@ pub mod skill_service;
 pub mod story_event_service;
 pub mod suggestion_service;
 pub mod user_service;
+pub mod visual_state_service;
 pub mod workflow_service;
 pub mod world_service;
 
@@ -119,3 +120,6 @@ pub use character_sheet_service::{
 
 // Re-export conversation service types
 pub use conversation_service::ConversationService;
+
+// Re-export visual state service types
+pub use visual_state_service::{VisualStateDetailResult, VisualStateService};

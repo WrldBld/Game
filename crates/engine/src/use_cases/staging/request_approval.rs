@@ -82,18 +82,6 @@ impl RequestStagingApproval {
     ) -> Result<StagingRequestResult, StagingError> {
         let request_id = Uuid::new_v4().to_string();
 
-        ctx.pending_staging_requests
-            .insert(
-                request_id.clone(),
-                PendingStagingRequest {
-                    region_id: input.region.id(),
-                    location_id: input.region.location_id(),
-                    world_id: input.world_id,
-                    created_at: self.clock.now(),
-                },
-            )
-            .await;
-
         let world = self
             .world
             .get(input.world_id)
@@ -146,6 +134,27 @@ impl RequestStagingApproval {
                 input.region.location_id(),
                 input.region.id(),
                 input.pc.id(),
+            )
+            .await;
+
+        // Insert pending staging request now that we have the available state IDs
+        ctx.pending_staging_requests
+            .insert(
+                request_id.clone(),
+                PendingStagingRequest {
+                    region_id: input.region.id(),
+                    location_id: input.region.location_id(),
+                    world_id: input.world_id,
+                    created_at: self.clock.now(),
+                    allowed_location_state_ids: available_location_states
+                        .iter()
+                        .map(|s| s.id.clone())
+                        .collect(),
+                    allowed_region_state_ids: available_region_states
+                        .iter()
+                        .map(|s| s.id.clone())
+                        .collect(),
+                },
             )
             .await;
 

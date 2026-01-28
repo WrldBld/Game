@@ -2,9 +2,14 @@
 //!
 //! Shows DM approval UI for NPC presence in a region when a player enters.
 //! Displays rule-based and LLM-suggested NPCs with checkboxes for customization.
+//! Includes visual state selection with preview and details modal.
 
+use crate::presentation::components::dm_panel::{VisualStateDetailsModal, VisualStatePreview};
+use crate::presentation::services::use_visual_state_service;
 use crate::presentation::state::game_state::{PreviousStagingData, StagingApprovalData};
 use dioxus::prelude::*;
+use wrldbldr_shared::requests::visual_state::{LocationStateData, RegionStateData};
+use std::collections::HashMap;
 
 /// NPC selection state for approval
 #[derive(Clone, PartialEq)]
@@ -60,6 +65,13 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     // Pre-format game time for display (avoids move issues in rsx!)
     let game_time_display =
         crate::presentation::game_time_format::display_date(&props.data.game_time);
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 1: ALL HOOKS - Must be at component root
+    // ══════════════════════════════════════════════════════════════
+
+    // Get visual state service for fetching state details
+    let visual_state_service = use_visual_state_service();
 
     // Initialize NPC selections from both rule and LLM sources
     let initial_selections: Vec<NpcSelection> = {
@@ -124,6 +136,18 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     let mut selected_location_state = use_signal(|| initial_location_state_id);
     let mut selected_region_state = use_signal(|| initial_region_state_id);
 
+    // Visual state details caching - stores full LocationStateData/RegionStateData
+    let mut location_state_details =
+        use_signal(|| HashMap::<String, LocationStateData>::new());
+    let mut region_state_details =
+        use_signal(|| HashMap::<String, RegionStateData>::new());
+    let mut is_loading_details = use_signal(|| false);
+
+    // Visual state details modal
+    let mut show_details_modal = use_signal(|| false);
+    let mut details_modal_state =
+        use_signal(|| None::<crate::presentation::components::dm_panel::VisualStateDetailData>);
+
     // Clone available states for use in memo (avoid borrow conflicts with rsx)
     let available_location_states = props.data.available_location_states.clone();
     let available_region_states = props.data.available_region_states.clone();
@@ -158,6 +182,133 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     });
 
     let is_selection_valid = validation_error.read().is_none();
+
+    // Error message for visual state fetch failures
+    let mut fetch_error = use_signal(|| None::<String>);
+
+    // Build resolved visual state preview from selected states
+    let resolved_preview = use_memo(move || {
+        let loc_id = selected_location_state.read();
+        let reg_id = selected_region_state.read();
+        let loc_details = location_state_details.read();
+        let reg_details = region_state_details.read();
+
+        let loc_state_info = loc_id.as_ref().and_then(|id| {
+            loc_details
+                .get(id)
+                .map(|loc| wrldbldr_shared::ResolvedStateInfoData {
+                    id: loc.id.to_string(),
+                    name: loc.name.clone(),
+                    backdrop_override: loc.backdrop_override.clone(),
+                    atmosphere_override: loc.atmosphere_override.clone(),
+                    ambient_sound: loc.ambient_sound.clone(),
+                })
+        });
+
+        let reg_state_info = reg_id.as_ref().and_then(|id| {
+            reg_details
+                .get(id)
+                .map(|reg| wrldbldr_shared::ResolvedStateInfoData {
+                    id: reg.id.to_string(),
+                    name: reg.name.clone(),
+                    backdrop_override: reg.backdrop_override.clone(),
+                    atmosphere_override: reg.atmosphere_override.clone(),
+                    ambient_sound: reg.ambient_sound.clone(),
+                })
+        });
+
+        wrldbldr_shared::ResolvedVisualStateData {
+            location_state: loc_state_info,
+            region_state: reg_state_info,
+        }
+    });
+
+    // Fetch visual state details when selected IDs change
+    let _visual_state_fetch = use_resource(move || {
+        let loc_id = selected_location_state.read().clone();
+        let reg_id = selected_region_state.read().clone();
+        let service = visual_state_service.clone();
+
+        async move {
+            // Parse UUIDs from string IDs
+            let loc_uuid = loc_id.as_ref().and_then(|id| uuid::Uuid::parse_str(id).ok());
+            let reg_uuid = reg_id.as_ref().and_then(|id| uuid::Uuid::parse_str(id).ok());
+
+            // Only fetch if we have selected IDs that aren't cached yet
+            let loc_needs_fetch = loc_uuid.is_some()
+                && loc_id.as_ref().map_or(false, |id| !location_state_details.read().contains_key(id));
+            let reg_needs_fetch = reg_uuid.is_some()
+                && reg_id.as_ref().map_or(false, |id| !region_state_details.read().contains_key(id));
+
+            if !loc_needs_fetch && !reg_needs_fetch {
+                // Nothing to fetch
+                return;
+            }
+
+            // Set loading state
+            is_loading_details.set(true);
+            fetch_error.set(None);
+
+            // Fetch details from service
+            match service.get_details(loc_uuid, reg_uuid).await {
+                Ok(result) => {
+                    if let Some(loc_state) = result.location_state {
+                        let mut details = location_state_details.write();
+                        details.insert(loc_state.id.to_string(), loc_state);
+                    }
+                    if let Some(reg_state) = result.region_state {
+                        let mut details = region_state_details.write();
+                        details.insert(reg_state.id.to_string(), reg_state);
+                    }
+                    fetch_error.set(None);
+                }
+                Err(e) => {
+                    fetch_error.set(Some(format!("Failed to load visual state: {}", e)));
+                }
+            }
+
+            is_loading_details.set(false);
+        }
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 3: EVENT HANDLERS
+    // ══════════════════════════════════════════════════════════════
+
+    let _handle_open_location_details = {
+        let loc_id = selected_location_state.clone();
+        let loc_details = location_state_details.clone();
+        move |_: dioxus::prelude::Event<()>| {
+            if let Some(ref id) = *loc_id.read() {
+                if let Some(loc) = loc_details.read().get(id).cloned() {
+                    details_modal_state.set(Some(
+                        crate::presentation::components::dm_panel::VisualStateDetailData::from(loc),
+                    ));
+                    show_details_modal.set(true);
+                }
+            }
+        }
+    };
+
+    let _handle_open_region_details = {
+        let reg_id = selected_region_state.clone();
+        let reg_details = region_state_details.clone();
+        move |_: dioxus::prelude::Event<()>| {
+            if let Some(ref id) = *reg_id.read() {
+                if let Some(reg) = reg_details.read().get(id).cloned() {
+                    details_modal_state.set(Some(
+                        crate::presentation::components::dm_panel::VisualStateDetailData::from(reg),
+                    ));
+                    show_details_modal.set(true);
+                }
+            }
+        }
+    };
+
+    let handle_close_details = move |_| {
+        show_details_modal.set(false);
+        details_modal_state.set(None);
+    };
 
     // Update selections when data changes (e.g., after regeneration)
     use_effect({
@@ -261,348 +412,397 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     };
 
     rsx! {
-        // Overlay
-        div {
-            class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000] p-4",
-            onclick: move |_| props.on_close.call(()),
-
-            // Modal content
+            // Overlay
             div {
-                class: "bg-gradient-to-br from-dark-surface to-dark-bg rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden border border-amber-500/30 flex flex-col",
-                onclick: |e| e.stop_propagation(),
+                class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000] p-4",
+                onclick: move |_| props.on_close.call(()),
 
-                // Header
+                // Modal content
                 div {
-                    class: "p-6 border-b border-white/10",
+                    class: "bg-gradient-to-br from-dark-surface to-dark-bg rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden border border-amber-500/30 flex flex-col",
+                    onclick: |e| e.stop_propagation(),
 
+                    // Header
                     div {
-                        class: "flex justify-between items-start",
+                        class: "p-6 border-b border-white/10",
 
                         div {
-                            h2 {
-                                class: "text-2xl font-bold text-amber-400 m-0 mb-2",
-                                "Stage Scene: {props.data.region_name}"
-                            }
-                            p {
-                                class: "text-gray-400 text-sm m-0",
-                                "{props.data.location_name} - {game_time_display}"
-                            }
-                        }
-
-                        button {
-                            onclick: move |_| props.on_close.call(()),
-                            class: "p-2 text-gray-400 hover:text-white transition-colors",
-                            "X"
-                        }
-                    }
-
-                    // Waiting PCs
-                    if !props.data.waiting_pcs.is_empty() {
-                        div {
-                            class: "mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg",
-
-                            p {
-                                class: "text-blue-300 text-sm font-medium m-0 mb-2",
-                                "Waiting Players"
-                            }
-                            div {
-                                class: "flex flex-wrap gap-2",
-                                for pc in props.data.waiting_pcs.iter() {
-                                    span {
-                                        key: "{pc.pc_id}",
-                                        class: "px-2 py-1 bg-blue-500/20 text-blue-200 rounded text-sm",
-                                        "{pc.pc_name}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Scrollable content
-                div {
-                    class: "flex-1 overflow-y-auto p-6",
-
-                    // Previous staging section
-                    if let Some(ref previous) = props.data.previous_staging {
-                        PreviousStagingSection {
-                            previous: previous.clone(),
-                            on_use: handle_use_previous.clone(),
-                        }
-                    }
-
-                    // NPC Selection
-                    div {
-                        class: "mb-6",
-
-                        h3 {
-                            class: "text-lg font-semibold text-white mb-4",
-                            "NPCs in Scene"
-                        }
-
-                        if selections.read().is_empty() {
-                            p {
-                                class: "text-gray-500 italic text-center py-4",
-                                "No NPCs suggested for this region"
-                            }
-                        } else {
-                            div {
-                                class: "space-y-2",
-                                for (idx, npc) in selections.read().iter().enumerate() {
-                                    NpcSelectionRow {
-                                        key: "{npc.character_id}",
-                                        npc: npc.clone(),
-                                        on_toggle_present: move |_| {
-                                            let mut current = selections.read().clone();
-                                            if idx < current.len() {
-                                                current[idx].is_present = !current[idx].is_present;
-                                                if !current[idx].is_present {
-                                                    current[idx].is_hidden_from_players = false;
-                                                }
-                                                source_type.set("custom".to_string());
-                                            }
-                                            selections.set(current);
-                                        },
-                                        on_toggle_hidden: move |_| {
-                                            let mut current = selections.read().clone();
-                                            if idx < current.len()
-                                                && current[idx].is_present {
-                                                    current[idx].is_hidden_from_players = !current[idx].is_hidden_from_players;
-                                                    source_type.set("custom".to_string());
-                                                }
-                                            selections.set(current);
-                                        },
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Regenerate section
-                    if *show_regenerate.read() {
-                        div {
-                            class: "mb-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg",
-
-                            h4 {
-                                class: "text-purple-300 font-medium mb-3",
-                                "Regenerate LLM Suggestions"
-                            }
-
-                            textarea {
-                                class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white text-sm min-h-[80px] resize-y mb-3",
-                                placeholder: "Provide guidance for regeneration (e.g., 'Include more antagonistic NPCs' or 'Make it feel more crowded')",
-                                value: "{regenerate_guidance}",
-                                oninput: move |e| regenerate_guidance.set(e.value()),
-                            }
+                            class: "flex justify-between items-start",
 
                             div {
-                                class: "flex gap-2 justify-end",
-
-                                button {
-                                    onclick: move |_| show_regenerate.set(false),
-                                    class: "px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors",
-                                    "Cancel"
+                                h2 {
+                                    class: "text-2xl font-bold text-amber-400 m-0 mb-2",
+                                    "Stage Scene: {props.data.region_name}"
                                 }
-
-                                button {
-                                    onclick: handle_regenerate_submit,
-                                    disabled: regenerate_guidance.read().is_empty(),
-                                    class: "px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                                    "Regenerate"
+                                p {
+                                    class: "text-gray-400 text-sm m-0",
+                                    "{props.data.location_name} - {game_time_display}"
                                 }
                             }
-                    }
-                }
 
-                // Visual State Selection
-                div {
-                    class: "mb-6",
-
-                    h3 {
-                        class: "text-lg font-semibold text-white mb-4",
-                        "Scene Appearance"
-                    }
-
-                    // Validation error display
-                    if let Some(ref error) = *validation_error.read() {
-                        div {
-                            class: "mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg",
-                            p {
-                                class: "text-red-300 text-sm m-0",
-                                "{error}"
-                            }
-                        }
-                    }
-
-                    // Location State Dropdown
-                    div {
-                        class: "mb-4",
-
-                        label {
-                            class: "block text-gray-400 text-sm mb-2",
-                            "Location State"
-                        }
-
-                        select {
-                            class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
-                            value: match selected_location_state.read().as_ref() {
-                                Some(id) => id.as_str(),
-                                None => "",
-                            },
-                            onchange: move |e| {
-                                let value = e.value();
-                                selected_location_state.set(if value.is_empty() { None } else { Some(value) });
-                                source_type.set("custom".to_string());
-                            },
-
-                            option { value: "", "Default (auto-resolved)" }
-                            for opt in props.data.available_location_states.iter() {
-                                option {
-                                    value: "{opt.id}",
-                                    selected: selected_location_state.read().as_ref() == Some(&opt.id),
-                                    "{opt.name}"
-                                }
+                            button {
+                                onclick: move |_| props.on_close.call(()),
+                                class: "p-2 text-gray-400 hover:text-white transition-colors",
+                                "X"
                             }
                         }
 
-                        // Match reason for resolved/default state
-                        if let Some(ref resolved) = props.data.resolved_visual_state {
-                            if let Some(ref loc_state) = resolved.location_state {
-                                if let Some(opt) = props.data.available_location_states
-                                    .iter()
-                                    .find(|o| o.id == loc_state.id)
-                                {
-                                    if let Some(ref reason) = opt.match_reason {
-                                        div {
-                                            class: "mt-1 text-xs text-gray-500 italic",
-                                            "{reason}"
-                                        }
-                                    }
+                        // Waiting PCs
+                        if !props.data.waiting_pcs.is_empty() {
+                            div {
+                                class: "mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg",
+
+                                p {
+                                    class: "text-blue-300 text-sm font-medium m-0 mb-2",
+                                    "Waiting Players"
                                 }
-                            }
-                        }
-                    }
-
-                    // Region State Dropdown
-                    div {
-                        class: "mb-4",
-
-                        label {
-                            class: "block text-gray-400 text-sm mb-2",
-                            "Region State"
-                        }
-
-                        select {
-                            class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
-                            value: match selected_region_state.read().as_ref() {
-                                Some(id) => id.as_str(),
-                                None => "",
-                            },
-                            onchange: move |e| {
-                                let value = e.value();
-                                selected_region_state.set(if value.is_empty() { None } else { Some(value) });
-                                source_type.set("custom".to_string());
-                            },
-
-                            option { value: "", "Default (auto-resolved)" }
-                            for opt in props.data.available_region_states.iter() {
-                                option {
-                                    value: "{opt.id}",
-                                    selected: selected_region_state.read().as_ref() == Some(&opt.id),
-                                    "{opt.name}"
-                                }
-                            }
-                        }
-
-                        // Match reason for resolved/default state
-                        if let Some(ref resolved) = props.data.resolved_visual_state {
-                            if let Some(ref reg_state) = resolved.region_state {
-                                if let Some(opt) = props.data.available_region_states
-                                    .iter()
-                                    .find(|o| o.id == reg_state.id)
-                                {
-                                    if let Some(ref reason) = opt.match_reason {
-                                        div {
-                                            class: "mt-1 text-xs text-gray-500 italic",
-                                            "{reason}"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Info note
-                    div {
-                        class: "p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg",
-
-                        p {
-                            class: "text-blue-300 text-sm m-0",
-                            "Visual state selection determines the backdrop image and atmosphere effects shown to players. Select 'Default' to use auto-resolved state based on time of day and rules."
+                                div {
+                                    class: "flex flex-wrap gap-2",
+                                    for pc in props.data.waiting_pcs.iter() {
+                                        span {
+                                            key: "{pc.pc_id}",
+                                            class: "px-2 py-1 bg-blue-500/20 text-blue-200 rounded text-sm",
+                                            "{pc.pc_name}"
                         }
                     }
                 }
 
-                // TTL Selection
-                    div {
-                        class: "mb-4",
-
-                        label {
-                            class: "block text-gray-400 text-sm mb-2",
-                            "Staging Duration (hours)"
+                // Visual State Details Modal
+                if *show_details_modal.read() {
+                    if let Some(ref state) = *details_modal_state.read() {
+                        VisualStateDetailsModal {
+                            state: state.clone(),
+                            show_edit: false,
+                            on_close: handle_close_details,
+                            on_edit: None,
                         }
-                        select {
-                            class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
-                            value: "{ttl_hours}",
-                            onchange: move |e| {
-                                if let Ok(hours) = e.value().parse::<i32>() {
-                                    ttl_hours.set(hours);
-                                }
-                            },
-
-                            option { value: "1", "1 hour" }
-                            option { value: "2", "2 hours" }
-                            option { value: "4", "4 hours" }
-                            option { value: "8", "8 hours" }
-                            option { value: "12", "12 hours" }
-                            option { value: "24", "24 hours (1 day)" }
-                            option { value: "48", "48 hours (2 days)" }
-                            option { value: "168", "1 week" }
-                        }
-                    }
-                }
-
-                // Footer with action buttons
-                div {
-                    class: "p-6 border-t border-white/10 flex justify-between items-center",
-
-                    // Left side: Regenerate button
-                    if !props.data.llm_based_npcs.is_empty() || props.data.rule_based_npcs.is_empty() {
-                        {
-                            let is_showing = *show_regenerate.read();
-                            rsx! {
-                                button {
-                                    onclick: move |_| show_regenerate.set(!is_showing),
-                                    class: "px-4 py-2 bg-purple-500/20 text-purple-300 border border-purple-500/50 rounded-lg hover:bg-purple-500/30 transition-colors",
-                                    if is_showing { "Hide Regenerate" } else { "Regenerate Suggestions" }
-                                }
-                            }
-                        }
-                    } else {
-                        div {} // Placeholder for flex spacing
-                    }
-
-                    // Right side: Approve button
-                    button {
-                        onclick: handle_approve,
-                        disabled: !is_selection_valid,
-                        class: "px-6 py-3 bg-gradient-to-br from-green-500 to-green-600 text-white font-semibold rounded-lg hover:from-green-400 hover:to-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                        if !is_selection_valid { "Fix Errors to Approve" } else { "Approve & Continue" }
                     }
                 }
             }
         }
     }
+
+                    // Scrollable content
+                    div {
+                        class: "flex-1 overflow-y-auto p-6",
+
+                        // Previous staging section
+                        if let Some(ref previous) = props.data.previous_staging {
+                            PreviousStagingSection {
+                                previous: previous.clone(),
+                                on_use: handle_use_previous.clone(),
+                            }
+                        }
+
+                        // NPC Selection
+                        div {
+                            class: "mb-6",
+
+                            h3 {
+                                class: "text-lg font-semibold text-white mb-4",
+                                "NPCs in Scene"
+                            }
+
+                            if selections.read().is_empty() {
+                                p {
+                                    class: "text-gray-500 italic text-center py-4",
+                                    "No NPCs suggested for this region"
+                                }
+                            } else {
+                                div {
+                                    class: "space-y-2",
+                                    for (idx, npc) in selections.read().iter().enumerate() {
+                                        NpcSelectionRow {
+                                            key: "{npc.character_id}",
+                                            npc: npc.clone(),
+                                            on_toggle_present: move |_| {
+                                                let mut current = selections.read().clone();
+                                                if idx < current.len() {
+                                                    current[idx].is_present = !current[idx].is_present;
+                                                    if !current[idx].is_present {
+                                                        current[idx].is_hidden_from_players = false;
+                                                    }
+                                                    source_type.set("custom".to_string());
+                                                }
+                                                selections.set(current);
+                                            },
+                                            on_toggle_hidden: move |_| {
+                                                let mut current = selections.read().clone();
+                                                if idx < current.len()
+                                                    && current[idx].is_present {
+                                                        current[idx].is_hidden_from_players = !current[idx].is_hidden_from_players;
+                                                        source_type.set("custom".to_string());
+                                                    }
+                                                selections.set(current);
+                                            },
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Regenerate section
+                        if *show_regenerate.read() {
+                            div {
+                                class: "mb-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg",
+
+                                h4 {
+                                    class: "text-purple-300 font-medium mb-3",
+                                    "Regenerate LLM Suggestions"
+                                }
+
+                                textarea {
+                                    class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white text-sm min-h-[80px] resize-y mb-3",
+                                    placeholder: "Provide guidance for regeneration (e.g., 'Include more antagonistic NPCs' or 'Make it feel more crowded')",
+                                    value: "{regenerate_guidance}",
+                                    oninput: move |e| regenerate_guidance.set(e.value()),
+                                }
+
+                                div {
+                                    class: "flex gap-2 justify-end",
+
+                                    button {
+                                        onclick: move |_| show_regenerate.set(false),
+                                        class: "px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors",
+                                        "Cancel"
+                                    }
+
+                                    button {
+                                        onclick: handle_regenerate_submit,
+                                        disabled: regenerate_guidance.read().is_empty(),
+                                        class: "px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                                        "Regenerate"
+                                    }
+                                }
+                        }
+                    }
+
+                    // Visual State Selection
+                    div {
+                        class: "mb-6",
+
+                        h3 {
+                            class: "text-lg font-semibold text-white mb-4",
+                            "Scene Appearance"
+                        }
+
+                        // Validation error display
+                        if let Some(ref error) = *validation_error.read() {
+                            div {
+                                class: "mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg",
+                                p {
+                                    class: "text-red-300 text-sm m-0",
+                                    "{error}"
+                                }
+                            }
+                        }
+
+                        // Visual State Preview (with loading state)
+                        if *is_loading_details.read() {
+                            div {
+                                class: "mb-4 flex items-center justify-center py-8 bg-black/30 rounded-lg",
+                                div { class: "text-gray-500", "Loading visual state details..." }
+                            }
+                        } else {
+                            // Error banner for visual state fetch failures
+                            if let Some(ref error) = *fetch_error.read() {
+                                div {
+                                    class: "mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg",
+                                    p {
+                                        class: "text-red-300 text-sm m-0",
+                                        "{error}"
+                                    }
+                                }
+                            }
+
+                            VisualStatePreview {
+                                resolved_state: Some((*resolved_preview.read()).clone()),
+                                on_details: move |_| {
+                                    // Determine which details to show (region has priority)
+                                    if let Some(ref reg_id) = *selected_region_state.read() {
+                                        if let Some(reg) = region_state_details.read().get(reg_id).cloned() {
+                                            details_modal_state.set(Some(crate::presentation::components::dm_panel::VisualStateDetailData::from(reg)));
+                                            show_details_modal.set(true);
+                                        }
+                                    } else if let Some(ref loc_id) = *selected_location_state.read() {
+                                        if let Some(loc) = location_state_details.read().get(loc_id).cloned() {
+                                            details_modal_state.set(Some(crate::presentation::components::dm_panel::VisualStateDetailData::from(loc)));
+                                            show_details_modal.set(true);
+                                        }
+                                    }
+                                },
+                            }
+                        }
+
+                        // Location State Dropdown
+                        div {
+                            class: "mb-4",
+
+                            label {
+                                class: "block text-gray-400 text-sm mb-2",
+                                "Location State"
+                            }
+
+                            select {
+                                class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                                value: match selected_location_state.read().as_ref() {
+                                    Some(id) => id.as_str(),
+                                    None => "",
+                                },
+                                onchange: move |e| {
+                                    let value = e.value();
+                                    selected_location_state.set(if value.is_empty() { None } else { Some(value) });
+                                    source_type.set("custom".to_string());
+                                },
+
+                                option { value: "", "Default (auto-resolved)" }
+                                for opt in props.data.available_location_states.iter() {
+                                    option {
+                                        value: "{opt.id}",
+                                        selected: selected_location_state.read().as_ref() == Some(&opt.id),
+                                        "{opt.name}"
+                                    }
+                                }
+                            }
+
+                            // Match reason for resolved/default state
+                            if let Some(ref resolved) = props.data.resolved_visual_state {
+                                if let Some(ref loc_state) = resolved.location_state {
+                                    if let Some(opt) = props.data.available_location_states
+                                        .iter()
+                                        .find(|o| o.id == loc_state.id)
+                                    {
+                                        if let Some(ref reason) = opt.match_reason {
+                                            div {
+                                                class: "mt-1 text-xs text-gray-500 italic",
+                                                "{reason}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Region State Dropdown
+                        div {
+                            class: "mb-4",
+
+                            label {
+                                class: "block text-gray-400 text-sm mb-2",
+                                "Region State"
+                            }
+
+                            select {
+                                class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                                value: match selected_region_state.read().as_ref() {
+                                    Some(id) => id.as_str(),
+                                    None => "",
+                                },
+                                onchange: move |e| {
+                                    let value = e.value();
+                                    selected_region_state.set(if value.is_empty() { None } else { Some(value) });
+                                    source_type.set("custom".to_string());
+                                },
+
+                                option { value: "", "Default (auto-resolved)" }
+                                for opt in props.data.available_region_states.iter() {
+                                    option {
+                                        value: "{opt.id}",
+                                        selected: selected_region_state.read().as_ref() == Some(&opt.id),
+                                        "{opt.name}"
+                                    }
+                                }
+                            }
+
+                            // Match reason for resolved/default state
+                            if let Some(ref resolved) = props.data.resolved_visual_state {
+                                if let Some(ref reg_state) = resolved.region_state {
+                                    if let Some(opt) = props.data.available_region_states
+                                        .iter()
+                                        .find(|o| o.id == reg_state.id)
+                                    {
+                                        if let Some(ref reason) = opt.match_reason {
+                                            div {
+                                                class: "mt-1 text-xs text-gray-500 italic",
+                                                "{reason}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Info note with priority explanation
+                        div {
+                            class: "p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg",
+
+                            p {
+                                class: "text-blue-300 text-sm m-0",
+                                "Visual state selection determines the backdrop image and atmosphere effects shown to players. Region state overrides location state. Select 'Default' to use auto-resolved state based on time of day and rules."
+                            }
+                        }
+                    }
+
+                    // TTL Selection
+                        div {
+                            class: "mb-4",
+
+                            label {
+                                class: "block text-gray-400 text-sm mb-2",
+                                "Staging Duration (hours)"
+                            }
+                            select {
+                                class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                                value: "{ttl_hours}",
+                                onchange: move |e| {
+                                    if let Ok(hours) = e.value().parse::<i32>() {
+                                        ttl_hours.set(hours);
+                                    }
+                                },
+
+                                option { value: "1", "1 hour" }
+                                option { value: "2", "2 hours" }
+                                option { value: "4", "4 hours" }
+                                option { value: "8", "8 hours" }
+                                option { value: "12", "12 hours" }
+                                option { value: "24", "24 hours (1 day)" }
+                                option { value: "48", "48 hours (2 days)" }
+                                option { value: "168", "1 week" }
+                            }
+                        }
+                    }
+
+                    // Footer with action buttons
+                    div {
+                        class: "p-6 border-t border-white/10 flex justify-between items-center",
+
+                        // Left side: Regenerate button
+                        if !props.data.llm_based_npcs.is_empty() || props.data.rule_based_npcs.is_empty() {
+                            {
+                                let is_showing = *show_regenerate.read();
+                                rsx! {
+                                    button {
+                                        onclick: move |_| show_regenerate.set(!is_showing),
+                                        class: "px-4 py-2 bg-purple-500/20 text-purple-300 border border-purple-500/50 rounded-lg hover:bg-purple-500/30 transition-colors",
+                                        if is_showing { "Hide Regenerate" } else { "Regenerate Suggestions" }
+                                    }
+                                }
+                            }
+                        } else {
+                            div {} // Placeholder for flex spacing
+                        }
+
+                        // Right side: Approve button
+                        button {
+                            onclick: handle_approve,
+                            disabled: !is_selection_valid,
+                            class: "px-6 py-3 bg-gradient-to-br from-green-500 to-green-600 text-white font-semibold rounded-lg hover:from-green-400 hover:to-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                            if !is_selection_valid { "Fix Errors to Approve" } else { "Approve & Continue" }
+                        }
+                    }
+                }
+            }
+        }
 }
 
 /// Section showing previous staging for quick reuse

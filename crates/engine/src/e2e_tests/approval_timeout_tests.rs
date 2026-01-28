@@ -72,6 +72,8 @@ async fn test_staging_auto_approves_after_timeout() {
             .expect("Location should exist"),
         world_id: ctx.world.world_id,
         created_at: Utc::now(),
+        allowed_location_state_ids: vec![],
+        allowed_region_state_ids: vec![],
     };
 
     let request_id = Uuid::new_v4().to_string();
@@ -157,6 +159,8 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
             .expect("Location should exist"),
         world_id: ctx.world.world_id,
         created_at: Utc::now(),
+        allowed_location_state_ids: vec![],
+        allowed_region_state_ids: vec![],
     };
 
     let request_id = Uuid::new_v4().to_string();
@@ -292,6 +296,8 @@ async fn test_player_can_interact_after_auto_staging() {
                 .expect("Location should exist"),
             world_id: ctx.world.world_id,
             created_at: Utc::now(),
+            allowed_location_state_ids: vec![],
+            allowed_region_state_ids: vec![],
         };
 
         let request_id = Uuid::new_v4().to_string();
@@ -439,6 +445,8 @@ async fn test_dm_can_still_modify_after_auto_approve() {
             .expect("Location should exist"),
         world_id: ctx.world.world_id,
         created_at: Utc::now(),
+        allowed_location_state_ids: vec![],
+        allowed_region_state_ids: vec![],
     };
 
     let request_id = Uuid::new_v4().to_string();
@@ -791,6 +799,8 @@ async fn test_old_approvals_cleaned_up() {
             location_id,
             world_id: ctx.world.world_id,
             created_at: Utc::now(),
+            allowed_location_state_ids: vec![],
+            allowed_region_state_ids: vec![],
         };
 
         short_ttl_store
@@ -818,6 +828,8 @@ async fn test_old_approvals_cleaned_up() {
             location_id,
             world_id: ctx.world.world_id,
             created_at: Utc::now(),
+            allowed_location_state_ids: vec![],
+            allowed_region_state_ids: vec![],
         };
 
         short_ttl_store

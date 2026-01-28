@@ -221,6 +221,10 @@ pub struct PendingStagingRequest {
     pub location_id: LocationId,
     pub world_id: WorldId,
     pub created_at: DateTime<Utc>,
+    /// Allowed location state IDs for this staging request (for validation)
+    pub allowed_location_state_ids: Vec<String>,
+    /// Allowed region state IDs for this staging request (for validation)
+    pub allowed_region_state_ids: Vec<String>,
 }
 
 // Note: PendingStagingStore trait was removed.

@@ -5,7 +5,10 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_shared::types::VisualStateSourceData;
+use wrldbldr_shared::requests::visual_state::{
+    LocationStateData as RequestLocationStateData, RegionStateData as RequestRegionStateData,
+};
+use wrldbldr_shared::types::{LocationStateData, RegionStateData, VisualStateSourceData};
 
 /// Visual state details data (full)
 #[derive(Clone, PartialEq, Debug)]
@@ -236,6 +239,92 @@ pub fn VisualStateDetailsModal(props: VisualStateDetailsModalProps) -> Element {
                     }
                 }
             }
+        }
+    }
+}
+
+// Implement From conversions for types module versions
+impl From<LocationStateData> for VisualStateDetailData {
+    fn from(loc: LocationStateData) -> Self {
+        VisualStateDetailData {
+            id: loc.id,
+            name: loc.name,
+            description: if loc.description.is_empty() {
+                None
+            } else {
+                Some(loc.description)
+            },
+            backdrop_override: loc.backdrop_override,
+            atmosphere_override: loc.atmosphere_override,
+            ambient_sound: loc.ambient_sound,
+            priority: loc.priority,
+            is_default: loc.is_default,
+            source: None,
+            created_at: None,
+            updated_at: None,
+            usage_count: None,
+        }
+    }
+}
+
+impl From<RegionStateData> for VisualStateDetailData {
+    fn from(reg: RegionStateData) -> Self {
+        VisualStateDetailData {
+            id: reg.id,
+            name: reg.name,
+            description: if reg.description.is_empty() {
+                None
+            } else {
+                Some(reg.description)
+            },
+            backdrop_override: reg.backdrop_override,
+            atmosphere_override: reg.atmosphere_override,
+            ambient_sound: reg.ambient_sound,
+            priority: reg.priority,
+            is_default: reg.is_default,
+            source: None,
+            created_at: None,
+            updated_at: None,
+            usage_count: None,
+        }
+    }
+}
+
+// Implement From conversions for requests::visual_state versions
+impl From<RequestLocationStateData> for VisualStateDetailData {
+    fn from(loc: RequestLocationStateData) -> Self {
+        VisualStateDetailData {
+            id: loc.id.to_string(),
+            name: loc.name,
+            description: loc.description,
+            backdrop_override: loc.backdrop_override,
+            atmosphere_override: loc.atmosphere_override,
+            ambient_sound: loc.ambient_sound,
+            priority: loc.priority,
+            is_default: loc.is_default,
+            source: None,
+            created_at: None,
+            updated_at: None,
+            usage_count: None,
+        }
+    }
+}
+
+impl From<RequestRegionStateData> for VisualStateDetailData {
+    fn from(reg: RequestRegionStateData) -> Self {
+        VisualStateDetailData {
+            id: reg.id.to_string(),
+            name: reg.name,
+            description: reg.description,
+            backdrop_override: reg.backdrop_override,
+            atmosphere_override: reg.atmosphere_override,
+            ambient_sound: reg.ambient_sound,
+            priority: reg.priority,
+            is_default: reg.is_default,
+            source: None,
+            created_at: None,
+            updated_at: None,
+            usage_count: None,
         }
     }
 }
