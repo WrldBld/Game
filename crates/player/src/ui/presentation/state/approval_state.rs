@@ -38,6 +38,8 @@ pub struct PendingApproval {
     pub challenge_suggestion: Option<ChallengeSuggestionInfo>,
     /// Optional narrative event suggestion from the Engine
     pub narrative_event_suggestion: Option<NarrativeEventSuggestionInfo>,
+    /// Conversation ID for dialogue scoping (filter approvals by active conversation)
+    pub conversation_id: Option<String>,
 }
 
 /// A past approval decision for lightweight decision history in the DM view

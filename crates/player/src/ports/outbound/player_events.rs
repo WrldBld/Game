@@ -286,7 +286,11 @@ pub enum PlayerEvent {
     },
 
     /// LLM is processing (DM only)
-    LLMProcessing { action_id: String },
+    LLMProcessing {
+        action_id: String,
+        /// Conversation ID for dialogue scoping
+        conversation_id: Option<String>,
+    },
 
     /// Queue status update (DM only)
     QueueStatus {
@@ -357,6 +361,8 @@ pub enum PlayerEvent {
         proposed_tools: Vec<ProposedToolInfo>,
         challenge_suggestion: Option<ChallengeSuggestionInfo>,
         narrative_event_suggestion: Option<NarrativeEventSuggestionInfo>,
+        /// Conversation ID for dialogue scoping
+        conversation_id: Option<String>,
     },
 
     // =========================================================================

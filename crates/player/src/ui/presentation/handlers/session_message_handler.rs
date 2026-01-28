@@ -77,10 +77,12 @@ pub fn handle_server_message(
             conversation_id,
         } => {
             // Update conversation ID (may have changed or been assigned)
+            // This sets the active conversation for this dialogue response
             dialogue_state.set_conversation_id(conversation_id);
             // Add to conversation log for DM view
             session_state.add_log_entry(speaker_name.clone(), text.clone(), false, platform);
             // PlayerEvent already contains application-layer types
+            // apply_dialogue will use the active_conversation_id internally
             dialogue_state.apply_dialogue(speaker_id, speaker_name, text, choices);
         }
 
@@ -109,14 +111,19 @@ pub fn handle_server_message(
                 // If conversation_id is provided, clear only if it matches active conversation
                 Some(ref ended_id) => {
                     if active_conversation_id.as_ref() == Some(ended_id) {
-                        dialogue_state.clear();
+                        dialogue_state.clear_conversation(ended_id);
                     }
                 }
                 // If conversation_id is None, clear when NPC matches OR when no active conversation
                 None => {
                     let current_npc_id = dialogue_state.speaker_id.read().clone();
                     if active_conversation_id.is_none() || current_npc_id.as_ref() == Some(&npc_id) {
-                        dialogue_state.clear();
+                        // Clear the conversation with the current NPC (or clear all if no active conv)
+                        if let Some(ref id) = active_conversation_id {
+                            dialogue_state.clear_conversation(id);
+                        } else {
+                            dialogue_state.clear();
+                        }
                     }
                 }
             }
@@ -137,7 +144,10 @@ pub fn handle_server_message(
             game_state.set_conversation_details(details);
         }
 
-        PlayerEvent::LLMProcessing { action_id } => {
+        PlayerEvent::LLMProcessing {
+            action_id,
+            conversation_id: _,
+        } => {
             dialogue_state.is_llm_processing.set(true);
             session_state.add_log_entry(
                 "System".to_string(),
@@ -155,6 +165,7 @@ pub fn handle_server_message(
             proposed_tools,
             challenge_suggestion,
             narrative_event_suggestion,
+            conversation_id,
         } => {
             // PlayerEvent already contains application-layer types
             session_state.add_pending_approval(PendingApproval {
@@ -165,6 +176,7 @@ pub fn handle_server_message(
                 proposed_tools,
                 challenge_suggestion,
                 narrative_event_suggestion,
+                conversation_id,
             });
         }
 

@@ -65,9 +65,13 @@
   - DialogueTurn stores game_time as epoch seconds (i64)
   - Optional context edges (IN_SCENE/AT_LOCATION/AT_REGION) fixed
   - Backend review + checks complete
+- [x] P0 Dialogue persistence + scoping complete (frontend)
+  - ApprovalRequired and LLMProcessing include conversation_id
+  - Dialogue state scoped by conversation_id
+  - ConversationEnded clears only matching conversation
 - [ ] P1 Staging defaults + LLM gating complete
 - [ ] P1 Challenge skill binding + stat sync complete
 - [ ] P2 Lore pipeline complete
 - [ ] P2 Creator/NPC refresh complete
-- [ ] Code review + architecture review
-- [ ] Checks/tests clean
+- [x] Code review + architecture review
+- [x] Checks/tests clean
