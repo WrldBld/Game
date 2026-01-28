@@ -259,7 +259,8 @@ Node labels and properties in this document are intended to reflect the live per
     ended_at: "" | datetime(),
     topic_hint: "" | "...",
     is_active: true,
-    last_updated_at: datetime()
+    last_updated_at: datetime(),
+    turn_counter: i64  // Atomic turn counter for ordering (-1 initial, increments on each turn)
 })
 
 (:DialogueTurn {
@@ -271,19 +272,189 @@ Node labels and properties in this document are intended to reflect the live per
     order: 3,
     is_dm_override: false,
     is_llm_generated: true,
-    game_time: datetime()
+    game_time_seconds: 1234567890  // Epoch seconds (i64)
 })
 
-(:GameTime {
-    id: "uuid",
-    world_id: "uuid",
-    day: 3,
-    hour: 19,
-    minute: 0,
-    period: "Evening",
-    label: "Day 3, Evening (19:00)"
+// =============================================================================
+// Conversation Persistence (P0 Dialogue persistence)
+// =============================================================================
+
+### Conversation Creation
+
+When a conversation is initiated, a Conversation node is created and linked to its participants:
+
+```cypher
+MATCH (w:World {id: $world_id})
+MATCH (pc:PlayerCharacter {id: $pc_id})
+MATCH (npc:Character {id: $npc_id})
+CREATE (c:Conversation {
+    id: $conversation_id,
+    world_id: $world_id,
+    started_at: datetime($now),
+    last_updated_at: datetime($now),
+    is_active: true
 })
+MERGE (w)-[:HAS_CONVERSATION]->(c)
+MERGE (pc)-[:PARTICIPATED_IN]->(c)
+MERGE (npc)-[:PARTICIPATED_IN]->(c)
+WITH c
+OPTIONAL MATCH (s:Scene {id: $scene_id})
+OPTIONAL MATCH (l:Location {id: $location_id})
+OPTIONAL MATCH (r:Region {id: $region_id})
+FOREACH (x IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END)
+    MERGE (c)-[:IN_SCENE]->(s)
+FOREACH (x IN CASE WHEN l IS NOT NULL THEN [1] ELSE [] END)
+    MERGE (c)-[:AT_LOCATION]->(l)
+FOREACH (x IN CASE WHEN r IS NOT NULL THEN [1] ELSE [] END)
+    MERGE (c)-[:AT_REGION]->(r)
+RETURN c.id AS conversation_id
 ```
+
+**Query Parameters:**
+- `world_id` - The world the conversation belongs to
+- `pc_id` - The player character initiating the conversation
+- `npc_id` - The NPC being spoken to
+- `conversation_id` - The unique ID for this conversation
+- `scene_id` - Optional scene where conversation occurs
+- `location_id` - Optional location where conversation occurs
+- `region_id` - Optional region where conversation occurs
+- `now` - Current timestamp for started_at and last_updated_at
+
+**Returns:**
+- `conversation_id` - The ID of the created conversation
+
+**Error Handling:**
+- Returns `RepoError::NotFound` if World, PlayerCharacter, or Character node doesn't exist (fail-fast)
+
+### Dialogue Turn Persistence
+
+When dialogue is exchanged, DialogueTurn nodes are created and linked to the conversation:
+
+```cypher
+MATCH (c:Conversation {id: $conversation_id})
+// Validate speaker is a conversation participant (prevents external speakers)
+MATCH (speaker:PlayerCharacter {id: $speaker_id})-[:PARTICIPATED_IN]->(c)
+// Atomically increment conversation's turn counter and use as order
+SET c.turn_counter = coalesce(c.turn_counter, -1) + 1
+WITH c, speaker, c.turn_counter AS next_order
+CREATE (t:DialogueTurn {
+    id: $turn_id,
+    conversation_id: $conversation_id,
+    speaker_id: $speaker_id,
+    speaker_type: "pc",
+    text: $text,
+    `order`: next_order,
+    is_dm_override: $is_dm_override,
+    is_llm_generated: $is_llm_generated,
+    game_time_seconds: $game_time_seconds
+})
+MERGE (c)-[:HAS_TURN]->(t)
+MERGE (speaker)-[:SPOKE_IN]->(t)
+SET c.last_updated_at = datetime($now)
+RETURN t.id AS turn_id
+```
+
+For NPC speakers, the MATCH clause changes to:
+```cypher
+MATCH (speaker:Character {id: $speaker_id})-[:PARTICIPATED_IN]->(c)
+```
+
+and `speaker_type` is set to "npc".
+
+**Query Parameters:**
+- `conversation_id` - The conversation this turn belongs to
+- `speaker_id` - The character speaking (PlayerCharacter or Character ID)
+- `speaker_type` - "pc" for PlayerCharacter, "npc" for Character
+- `text` - The dialogue text content
+- `is_dm_override` - Whether this is a DM override
+- `is_llm_generated` - Whether this is LLM-generated (vs player input or DM modification)
+- `game_time_seconds` - Optional game time in epoch seconds (i64)
+- `now` - Current timestamp for last_updated_at
+
+**Relationships Created:**
+- `Conversation-HAS_TURN->DialogueTurn` - Links conversation to its turns
+- `PlayerCharacter-SPOKE_IN->DialogueTurn` - Links PC to turns they spoke in
+- `Character-SPOKE_IN->DialogueTurn` - Links NPC to turns they spoke in
+
+**Error Handling:**
+- Returns `RepoError::NotFound` if conversation doesn't exist or speaker is not a participant
+
+**Notes:**
+- Turn order is computed atomically using `conversation.turn_counter` (starts at -1, increments per turn)
+- Speaker must be a conversation participant (has `[:PARTICIPATED_IN]` relationship)
+- Query returns `turn_id` to verify successful insertion
+- Empty PC turns are skipped (not persisted) to avoid useless records
+
+### Conversation Queries
+
+Get conversation turns for LLM context:
+
+```cypher
+MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+RETURN
+    t.order AS order,
+    t.text AS text,
+    CASE t.speaker_type
+        WHEN 'pc' THEN pc.name
+        WHEN 'npc' THEN npc.name
+        ELSE 'Unknown'
+    END AS speaker_name,
+    t.speaker_type AS speaker_type
+ORDER BY t.order ASC
+LIMIT $limit
+```
+
+Get active conversation ID between PC and NPC:
+
+```cypher
+MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+RETURN c.id AS conversation_id
+ORDER BY c.last_updated_at DESC
+LIMIT 1
+```
+
+End conversation by setting is_active = false:
+
+```cypher
+MATCH (c:Conversation {id: $conversation_id, is_active: true})
+SET c.is_active = false, c.ended_at = datetime()
+RETURN c.id AS conversation_id
+```
+
+// =============================================================================
+// Protocol Updates (P0 Dialogue persistence)
+// =============================================================================
+
+### ServerMessage Protocol Changes
+
+Two protocol messages now include `conversation_id` for dialogue scoping:
+
+**1. LLMProcessing** - Sent when LLM starts processing a request
+
+```rust
+ServerMessage::LLMProcessing {
+    action_id: String,
+    conversation_id: Option<String>,  // NEW: Conversation ID for dialogue scoping
+}
+```
+
+**2. ApprovalRequired** - Sent to DM for approval
+
+```rust
+ServerMessage::ApprovalRequired {
+    request_id: String,
+    npc_name: String,
+    proposed_dialogue: String,
+    internal_reasoning: String,
+    proposed_tools: Vec<ProposedToolInfo>,
+    challenge_suggestion: Option<ChallengeSuggestionInfo>,
+    narrative_event_suggestion: Option<NarrativeEventSuggestionInfo>,
+    conversation_id: Option<String>,  // NEW: Conversation ID for dialogue scoping
+}
+```
+
+These fields allow the client to track which conversation an approval belongs to, enabling proper conversation scoping in the UI.
 
 ### Assets
 

@@ -153,7 +153,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             queue_depth,
         },
 
-        ServerMessage::LLMProcessing { action_id } => PlayerEvent::LLMProcessing { action_id },
+        ServerMessage::LLMProcessing { action_id, .. } => PlayerEvent::LLMProcessing { action_id },
 
         ServerMessage::QueueStatus {
             player_actions_pending,
@@ -268,6 +268,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             proposed_tools,
             challenge_suggestion,
             narrative_event_suggestion,
+            conversation_id: _,
         } => PlayerEvent::ApprovalRequired {
             request_id,
             npc_name,

@@ -103,6 +103,7 @@ pub(super) async fn handle_approval_decision(
             if result.approved {
                 let dialogue = result.final_dialogue.clone().unwrap_or_default();
                 let world_id = result.world_id;
+                let conversation_id = result.conversation_id;
 
                 // Send ResponseApproved to DMs (shows what tools were executed)
                 let dm_msg = ServerMessage::ResponseApproved {
@@ -116,11 +117,11 @@ pub(super) async fn handle_approval_decision(
                 if !dialogue.is_empty() {
                     if let Some(ref speaker_id) = npc_id {
                         let dialogue_msg = ServerMessage::DialogueResponse {
-                            speaker_id: speaker_id.clone(),
+                            speaker_id: speaker_id.to_string(),
                             speaker_name: result.npc_name.clone().unwrap_or_else(|| "Unknown".to_string()),
                             text: dialogue,
                             choices: vec![], // Free-form input mode
-                            conversation_id: result.conversation_id.map(|id| id.to_string()),
+                            conversation_id: conversation_id.map(|id| id.to_string()),
                         };
                         state
                             .connections

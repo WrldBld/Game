@@ -16,6 +16,8 @@ use uuid_aliaser::UuidAliaser;
 
 #[cfg(test)]
 mod llm_integration_tests;
+#[cfg(test)]
+mod dialogue_persistence_tests;
 
 use std::sync::Arc;
 use uuid::Uuid;

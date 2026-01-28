@@ -58,6 +58,8 @@ pub use staging_repo::Neo4jStagingRepo;
 pub use world_repo::Neo4jWorldRepo;
 
 #[cfg(test)]
+mod conversation_tests;
+#[cfg(test)]
 mod integration_tests;
 
 /// Create all Neo4j repositories from a graph connection.

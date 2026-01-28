@@ -258,6 +258,35 @@ pub struct TimeSuggestion {
 // Conversation Management Types (for DM monitoring)
 // =============================================================================
 
+/// Speaker in a dialogue turn (PC or NPC).
+///
+/// Used to type-safe speaker identification in dialogue persistence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversationSpeaker {
+    /// Player character speaker
+    Pc(PlayerCharacterId),
+    /// NPC speaker
+    Npc(CharacterId),
+}
+
+impl ConversationSpeaker {
+    /// Returns the node label for this speaker type.
+    pub fn label(&self) -> &'static str {
+        match self {
+            ConversationSpeaker::Pc(_) => "PlayerCharacter",
+            ConversationSpeaker::Npc(_) => "Character",
+        }
+    }
+
+    /// Returns the ID string for this speaker.
+    pub fn id_string(&self) -> String {
+        match self {
+            ConversationSpeaker::Pc(id) => id.to_string(),
+            ConversationSpeaker::Npc(id) => id.to_string(),
+        }
+    }
+}
+
 /// Active conversation record from database.
 ///
 /// Used for listing active conversations in DM panel.

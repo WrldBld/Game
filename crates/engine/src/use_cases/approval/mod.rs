@@ -13,6 +13,7 @@ pub mod tool_executor;
 use std::sync::Arc;
 use wrldbldr_domain::{CharacterId, ConversationId, QueueItemId, RegionId, WorldId};
 
+use crate::infrastructure::ports::ConversationSpeaker;
 use crate::queue_types::DmApprovalDecision;
 use crate::use_cases::time::SuggestTime;
 
@@ -108,8 +109,8 @@ pub struct SuggestionApprovalResult {
     pub final_dialogue: Option<String>,
     /// Tools that were approved
     pub approved_tools: Vec<String>,
-    /// NPC ID (speaker)
-    pub npc_id: Option<String>,
+    /// NPC ID (speaker) - typed ID, not string
+    pub npc_id: Option<CharacterId>,
     /// NPC name (speaker)
     pub npc_name: Option<String>,
     /// Conversation ID (for dialogue tracking)
@@ -149,7 +150,7 @@ impl ApproveSuggestion {
         let (npc_id, npc_name, original_dialogue, conversation_id) = queue_item
             .map(|data| {
                 (
-                    data.npc_id.map(|id| id.to_string()),
+                    data.npc_id, // Already CharacterId, no conversion needed
                     Some(data.npc_name),
                     Some(data.proposed_dialogue),
                     data.conversation_id.map(ConversationId::from),
@@ -192,7 +193,7 @@ impl ApproveSuggestion {
             approved,
             final_dialogue,
             approved_tools,
-            npc_id,
+            npc_id, // Already CharacterId, no conversion needed
             npc_name,
             conversation_id,
         })
@@ -203,6 +204,7 @@ impl ApproveSuggestion {
 pub struct ApprovalDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
     narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
+    narrative_repo: Arc<dyn crate::infrastructure::ports::NarrativeRepo>,
     queue: Arc<dyn QueuePort>,
     tool_executor: Arc<tool_executor::ToolExecutor>,
     suggest_time: Arc<SuggestTime>,
@@ -214,6 +216,7 @@ impl ApprovalDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
         narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
+        narrative_repo: Arc<dyn crate::infrastructure::ports::NarrativeRepo>,
         queue: Arc<dyn QueuePort>,
         tool_executor: Arc<tool_executor::ToolExecutor>,
         suggest_time: Arc<SuggestTime>,
@@ -223,6 +226,7 @@ impl ApprovalDecisionFlow {
         Self {
             approve_suggestion,
             narrative,
+            narrative_repo,
             queue,
             tool_executor,
             suggest_time,
@@ -242,6 +246,9 @@ impl ApprovalDecisionFlow {
             .await?
             .ok_or(ApprovalDecisionError::ApprovalNotFound(approval_id))?;
 
+        // Determine if NPC dialogue is a DM override (must compute before moving decision)
+        let is_npc_dm_override = matches!(decision, DmApprovalDecision::AcceptWithModification { .. } | DmApprovalDecision::TakeOver { .. });
+
         let result = self
             .approve_suggestion
             .execute(approval_id, decision)
@@ -252,12 +259,69 @@ impl ApprovalDecisionFlow {
 
         if result.approved {
             // Record dialogue exchange
-            // Note: Dialogue recording is non-critical - if it fails, the approval still completes
-            // Tools are executed first, and dialogue is for narrative history only
+            // Note: Dialogue recording is non-critical - if it fails, approval still completes successfully
             let dialogue = result.final_dialogue.clone().unwrap_or_default();
+
             if !dialogue.is_empty() {
                 if let (Some(pc_id), Some(npc_id)) = (approval_data.pc_id, approval_data.npc_id) {
-                    let player_dialogue = approval_data.player_dialogue.clone().unwrap_or_default();
+                    // Skip persisting empty PC turn - P0 dialogue persistence requirement
+                    let player_dialogue = approval_data.player_dialogue.as_ref();
+
+                    // Compute game_time in seconds from approval_data
+                    let game_time_seconds = approval_data.game_time.as_ref().and_then(|s| s.parse::<i64>().ok());
+
+                    // Use conversation_id from approval_data (not result) to avoid double-fetch race
+                    let conversation_id = approval_data.conversation_id;
+
+                    // Persist dialogue turns to Neo4j (PC and NPC)
+                    // Note: This is non-critical - if it fails, approval still completes
+                    if let Some(conv_id) = conversation_id {
+                        // Persist PC's dialogue turn (player message) - only if non-empty
+                        if let Some(dialogue_text) = player_dialogue {
+                            if !dialogue_text.is_empty() {
+                                if let Err(e) = self.narrative_repo.add_dialogue_turn(
+                                    conv_id,
+                                    ConversationSpeaker::Pc(pc_id),
+                                    dialogue_text,
+                                    false, // PC dialogue is not DM override
+                                    false, // Not LLM-generated
+                                    game_time_seconds,
+                                ).await {
+                                    tracing::error!(
+                                        error = %e,
+                                        conversation_id = %conv_id,
+                                        pc_id = %pc_id,
+                                        npc_id = %npc_id,
+                                        "Failed to persist PC dialogue turn (non-critical)"
+                                    );
+                                    // Continue anyway - approval completes successfully
+                                }
+                            }
+                        }
+
+                        // Persist NPC's dialogue turn (LLM response)
+                        if let Err(e) = self.narrative_repo.add_dialogue_turn(
+                            conv_id,
+                            ConversationSpeaker::Npc(npc_id),
+                            &dialogue,
+                            is_npc_dm_override,
+                            true, // LLM-generated
+                            game_time_seconds,
+                        ).await {
+                            tracing::error!(
+                                error = %e,
+                                conversation_id = %conv_id,
+                                pc_id = %pc_id,
+                                npc_id = %npc_id,
+                                "Failed to persist NPC dialogue turn (non-critical)"
+                            );
+                            // Continue anyway - approval completes successfully
+                        }
+                    }
+
+                    // Record to StoryEvent for narrative history
+                    // Use actual player dialogue text if available, otherwise empty string
+                    let player_dialogue_text = player_dialogue.map(|d| d.clone()).unwrap_or_default();
                     if let Err(e) = self
                         .narrative
                         .record_dialogue_exchange(
@@ -265,7 +329,7 @@ impl ApprovalDecisionFlow {
                             pc_id,
                             npc_id,
                             approval_data.npc_name.clone(),
-                            player_dialogue,
+                            player_dialogue_text,
                             dialogue,
                             approval_data.topics.clone(),
                             approval_data.scene_id,
@@ -366,7 +430,7 @@ pub struct ApprovalDecisionOutcome {
     pub approved: bool,
     pub final_dialogue: Option<String>,
     pub approved_tools: Vec<String>,
-    pub npc_id: Option<String>,
+    pub npc_id: Option<CharacterId>,
     pub npc_name: Option<String>,
     pub conversation_id: Option<ConversationId>,
     /// Time suggestion generated for dialogue approval (US-TIME-013)
@@ -641,6 +705,9 @@ mod tests {
         narrative_repo_mock
             .expect_record_dialogue_context()
             .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+        narrative_repo_mock
+            .expect_add_dialogue_turn()
+            .returning(|_, _, _, _, _, _, _| Ok(()));
 
         let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
         scene_repo_mock
@@ -648,7 +715,7 @@ mod tests {
             .returning(|_| Ok(None));
 
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(narrative_repo_mock),
+            Arc::new(narrative_repo_mock.clone()),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
             world_repo.clone(),
             pc_repo.clone(),
@@ -678,6 +745,7 @@ mod tests {
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
             narrative,
+            Arc::new(narrative_repo_mock),
             queue.clone(),
             tool_executor,
             suggest_time,
@@ -692,6 +760,7 @@ mod tests {
 
         assert!(result.approved, "Approval should be accepted");
         assert_eq!(result.final_dialogue, Some("Hello there!".to_string()));
+        assert!(result.npc_id, Some(npc_id), "NPC ID should be present as CharacterId");
         assert!(result.time_suggestion.is_some(), "Time suggestion should be emitted");
         let suggestion = result.time_suggestion.unwrap();
         assert_eq!(suggestion.suggested_seconds, 300);
@@ -781,7 +850,10 @@ mod tests {
             .returning(|_, _, _, _| Ok(()));
         narrative_repo_mock
             .expect_record_dialogue_context()
-            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _, _, _, _, _, _, _| Ok(()));
+        narrative_repo_mock
+            .expect_add_dialogue_turn()
+            .returning(|_, _, _, _, _, _, _| Ok(()));
 
         let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
         scene_repo_mock
@@ -789,7 +861,7 @@ mod tests {
             .returning(|_| Ok(None));
 
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(narrative_repo_mock),
+            Arc::new(narrative_repo_mock.clone()),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
             world_repo.clone(),
             pc_repo.clone(),
@@ -819,6 +891,7 @@ mod tests {
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
             narrative,
+            Arc::new(narrative_repo_mock),
             queue.clone(),
             tool_executor,
             suggest_time,
@@ -919,7 +992,10 @@ mod tests {
             .returning(|_, _, _, _| Ok(()));
         narrative_repo_mock
             .expect_record_dialogue_context()
-            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _, _, _, _, _, _| Ok(()));
+        narrative_repo_mock
+            .expect_add_dialogue_turn()
+            .returning(|_, _, _, _, _, _| Ok(()));
 
         let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
         scene_repo_mock
@@ -927,7 +1003,7 @@ mod tests {
             .returning(|_| Ok(None));
 
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(narrative_repo_mock),
+            Arc::new(narrative_repo_mock.clone()),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
             world_repo.clone(),
             pc_repo.clone(),
@@ -957,6 +1033,7 @@ mod tests {
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
             narrative,
+            Arc::new(narrative_repo_mock),
             queue.clone(),
             tool_executor,
             suggest_time,
@@ -1040,8 +1117,9 @@ mod tests {
         simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
         let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
+        let narrative_repo_mock = Arc::new(crate::infrastructure::ports::MockNarrativeRepo::new());
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(crate::infrastructure::ports::MockNarrativeRepo::new()),
+            narrative_repo_mock.clone(),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
             world_repo.clone(),
             pc_repo.clone(),
@@ -1071,6 +1149,7 @@ mod tests {
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
             narrative,
+            narrative_repo_mock,
             queue.clone(),
             tool_executor,
             suggest_time,

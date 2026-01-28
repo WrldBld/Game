@@ -451,7 +451,12 @@ pub enum ServerMessage {
         reason: Option<String>,
     },
     /// LLM is processing (shown to DM)
-    LLMProcessing { action_id: String },
+    LLMProcessing {
+        action_id: String,
+        /// Conversation ID for dialogue scoping
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        conversation_id: Option<String>,
+    },
     /// Action queued for processing
     ActionQueued {
         action_id: String,
@@ -475,6 +480,9 @@ pub enum ServerMessage {
         proposed_tools: Vec<ProposedToolInfo>,
         challenge_suggestion: Option<ChallengeSuggestionInfo>,
         narrative_event_suggestion: Option<NarrativeEventSuggestionInfo>,
+        /// Conversation ID for dialogue scoping
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        conversation_id: Option<String>,
     },
     /// Response was approved and executed
     ResponseApproved {

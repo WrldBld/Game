@@ -44,7 +44,7 @@ pub use types::{
     TimeSuggestion,
     // Conversation Management Types (for DM monitoring)
     ActiveConversationRecord, ConversationLocationContext, ConversationSceneContext,
-    ConversationDetails, ConversationParticipantDetail, DialogueTurnDetail, ParticipantType,
+    ConversationDetails, ConversationParticipantDetail, ConversationSpeaker, DialogueTurnDetail, ParticipantType,
     // WorldRole is re-exported from wrldbldr_domain via types module
     WorldRole,
 };

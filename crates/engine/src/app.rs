@@ -201,6 +201,7 @@ impl App {
             repos.scene.clone(),
             repos.world.clone(),
             queue_port.clone(),
+            repos.narrative.clone(),
             clock_port.clone(),
         ));
         let conversation_continue = Arc::new(use_cases::conversation::ContinueConversation::new(
@@ -303,6 +304,7 @@ impl App {
             Arc::new(use_cases::approval::ApprovalDecisionFlow::new(
                 approve_suggestion.clone(),
                 narrative.clone(),
+                repos.narrative.clone(),
                 queue_port.clone(),
                 tool_executor,
                 suggest_time.clone(),

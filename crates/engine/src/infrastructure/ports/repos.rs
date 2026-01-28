@@ -10,8 +10,8 @@ use wrldbldr_domain::*;
 use super::error::RepoError;
 use super::types::{
     ActantialViewRecord, ActiveConversationRecord, ConversationDetails,
-    ConversationTurnRecord, GoalDetails, NpcRegionRelationType, NpcWithRegionInfo,
-    WantDetails, WantTargetRef,
+    ConversationSpeaker, ConversationTurnRecord, GoalDetails, NpcRegionRelationType,
+    NpcWithRegionInfo, WantDetails, WantTargetRef,
 };
 use crate::infrastructure::app_settings::AppSettings;
 
@@ -584,6 +584,56 @@ pub trait NarrativeRepo: Send + Sync {
         ended_by: Option<CharacterId>,
         reason: Option<String>,
     ) -> Result<bool, RepoError>;
+
+    // =========================================================================
+    // Conversation Persistence (P0 Dialogue persistence)
+    // =========================================================================
+
+    /// Create a new conversation and link to World, PC, NPC, and optional context.
+    ///
+    /// Creates a Conversation node and establishes:
+    /// - World-HAS_CONVERSATION->Conversation
+    /// - PC-PARTICIPATED_IN->Conversation
+    /// - NPC-PARTICIPATED_IN->Conversation
+    /// - Optional: Conversation-IN_SCENE->Scene
+    /// - Optional: Conversation-AT_LOCATION->Location
+    /// - Optional: Conversation-AT_REGION->Region
+    async fn create_conversation(
+        &self,
+        world_id: WorldId,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
+        game_time: Option<GameTime>,
+    ) -> Result<ConversationId, RepoError>;
+
+    /// Add a dialogue turn to a conversation.
+    ///
+    /// Creates a DialogueTurn node linked to Conversation and speaker.
+    /// Updates conversation's last_updated_at timestamp.
+    ///
+    /// # Arguments
+    /// * `conversation_id` - The conversation to add the turn to
+    /// * `speaker` - The speaker (PC or NPC) with typed ID
+    /// * `text` - The dialogue text
+    /// * `is_dm_override` - Whether this is a DM override
+    /// * `is_llm_generated` - Whether this is LLM-generated
+    /// * `game_time` - Optional game time for this turn (in seconds since epoch)
+    ///
+    /// # Notes
+    /// - Turn order is computed in Cypher as `max(order) + 1`
+    /// - Speaker is determined by matching against PlayerCharacter or Character node
+    async fn add_dialogue_turn(
+        &self,
+        conversation_id: ConversationId,
+        speaker: ConversationSpeaker,
+        text: &str,
+        is_dm_override: bool,
+        is_llm_generated: bool,
+        game_time: Option<i64>,
+    ) -> Result<(), RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

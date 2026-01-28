@@ -8,7 +8,7 @@ use std::sync::Arc;
 use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, QueueItemId, WorldId};
 
 use crate::infrastructure::ports::{
-    CharacterRepo, ClockPort, PlayerCharacterRepo, QueueError, QueuePort, RepoError,
+    CharacterRepo, ClockPort, NarrativeRepo, PlayerCharacterRepo, QueueError, QueuePort, RepoError,
     SceneRepo, StagingRepo, WorldRepo,
 };
 
@@ -29,7 +29,7 @@ pub struct ConversationStarted {
 
 /// Start conversation use case.
 ///
-/// Orchestrates: NPC validation, staging check, player action queuing.
+/// Orchestrates: NPC validation, staging check, conversation creation, player action queuing.
 #[allow(dead_code)]
 pub struct StartConversation {
     character: Arc<dyn CharacterRepo>,
@@ -38,6 +38,7 @@ pub struct StartConversation {
     scene: Arc<dyn SceneRepo>,
     world: Arc<dyn WorldRepo>,
     queue: Arc<dyn QueuePort>,
+    narrative_repo: Arc<dyn NarrativeRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -49,6 +50,7 @@ impl StartConversation {
         scene: Arc<dyn SceneRepo>,
         world: Arc<dyn WorldRepo>,
         queue: Arc<dyn QueuePort>,
+        narrative_repo: Arc<dyn NarrativeRepo>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -58,6 +60,7 @@ impl StartConversation {
             scene,
             world,
             queue,
+            narrative_repo,
             clock,
         }
     }
@@ -82,7 +85,7 @@ impl StartConversation {
         player_id: String,
         initial_dialogue: String,
     ) -> Result<ConversationStarted, ConversationError> {
-        // 1. Validate the player character exists
+        // 1. Validate player character exists
         let pc = self
             .player_character
             .get(pc_id)
@@ -96,7 +99,7 @@ impl StartConversation {
             .await?
             .ok_or(ConversationError::NpcNotFound(npc_id))?;
 
-        // 3. Verify the NPC is staged and visible in PC's region
+        // 3. Verify that NPC is staged and visible in PC's region
         validate_npc_staging_visibility(
             self.staging.as_ref(),
             self.world.as_ref(),
@@ -105,10 +108,40 @@ impl StartConversation {
             world_id,
         ).await?;
 
-        // 4. Generate conversation ID
-        let conversation_id = ConversationId::new();
+        // 4. Get scene/location/region context for conversation creation
+        let scene_id = match pc.current_region_id() {
+            Some(region_id) => self.scene.list_for_region(region_id).await?.first().map(|s| s.id()),
+            None => None,
+        };
+        let location_id = Some(pc.current_location_id());
+        let region_id = pc.current_region_id();
 
-        // 5. Get NPC's current disposition toward the PC if available
+        // 5. Get game time for conversation context (fail-fast if world not found)
+        let world = self.world.get(world_id).await?
+            .ok_or(ConversationError::WorldNotFound(world_id))?;
+        let game_time = Some(world.game_time().clone());
+
+        // 6. Create conversation in database
+        let conversation_id = self.narrative_repo.create_conversation(
+            world_id,
+            pc_id,
+            npc_id,
+            scene_id,
+            location_id,
+            region_id,
+            game_time,
+        ).await.map_err(|e| {
+            tracing::error!(
+                world_id = %world_id,
+                pc_id = %pc_id,
+                npc_id = %npc_id,
+                error = %e,
+                "Failed to create conversation"
+            );
+            ConversationError::Repo(e)
+        })?;
+
+        // 7. Get NPC's current disposition toward PC if available
         let npc_disposition = match self.character.get_disposition(npc_id, pc_id).await {
             Ok(disposition) => disposition.map(|d| d.disposition().to_string()),
             Err(e) => {
@@ -122,7 +155,7 @@ impl StartConversation {
             }
         };
 
-        // 6. Build and enqueue the player action for processing
+        // 8. Build and enqueue player action for processing
         let action_data = build_player_action_data(
             world_id,
             player_id,
@@ -133,7 +166,35 @@ impl StartConversation {
             Some(conversation_id),
         );
 
-        let action_queue_id = self.queue.enqueue_player_action(&action_data).await?;
+        let action_queue_id = match self.queue.enqueue_player_action(&action_data).await {
+            Ok(id) => id,
+            Err(e) => {
+                // Handle queue enqueue failure by ending/deleting the conversation
+                // This prevents orphaned conversations when enqueue fails
+                if let Err(end_err) = self.narrative_repo.end_conversation_by_id(
+                    conversation_id,
+                    world_id,
+                    None, // No ended_by character
+                    Some(format!("Queue enqueue failed: {}", e)),
+                ).await {
+                    tracing::error!(
+                        conversation_id = %conversation_id,
+                        world_id = %world_id,
+                        enqueue_error = %e,
+                        end_error = %end_err,
+                        "Failed to end orphaned conversation after queue enqueue failure"
+                    );
+                } else {
+                    tracing::warn!(
+                        conversation_id = %conversation_id,
+                        world_id = %world_id,
+                        enqueue_error = %e,
+                        "Ended orphaned conversation after queue enqueue failure"
+                    );
+                }
+                return Err(ConversationError::Queue(e));
+            }
+        };
 
         Ok(ConversationStarted {
             conversation_id,
@@ -389,6 +450,11 @@ mod tests {
             .withf(move |r, _| *r == region_id)
             .returning(|_, _| Ok(None));
 
+        let mut narrative_repo = MockNarrativeRepo::new();
+        narrative_repo
+            .expect_create_conversation()
+            .returning(|_, _, _, _, _, _, _, _| Ok(wrldbldr_domain::ConversationId::new()));
+
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
         let queue_id = QueueItemId::new();
         let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
@@ -400,6 +466,7 @@ mod tests {
             Arc::new(MockSceneRepo::new()),
             Arc::new(world_repo),
             queue_port.clone(),
+            Arc::new(narrative_repo),
             clock,
         );
 

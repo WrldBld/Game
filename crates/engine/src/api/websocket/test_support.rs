@@ -665,6 +665,7 @@ pub(crate) fn build_test_app_with_ports(
         Arc::new(crate::use_cases::approval::ApprovalDecisionFlow::new(
             approve_suggestion.clone(),
             narrative.clone(),
+            narrative_repo.clone(),
             queue_port.clone(),
             tool_executor,
             suggest_time.clone(),

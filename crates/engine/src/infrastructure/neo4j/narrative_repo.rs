@@ -17,8 +17,8 @@ use super::helpers::{
 };
 use crate::infrastructure::ports::{
     ActiveConversationRecord, ClockPort, ConversationDetails, ConversationLocationContext,
-    ConversationParticipantDetail, ConversationSceneContext, ConversationTurnRecord,
-    DialogueTurnDetail, NarrativeRepo, ParticipantType, RepoError,
+    ConversationParticipantDetail, ConversationSceneContext, ConversationSpeaker,
+    ConversationTurnRecord, DialogueTurnDetail, NarrativeRepo, ParticipantType, RepoError,
 };
 
 pub struct Neo4jNarrativeRepo {
@@ -1015,7 +1015,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                     p.name AS name,
                     CASE WHEN p:PlayerCharacter THEN 'pc' ELSE 'npc' END AS participant_type,
                     turn_count,
-                    CASE WHEN last_t.game_time IS NOT NULL THEN datetime({epochSeconds: toInteger(last_t.game_time)}) ELSE c.last_updated_at END AS last_spoke_at,
+                    CASE WHEN last_t.game_time_seconds IS NOT NULL THEN datetime({epochSeconds: last_t.game_time_seconds}) ELSE c.last_updated_at END AS last_spoke_at,
                     last_t.text AS last_spoke,
                     want.description AS want_description,
                     rel.type AS relationship_type",
@@ -1072,7 +1072,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 RETURN
                     coalesce(pc.name, npc.name, 'Unknown') AS speaker_name,
                     t.text AS text,
-                    coalesce(datetime({epochSeconds: toInteger(t.game_time)}), c.last_updated_at) AS timestamp,
+                    coalesce(datetime({epochSeconds: t.game_time_seconds}), c.last_updated_at) AS timestamp,
                     t.is_dm_override AS is_dm_override
                 ORDER BY t.order DESC
                 LIMIT 20",
@@ -1113,30 +1113,244 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         }))
     }
 
+    // =========================================================================
+    // Conversation Persistence (P0 Dialogue persistence)
+    // =========================================================================
+
+    async fn create_conversation(
+        &self,
+        world_id: WorldId,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
+        game_time: Option<GameTime>,
+    ) -> Result<ConversationId, RepoError> {
+        let conversation_id = ConversationId::new();
+        let now = self.clock.now();
+
+        // MATCH existing World/PC/NPC, fail fast if missing
+        // Execute verification query separately to check existence
+        let verify_q = query(
+            "MATCH (w:World {id: $world_id})
+            MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (npc:Character {id: $npc_id})
+            RETURN w.id AS world_exists, pc.id AS pc_exists, npc.id AS npc_exists",
+        )
+        .param("world_id", world_id.to_string())
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string());
+
+        let mut verify_result = self
+            .graph
+            .execute(verify_q)
+            .await
+            .map_err(|e| RepoError::database("create_conversation", e))?;
+
+        match verify_result.next().await.map_err(|e| RepoError::database("create_conversation", e))? {
+            Some(_) => {
+                // All nodes exist, proceed to create conversation
+            }
+            None => {
+                // Determine which node is missing by checking individually
+                let world_check = query("MATCH (w:World {id: $id}) RETURN w.id")
+                    .param("id", world_id.to_string());
+                let pc_check = query("MATCH (pc:PlayerCharacter {id: $id}) RETURN pc.id")
+                    .param("id", pc_id.to_string());
+                let npc_check = query("MATCH (npc:Character {id: $id}) RETURN npc.id")
+                    .param("id", npc_id.to_string());
+
+                let world_exists = self.graph.execute(world_check).await
+                    .map_err(|e| RepoError::database("create_conversation", e))?
+                    .next().await.map_err(|e| RepoError::database("create_conversation", e))?.is_some();
+                let pc_exists = self.graph.execute(pc_check).await
+                    .map_err(|e| RepoError::database("create_conversation", e))?
+                    .next().await.map_err(|e| RepoError::database("create_conversation", e))?.is_some();
+                let npc_exists = self.graph.execute(npc_check).await
+                    .map_err(|e| RepoError::database("create_conversation", e))?
+                    .next().await.map_err(|e| RepoError::database("create_conversation", e))?.is_some();
+
+                if !world_exists {
+                    return Err(RepoError::not_found("World", world_id));
+                }
+                if !pc_exists {
+                    return Err(RepoError::not_found("PlayerCharacter", pc_id));
+                }
+                if !npc_exists {
+                    return Err(RepoError::not_found("Character", npc_id));
+                }
+                return Err(RepoError::not_found("Unknown", "entity check failed"));
+            }
+        }
+
+        // Extract game_time_seconds from game_time
+        let game_time_seconds = game_time.map(|gt| gt.total_seconds());
+
+        // Create conversation
+        let q = query(
+            "MATCH (w:World {id: $world_id})
+            MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (npc:Character {id: $npc_id})
+            CREATE (c:Conversation {
+                id: $conversation_id,
+                world_id: $world_id,
+                started_at: datetime($started_at),
+                last_updated_at: datetime($last_updated_at),
+                is_active: true,
+                game_time_seconds: $game_time_seconds
+            })
+            MERGE (w)-[:HAS_CONVERSATION]->(c)
+            MERGE (pc)-[:PARTICIPATED_IN]->(c)
+            MERGE (npc)-[:PARTICIPATED_IN]->(c)
+            WITH c, w
+            // World-scoped optional matches to prevent cross-world edges
+            OPTIONAL MATCH (s:Scene {id: $scene_id, world_id: $world_id})
+            OPTIONAL MATCH (l:Location {id: $location_id, world_id: $world_id})
+            OPTIONAL MATCH (r:Region {id: $region_id})
+            FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END | MERGE (c)-[:IN_SCENE]->(s))
+            FOREACH (_ IN CASE WHEN l IS NOT NULL THEN [1] ELSE [] END | MERGE (c)-[:AT_LOCATION]->(l))
+            FOREACH (_ IN CASE WHEN r IS NOT NULL THEN [1] ELSE [] END | MERGE (c)-[:AT_REGION]->(r))
+            RETURN c.id AS conversation_id",
+        )
+        .param("world_id", world_id.to_string())
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("conversation_id", conversation_id.to_string())
+        .param("started_at", now.to_rfc3339())
+        .param("last_updated_at", now.to_rfc3339())
+        .param("game_time_seconds", game_time_seconds)
+        .param("scene_id", scene_id.map(|id| id.to_string()).unwrap_or_default())
+        .param("location_id", location_id.map(|id| id.to_string()).unwrap_or_default())
+        .param("region_id", region_id.map(|id| id.to_string()).unwrap_or_default());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("create_conversation", e))?;
+
+        match result.next().await.map_err(|e| RepoError::database("create_conversation", e))? {
+            Some(_) => {
+                tracing::debug!(
+                    conversation_id = %conversation_id,
+                    world_id = %world_id,
+                    pc_id = %pc_id,
+                    npc_id = %npc_id,
+                    "Created conversation"
+                );
+                Ok(conversation_id)
+            }
+            None => Err(RepoError::not_found("Conversation", "creation failed")),
+        }
+    }
+
+    async fn add_dialogue_turn(
+        &self,
+        conversation_id: ConversationId,
+        speaker: ConversationSpeaker,
+        text: &str,
+        is_dm_override: bool,
+        is_llm_generated: bool,
+        game_time: Option<i64>,
+    ) -> Result<(), RepoError> {
+        let now = self.clock.now();
+        let turn_id = uuid::Uuid::new_v4();
+
+        // Determine speaker label and match accordingly
+        let (speaker_label, speaker_id_str) = match speaker {
+            ConversationSpeaker::Pc(id) => ("PlayerCharacter", id.to_string()),
+            ConversationSpeaker::Npc(id) => ("Character", id.to_string()),
+        };
+
+        let speaker_type_str = match speaker {
+            ConversationSpeaker::Pc(_) => "pc",
+            ConversationSpeaker::Npc(_) => "npc",
+        };
+
+        // Clone speaker_id_str for logging since it will be moved into the query
+        let speaker_id_for_log = speaker_id_str.clone();
+
+        // Query validates conversation exists, speaker is a participant, and computes next order atomically
+        // Uses conversation-level turn_counter for atomic ordering
+        let query_str = format!(
+            "MATCH (c:Conversation {{id: $conversation_id}})
+            MATCH (speaker:{} {{id: $speaker_id}})-[:PARTICIPATED_IN]->(c)
+            // Atomically increment conversation's turn counter and use as order
+            SET c.turn_counter = coalesce(c.turn_counter, -1) + 1
+            WITH c, speaker, c.turn_counter AS next_order
+            CREATE (t:DialogueTurn {{
+                id: $turn_id,
+                conversation_id: $conversation_id,
+                speaker_id: $speaker_id,
+                speaker_type: $speaker_type,
+                text: $text,
+                `order`: next_order,
+                is_dm_override: $is_dm_override,
+                is_llm_generated: $is_llm_generated,
+                game_time_seconds: $game_time_seconds
+            }})
+            MERGE (c)-[:HAS_TURN]->(t)
+            MERGE (speaker)-[:SPOKE_IN]->(t)
+            SET c.last_updated_at = datetime($now)
+            RETURN t.id AS turn_id",
+            speaker_label
+        );
+
+        let q = query(&query_str)
+            .param("conversation_id", conversation_id.to_string())
+            .param("speaker_id", speaker_id_str)
+            .param("turn_id", turn_id.to_string())
+            .param("speaker_type", speaker_type_str)
+            .param("text", text)
+            .param("is_dm_override", is_dm_override)
+            .param("is_llm_generated", is_llm_generated)
+            .param("game_time_seconds", game_time)
+            .param("now", now.to_rfc3339());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("add_dialogue_turn", e))?;
+
+        // Verify a row was returned - if not, conversation doesn't exist or speaker is not a participant
+        match result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("add_dialogue_turn", e))?
+        {
+            Some(_) => {
+                tracing::debug!(
+                    turn_id = %turn_id,
+                    conversation_id = %conversation_id,
+                    speaker = %speaker_label,
+                    speaker_id = %speaker_id_for_log,
+                    "Added dialogue turn"
+                );
+                Ok(())
+            }
+            None => Err(RepoError::not_found(
+                "Conversation or speaker participant",
+                conversation_id.to_string(),
+            )),
+        }
+    }
+
     async fn end_conversation_by_id(
         &self,
         conversation_id: ConversationId,
         world_id: WorldId,
-        ended_by: Option<CharacterId>,
-        reason: Option<String>,
+        _ended_by: Option<CharacterId>,
+        _reason: Option<String>,
     ) -> Result<bool, RepoError> {
-        // End conversation by ID, tracking who ended it and why
-        // World scoping enforced via World relationship
         let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id, is_active: true})
-            SET c.is_active = false,
-                c.ended_at = datetime(),
-                c.ended_by = $ended_by,
-                c.ended_reason = $reason
+            "MATCH (w:World {id: $world_id})-[:HAS_CONVERSATION]->(c:Conversation {id: $conversation_id})
+            SET c.is_active = false, c.ended_at = datetime()
             RETURN c.id AS conversation_id",
         )
         .param("world_id", world_id.to_string())
-        .param("conversation_id", conversation_id.to_string())
-        .param(
-            "ended_by",
-            ended_by.map(|id| id.to_string()).unwrap_or_default(),
-        )
-        .param("reason", reason.unwrap_or_default());
+        .param("conversation_id", conversation_id.to_string());
 
         let mut result = self
             .graph
@@ -1144,7 +1358,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        // If we got a result, conversation was found and ended
+        // If we got a result, the conversation was found and ended
         let ended = result
             .next()
             .await

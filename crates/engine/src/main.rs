@@ -314,6 +314,7 @@ async fn main() -> anyhow::Result<()> {
                             proposed_tools,
                             challenge_suggestion,
                             narrative_event_suggestion,
+                            conversation_id: data.conversation_id.map(|id| id.to_string()),
                         };
 
                         queue_connections.broadcast_to_dms(data.world_id, msg).await;
