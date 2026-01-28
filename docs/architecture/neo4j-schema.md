@@ -784,6 +784,7 @@ Observation is persisted via `OBSERVED_NPC` edges from PCs to NPCs, with game ti
 
 ```cypher
 (playerCharacter:PlayerCharacter)-[:SPOKE_TO {
+    first_dialogue_at: datetime(),
     last_dialogue_at: datetime(),
     last_topic: "...",
     conversation_count: 5
@@ -793,6 +794,27 @@ Observation is persisted via `OBSERVED_NPC` edges from PCs to NPCs, with game ti
 (conversation:Conversation)-[:HAS_TURN]->(turn:DialogueTurn)
 (turn:DialogueTurn)-[:OCCURRED_AT]->(time:GameTime)
 ```
+
+**SPOKE_TO Edge Properties:**
+- `first_dialogue_at` - Timestamp of first dialogue between PC and NPC
+- `last_dialogue_at` - Timestamp of most recent dialogue
+- `last_topic` - Most recent topic discussed (optional)
+- `conversation_count` - Number of conversations/dialogue exchanges
+
+**StoryEvent Dialogue Context:**
+
+StoryEvents representing dialogue exchanges are linked to participants and context:
+
+```cypher
+(pc:PlayerCharacter)-[:INVOLVES_PC]->(storyEvent:StoryEvent)
+(npc:Character)-[:INVOLVES_NPC]->(storyEvent:StoryEvent)
+(storyEvent:StoryEvent)-[:IN_SCENE]->(scene:Scene)
+(storyEvent:StoryEvent)-[:AT_LOCATION]->(location:Location)
+(storyEvent:StoryEvent)-[:AT_REGION]->(region:Region)
+(storyEvent:StoryEvent)-[:AT_TIME]->(time:GameTime)
+```
+
+These edges enable querying dialogue history between a PC and NPC via shared StoryEvents.
 
 ### Staging (NPC Presence)
 

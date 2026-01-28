@@ -584,9 +584,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         {
             let speaker: String = row
                 .get("speaker_name")
-                .unwrap_or_else(|_| "Unknown".to_string());
-            let text: String = row.get("text").unwrap_or_default();
-            let order: i64 = row.get("order").unwrap_or(0);
+                .map_err(|e| RepoError::database("get_conversation_turns: failed to parse speaker_name", e))?;
+            let text: String = row.get("text").map_err(|e| RepoError::database("get_conversation_turns: failed to parse text", e))?;
+            let order: i64 = row.get("order").map_err(|e| RepoError::database("get_conversation_turns: failed to parse order", e))?;
 
             turns.push(ConversationTurnRecord {
                 speaker,
@@ -656,7 +656,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let is_active: bool = row.get("is_active").unwrap_or(false);
+            let is_active: bool = row.get("is_active").map_err(|e| RepoError::database("is_conversation_active: failed to parse is_active", e))?;
             Ok(is_active)
         } else {
             // Conversation not found - treat as not active
@@ -813,14 +813,17 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             let npc_uuid = Uuid::parse_str(&npc_id_str).map_err(|e| RepoError::database("query", e))?;
 
             // Turn count is now aggregated in the main query (N+1 fix)
-            let turn_count: i64 = row.get("turn_count").unwrap_or(0);
+            let turn_count: i64 = row.get("turn_count").map_err(|e| RepoError::database("list_active_conversations: failed to parse turn_count", e))?;
+            if turn_count < 0 {
+                return Err(RepoError::database("list_active_conversations", "turn_count negative"));
+            }
 
             conversations.push(ActiveConversationRecord {
                 id: ConversationId::from(uuid),
                 pc_id: PlayerCharacterId::from(pc_uuid),
                 npc_id: CharacterId::from(npc_uuid),
-                pc_name: row.get("pc_name").unwrap_or_default(),
-                npc_name: row.get("npc_name").unwrap_or_default(),
+                pc_name: row.get("pc_name").map_err(|e| RepoError::database("list_active_conversations: failed to parse pc_name", e))?,
+                npc_name: row.get("npc_name").map_err(|e| RepoError::database("list_active_conversations: failed to parse npc_name", e))?,
                 topic_hint: row.get("topic_hint").ok(),
                 started_at: row
                     .get::<chrono::DateTime<Utc>>("started_at")
@@ -828,9 +831,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 last_updated_at: row
                     .get::<chrono::DateTime<Utc>>("last_updated_at")
                     .map_err(|e| RepoError::database("query", e))?,
-                is_active: row.get("is_active").unwrap_or(true),
+                is_active: row.get("is_active").map_err(|e| RepoError::database("list_active_conversations: failed to parse is_active", e))?,
                 turn_count: turn_count as u32,
-                pending_approval: row.get("pending_approval").unwrap_or(false),
+                pending_approval: row.get("pending_approval").map_err(|e| RepoError::database("list_active_conversations: failed to parse pending_approval", e))?,
                 location: row
                     .get::<Option<String>>("location_id")
                     .ok()
@@ -944,7 +947,11 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                         .await
                         .map_err(|e| RepoError::database("query", e))?
                     {
-                        row.get("turn_count").unwrap_or(0)
+                        let turn_count: i64 = row.get("turn_count").map_err(|e| RepoError::database("get_conversation_details: failed to parse turn_count", e))?;
+                        if turn_count < 0 {
+                            return Err(RepoError::database("get_conversation_details", "turn_count negative"));
+                        }
+                        turn_count
                     } else {
                         0
                     }
@@ -954,8 +961,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                     id: ConversationId::from(uuid),
                     pc_id: PlayerCharacterId::from(pc_uuid),
                     npc_id: CharacterId::from(npc_uuid),
-                    pc_name: row.get("pc_name").unwrap_or_default(),
-                    npc_name: row.get("npc_name").unwrap_or_default(),
+                    pc_name: row.get("pc_name").map_err(|e| RepoError::database("get_conversation_details: failed to parse pc_name", e))?,
+                    npc_name: row.get("npc_name").map_err(|e| RepoError::database("get_conversation_details: failed to parse npc_name", e))?,
                     topic_hint: row.get("topic_hint").ok(),
                     started_at: row
                         .get::<chrono::DateTime<Utc>>("started_at")
@@ -963,7 +970,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                     last_updated_at: row
                         .get::<chrono::DateTime<Utc>>("last_updated_at")
                         .map_err(|e| RepoError::database("query", e))?,
-                    is_active: row.get("is_active").unwrap_or(true),
+                    is_active: row.get("is_active").map_err(|e| RepoError::database("get_conversation_details: failed to parse is_active", e))?,
                     turn_count: turn_count as u32,
                     pending_approval: false, // Not tracked in details view
                     location: row
@@ -1049,11 +1056,16 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                     ParticipantType::Npc
                 };
 
+                let turn_count: i64 = row.get("turn_count").map_err(|e| RepoError::database("get_conversation_details: failed to parse turn_count", e))?;
+                if turn_count < 0 {
+                    return Err(RepoError::database("get_conversation_details", "turn_count negative"));
+                }
+
                 parts.push(ConversationParticipantDetail {
                     character_id: CharacterId::from(char_uuid),
-                    name: row.get("name").unwrap_or_default(),
+                    name: row.get("name").map_err(|e| RepoError::database("get_conversation_details: failed to parse participant name", e))?,
                     participant_type,
-                    turn_count: row.get("turn_count").unwrap_or(0) as u32,
+                    turn_count: turn_count as u32,
                     last_spoke_at: row.get("last_spoke_at").ok(),
                     last_spoke: row.get("last_spoke").ok(),
                     want: row.get("want_description").ok(),
@@ -1093,12 +1105,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .map_err(|e| RepoError::database("query", e))?
             {
                 turns.push(DialogueTurnDetail {
-                    speaker_name: row.get("speaker_name").unwrap_or_default(),
-                    text: row.get("text").unwrap_or_default(),
+                    speaker_name: row.get("speaker_name").map_err(|e| RepoError::database("get_conversation_details: failed to parse speaker_name", e))?,
+                    text: row.get("text").map_err(|e| RepoError::database("get_conversation_details: failed to parse text", e))?,
                     timestamp: row
                         .get::<chrono::DateTime<Utc>>("timestamp")
                         .map_err(|e| RepoError::database("query", e))?,
-                    is_dm_override: row.get("is_dm_override").unwrap_or(false),
+                    is_dm_override: row.get("is_dm_override").map_err(|e| RepoError::database("get_conversation_details: failed to parse is_dm_override", e))?,
                 });
             }
             // Reverse to get chronological order
@@ -1207,7 +1219,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             // World-scoped optional matches to prevent cross-world edges
             OPTIONAL MATCH (s:Scene {id: $scene_id, world_id: $world_id})
             OPTIONAL MATCH (l:Location {id: $location_id, world_id: $world_id})
-            OPTIONAL MATCH (r:Region {id: $region_id})
+            OPTIONAL MATCH (r:Region {id: $region_id, world_id: $world_id})
             FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END | MERGE (c)-[:IN_SCENE]->(s))
             FOREACH (_ IN CASE WHEN l IS NOT NULL THEN [1] ELSE [] END | MERGE (c)-[:AT_LOCATION]->(l))
             FOREACH (_ IN CASE WHEN r IS NOT NULL THEN [1] ELSE [] END | MERGE (c)-[:AT_REGION]->(r))
@@ -1272,12 +1284,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         let speaker_id_for_log = speaker_id_str.clone();
 
         // Query validates conversation exists, speaker is a participant, and computes next order atomically
-        // Uses conversation-level turn_counter for atomic ordering
+        // Initializes turn_counter from max(t.order) when null, then increments
         let query_str = format!(
             "MATCH (c:Conversation {{id: $conversation_id}})
             MATCH (speaker:{} {{id: $speaker_id}})-[:PARTICIPATED_IN]->(c)
-            // Atomically increment conversation's turn counter and use as order
-            SET c.turn_counter = coalesce(c.turn_counter, -1) + 1
+            // Initialize turn_counter from existing turns if null
+            OPTIONAL MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+            WITH c, speaker, coalesce(c.turn_counter, max(t.order), -1) AS current_counter
+            // Atomically increment turn counter and use as next order
+            SET c.turn_counter = current_counter + 1
             WITH c, speaker, c.turn_counter AS next_order
             CREATE (t:DialogueTurn {{
                 id: $turn_id,
@@ -1374,48 +1389,163 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
     async fn get_dialogues_with_npc(
         &self,
-        _pc_id: PlayerCharacterId,
-        _npc_id: CharacterId,
-        _limit: usize,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
     ) -> Result<Vec<StoryEvent>, RepoError> {
-        // Story events are tracked separately - dialogues are StoryEvents of type DialogueExchange
-        // This implementation would need to query StoryEvents filtered by type and participants
-        // For now, return empty as these methods are used for dialogue history tracking
-        Ok(Vec::new())
+        // Query StoryEvents that represent dialogue exchanges with this NPC
+        // Filter by DialogueExchange type and INVOLVES_PC/INVOLVES_NPC edges
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (npc:Character {id: $npc_id})
+            MATCH (pc)-[:INVOLVES_PC]->(e:StoryEvent)<-[:INVOLVES_NPC]-(npc)
+            MATCH (w:World)-[:HAS_STORY_EVENT]->(e)
+            RETURN e
+            ORDER BY e.timestamp DESC
+            LIMIT $limit",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("limit", limit as i64);
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+        let mut events = Vec::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            events.push(row_to_story_event(row, self.clock.now())?);
+        }
+
+        Ok(events)
     }
 
     async fn update_spoke_to(
         &self,
-        _pc_id: PlayerCharacterId,
-        _npc_id: CharacterId,
-        _timestamp: chrono::DateTime<chrono::Utc>,
-        _last_topic: Option<String>,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        last_topic: Option<String>,
     ) -> Result<(), RepoError> {
-        // SPOKE_TO relationship tracking
-        // This would create/update a relationship edge between PC and NPC with metadata
-        // For now, this is a no-op pending proper graph schema
-        Ok(())
+        // Clone for param to avoid moving before logging
+        let last_topic_param = last_topic.clone().unwrap_or_default();
+
+        // Use MERGE to create or update SPOKE_TO relationship
+        // Track: first_dialogue_at, last_dialogue_at, last_topic, conversation_count
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (npc:Character {id: $npc_id})
+            MERGE (pc)-[spt:SPOKE_TO]->(npc)
+            ON CREATE SET
+                spt.first_dialogue_at = datetime($timestamp),
+                spt.last_dialogue_at = datetime($timestamp),
+                spt.last_topic = $last_topic,
+                spt.conversation_count = 1
+            ON MATCH SET
+                spt.last_dialogue_at = datetime($timestamp),
+                spt.last_topic = $last_topic,
+                spt.conversation_count = spt.conversation_count + 1
+            RETURN pc.id AS pc_id, npc.id AS npc_id",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("timestamp", timestamp.to_rfc3339())
+        .param("last_topic", last_topic_param);
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("update_spoke_to", e))?;
+
+        // Verify the update succeeded
+        match result.next().await.map_err(|e| RepoError::database("update_spoke_to", e))? {
+            Some(_) => {
+                tracing::debug!(
+                    pc_id = %pc_id,
+                    npc_id = %npc_id,
+                    timestamp = %timestamp,
+                    last_topic = ?last_topic,
+                    "Updated SPOKE_TO relationship"
+                );
+                Ok(())
+            }
+            None => Err(RepoError::not_found("PlayerCharacter or Character", "one or both not found")),
+        }
     }
 
     async fn record_dialogue_context(
         &self,
-        _world_id: WorldId,
-        _story_event_id: StoryEventId,
-        _pc_id: PlayerCharacterId,
-        _npc_id: CharacterId,
+        world_id: WorldId,
+        story_event_id: StoryEventId,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
         _player_dialogue: String,
         _npc_dialogue: String,
         _topics: Vec<String>,
-        _scene_id: Option<SceneId>,
-        _location_id: Option<LocationId>,
-        _region_id: Option<RegionId>,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
         _game_time: Option<GameTime>,
-        _timestamp: DateTime<Utc>,
+        timestamp: DateTime<Utc>,
     ) -> Result<(), RepoError> {
-        // Records dialogue context for LLM prompt building
-        // This would associate a StoryEvent with dialogue participants and context
-        // For now, this is a no-op pending proper graph schema
-        Ok(())
+        // Add INVOLVES_PC and INVOLVES_NPC edges from StoryEvent to participants
+        // Add IN_SCENE, AT_LOCATION, and AT_REGION edges for context
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent {id: $story_event_id})
+            MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (npc:Character {id: $npc_id})
+            // Link participants
+            MERGE (pc)-[:INVOLVES_PC]->(e)
+            MERGE (npc)-[:INVOLVES_NPC]->(e)
+            WITH e, pc, npc
+            // World-scoped optional matches to prevent cross-world edges
+            OPTIONAL MATCH (s:Scene {id: $scene_id})
+            OPTIONAL MATCH (l:Location {id: $location_id, world_id: $world_id})
+            OPTIONAL MATCH (r:Region {id: $region_id})
+            // Link context (scene/location/region) if provided
+            FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END | MERGE (e)-[:IN_SCENE]->(s))
+            FOREACH (_ IN CASE WHEN l IS NOT NULL THEN [1] ELSE [] END | MERGE (e)-[:AT_LOCATION]->(l))
+            FOREACH (_ IN CASE WHEN r IS NOT NULL THEN [1] ELSE [] END | MERGE (e)-[:AT_REGION]->(r))
+            RETURN e.id AS story_event_id",
+        )
+        .param("world_id", world_id.to_string())
+        .param("story_event_id", story_event_id.to_string())
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("scene_id", scene_id.map(|id| id.to_string()).unwrap_or_default())
+        .param("location_id", location_id.map(|id| id.to_string()).unwrap_or_default())
+        .param("region_id", region_id.map(|id| id.to_string()).unwrap_or_default())
+        .param("timestamp", timestamp.to_rfc3339());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("record_dialogue_context", e))?;
+
+        // Verify the operation succeeded
+        match result.next().await.map_err(|e| RepoError::database("record_dialogue_context", e))? {
+            Some(_) => {
+                tracing::debug!(
+                    story_event_id = %story_event_id,
+                    pc_id = %pc_id,
+                    npc_id = %npc_id,
+                    scene_id = ?scene_id,
+                    location_id = ?location_id,
+                    region_id = ?region_id,
+                    "Recorded dialogue context"
+                );
+                Ok(())
+            }
+            None => Err(RepoError::not_found("StoryEvent or participants", "not found")),
+        }
     }
 
     async fn set_event_active(
