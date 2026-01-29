@@ -16,9 +16,43 @@
     - ABOUT_* edges and COMMON_LORE exposure in player journal
     - Lore discovery tool wiring for LLM suggestions
 
-3) **Challenge region availability** (P1)
-    - Persist AVAILABLE_AT_REGION edges
+3) **Challenge region availability** (P1) - ✅ COMPLETE (Backend + Architecture Review)
+    - Persist AVAILABLE_AT / AVAILABLE_AT_REGION edges
     - Expose in challenge editor and enforce in availability checks
+    - Backend implementation:
+      - Added `set_availability_at_location` and `set_availability_at_region` to ChallengeRepo trait
+      - Implemented edge management in Neo4jChallengeRepo with `always_available` and `time_restriction` fields
+      - Added `get_availability`, `list_available_at_location`, `list_available_at_region`, and `remove_availability` methods
+      - Added availability fields to ChallengeSummary DTO (`available_at_location_id`, `available_at_region_id`, `availability_time_restriction`, `always_available`)
+      - Updated CreateChallengeInput and UpdateChallengeInput with availability parameters
+      - Updated CreateChallengeData and UpdateChallengeData in shared requests
+      - Updated ws_challenge handler to parse availability fields as typed IDs
+      - Added ChallengeAvailability struct to ports
+      - **Architecture review remediations (backend only):**
+        - ✅ Enforced availability in TriggerChallengePrompt and RollChallenge use cases
+        - ✅ Added input validation to reject both location_id and region_id
+        - ✅ Added input validation to enforce always_available constraints
+        - ✅ Added availability edge cleanup when switching types or always_available
+        - ✅ Fixed get_availability query to avoid cartesian join (using WITH + COALESCE)
+        - ✅ Fixed default value to always_available=true when no edges exist
+        - ✅ Added AvailabilityTimeRestriction enum value object in domain
+        - ✅ Implemented ADR-011: ChallengeSummary uses typed IDs, conversion to wire at API layer
+        - ⏳ N+1 query optimization for list_for_world_with_skills (TODO added)
+    - Frontend implementation:
+      - Added availability fields to player DTO `ChallengeData` (`available_at_location_id`, `available_at_region_id`, `availability_time_restriction`, `always_available`)
+      - Updated `ChallengeService` to map availability fields from protocol in create/update operations
+      - Updated `CreateChallengeRequest` and `UpdateChallengeRequest` DTOs with availability fields
+      - Updated `ChallengeFormModal` with availability UI:
+        - "Available everywhere" checkbox
+        - Location selector dropdown (filtered by available locations)
+        - Region selector dropdown (filtered by selected location)
+        - Time restriction text input
+        - Proper disable states when "always_available" is checked
+      - Added availability badges to challenge list cards:
+        - "Always Available" badge (blue)
+        - "Location-Specific" or "Region-Specific" badge (purple)
+      - Wired location/region data loading in `ChallengeLibrary` component
+      - All hooks at component root (Dioxus 0.7 compliance)
 
 4) **Observation snapshot + live updates** (P1)
     - Player receives observation snapshot + incremental updates
@@ -60,7 +94,7 @@
   - Updated WebSocket handler `ws_lore.rs` with link/unlink/common lore request handling
   - Updated `docs/architecture/neo4j-schema.md` with Lore node and ABOUT_*/COMMON_LORE edges
   - Updated `docs/systems/lore-system.md` with implementation status
-- [ ] P1 Challenge region availability complete
+- [x] P1 Challenge region availability complete (Backend + Frontend)
 - [ ] P1 Observation snapshot + updates complete
 - [ ] P2 Story arc chains complete
 - [ ] Code review + architecture review

@@ -414,6 +414,11 @@ pub struct ChallengeData {
     pub order: u32,
     pub is_favorite: bool,
     pub tags: Vec<String>,
+    // P1 Challenge availability fields
+    pub available_at_location_id: Option<String>,
+    pub available_at_region_id: Option<String>,
+    pub availability_time_restriction: Option<String>,
+    pub always_available: bool,
 }
 
 /// Types of challenges

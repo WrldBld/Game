@@ -276,11 +276,13 @@ impl App {
                 queue_port.clone(),
                 random_port.clone(),
                 clock_port.clone(),
+                repos.world.clone(),
             )),
             resolve_outcome,
             Arc::new(use_cases::challenge::TriggerChallengePrompt::new(
                 repos.challenge.clone(),
                 repos.player_character.clone(),
+                repos.world.clone(),
             )),
             outcome_decision,
             Arc::new(use_cases::challenge::ChallengeOps::new(

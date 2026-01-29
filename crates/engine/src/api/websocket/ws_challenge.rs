@@ -3,7 +3,7 @@ use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use uuid::Uuid;
-use wrldbldr_domain::{ConnectionId, DiceRollInput, OutcomeType, SkillId};
+use wrldbldr_domain::{ConnectionId, DiceRollInput, OutcomeType, SkillId, LocationId, RegionId};
 use wrldbldr_shared::types::ProposedToolInfo;
 use wrldbldr_shared::{ChallengeRequest, ErrorCode, ResponseResult};
 
@@ -17,7 +17,11 @@ pub(super) async fn handle_challenge_request(
         ChallengeRequest::ListChallenges { world_id } => {
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
             match state.app.use_cases.challenge.ops.list(world_id_typed).await {
-                Ok(challenges) => Ok(ResponseResult::success(json!(challenges))),
+                Ok(challenges) => {
+                    // Convert use-case DTOs with typed IDs to wire format (ADR-011)
+                    let wire_data = challenges.into_iter().map(challenge_to_wire).collect::<Vec<_>>();
+                    Ok(ResponseResult::success(json!(wire_data)))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "list challenges"),
@@ -34,7 +38,11 @@ pub(super) async fn handle_challenge_request(
                 .get(challenge_id_typed)
                 .await
             {
-                Ok(Some(challenge)) => Ok(ResponseResult::success(json!(challenge))),
+                Ok(Some(challenge)) => {
+                    // Convert use-case DTO with typed IDs to wire format (ADR-011)
+                    let wire_data = challenge_to_wire(challenge);
+                    Ok(ResponseResult::success(json!(wire_data)))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Challenge not found",
@@ -55,6 +63,52 @@ pub(super) async fn handle_challenge_request(
                 )
             })?;
             let skill_id = Some(SkillId::from_uuid(skill_uuid));
+
+            // Validate availability input (P1 review remediation)
+            if data.available_at_location_id.is_some() && data.available_at_region_id.is_some() {
+                return Ok(ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    "Cannot specify both location_id and region_id",
+                ));
+            }
+
+            if data.always_available && (data.available_at_location_id.is_some() || data.available_at_region_id.is_some()) {
+                return Ok(ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    "always_available=true cannot have location_id or region_id specified",
+                ));
+            }
+
+            if data.always_available && data.availability_time_restriction.is_some() {
+                return Ok(ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    "always_available=true cannot have time_restriction specified",
+                ));
+            }
+
+            // Parse availability IDs (P1)
+            let available_at_location_id = if let Some(ref loc_id_str) = data.available_at_location_id {
+                Some(LocationId::from_uuid(Uuid::parse_str(loc_id_str).map_err(|_| {
+                    error_response(
+                        ErrorCode::ValidationError,
+                        "Invalid location_id format",
+                    )
+                })?))
+            } else {
+                None
+            };
+
+            let available_at_region_id = if let Some(ref region_id_str) = data.available_at_region_id {
+                Some(RegionId::from_uuid(Uuid::parse_str(region_id_str).map_err(|_| {
+                    error_response(
+                        ErrorCode::ValidationError,
+                        "Invalid region_id format",
+                    )
+                })?))
+            } else {
+                None
+            };
+
             let input = crate::use_cases::challenge::CreateChallengeInput {
                 name: data.name,
                 skill_id,
@@ -62,6 +116,10 @@ pub(super) async fn handle_challenge_request(
                 description: data.description,
                 success_outcome: data.success_outcome,
                 failure_outcome: data.failure_outcome,
+                available_at_location_id,
+                available_at_region_id,
+                availability_time_restriction: data.availability_time_restriction.clone(),
+                always_available: data.always_available,
             };
             match state
                 .app
@@ -71,7 +129,11 @@ pub(super) async fn handle_challenge_request(
                 .create(world_id_typed, input)
                 .await
             {
-                Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),
+                Ok(challenge) => {
+                    // Convert use-case DTO with typed IDs to wire format (ADR-011)
+                    let wire_data = challenge_to_wire(challenge);
+                    Ok(ResponseResult::success(json!(wire_data)))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "create challenge"),
@@ -81,6 +143,33 @@ pub(super) async fn handle_challenge_request(
         ChallengeRequest::UpdateChallenge { challenge_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let challenge_id_typed = parse_challenge_id_for_request(&challenge_id, request_id)?;
+
+            // Validate availability input (P1 review remediation)
+            if data.available_at_location_id.is_some() && data.available_at_region_id.is_some() {
+                return Ok(ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    "Cannot specify both location_id and region_id",
+                ));
+            }
+
+            if data.always_available.is_some() && data.always_available.unwrap()
+                && (data.available_at_location_id.is_some() || data.available_at_region_id.is_some())
+            {
+                return Ok(ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    "always_available=true cannot have location_id or region_id specified",
+                ));
+            }
+
+            if data.always_available.is_some() && data.always_available.unwrap()
+                && data.availability_time_restriction.is_some()
+            {
+                return Ok(ResponseResult::error(
+                    ErrorCode::ValidationError,
+                    "always_available=true cannot have time_restriction specified",
+                ));
+            }
+
             let skill_id = match data.skill_id {
                 Some(s) => {
                     let skill_uuid = Uuid::parse_str(&s).map_err(|_| {
@@ -93,6 +182,30 @@ pub(super) async fn handle_challenge_request(
                 }
                 None => None,
             };
+
+            // Parse availability IDs (P1)
+            let available_at_location_id = if let Some(ref loc_id_str) = data.available_at_location_id {
+                Some(LocationId::from_uuid(Uuid::parse_str(loc_id_str).map_err(|_| {
+                    error_response(
+                        ErrorCode::ValidationError,
+                        "Invalid location_id format",
+                    )
+                })?))
+            } else {
+                None
+            };
+
+            let available_at_region_id = if let Some(ref region_id_str) = data.available_at_region_id {
+                Some(RegionId::from_uuid(Uuid::parse_str(region_id_str).map_err(|_| {
+                    error_response(
+                        ErrorCode::ValidationError,
+                        "Invalid region_id format",
+                    )
+                })?))
+            } else {
+                None
+            };
+
             let input = crate::use_cases::challenge::UpdateChallengeInput {
                 name: data.name,
                 skill_id,
@@ -100,6 +213,10 @@ pub(super) async fn handle_challenge_request(
                 difficulty: data.difficulty,
                 success_outcome: data.success_outcome,
                 failure_outcome: data.failure_outcome,
+                available_at_location_id,
+                available_at_region_id,
+                availability_time_restriction: data.availability_time_restriction.clone(),
+                always_available: data.always_available,
             };
             match state
                 .app
@@ -109,7 +226,11 @@ pub(super) async fn handle_challenge_request(
                 .update(challenge_id_typed, input)
                 .await
             {
-                Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),
+                Ok(challenge) => {
+                    // Convert use-case DTO with typed IDs to wire format (ADR-011)
+                    let wire_data = challenge_to_wire(challenge);
+                    Ok(ResponseResult::success(json!(wire_data)))
+                }
                 Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
                 ),
@@ -816,4 +937,34 @@ fn outcome_type_to_str(outcome_type: OutcomeType) -> &'static str {
         OutcomeType::Failure => "failure",
         OutcomeType::CriticalFailure => "critical_failure",
     }
+}
+
+/// Convert use-case DTO with typed IDs to wire format (ADR-011 compliance).
+///
+/// This conversion happens at the API layer, preserving typed IDs in the use case.
+fn challenge_to_wire(
+    summary: crate::use_cases::challenge::ChallengeSummary,
+) -> serde_json::Value {
+    use wrldbldr_domain::{ChallengeId, SceneId, SkillId, LocationId, RegionId};
+    serde_json::json!({
+        "id": summary.id.to_string(),
+        "world_id": summary.world_id.to_string(),
+        "scene_id": summary.scene_id.map(|id: SceneId| id.to_string()),
+        "name": summary.name,
+        "description": summary.description,
+        "challenge_type": summary.challenge_type,
+        "skill_id": summary.skill_id.map(|id: SkillId| id.to_string()).unwrap_or_default(),
+        "difficulty": summary.difficulty,
+        "outcomes": summary.outcomes,
+        "trigger_conditions": summary.trigger_conditions,
+        "prerequisite_challenges": summary.prerequisite_challenges.into_iter().map(|id: ChallengeId| id.to_string()).collect::<Vec<_>>(),
+        "active": summary.active,
+        "order": summary.order,
+        "is_favorite": summary.is_favorite,
+        "tags": summary.tags,
+        "available_at_location_id": summary.available_at_location_id.map(|id: LocationId| id.to_string()),
+        "available_at_region_id": summary.available_at_region_id.map(|id: RegionId| id.to_string()),
+        "availability_time_restriction": summary.availability_time_restriction,
+        "always_available": summary.always_available,
+    })
 }

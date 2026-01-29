@@ -4,6 +4,29 @@ use crate::application::dto::{ChallengeData, ChallengeType};
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+/// Get availability badge for a challenge
+fn get_availability_badge(challenge: &ChallengeData) -> Option<(String, &'static str)> {
+    if challenge.always_available {
+        return Some((
+            "Always Available".to_string(),
+            "bg-blue-500/20 text-blue-400",
+        ));
+    }
+    if challenge.available_at_location_id.is_some() {
+        return Some((
+            "Location-Specific".to_string(),
+            "bg-purple-500/20 text-purple-400",
+        ));
+    }
+    if challenge.available_at_region_id.is_some() {
+        return Some((
+            "Region-Specific".to_string(),
+            "bg-purple-500/20 text-purple-400",
+        ));
+    }
+    None
+}
+
 /// Section for a challenge type
 #[derive(Props, Clone, PartialEq)]
 pub struct ChallengeTypeSectionProps {
@@ -117,6 +140,7 @@ pub fn ChallengeCard(props: ChallengeCardProps) -> Element {
     } else {
         0
     };
+    let availability_badge = get_availability_badge(&challenge);
 
     rsx! {
         div {
@@ -139,16 +163,22 @@ pub fn ChallengeCard(props: ChallengeCardProps) -> Element {
                         "{challenge.difficulty.display()}"
                     }
                 }
-                div { class: "flex gap-2 flex-wrap",
-                    span { class: "text-blue-400 text-xs",
-                        "{props.skill_name}"
-                    }
-                    if !challenge.description.is_empty() {
-                        span { class: "text-gray-500 text-xs overflow-hidden text-ellipsis whitespace-nowrap max-w-[200px]",
-                            "{challenge.description}"
-                        }
-                    }
-                }
+                 div { class: "flex gap-2 flex-wrap",
+                     span { class: "text-blue-400 text-xs",
+                         "{props.skill_name}"
+                     }
+                     if let Some((text, classes)) = availability_badge {
+                         span {
+                             class: "px-1.5 py-0.5 rounded text-[0.625rem] {classes}",
+                             "{text}"
+                         }
+                     }
+                     if !challenge.description.is_empty() {
+                         span { class: "text-gray-500 text-xs overflow-hidden text-ellipsis whitespace-nowrap max-w-[200px]",
+                             "{challenge.description}"
+                         }
+                     }
+                 }
             }
 
             // Tags

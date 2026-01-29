@@ -18,8 +18,9 @@ use dioxus::prelude::*;
 use std::collections::HashMap;
 
 use crate::application::dto::{ChallengeData, ChallengeType, SkillData};
+use crate::application::services::location_service::LocationSummary;
 use crate::infrastructure::spawn_task;
-use crate::presentation::services::use_challenge_service;
+use crate::presentation::services::{use_challenge_service, use_location_service};
 
 /// Props for ChallengeLibrary
 #[derive(Props, Clone, PartialEq)]
@@ -48,6 +49,9 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
     let mut editing_challenge: Signal<Option<ChallengeData>> = use_signal(|| None);
     let mut show_delete_confirmation: Signal<Option<String>> = use_signal(|| None);
     let mut is_deleting = use_signal(|| false);
+    // P1 Challenge availability state
+    let mut locations: Signal<Vec<LocationSummary>> = use_signal(Vec::new);
+    let mut regions: Signal<Vec<wrldbldr_shared::RegionListItemData>> = use_signal(Vec::new);
 
     // Build skill lookup map
     let skills_map: HashMap<String, String> = props
@@ -58,16 +62,21 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
 
     let world_id = props.world_id.clone();
     let world_id_for_effect = world_id.clone();
+    let world_id_for_locations = world_id.clone();
 
-    // Get challenge service
+    // Get services
     let challenge_service = use_challenge_service();
     let challenge_service_for_effect = challenge_service.clone();
+    let location_service = use_location_service();
 
     // Load challenges on mount
     use_effect(move || {
         let world_id = world_id_for_effect.clone();
         let service = challenge_service_for_effect.clone();
+        let loc_service = location_service.clone();
+        let world_id_for_locs = world_id_for_locations.clone();
         spawn_task(async move {
+            // Load challenges
             match service.list_challenges(&world_id).await {
                 Ok(list) => {
                     challenges.set(list);
@@ -78,6 +87,20 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
                     is_loading.set(false);
                 }
             }
+
+            // Load locations for availability selectors
+            if let Ok(locs) = loc_service.list_locations(&world_id_for_locs).await {
+                locations.set(locs);
+            }
+
+            // Load regions from all locations
+            let mut all_regions = Vec::new();
+            for location in locations.read().iter() {
+                if let Ok(regs) = loc_service.get_regions(&location.id).await {
+                    all_regions.extend(regs);
+                }
+            }
+            regions.set(all_regions);
         });
     });
 
@@ -412,6 +435,9 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
                     world_id: world_id.clone(),
                     challenge: None,
                     skills: props.skills.clone(),
+                    // P1 Challenge availability props
+                    locations: locations.read().clone(),
+                    regions: regions.read().clone(),
                     on_save: {
                         let mut challenges = challenges;
                         move |challenge: ChallengeData| {
@@ -429,6 +455,9 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
                     world_id: world_id.clone(),
                     challenge: Some(challenge.clone()),
                     skills: props.skills.clone(),
+                    // P1 Challenge availability props
+                    locations: locations.read().clone(),
+                    regions: regions.read().clone(),
                     on_save: {
                         let mut challenges = challenges;
                         let challenge_id = challenge.id.clone();

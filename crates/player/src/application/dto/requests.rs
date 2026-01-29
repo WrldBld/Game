@@ -142,6 +142,11 @@ pub struct CreateChallengeRequest {
     pub difficulty: String,
     pub success_outcome: Option<String>,
     pub failure_outcome: Option<String>,
+    // P1 Challenge availability fields
+    pub available_at_location_id: Option<String>,
+    pub available_at_region_id: Option<String>,
+    pub availability_time_restriction: Option<String>,
+    pub always_available: bool,
 }
 
 impl From<CreateChallengeRequest> for wrldbldr_shared::CreateChallengeData {
@@ -153,6 +158,11 @@ impl From<CreateChallengeRequest> for wrldbldr_shared::CreateChallengeData {
             difficulty: req.difficulty,
             success_outcome: req.success_outcome,
             failure_outcome: req.failure_outcome,
+            // P1 Challenge availability fields
+            available_at_location_id: req.available_at_location_id,
+            available_at_region_id: req.available_at_region_id,
+            availability_time_restriction: req.availability_time_restriction,
+            always_available: req.always_available,
         }
     }
 }
@@ -166,6 +176,11 @@ pub struct UpdateChallengeRequest {
     pub difficulty: Option<String>,
     pub success_outcome: Option<String>,
     pub failure_outcome: Option<String>,
+    // P1 Challenge availability fields
+    pub available_at_location_id: Option<String>,
+    pub available_at_region_id: Option<String>,
+    pub availability_time_restriction: Option<String>,
+    pub always_available: Option<bool>,
 }
 
 impl From<UpdateChallengeRequest> for wrldbldr_shared::UpdateChallengeData {
@@ -177,6 +192,11 @@ impl From<UpdateChallengeRequest> for wrldbldr_shared::UpdateChallengeData {
             difficulty: req.difficulty,
             success_outcome: req.success_outcome,
             failure_outcome: req.failure_outcome,
+            // P1 Challenge availability fields
+            available_at_location_id: req.available_at_location_id,
+            available_at_region_id: req.available_at_region_id,
+            availability_time_restriction: req.availability_time_restriction,
+            always_available: req.always_available,
         }
     }
 }

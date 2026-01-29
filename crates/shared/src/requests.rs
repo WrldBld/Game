@@ -319,6 +319,15 @@ pub struct CreateChallengeData {
     pub success_outcome: Option<String>,
     #[serde(default)]
     pub failure_outcome: Option<String>,
+    // P1 Challenge availability fields
+    #[serde(default)]
+    pub available_at_location_id: Option<String>,
+    #[serde(default)]
+    pub available_at_region_id: Option<String>,
+    #[serde(default)]
+    pub availability_time_restriction: Option<String>,
+    #[serde(default)]
+    pub always_available: bool,
 }
 
 /// Data for updating a challenge
@@ -336,6 +345,15 @@ pub struct UpdateChallengeData {
     pub success_outcome: Option<String>,
     #[serde(default)]
     pub failure_outcome: Option<String>,
+    // P1 Challenge availability fields
+    #[serde(default)]
+    pub available_at_location_id: Option<String>,
+    #[serde(default)]
+    pub available_at_region_id: Option<String>,
+    #[serde(default)]
+    pub availability_time_restriction: Option<String>,
+    #[serde(default)]
+    pub always_available: Option<bool>,
 }
 
 /// Data for creating a narrative event

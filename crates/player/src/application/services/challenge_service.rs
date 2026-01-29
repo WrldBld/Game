@@ -67,6 +67,11 @@ impl ChallengeService {
             difficulty: challenge.difficulty.display(),
             success_outcome: Some(challenge.outcomes.success.description.clone()),
             failure_outcome: Some(challenge.outcomes.failure.description.clone()),
+            // P1 Challenge availability fields
+            available_at_location_id: challenge.available_at_location_id.clone(),
+            available_at_region_id: challenge.available_at_region_id.clone(),
+            availability_time_restriction: challenge.availability_time_restriction.clone(),
+            always_available: challenge.always_available,
         };
 
         let payload = RequestPayload::Challenge(ChallengeRequest::CreateChallenge {
@@ -92,6 +97,11 @@ impl ChallengeService {
             difficulty: Some(challenge.difficulty.display()),
             success_outcome: Some(challenge.outcomes.success.description.clone()),
             failure_outcome: Some(challenge.outcomes.failure.description.clone()),
+            // P1 Challenge availability fields
+            available_at_location_id: challenge.available_at_location_id.clone(),
+            available_at_region_id: challenge.available_at_region_id.clone(),
+            availability_time_restriction: challenge.availability_time_restriction.clone(),
+            always_available: Some(challenge.always_available),
         };
 
         let payload = RequestPayload::Challenge(ChallengeRequest::UpdateChallenge {

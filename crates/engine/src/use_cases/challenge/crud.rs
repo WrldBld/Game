@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    self as domain, ChallengeId, ChallengeName, Description, Difficulty, WorldId, DomainError, SkillId,
+    self as domain, ChallengeId, ChallengeName, Description, Difficulty, DomainError, WorldId,
+    LocationId, RegionId, SkillId,
 };
 
 use crate::infrastructure::ports::{ChallengeRepo, ContentRepo, RepoError};
@@ -20,6 +21,11 @@ pub struct CreateChallengeInput {
     pub description: Option<String>,
     pub success_outcome: Option<String>,
     pub failure_outcome: Option<String>,
+    // P1 Challenge availability fields
+    pub available_at_location_id: Option<LocationId>,
+    pub available_at_region_id: Option<RegionId>,
+    pub availability_time_restriction: Option<String>,
+    pub always_available: bool,
 }
 
 /// Input for updating a challenge (domain representation).
@@ -30,6 +36,11 @@ pub struct UpdateChallengeInput {
     pub difficulty: Option<String>,
     pub success_outcome: Option<String>,
     pub failure_outcome: Option<String>,
+    // P1 Challenge availability fields
+    pub available_at_location_id: Option<LocationId>,
+    pub available_at_region_id: Option<RegionId>,
+    pub availability_time_restriction: Option<String>,
+    pub always_available: Option<bool>,
 }
 
 pub struct ChallengeOps {
@@ -40,6 +51,47 @@ pub struct ChallengeOps {
 impl ChallengeOps {
     pub fn new(challenge: Arc<dyn ChallengeRepo>, content: Arc<dyn ContentRepo>) -> Self {
         Self { challenge, content }
+    }
+
+    /// Validate availability input constraints (P1 review remediation).
+    ///
+    /// Rules:
+    /// 1. Cannot have both location_id and region_id set
+    /// 2. If always_available=true, no ids or time restriction allowed
+    /// 3. If region selected, clear location id and vice versa
+    fn validate_availability_input(
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
+        always_available: bool,
+        time_restriction: Option<&str>,
+    ) -> Result<(), ChallengeError> {
+        // Rule 1: Cannot have both location_id and region_id set
+        if location_id.is_some() && region_id.is_some() {
+            return Err(ChallengeError::ValidationError(
+                DomainError::validation(
+                    "Cannot specify both location_id and region_id. Specify one or the other.",
+                ),
+            ));
+        }
+
+        // Rule 2: If always_available=true, no ids or time restriction allowed
+        if always_available && (location_id.is_some() || region_id.is_some()) {
+            return Err(ChallengeError::ValidationError(
+                DomainError::validation(
+                    "always_available=true cannot have location_id or region_id specified",
+                ),
+            ));
+        }
+
+        if always_available && time_restriction.is_some() {
+            return Err(ChallengeError::ValidationError(
+                DomainError::validation(
+                    "always_available=true cannot have time_restriction specified",
+                ),
+            ));
+        }
+
+        Ok(())
     }
 
     pub async fn list(&self, world_id: WorldId) -> Result<Vec<ChallengeSummary>, ChallengeError> {
@@ -54,10 +106,35 @@ impl ChallengeOps {
                 .get_required_skill(challenge.id())
                 .await?;
 
+            // Fetch availability (P1)
+            let availabilities = self
+                .challenge
+                .get_availability(challenge.id())
+                .await?;
+            let availability = availabilities.first();
+
+            let location_id_summary = availability.and_then(|a| a.location_id);
+            let region_id_summary = availability.and_then(|a| a.region_id);
+            let time_restriction_summary = availability.and_then(|a| a.time_restriction.clone());
+            let always_available_summary = availability.map(|a| a.always_available).unwrap_or(true);
+
             if let Some(sid) = skill_id {
-                summaries.push(challenge_to_summary_with_skill(challenge, Some(sid)));
+                summaries.push(challenge_to_summary_with_skill(
+                    challenge,
+                    Some(sid),
+                    location_id_summary,
+                    region_id_summary,
+                    time_restriction_summary,
+                    always_available_summary,
+                ));
             } else {
-                summaries.push(challenge_to_summary(challenge));
+                summaries.push(challenge_to_summary(
+                    challenge,
+                    location_id_summary,
+                    region_id_summary,
+                    time_restriction_summary,
+                    always_available_summary,
+                ));
             }
         }
         Ok(summaries)
@@ -75,10 +152,32 @@ impl ChallengeOps {
                 .get_required_skill(challenge_id)
                 .await?;
 
+            // Fetch availability (P1)
+            let availabilities = self.challenge.get_availability(challenge_id).await?;
+            let availability = availabilities.first();
+
+            let location_id_summary = availability.and_then(|a| a.location_id);
+            let region_id_summary = availability.and_then(|a| a.region_id);
+            let time_restriction_summary = availability.and_then(|a| a.time_restriction.clone());
+            let always_available_summary = availability.map(|a| a.always_available).unwrap_or(true);
+
             Ok(Some(if let Some(sid) = skill_id {
-                challenge_to_summary_with_skill(ch, Some(sid))
+                challenge_to_summary_with_skill(
+                    ch,
+                    Some(sid),
+                    location_id_summary,
+                    region_id_summary,
+                    time_restriction_summary,
+                    always_available_summary,
+                )
             } else {
-                challenge_to_summary(ch)
+                challenge_to_summary(
+                    ch,
+                    location_id_summary,
+                    region_id_summary,
+                    time_restriction_summary,
+                    always_available_summary,
+                )
             }))
         } else {
             Ok(None)
@@ -90,6 +189,14 @@ impl ChallengeOps {
         world_id: WorldId,
         input: CreateChallengeInput,
     ) -> Result<ChallengeSummary, ChallengeError> {
+        // Validate input constraints (P1)
+        Self::validate_availability_input(
+            input.available_at_location_id,
+            input.available_at_region_id,
+            input.always_available,
+            input.availability_time_restriction.as_deref(),
+        )?;
+
         // Convert input name to ChallengeName with validation
         let challenge_name = ChallengeName::new(&input.name)?;
 
@@ -152,7 +259,35 @@ impl ChallengeOps {
         // Persist REQUIRES_SKILL edge
         self.challenge.set_required_skill(challenge.id(), skill_id).await?;
 
-        Ok(challenge_to_summary_with_skill(&challenge, Some(skill_id)))
+        // Persist availability edge (P1)
+        if let Some(location_id) = input.available_at_location_id {
+            self.challenge
+                .set_availability_at_location(
+                    challenge.id(),
+                    location_id,
+                    input.always_available,
+                    input.availability_time_restriction.clone(),
+                )
+                .await?;
+        } else if let Some(region_id) = input.available_at_region_id {
+            self.challenge
+                .set_availability_at_region(
+                    challenge.id(),
+                    region_id,
+                    input.always_available,
+                    input.availability_time_restriction.clone(),
+                )
+                .await?;
+        }
+
+        Ok(challenge_to_summary_with_skill(
+            &challenge,
+            Some(skill_id),
+            input.available_at_location_id,
+            input.available_at_region_id,
+            input.availability_time_restriction,
+            input.always_available,
+        ))
     }
 
     pub async fn update(
@@ -160,12 +295,19 @@ impl ChallengeOps {
         challenge_id: ChallengeId,
         input: UpdateChallengeInput,
     ) -> Result<ChallengeSummary, ChallengeError> {
+        // Validate availability input constraints (P1 review remediation)
+        Self::validate_availability_input(
+            input.available_at_location_id,
+            input.available_at_region_id,
+            input.always_available.unwrap_or(true),
+            input.availability_time_restriction.as_deref(),
+        )?;
+
         let mut challenge = self
             .challenge
             .get(challenge_id)
             .await?
             .ok_or(ChallengeError::NotFound)?;
-
         // Since Challenge has private fields, we need to rebuild with updated values
         // Use accessors to get current values, then rebuild with builder pattern
         let name = if let Some(new_name) = input.name {
@@ -261,10 +403,58 @@ impl ChallengeOps {
             }
         };
 
+        // Availability edge cleanup (P1 review remediation):
+        // If switching types or setting always_available, remove existing edges
+        if input.available_at_location_id.is_some() || input.available_at_region_id.is_some() {
+            // Remove old availability edges before setting new ones
+            // This prevents duplicate edges when switching from location to region
+            self.challenge.remove_availability(challenge_id).await?;
+        }
+
+        // Persist availability edge (P1)
+        if let Some(location_id) = input.available_at_location_id {
+            self.challenge
+                .set_availability_at_location(
+                    challenge_id,
+                    location_id,
+                    input.always_available.unwrap_or(true),
+                    input.availability_time_restriction.clone(),
+                )
+                .await?;
+        } else if let Some(region_id) = input.available_at_region_id {
+            self.challenge
+                .set_availability_at_region(
+                    challenge_id,
+                    region_id,
+                    input.always_available.unwrap_or(true),
+                    input.availability_time_restriction.clone(),
+                )
+                .await?;
+        }
+
+        // Get final availability values for summary
+        let location_id_summary = input.available_at_location_id;
+        let region_id_summary = input.available_at_region_id;
+        let time_restriction_summary = input.availability_time_restriction;
+        let always_available_summary = input.always_available.unwrap_or(true);
+
         Ok(if let Some(sid) = skill_id_for_summary {
-            challenge_to_summary_with_skill(&challenge, Some(sid))
+            challenge_to_summary_with_skill(
+                &challenge,
+                Some(sid),
+                location_id_summary,
+                region_id_summary,
+                time_restriction_summary,
+                always_available_summary,
+            )
         } else {
-            challenge_to_summary(&challenge)
+            challenge_to_summary(
+                &challenge,
+                location_id_summary,
+                region_id_summary,
+                time_restriction_summary,
+                always_available_summary,
+            )
         })
     }
 
@@ -342,7 +532,14 @@ impl From<ValidationError> for ChallengeError {
     }
 }
 
-fn challenge_to_summary_with_skill(challenge: &domain::Challenge, skill_id: Option<SkillId>) -> ChallengeSummary {
+fn challenge_to_summary_with_skill(
+    challenge: &domain::Challenge,
+    skill_id: Option<SkillId>,
+    available_at_location_id: Option<LocationId>,
+    available_at_region_id: Option<RegionId>,
+    availability_time_restriction: Option<String>,
+    always_available: bool,
+) -> ChallengeSummary {
     ChallengeSummary {
         id: challenge.id(),
         world_id: challenge.world_id(),
@@ -350,7 +547,7 @@ fn challenge_to_summary_with_skill(challenge: &domain::Challenge, skill_id: Opti
         name: challenge.name().to_string(),
         description: challenge.description().to_string(),
         challenge_type: challenge_type_to_str(&challenge.challenge_type()).to_string(),
-        skill_id: skill_id.map(|id| id.to_string()).unwrap_or_default(),
+        skill_id,
         difficulty: difficulty_to_summary(challenge.difficulty()),
         outcomes: OutcomesSummary {
             success: outcome_to_summary(&challenge.outcomes().success),
@@ -381,10 +578,20 @@ fn challenge_to_summary_with_skill(challenge: &domain::Challenge, skill_id: Opti
         order: challenge.order(),
         is_favorite: challenge.is_favorite(),
         tags: challenge.tags().iter().map(|t| t.to_string()).collect(),
+        available_at_location_id,
+        available_at_region_id,
+        availability_time_restriction,
+        always_available,
     }
 }
 
-fn challenge_to_summary(challenge: &domain::Challenge) -> ChallengeSummary {
+fn challenge_to_summary(
+    challenge: &domain::Challenge,
+    available_at_location_id: Option<LocationId>,
+    available_at_region_id: Option<RegionId>,
+    availability_time_restriction: Option<String>,
+    always_available: bool,
+) -> ChallengeSummary {
     ChallengeSummary {
         id: challenge.id(),
         world_id: challenge.world_id(),
@@ -392,7 +599,7 @@ fn challenge_to_summary(challenge: &domain::Challenge) -> ChallengeSummary {
         name: challenge.name().to_string(),
         description: challenge.description().to_string(),
         challenge_type: challenge_type_to_str(&challenge.challenge_type()).to_string(),
-        skill_id: String::new(),
+        skill_id: None,
         difficulty: difficulty_to_summary(challenge.difficulty()),
         outcomes: OutcomesSummary {
             success: outcome_to_summary(&challenge.outcomes().success),
@@ -423,6 +630,10 @@ fn challenge_to_summary(challenge: &domain::Challenge) -> ChallengeSummary {
         order: challenge.order(),
         is_favorite: challenge.is_favorite(),
         tags: challenge.tags().iter().map(|t| t.to_string()).collect(),
+        available_at_location_id,
+        available_at_region_id,
+        availability_time_restriction,
+        always_available,
     }
 }
 

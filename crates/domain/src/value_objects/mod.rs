@@ -8,6 +8,7 @@ mod actantial_context;
 mod activation_rules;
 mod ad_hoc_outcomes;
 mod archetype;
+mod availability_time_restriction;
 mod calendar;
 mod character_state;
 mod comfyui_config;
@@ -34,6 +35,9 @@ pub use activation_rules::{ActivationEvaluation, ActivationLogic, ActivationRule
 
 // Ad-hoc challenge outcomes
 pub use ad_hoc_outcomes::AdHocOutcomes;
+
+// Availability time restriction
+pub use availability_time_restriction::AvailabilityTimeRestriction;
 
 // Actantial model context for LLM consumption
 pub use actantial_context::{

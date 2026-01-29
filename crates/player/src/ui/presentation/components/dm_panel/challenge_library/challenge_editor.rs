@@ -3,9 +3,12 @@
 use crate::application::dto::{
     ChallengeData, ChallengeDifficulty, ChallengeOutcomes, ChallengeType, SkillData,
 };
+use crate::application::services::location_service::LocationSummary;
 use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_challenge_service;
 use dioxus::prelude::*;
+
+use wrldbldr_shared::RegionListItemData;
 
 /// Props for ChallengeFormModal
 #[derive(Props, Clone, PartialEq)]
@@ -13,6 +16,9 @@ pub struct ChallengeFormModalProps {
     pub world_id: String,
     pub challenge: Option<ChallengeData>,
     pub skills: Vec<SkillData>,
+    // P1 Challenge availability props
+    pub locations: Vec<LocationSummary>,
+    pub regions: Vec<RegionListItemData>,
     pub on_save: EventHandler<ChallengeData>,
     pub on_close: EventHandler<()>,
 }
@@ -34,6 +40,11 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
     let mut success_desc = use_signal(|| initial.outcomes.success.description.clone());
     let mut failure_desc = use_signal(|| initial.outcomes.failure.description.clone());
     let mut tags_str = use_signal(|| initial.tags.join(", "));
+    // P1 Challenge availability state
+    let mut available_at_location_id = use_signal(|| initial.available_at_location_id.clone());
+    let mut available_at_region_id = use_signal(|| initial.available_at_region_id.clone());
+    let mut availability_time_restriction = use_signal(|| initial.availability_time_restriction.clone());
+    let mut always_available = use_signal(|| initial.always_available);
     let mut is_saving = use_signal(|| false);
     let mut save_error: Signal<Option<String>> = use_signal(|| None);
     let mut validation_errors: Signal<Vec<String>> = use_signal(Vec::new);
@@ -117,6 +128,11 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect(),
+            // P1 Challenge availability fields
+            available_at_location_id: available_at_location_id.read().clone(),
+            available_at_region_id: available_at_region_id.read().clone(),
+            availability_time_restriction: availability_time_restriction.read().clone(),
+            always_available: *always_available.read(),
         };
 
         let on_save = props.on_save;
@@ -391,6 +407,89 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
                         }
                     }
 
+                    // P1 Challenge Availability Section
+                    div {
+                        class: "pt-4 border-t border-gray-700 mt-4",
+                        label { class: "block text-blue-400 text-xs font-semibold mb-3", "Availability" }
+
+                        // Always available checkbox
+                        label {
+                            class: "flex items-center gap-2 text-gray-300 text-sm mb-3 cursor-pointer",
+                            input {
+                                r#type: "checkbox",
+                                checked: *always_available.read(),
+                                onchange: move |e| always_available.set(e.checked()),
+                                class: "w-4 h-4 rounded border-gray-600 bg-dark-bg",
+                            }
+                            "Available everywhere"
+                        }
+
+                        // Location selector (disabled if always_available is true)
+                        if !*always_available.read() {
+                            div {
+                                class: "grid grid-cols-2 gap-4 mb-3",
+                                // Location selector
+                                div {
+                                    label { class: "block text-gray-400 text-xs mb-1", "Location" }
+                                    select {
+                                        value: "{available_at_location_id.read().clone().unwrap_or_default()}",
+                                        onchange: move |e| {
+                                            let val = e.value();
+                                            available_at_location_id.set(if val.is_empty() { None } else { Some(val) });
+                                            // Reset region when location changes
+                                            available_at_region_id.set(None);
+                                        },
+                                        disabled: *always_available.read(),
+                                        class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white disabled:opacity-50",
+                                        option { value: "", "Any location" }
+                                        for location in props.locations.iter() {
+                                            option { value: "{location.id}", "{location.name}" }
+                                        }
+                                    }
+                                }
+
+                                // Region selector
+                                div {
+                                    label { class: "block text-gray-400 text-xs mb-1", "Region" }
+                                    select {
+                                        value: "{available_at_region_id.read().clone().unwrap_or_default()}",
+                                        onchange: move |e| {
+                                            let val = e.value();
+                                            available_at_region_id.set(if val.is_empty() { None } else { Some(val) });
+                                        },
+                                        disabled: *always_available.read() || available_at_location_id.read().is_none(),
+                                        class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white disabled:opacity-50",
+                                        option { value: "", "Any region" }
+                                        // Filter regions by selected location if available
+                                        for region in props.regions.iter().filter(|r| {
+                                            available_at_location_id.read()
+                                                .as_ref()
+                                                .map_or(true, |loc_id| loc_id == &r.location_id)
+                                        }) {
+                                            option { value: "{region.id}", "{region.name}" }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Time restriction
+                            div {
+                                label { class: "block text-gray-400 text-xs mb-1", "Time Restriction (optional)" }
+                                input {
+                                    r#type: "text",
+                                    value: "{availability_time_restriction.read().clone().unwrap_or_default()}",
+                                    oninput: move |e| {
+                                        let val = e.value();
+                                        availability_time_restriction.set(if val.trim().is_empty() { None } else { Some(val) });
+                                    },
+                                    placeholder: "e.g., night, day, dawn, dusk",
+                                    disabled: *always_available.read(),
+                                    class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white disabled:opacity-50 box-border",
+                                }
+                            }
+                        }
+                    }
+
                     // Error
                     if let Some(err) = save_error.read().as_ref() {
                         div { class: "text-red-500 text-sm", "{err}" }
@@ -439,6 +538,11 @@ impl DefaultChallenge for Option<ChallengeData> {
             order: 0,
             is_favorite: false,
             tags: vec![],
+            // P1 Challenge availability fields
+            available_at_location_id: None,
+            available_at_region_id: None,
+            availability_time_restriction: None,
+            always_available: true,
         })
     }
 }

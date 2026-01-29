@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_description_or_default, parse_typed_id, NodeExt};
+use super::helpers::{parse_description_or_default, parse_typed_id, NodeExt, RowExt};
 use crate::infrastructure::ports::{ChallengeRepo, RepoError};
 
 // =============================================================================
@@ -611,5 +611,287 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         }
 
         Ok(None)
+    }
+
+    async fn set_availability_at_location(
+        &self,
+        challenge_id: ChallengeId,
+        location_id: LocationId,
+        always_available: bool,
+        time_restriction: Option<String>,
+    ) -> Result<(), RepoError> {
+        // Delete existing AVAILABLE_AT edge if present
+        let q_delete = query(
+            "MATCH (c:Challenge {id: $challenge_id})-[r:AVAILABLE_AT]->(l:Location)
+            DELETE r",
+        )
+        .param("challenge_id", challenge_id.to_string());
+
+        self.graph
+            .run(q_delete)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Create new AVAILABLE_AT edge
+        let q_create = query(
+            "MATCH (c:Challenge {id: $challenge_id}), (l:Location {id: $location_id})
+            CREATE (c)-[:AVAILABLE_AT {always_available: $always_available, time_restriction: $time_restriction}]->(l)",
+        )
+        .param("challenge_id", challenge_id.to_string())
+        .param("location_id", location_id.to_string())
+        .param("always_available", always_available)
+        .param("time_restriction", time_restriction);
+
+        self.graph
+            .run(q_create)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        tracing::debug!(
+            challenge_id = %challenge_id,
+            location_id = %location_id,
+            always_available,
+            "Set AVAILABLE_AT edge"
+        );
+        Ok(())
+    }
+
+    async fn set_availability_at_region(
+        &self,
+        challenge_id: ChallengeId,
+        region_id: RegionId,
+        always_available: bool,
+        time_restriction: Option<String>,
+    ) -> Result<(), RepoError> {
+        // Delete existing AVAILABLE_AT_REGION edge if present
+        let q_delete = query(
+            "MATCH (c:Challenge {id: $challenge_id})-[r:AVAILABLE_AT_REGION]->(r:Region)
+            DELETE r",
+        )
+        .param("challenge_id", challenge_id.to_string());
+
+        self.graph
+            .run(q_delete)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Create new AVAILABLE_AT_REGION edge
+        let q_create = query(
+            "MATCH (c:Challenge {id: $challenge_id}), (r:Region {id: $region_id})
+            CREATE (c)-[:AVAILABLE_AT_REGION {always_available: $always_available, time_restriction: $time_restriction}]->(r)",
+        )
+        .param("challenge_id", challenge_id.to_string())
+        .param("region_id", region_id.to_string())
+        .param("always_available", always_available)
+        .param("time_restriction", time_restriction);
+
+        self.graph
+            .run(q_create)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        tracing::debug!(
+            challenge_id = %challenge_id,
+            region_id = %region_id,
+            always_available,
+            "Set AVAILABLE_AT_REGION edge"
+        );
+        Ok(())
+    }
+
+    async fn get_availability(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<crate::infrastructure::ports::ChallengeAvailability>, RepoError> {
+        // Use UNION to avoid cartesian join between location and region OPTIONAL MATCHes
+        // This ensures we read always_available and time_restriction from the correct relationship
+        let q = query(
+            "MATCH (c:Challenge {id: $challenge_id})
+            OPTIONAL MATCH (c)-[r:AVAILABLE_AT]->(l:Location)
+            WITH c, l, r.always_available AS loc_always, r.time_restriction AS loc_time
+            OPTIONAL MATCH (c)-[r2:AVAILABLE_AT_REGION]->(region:Region)
+            WITH c, l, loc_always, loc_time, r2.always_available AS reg_always, r2.time_restriction AS reg_time, region
+            RETURN l.id AS location_id, region.id AS region_id,
+                   COALESCE(loc_always, reg_always, true) AS always_available,
+                   COALESCE(loc_time, reg_time) AS time_restriction",
+        )
+        .param("challenge_id", challenge_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // If no availability edges exist, default to always_available=true
+        let first_row = result.next().await.map_err(|e| RepoError::database("query", e))?;
+        if first_row.is_none() {
+            // No availability edges - challenge is always available
+            return Ok(vec![crate::infrastructure::ports::ChallengeAvailability {
+                location_id: None,
+                region_id: None,
+                always_available: true,
+                time_restriction: None,
+            }]);
+        }
+
+        let mut availabilities = Vec::new();
+
+        // Process the first row we already retrieved
+        if let Some(row) = first_row {
+            let location_id: Option<String> = row.get_optional_string("location_id");
+            let region_id: Option<String> = row.get_optional_string("region_id");
+            let always_available: bool = row.get_bool_or("always_available", true);
+            let time_restriction: Option<String> = row.get_optional_string("time_restriction");
+
+            // Parse location_id
+            let parsed_location_id: Option<LocationId> = if let Some(id_str) = location_id {
+                id_str
+                    .parse::<uuid::Uuid>()
+                    .ok()
+                    .map(LocationId::from)
+            } else {
+                None
+            };
+
+            // Parse region_id
+            let parsed_region_id: Option<RegionId> = if let Some(id_str) = region_id {
+                id_str
+                    .parse::<uuid::Uuid>()
+                    .ok()
+                    .map(RegionId::from)
+            } else {
+                None
+            };
+
+            availabilities.push(crate::infrastructure::ports::ChallengeAvailability {
+                location_id: parsed_location_id,
+                region_id: parsed_region_id,
+                always_available,
+                time_restriction,
+            });
+        }
+
+        // Process remaining rows
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let location_id: Option<String> = row.get_optional_string("location_id");
+            let region_id: Option<String> = row.get_optional_string("region_id");
+            let always_available: bool = row.get_bool_or("always_available", true);
+            let time_restriction: Option<String> = row.get_optional_string("time_restriction");
+
+            // Parse location_id
+            let parsed_location_id: Option<LocationId> = if let Some(id_str) = location_id {
+                id_str
+                    .parse::<uuid::Uuid>()
+                    .ok()
+                    .map(LocationId::from)
+            } else {
+                None
+            };
+
+            // Parse region_id
+            let parsed_region_id: Option<RegionId> = if let Some(id_str) = region_id {
+                id_str
+                    .parse::<uuid::Uuid>()
+                    .ok()
+                    .map(RegionId::from)
+            } else {
+                None
+            };
+
+            availabilities.push(crate::infrastructure::ports::ChallengeAvailability {
+                location_id: parsed_location_id,
+                region_id: parsed_region_id,
+                always_available,
+                time_restriction,
+            });
+        }
+
+        Ok(availabilities)
+    }
+
+    async fn list_available_at_location(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<ChallengeId>, RepoError> {
+        let q = query(
+            "MATCH (c:Challenge)-[:AVAILABLE_AT]->(l:Location {id: $location_id})
+            RETURN c.id AS id",
+        )
+        .param("location_id", location_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut challenge_ids = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
+            if let Ok(uuid) = id_str.parse::<uuid::Uuid>() {
+                challenge_ids.push(ChallengeId::from(uuid));
+            }
+        }
+
+        Ok(challenge_ids)
+    }
+
+    async fn list_available_at_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<ChallengeId>, RepoError> {
+        let q = query(
+            "MATCH (c:Challenge)-[:AVAILABLE_AT_REGION]->(r:Region {id: $region_id})
+            RETURN c.id AS id",
+        )
+        .param("region_id", region_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut challenge_ids = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
+            if let Ok(uuid) = id_str.parse::<uuid::Uuid>() {
+                challenge_ids.push(ChallengeId::from(uuid));
+            }
+        }
+
+        Ok(challenge_ids)
+    }
+
+    async fn remove_availability(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (c:Challenge {id: $challenge_id})-[r:AVAILABLE_AT|AVAILABLE_AT_REGION]->(x)
+            DELETE r",
+        )
+        .param("challenge_id", challenge_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        tracing::debug!(challenge_id = %challenge_id, "Removed availability edges");
+        Ok(())
     }
 }

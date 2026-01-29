@@ -417,6 +417,77 @@ pub trait ChallengeRepo: Send + Sync {
     async fn set_required_skill(&self, challenge_id: ChallengeId, skill_id: SkillId) -> Result<(), RepoError>;
     /// Get the skill ID required for a challenge via REQUIRES_SKILL edge.
     async fn get_required_skill(&self, challenge_id: ChallengeId) -> Result<Option<SkillId>, RepoError>;
+
+    // =========================================================================
+    // Challenge Availability (P1) - Location/Region edges
+    // =========================================================================
+
+    /// Set challenge availability at a location via AVAILABLE_AT edge.
+    /// Replaces existing availability edge if one exists.
+    ///
+    /// # Arguments
+    /// * `challenge_id` - The challenge to set availability for
+    /// * `location_id` - The location where this challenge is available
+    /// * `always_available` - Whether the challenge is always available at this location
+    /// * `time_restriction` - Optional time restriction (e.g., "Morning", "Afternoon")
+    async fn set_availability_at_location(
+        &self,
+        challenge_id: ChallengeId,
+        location_id: LocationId,
+        always_available: bool,
+        time_restriction: Option<String>,
+    ) -> Result<(), RepoError>;
+
+    /// Set challenge availability at a region via AVAILABLE_AT_REGION edge.
+    /// Replaces existing availability edge if one exists.
+    ///
+    /// # Arguments
+    /// * `challenge_id` - The challenge to set availability for
+    /// * `region_id` - The region where this challenge is available
+    /// * `always_available` - Whether the challenge is always available at this region
+    /// * `time_restriction` - Optional time restriction (e.g., "Morning", "Afternoon")
+    async fn set_availability_at_region(
+        &self,
+        challenge_id: ChallengeId,
+        region_id: RegionId,
+        always_available: bool,
+        time_restriction: Option<String>,
+    ) -> Result<(), RepoError>;
+
+    /// Get availability for a challenge (both location and region).
+    /// Returns a tuple of (location_id, region_id, always_available, time_restriction).
+    async fn get_availability(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<ChallengeAvailability>, RepoError>;
+
+    /// List all challenges available at a location.
+    async fn list_available_at_location(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<ChallengeId>, RepoError>;
+
+    /// List all challenges available at a region.
+    async fn list_available_at_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<ChallengeId>, RepoError>;
+
+    /// Remove availability edges for a challenge (both location and region).
+    async fn remove_availability(&self, challenge_id: ChallengeId) -> Result<(), RepoError>;
+}
+
+/// Availability information for a challenge.
+#[derive(Debug, Clone)]
+pub struct ChallengeAvailability {
+    /// Location ID if challenge is available at a specific location
+    pub location_id: Option<LocationId>,
+    /// Region ID if challenge is available at a specific region
+    pub region_id: Option<RegionId>,
+    /// Whether the challenge is always available at this location/region
+    pub always_available: bool,
+    /// Optional time restriction (e.g., "Morning", "Afternoon", "Evening", "Night")
+    pub time_restriction: Option<String>,
 }
 
 #[cfg_attr(test, mockall::automock)]

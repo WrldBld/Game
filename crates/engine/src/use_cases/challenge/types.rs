@@ -1,16 +1,19 @@
 //! Domain types for challenge use cases.
 //!
 //! These types represent challenge data in a structured way, avoiding raw JSON.
-//! JSON serialization happens at the API boundary layer.
+//! JSON serialization happens at API boundary layer.
 //!
 //! Note: These DTOs are designed for serialization (use case -> API -> JSON wire format).
-//! The `#[serde(flatten)]` + `#[serde(untagged)]` pattern produces the same JSON as the
+//! The `#[serde(flatten)]` + `#[serde(untagged)]` pattern produces the same JSON as
 //! original `serde_json::json!` approach while providing type safety.
 
 use serde::{Deserialize, Serialize};
-use wrldbldr_domain::{ChallengeId, SceneId, WorldId};
+use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId};
 
 /// Summary of a challenge for API responses.
+///
+/// Note: This is a use-case DTO with typed IDs (ADR-011).
+/// Conversion to wire format happens in the API layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChallengeSummary {
     pub id: ChallengeId,
@@ -19,15 +22,20 @@ pub struct ChallengeSummary {
     pub name: String,
     pub description: String,
     pub challenge_type: String,
-    pub skill_id: String,
+    pub skill_id: Option<SkillId>,
     pub difficulty: DifficultySummary,
     pub outcomes: OutcomesSummary,
     pub trigger_conditions: Vec<TriggerConditionSummary>,
-    pub prerequisite_challenges: Vec<String>,
+    pub prerequisite_challenges: Vec<ChallengeId>,
     pub active: bool,
     pub order: u32,
     pub is_favorite: bool,
     pub tags: Vec<String>,
+    // P1 Challenge availability fields (typed IDs per ADR-011)
+    pub available_at_location_id: Option<LocationId>,
+    pub available_at_region_id: Option<RegionId>,
+    pub availability_time_restriction: Option<String>,
+    pub always_available: bool,
 }
 
 /// Summary of challenge difficulty.

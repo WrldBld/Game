@@ -255,6 +255,8 @@ pub use value_objects::{
     AssetPath,
     // Atmosphere
     Atmosphere,
+    // Availability time restriction
+    AvailabilityTimeRestriction,
     // Rule system types
     BladesPoolThresholds,
     // Calendar types
