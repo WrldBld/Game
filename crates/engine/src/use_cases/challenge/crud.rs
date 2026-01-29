@@ -32,11 +32,12 @@ pub struct UpdateChallengeInput {
 
 pub struct ChallengeOps {
     challenge: Arc<dyn ChallengeRepo>,
+    content: Arc<dyn ContentRepo>,
 }
 
 impl ChallengeOps {
-    pub fn new(challenge: Arc<dyn ChallengeRepo>) -> Self {
-        Self { challenge }
+    pub fn new(challenge: Arc<dyn ChallengeRepo>, content: Arc<dyn ContentRepo>) -> Self {
+        Self { challenge, content }
     }
 
     pub async fn list(&self, world_id: WorldId) -> Result<Vec<ChallengeSummary>, ChallengeError> {
@@ -60,6 +61,23 @@ impl ChallengeOps {
         // Convert input name to ChallengeName with validation
         let challenge_name = ChallengeName::new(&input.name)?;
 
+        // Validate and parse skill_id
+        let skill_id = input.skill_id.parse::<SkillId>().map_err(|_| {
+            ChallengeError::ValidationError(DomainError::validation("Invalid skill_id format"))
+        })?;
+
+        // Fetch skill to get base_attribute
+        let skill = self
+            .content
+            .get_skill(skill_id)
+            .await?
+            .ok_or(ChallengeError::ValidationError(DomainError::validation(
+                "Skill not found",
+            )))?;
+
+        // Set check_stat from skill's base_attribute
+        let check_stat = skill.base_attribute;
+
         // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
         // This is intentional to support freeform difficulty descriptions
         let challenge = domain::Challenge::new(
@@ -79,6 +97,13 @@ impl ChallengeOps {
         })
         .with_order(0);
 
+        // Apply check_stat if skill has a base_attribute
+        let challenge = if let Some(stat) = check_stat {
+            challenge.with_check_stat(stat)
+        } else {
+            challenge
+        };
+
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
         if !trigger_errors.is_empty() {
@@ -91,7 +116,11 @@ impl ChallengeOps {
         }
 
         self.challenge.save(&challenge).await?;
-        Ok(challenge_to_summary(&challenge))
+
+        // Persist REQUIRES_SKILL edge
+        self.challenge.set_required_skill(challenge.id(), skill_id).await?;
+
+        Ok(challenge_to_summary_with_skill(&challenge, skill_id))
     }
 
     pub async fn update(

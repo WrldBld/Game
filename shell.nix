@@ -15,6 +15,7 @@ pkgs.mkShell {
     rustfmt
     clippy
     rust-analyzer
+    rustPlatform.rustLibSrc
 
     # Build essentials
     pkg-config
@@ -94,6 +95,9 @@ pkgs.mkShell {
     export OPENSSL_LIB_DIR="${pkgs.openssl.out}/lib"
     export OPENSSL_INCLUDE_DIR="${pkgs.openssl.dev}/include"
     export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+    # Rust analyzer stdlib sources
+    export RUST_SRC_PATH="${pkgs.rustPlatform.rustLibSrc}/lib/rustlib/src/rust/library"
 
     # SQLite
     export SQLITE3_LIB_DIR="${pkgs.sqlite.out}/lib"
