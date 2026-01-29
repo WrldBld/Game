@@ -7,12 +7,24 @@
 - NPCs: Marcus (bartender), Old Sal (regular)
 - Goal: Learn about a smuggler and unlock a dock lead
 
+## System References
+
+- `docs/systems/session-system.md`
+- `docs/systems/scene-system.md`
+- `docs/systems/staging-system.md`
+- `docs/systems/dialogue-system.md`
+- `docs/systems/challenge-system.md`
+- `docs/systems/narrative-system.md`
+- `docs/systems/navigation-system.md`
+- `docs/systems/visual-state-system.md`
+- `docs/systems/game-time-system.md`
+
 ## Timeline
 
 ### 0:00 - 2:00: Join and Stage
 
 - Player joins world and appears at Bar Counter.
-- Staging request appears for DM with rule-based and LLM options.
+- DM sees staging request with rule-based and LLM options.
 - DM selects Marcus and Old Sal, sets TTL to 3 hours, approves visual state "Evening".
 - Player sees scene resolve with tavern backdrop and NPC sprites.
 
@@ -20,7 +32,7 @@
 
 - Player selects Talk -> Marcus.
 - LLM generates a short response about the smuggler rumor.
-- DM approves response and a tool suggestion: RevealInfo("dock meeting at night").
+- DM approves response and tool suggestion: RevealInfo("dock meeting at night").
 - Player sees response in dialogue box.
 
 ### 5:00 - 7:00: Choice and Hook
@@ -39,7 +51,7 @@
 
 ### 10:00 - 12:00: Time and Mood Shift
 
-- System suggests time +1 hour for the conversation.
+- System suggests +1 hour for the conversation.
 - DM approves time suggestion to advance toward night.
 - Visual state remains in "Evening"; atmosphere text updates slightly.
 

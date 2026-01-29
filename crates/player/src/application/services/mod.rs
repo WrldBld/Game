@@ -124,7 +124,7 @@ pub use character_sheet_service::{
 pub use conversation_service::ConversationService;
 
 // Re-export lore service types
-pub use lore_service::{LoreService, get_character_lore};
+pub use lore_service::LoreService;
 
 // Re-export NPC service types
 pub use npc_service::{

@@ -68,6 +68,7 @@ pub struct Services<A: ApiPort> {
     pub character_sheet: Arc<CharacterSheetService>,
     pub visual_state: Arc<VisualStateService>,
     pub npc: Arc<NpcService>,
+    pub lore: Arc<LoreService>,
     // REST-based services (generic over ApiPort) - file uploads, large payloads, admin config
     pub workflow: Arc<WorkflowService<A>>,
     pub asset: Arc<AssetService<A>>,
@@ -110,7 +111,7 @@ impl<A: ApiPort + Clone> Services<A> {
             character_sheet: Arc::new(CharacterSheetService::new(command_bus.clone())),
             visual_state: Arc::new(VisualStateService::new(command_bus.clone())),
             npc: Arc::new(NpcService::new(command_bus.clone())),
-            lore: Arc::new(LoreService::new(command_bus.clone(), raw_api)),
+            lore: Arc::new(LoreService::new(command_bus.clone())),
             // REST-based services - file uploads, large payloads, admin config
             workflow: Arc::new(WorkflowService::new(api.clone())),
             asset: Arc::new(AssetService::new(api.clone())),

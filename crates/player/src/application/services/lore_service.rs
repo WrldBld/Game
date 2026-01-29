@@ -2,27 +2,20 @@
 //!
 //! This service handles requests to fetch lore knowledge for characters.
 
-use std::sync::Arc;
+use wrldbldr_shared::{LoreJournalEntryData, LoreRequest, RequestPayload};
 
-use crate::application::api::ApiClient;
-use crate::application::dto::LoreJournalEntryData;
-use crate::infrastructure::websocket::ClientMessageBuilder;
-use crate::ports::outbound::CommandBus;
-use crate::ports::outbound::PlatformPort;
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use crate::infrastructure::messaging::CommandBus;
 
 /// Lore service
 pub struct LoreService {
-    api_client: Arc<ApiClient>,
-    command_bus: Arc<dyn CommandBus>,
+    commands: CommandBus,
 }
 
 impl LoreService {
     /// Create a new LoreService
-    pub fn new(api_client: Arc<ApiClient>, command_bus: Arc<dyn CommandBus>) -> Self {
-        Self {
-            api_client,
-            command_bus,
-        }
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// Get all known lore for a character
@@ -31,21 +24,17 @@ impl LoreService {
     pub async fn get_character_lore(
         &self,
         character_id: &str,
-    ) -> Result<Vec<LoreJournalEntryData>, String> {
+    ) -> Result<Vec<LoreJournalEntryData>, ServiceError> {
         tracing::info!("Requesting character lore for {}", character_id);
 
-        // Send GetCharacterLore request
-        let request_id = uuid::Uuid::new_v4().to_string();
-        let message = ClientMessageBuilder::get_character_lore(&request_id, character_id);
-
-        // Use request API to wait for response
-        self.api_client
-            .send_request::<Vec<LoreJournalEntryData>>(
-                &self.command_bus,
-                request_id,
-                message,
-            )
-            .await
+        let payload = RequestPayload::Lore(LoreRequest::GetCharacterLore {
+            character_id: character_id.to_string(),
+        });
+        let response = self
+            .commands
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
+        response.parse()
     }
 
     /// Get lore summary for a single lore entry
@@ -54,20 +43,17 @@ impl LoreService {
     pub async fn get_lore_entry(
         &self,
         lore_id: &str,
-    ) -> Result<LoreJournalEntryData, String> {
+    ) -> Result<LoreJournalEntryData, ServiceError> {
         tracing::info!("Requesting lore entry details for {}", lore_id);
 
-        // Send GetLoreEntry request (via Request payload)
-        let request_id = uuid::Uuid::new_v4().to_string();
-        let message = ClientMessageBuilder::get_lore_entry(&request_id, lore_id);
-
-        self.api_client
-            .send_request::<LoreJournalEntryData>(
-                &self.command_bus,
-                request_id,
-                message,
-            )
-            .await
+        let payload = RequestPayload::Lore(LoreRequest::GetLore {
+            lore_id: lore_id.to_string(),
+        });
+        let response = self
+            .commands
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
+        response.parse()
     }
 }
 
@@ -78,10 +64,8 @@ mod tests {
     #[test]
     fn test_lore_service_creation() {
         // Just verify the service can be constructed
-        // Full integration testing would require mocking dependencies
-        let api_client = Arc::new(ApiClient::new());
-        // Note: In real tests, we'd mock CommandBus
+        // Full integration testing would require mocking CommandBus
         // This test is just a placeholder for test coverage
-        let _api_client = api_client;
+        let _service_type: Option<LoreService> = None;
     }
 }

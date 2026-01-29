@@ -23,7 +23,7 @@ use crate::presentation::components::dm_panel::staging_approval::{
 use crate::presentation::components::dm_panel::time_control::TimeControlPanel;
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
 use crate::presentation::services::{
-    use_challenge_service, use_command_bus, use_conversation_service, use_skill_service,
+    use_challenge_service, use_command_bus, use_conversation_service, use_npc_service, use_skill_service,
 };
 use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
@@ -39,9 +39,8 @@ pub fn DirectorModeContent() -> Element {
     let skill_service = use_skill_service();
     let challenge_service = use_challenge_service();
     let conversation_service = use_conversation_service();
+    let npc_service = use_npc_service();
     let _generation_state = use_generation_state();
-    let command_bus_disposition = use_command_bus();
-    let command_bus_rel = use_command_bus();
     let command_bus_trigger = use_command_bus();
     let command_bus_approve = use_command_bus();
     let command_bus_regenerate = use_command_bus();
@@ -62,6 +61,7 @@ pub fn DirectorModeContent() -> Element {
     let mut selected_conversation_id: Signal<Option<String>> = use_signal(|| None);
     let mut conversations_loading = use_signal(|| false);
     let mut details_loading = use_signal(|| false);
+    let mut dispositions_loading = use_signal(|| false);
 
     // Load skills and challenges when world is available
     let world_id_for_skills = game_state.world.read().as_ref().map(|w| w.world.id.clone());
@@ -113,6 +113,44 @@ pub fn DirectorModeContent() -> Element {
         // This effect runs whenever conversation_details changes
         let _ = conversation_details_exists;
         details_loading.set(false);
+    });
+
+    // Subscribe to NPC dispositions refresh counter and refetch when it changes
+    let pc_id_for_dispositions = game_state.selected_pc_id.read().clone();
+    let dispositions_refresh = *game_state.npc_dispositions_refresh_counter.read();
+    let npc_service_for_effect = npc_service.clone();
+    let game_state_for_effect = game_state.clone();
+    use_effect(move || {
+        // This effect runs whenever npc_dispositions_refresh_counter changes
+        let _ = dispositions_refresh;
+        if let Some(pc_id) = pc_id_for_dispositions.clone() {
+            let svc = npc_service_for_effect.clone();
+            let mut game_state_clone = game_state_for_effect.clone();
+            spawn_task(async move {
+                dispositions_loading.set(true);
+                match svc.get_dispositions(&pc_id).await {
+                    Ok(response) => {
+                        // Convert to DTO format (sentiment is optional with default value)
+                        let dto_dispositions: Vec<crate::application::dto::NpcDispositionData> =
+                            response.dispositions.iter().map(|d| {
+                                crate::application::dto::NpcDispositionData {
+                                    npc_id: d.npc_id.clone(),
+                                    npc_name: d.npc_name.clone(),
+                                    disposition: d.disposition.to_string(),
+                                    relationship: d.relationship.clone(),
+                                    sentiment: 0.0, // Default value for now
+                                    last_reason: d.last_reason.clone(),
+                                }
+                            }).collect();
+                        game_state_clone.set_npc_dispositions(dto_dispositions);
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to fetch NPC dispositions: {}", e);
+                    }
+                }
+                dispositions_loading.set(false);
+            });
+        }
     });
 
     // Get pending approvals from state
@@ -364,50 +402,60 @@ pub fn DirectorModeContent() -> Element {
                                 pc_id: selected_pc_id.clone().unwrap_or_default(),
                                 pc_name: pc_name,
                                 scene_npcs: scene_npcs,
-                                on_disposition_change: move |evt: DispositionChangeEvent| {
-                                    tracing::info!(
-                                        npc_id = %evt.npc_id,
-                                        pc_id = %evt.pc_id,
-                                        disposition = %evt.disposition,
-                                        "DM changed NPC disposition"
-                                    );
-                                    // Parse disposition string to enum
-                                    let disposition = match evt.disposition.parse::<DispositionLevel>() {
-                                        Ok(d) => d,
-                                        Err(_) => {
-                                            tracing::warn!(
-                                                disposition = %evt.disposition,
-                                                "Invalid disposition value, using Neutral"
-                                            );
-                                            DispositionLevel::Neutral
-                                        }
-                                    };
-                                    // Send disposition change to engine
-                                    let msg = ClientMessageBuilder::set_npc_disposition(
-                                        &evt.npc_id,
-                                        &evt.pc_id,
-                                        disposition,
-                                        evt.reason.as_deref(),
-                                    );
-                                    if let Err(e) = command_bus_disposition.send(msg) {
-                                        tracing::error!("Failed to send disposition change: {}", e);
+                                on_disposition_change: {
+                                    let npc_service_for_disposition = npc_service.clone();
+                                    move |evt: DispositionChangeEvent| {
+                                        tracing::info!(
+                                            npc_id = %evt.npc_id,
+                                            pc_id = %evt.pc_id,
+                                            disposition = %evt.disposition,
+                                            "DM changed NPC disposition"
+                                        );
+                                        // Parse disposition string to enum
+                                        let disposition = match evt.disposition.parse::<DispositionLevel>() {
+                                            Ok(d) => d,
+                                            Err(_) => {
+                                                tracing::warn!(
+                                                    disposition = %evt.disposition,
+                                                    "Invalid disposition value, using Neutral"
+                                                );
+                                                DispositionLevel::Neutral
+                                            }
+                                        };
+                                        // Send disposition change to engine via NpcService
+                                        let svc = npc_service_for_disposition.clone();
+                                        spawn_task(async move {
+                                            if let Err(e) = svc.set_disposition(
+                                                &evt.npc_id,
+                                                &evt.pc_id,
+                                                disposition,
+                                                evt.reason.clone(),
+                                            ).await {
+                                                tracing::error!("Failed to set NPC disposition: {}", e);
+                                            }
+                                        });
                                     }
                                 },
-                                on_relationship_change: move |evt: RelationshipChangeEvent| {
-                                    tracing::info!(
-                                        npc_id = %evt.npc_id,
-                                        pc_id = %evt.pc_id,
-                                        relationship = %evt.relationship,
-                                        "DM changed NPC relationship"
-                                    );
-                                    // Send relationship change to engine
-                                    let msg = ClientMessageBuilder::set_npc_relationship(
-                                        &evt.npc_id,
-                                        &evt.pc_id,
-                                        &evt.relationship,
-                                    );
-                                    if let Err(e) = command_bus_rel.send(msg) {
-                                        tracing::error!("Failed to send relationship change: {}", e);
+                                on_relationship_change: {
+                                    let npc_service_for_relationship = npc_service.clone();
+                                    move |evt: RelationshipChangeEvent| {
+                                        tracing::info!(
+                                            npc_id = %evt.npc_id,
+                                            pc_id = %evt.pc_id,
+                                            relationship = %evt.relationship,
+                                            "DM changed NPC relationship"
+                                        );
+                                        // Send relationship change to engine via NpcService
+                                        let svc = npc_service_for_relationship.clone();
+                                        spawn_task(async move {
+                                            if let Err(e) = svc.set_relationship(
+                                                &evt.npc_id,
+                                                &evt.pc_id,
+                                                evt.relationship.clone(),
+                                            ).await {
+                                                tracing::error!("Failed to set NPC relationship: {}", e);
+                                            }
+                                        });
                                     }
                                 },
                             }

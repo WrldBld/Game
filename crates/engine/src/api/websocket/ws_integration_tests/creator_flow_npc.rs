@@ -39,7 +39,9 @@ fn create_test_pc(
     now: chrono::DateTime<chrono::Utc>,
 ) -> wrldbldr_domain::PlayerCharacter {
     let name = wrldbldr_domain::CharacterName::new("Test PC").unwrap();
-    wrldbldr_domain::PlayerCharacter::new(world_id, name)
+    let user_id = wrldbldr_domain::UserId::new("test-user").unwrap();
+    let location_id = wrldbldr_domain::LocationId::new();
+    wrldbldr_domain::PlayerCharacter::new(user_id, world_id, name, location_id, now)
         .with_id(pc_id)
         .with_created_at(now)
 }
@@ -153,7 +155,7 @@ async fn npc_set_disposition_emits_entity_changed_broadcast() {
     })
     .await;
 
-    // Expect EntityChanged broadcast
+    // Expect EntityChanged broadcast with normalized entity_id
     let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
         matches!(m, ServerMessage::EntityChanged { .. })
     })
@@ -162,7 +164,15 @@ async fn npc_set_disposition_emits_entity_changed_broadcast() {
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Relationship);
         assert_eq!(data.change_type, ChangeType::Updated);
+        assert_eq!(data.entity_id, format!("rel_npc_{}_pc_{}", npc_id, pc_id));
         assert!(data.data.is_some());
+        if let Some(data_value) = &data.data {
+            assert_eq!(data_value["npc_id"], npc_id.to_string());
+            assert_eq!(data_value["pc_id"], pc_id.to_string());
+            assert_eq!(data_value["disposition"], DispositionLevel::Friendly.to_string());
+            assert_eq!(data_value["relationship"], RelationshipLevel::Allied.to_string());
+            assert_eq!(data_value["reason"], "Test reason");
+        }
     } else {
         panic!("Expected EntityChanged message");
     }
@@ -259,7 +269,7 @@ async fn npc_set_home_region_emits_entity_changed_broadcast() {
     })
     .await;
 
-    // Expect EntityChanged broadcast
+    // Expect EntityChanged broadcast with normalized entity_id
     let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
         matches!(m, ServerMessage::EntityChanged { .. })
     })
@@ -268,7 +278,13 @@ async fn npc_set_home_region_emits_entity_changed_broadcast() {
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Relationship);
         assert_eq!(data.change_type, ChangeType::Updated);
+        assert_eq!(data.entity_id, format!("rel_home_{}_{}", npc_id, region_id));
         assert!(data.data.is_some());
+        if let Some(data_value) = &data.data {
+            assert_eq!(data_value["character_id"], npc_id.to_string());
+            assert_eq!(data_value["region_id"], region_id.to_string());
+            assert_eq!(data_value["relationship_type"], "HOME_REGION");
+        }
     } else {
         panic!("Expected EntityChanged message");
     }
@@ -365,7 +381,7 @@ async fn npc_set_work_region_emits_entity_changed_broadcast() {
     })
     .await;
 
-    // Expect EntityChanged broadcast
+    // Expect EntityChanged broadcast with normalized entity_id
     let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
         matches!(m, ServerMessage::EntityChanged { .. })
     })
@@ -374,7 +390,13 @@ async fn npc_set_work_region_emits_entity_changed_broadcast() {
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Relationship);
         assert_eq!(data.change_type, ChangeType::Updated);
+        assert_eq!(data.entity_id, format!("rel_work_{}_{}", npc_id, region_id));
         assert!(data.data.is_some());
+        if let Some(data_value) = &data.data {
+            assert_eq!(data_value["character_id"], npc_id.to_string());
+            assert_eq!(data_value["region_id"], region_id.to_string());
+            assert_eq!(data_value["relationship_type"], "WORKS_AT_REGION");
+        }
     } else {
         panic!("Expected EntityChanged message");
     }
@@ -472,7 +494,7 @@ async fn npc_remove_region_relationship_emits_entity_changed_broadcast() {
     })
     .await;
 
-    // Expect EntityChanged broadcast
+    // Expect EntityChanged broadcast with normalized entity_id
     let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
         matches!(m, ServerMessage::EntityChanged { .. })
     })
@@ -481,6 +503,8 @@ async fn npc_remove_region_relationship_emits_entity_changed_broadcast() {
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Relationship);
         assert_eq!(data.change_type, ChangeType::Deleted);
+        // Entity ID should be: rel_home_{npc_id}_{region_id}
+        assert_eq!(data.entity_id, format!("rel_home_{}_{}", npc_id, region_id));
     } else {
         panic!("Expected EntityChanged message");
     }
@@ -488,19 +512,265 @@ async fn npc_remove_region_relationship_emits_entity_changed_broadcast() {
     server.abort();
 }
 
+#[tokio::test]
+async fn npc_set_relationship_emits_entity_changed_broadcast() {
+    let now = chrono::Utc::now();
+    let world_id = WorldId::new();
+    let world = create_test_world(world_id, now);
+    let npc_id = CharacterId::new();
+    let npc = create_test_npc(npc_id, world_id, now);
+    let pc_id = PlayerCharacterId::new();
+    let pc = create_test_pc(pc_id, world_id, now);
+
+    // Setup world repo
+    let mut world_repo = MockWorldRepo::new();
+    world_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(world.clone())));
+
+    // Setup character repo
+    let mut character_repo = MockCharacterRepo::new();
+    character_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(npc.clone())));
+
+    character_repo
+        .expect_set_relationship()
+        .returning(move |_, _, _| {
+            Ok(wrldbldr_domain::DispositionUpdate {
+                npc_id: npc_id,
+                npc_name: "Test NPC".to_string(),
+                pc_id: pc_id,
+                pc_name: "Test PC".to_string(),
+                disposition: DispositionLevel::Friendly,
+                relationship: RelationshipLevel::Allied,
+                sentiment: 0.8,
+                reason: None,
+            })
+        });
+
+    character_repo
+        .expect_list_in_world()
+        .returning(|_, _, _| Ok(Vec::new()));
+
+    // Setup player character repo
+    let mut pc_repo = MockPlayerCharacterRepo::new();
+    pc_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(pc.clone())));
+
+    let repos = TestAppRepos::new(world_repo);
+    let app = build_test_app(repos, now);
+    let connections = Arc::new(ConnectionManager::new());
+
+    let ws_state = Arc::new(WsState {
+        app,
+        connections,
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
+    });
+
+    let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+    let mut ws = ws_connect(addr).await;
+
+    // Join world as DM
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::JoinWorld {
+            world_id: *world_id.as_uuid(),
+            role: ProtoWorldRole::Dm,
+            user_id: "test-user".to_string(),
+            pc_id: None,
+            spectate_pc_id: None,
+        },
+    )
+    .await;
+
+    let _ = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::WorldJoined { .. })
     })
     .await;
 
-    // Expect EntityChanged broadcast
+    // Set NPC relationship
+    let request_id = uuid::Uuid::new_v4().to_string();
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::Request {
+            request_id: request_id.clone(),
+            payload: RequestPayload::Npc(wrldbldr_shared::NpcRequest::SetNpcRelationship {
+                npc_id: npc_id.to_string(),
+                pc_id: pc_id.to_string(),
+                relationship: RelationshipLevel::Allied.to_string(),
+            }),
+        },
+    )
+    .await;
+
+    // Expect response
+    let _response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
+            rid == &request_id
+        } else {
+            false
+        }
+    })
+    .await;
+
+    // Expect EntityChanged broadcast with normalized entity_id
     let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
         matches!(m, ServerMessage::EntityChanged { .. })
     })
     .await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
-        assert_eq!(data.entity_type, EntityType::Character);
+        assert_eq!(data.entity_type, EntityType::Relationship);
         assert_eq!(data.change_type, ChangeType::Updated);
+        assert_eq!(data.entity_id, format!("rel_npc_{}_pc_{}", npc_id, pc_id));
         assert!(data.data.is_some());
+        if let Some(data_value) = &data.data {
+            assert_eq!(data_value["npc_id"], npc_id.to_string());
+            assert_eq!(data_value["pc_id"], pc_id.to_string());
+            assert_eq!(data_value["relationship"], RelationshipLevel::Allied.to_string());
+            assert_eq!(data_value["disposition"], DispositionLevel::Friendly.to_string());
+        }
+    } else {
+        panic!("Expected EntityChanged message");
+    }
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn npc_set_disposition_emits_entity_changed_broadcast_with_normalized_id() {
+    let now = chrono::Utc::now();
+    let world_id = WorldId::new();
+    let world = create_test_world(world_id, now);
+    let npc_id = CharacterId::new();
+    let npc = create_test_npc(npc_id, world_id, now);
+    let pc_id = PlayerCharacterId::new();
+    let pc = create_test_pc(pc_id, world_id, now);
+
+    // Setup world repo
+    let mut world_repo = MockWorldRepo::new();
+    world_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(world.clone())));
+
+    // Setup character repo
+    let mut character_repo = MockCharacterRepo::new();
+    character_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(npc.clone())));
+
+    character_repo
+        .expect_set_disposition()
+        .returning(move |_, _, _, _| {
+            Ok(wrldbldr_domain::DispositionUpdate {
+                npc_id: npc_id,
+                npc_name: "Test NPC".to_string(),
+                pc_id: pc_id,
+                pc_name: "Test PC".to_string(),
+                disposition: DispositionLevel::Friendly,
+                relationship: RelationshipLevel::Allied,
+                sentiment: 0.8,
+                reason: Some("Test reason".to_string()),
+            })
+        });
+
+    character_repo
+        .expect_list_in_world()
+        .returning(|_, _, _| Ok(Vec::new()));
+
+    // Setup player character repo
+    let mut pc_repo = MockPlayerCharacterRepo::new();
+    pc_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(pc.clone())));
+
+    let repos = TestAppRepos::new(world_repo);
+    let app = build_test_app(repos, now);
+    let connections = Arc::new(ConnectionManager::new());
+
+    let ws_state = Arc::new(WsState {
+        app,
+        connections,
+        pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
+    });
+
+    let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+    let mut ws = ws_connect(addr).await;
+
+    // Join world as DM
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::JoinWorld {
+            world_id: *world_id.as_uuid(),
+            role: ProtoWorldRole::Dm,
+            user_id: "test-user".to_string(),
+            pc_id: None,
+            spectate_pc_id: None,
+        },
+    )
+    .await;
+
+    let _ = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::WorldJoined { .. })
+    })
+    .await;
+
+    // Set NPC disposition
+    let request_id = uuid::Uuid::new_v4().to_string();
+    ws_send_client(
+        &mut ws,
+        &ClientMessage::Request {
+            request_id: request_id.clone(),
+            payload: RequestPayload::Npc(wrldbldr_shared::NpcRequest::SetNpcDisposition {
+                npc_id: npc_id.to_string(),
+                pc_id: pc_id.to_string(),
+                disposition: DispositionLevel::Friendly,
+                reason: Some("Test reason".to_string()),
+            }),
+        },
+    )
+    .await;
+
+    // Expect response
+    let _response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
+            rid == &request_id
+        } else {
+            false
+        }
+    })
+    .await;
+
+    // Expect EntityChanged broadcast with normalized entity_id
+    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::EntityChanged { .. })
+    })
+    .await;
+
+    if let ServerMessage::EntityChanged(data) = entity_changed {
+        assert_eq!(data.entity_type, EntityType::Relationship);
+        assert_eq!(data.change_type, ChangeType::Updated);
+        assert_eq!(data.entity_id, format!("rel_npc_{}_pc_{}", npc_id, pc_id));
+        assert!(data.data.is_some());
+        if let Some(data_value) = &data.data {
+            assert_eq!(data_value["npc_id"], npc_id.to_string());
+            assert_eq!(data_value["pc_id"], pc_id.to_string());
+            assert_eq!(data_value["disposition"], DispositionLevel::Friendly.to_string());
+            assert_eq!(data_value["relationship"], RelationshipLevel::Allied.to_string());
+            assert_eq!(data_value["reason"], "Test reason");
+        }
     } else {
         panic!("Expected EntityChanged message");
     }

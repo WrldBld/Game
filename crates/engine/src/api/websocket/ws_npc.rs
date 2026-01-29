@@ -59,18 +59,20 @@ pub(super) async fn handle_npc_request(
             if let Some(world_id) = conn_info.world_id {
                 let entity_data = serde_json::json!({
                     "npc_id": update.npc_id.to_string(),
-                    "npc_name": update.npc_name,
                     "pc_id": update.pc_id.to_string(),
                     "disposition": update.disposition.to_string(),
                     "relationship": update.relationship.to_string(),
                     "reason": update.reason,
                 });
 
+                // Normalized entity_id: rel_npc_{npc_id}_pc_{pc_id}
+                let entity_id = format!("rel_npc_{}_pc_{}", update.npc_id, update.pc_id);
+
                 // Emit EntityChanged for disposition update
                 let entity_changed_msg = ServerMessage::EntityChanged(
                     EntityChangedData::updated(
                         EntityType::Relationship,
-                        format!("{}_{}", update.npc_id, update.pc_id),
+                        entity_id,
                         world_id.to_string(),
                         &entity_data,
                     )
@@ -146,18 +148,20 @@ pub(super) async fn handle_npc_request(
             if let Some(world_id) = conn_info.world_id {
                 let entity_data = serde_json::json!({
                     "npc_id": update.npc_id.to_string(),
-                    "npc_name": update.npc_name,
                     "pc_id": update.pc_id.to_string(),
                     "disposition": update.disposition.to_string(),
                     "relationship": update.relationship.to_string(),
                     "reason": update.reason,
                 });
 
+                // Normalized entity_id: rel_npc_{npc_id}_pc_{pc_id}
+                let entity_id = format!("rel_npc_{}_pc_{}", update.npc_id, update.pc_id);
+
                 // Emit EntityChanged for relationship update
                 let entity_changed_msg = ServerMessage::EntityChanged(
                     EntityChangedData::updated(
                         EntityType::Relationship,
-                        format!("{}_{}", update.npc_id, update.pc_id),
+                        entity_id,
                         world_id.to_string(),
                         &entity_data,
                     )
@@ -311,10 +315,13 @@ pub(super) async fn handle_npc_request(
                             "relationship_type": "HOME_REGION",
                         });
 
+                        // Normalized entity_id: rel_home_{char_id}_{region_id}
+                        let entity_id = format!("rel_home_{}_{}", character_id, region_id);
+
                         let entity_changed_msg = ServerMessage::EntityChanged(
                             EntityChangedData::updated(
                                 EntityType::Relationship,
-                                format!("home_{}_{}", character_id, region_id),
+                                entity_id,
                                 world_id.to_string(),
                                 &entity_data,
                             )
@@ -372,10 +379,13 @@ pub(super) async fn handle_npc_request(
                             "relationship_type": "WORKS_AT_REGION",
                         });
 
+                        // Normalized entity_id: rel_work_{char_id}_{region_id}
+                        let entity_id = format!("rel_work_{}_{}", character_id, region_id);
+
                         let entity_changed_msg = ServerMessage::EntityChanged(
                             EntityChangedData::updated(
                                 EntityType::Relationship,
-                                format!("work_{}_{}", character_id, region_id),
+                                entity_id,
                                 world_id.to_string(),
                                 &entity_data,
                             )
@@ -443,10 +453,17 @@ pub(super) async fn handle_npc_request(
             {
                 Ok(()) => {
                     if let Some(world_id) = conn_info.world_id {
+                        // Normalized entity_id: rel_{type}_{char_id}_{region_id}
+                        let entity_id = format!("rel_{}_{}_{}",
+                            relationship_type.to_string().to_lowercase(),
+                            character_id,
+                            region_id
+                        );
+
                         let entity_changed_msg = ServerMessage::EntityChanged(
                             EntityChangedData::deleted(
                                 EntityType::Relationship,
-                                format!("{}_{}_{}", relationship_type, character_id, region_id),
+                                entity_id,
                                 world_id.to_string(),
                             )
                         );

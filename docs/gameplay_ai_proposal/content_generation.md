@@ -4,6 +4,14 @@
 
 WrldBldr uses AI as a proposer, not an executor. All AI output is advisory until the DM approves. This mirrors the Dialogue System and Staging System design.
 
+## System References
+
+- `docs/systems/dialogue-system.md`
+- `docs/systems/staging-system.md`
+- `docs/systems/visual-state-system.md`
+- `docs/systems/narrative-system.md`
+- `docs/systems/npc-system.md`
+
 ## What AI Generates
 
 - NPC dialogue responses (short, contextual)

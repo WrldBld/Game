@@ -1780,14 +1780,14 @@ pub fn handle_server_message(
             character_id,
             known_lore,
         } => {
-            // CharacterLoreResponse provides summaries only, not full lore data.
-            // This is used for list views; full lore is fetched on demand.
+            // CharacterLoreResponse now provides full journal entries (not just summaries).
+            // This populates the known_lore list with complete lore data.
             tracing::info!(
-                "Character {} knows {} lore entries (summaries)",
+                "Character {} knows {} lore entries (journal)",
                 character_id,
                 known_lore.len()
             );
-            lore_state.set_character_lore_summaries(character_id, known_lore);
+            lore_state.apply_lore_journal(known_lore);
         }
 
         // Catch-all for unhandled or future event types

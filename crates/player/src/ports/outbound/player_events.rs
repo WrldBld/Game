@@ -569,7 +569,7 @@ pub enum PlayerEvent {
     /// Response to GetCharacterLore request
     CharacterLoreResponse {
         character_id: String,
-        known_lore: Vec<wrldbldr_shared::types::LoreSummaryData>,
+        known_lore: Vec<wrldbldr_shared::types::LoreJournalEntryData>,
     },
 
     // =========================================================================

@@ -2,7 +2,9 @@
 
 ## Purpose
 
-This proposal defines a cohesive gameplay experience for WrldBldr that aligns with the system specifications in:
+Define a playable, DM-in-the-loop loop that feels like a visual novel while preserving DM authority over AI output.
+
+## System References
 
 - `docs/systems/scene-system.md`
 - `docs/systems/staging-system.md`
@@ -13,15 +15,22 @@ This proposal defines a cohesive gameplay experience for WrldBldr that aligns wi
 - `docs/systems/visual-state-system.md`
 - `docs/systems/game-time-system.md`
 - `docs/systems/npc-system.md`
-
-The intent is to describe a playable, DM-in-the-loop loop that feels like a visual novel, while preserving DM authority over AI output.
+- `docs/systems/session-system.md`
 
 ## Core Vision
 
-- Visual novel presentation with strong scene continuity and cinematic pacing.
-- DM-in-the-loop AI collaboration where all AI outputs are advisory until approved.
-- A tight gameplay loop: enter region -> scene resolves -> staging/approval -> dialogue -> challenge/event -> time and state update -> repeat.
-- Multi-system challenge resolution that maps cleanly to D20, D100, and narrative systems.
+- Visual novel presentation with strong scene continuity.
+- DM-in-the-loop AI collaboration where AI outputs are advisory until approved.
+- Tight loop: enter region -> scene resolves -> staging/approval -> dialogue -> challenge/event -> time update -> repeat.
+- Multi-system challenge resolution for D20, D100, and narrative systems.
+
+## DM Approval Cadence
+
+- Staging approval on first entry to an unstaged region.
+- Dialogue approval for each AI response.
+- Challenge approval for prompt and outcome text.
+- Narrative event approval for trigger execution.
+- Time approval when actions imply time passage.
 
 ## Document Map
 

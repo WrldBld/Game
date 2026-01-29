@@ -2,7 +2,16 @@
 
 ## Overview
 
-DM workflows mirror the approval-first philosophy across staging, dialogue, challenges, and narrative events, with game time as a pacing control.
+DM workflows enforce approval-first control across staging, dialogue, challenges, and narrative events, with game time as pacing control.
+
+## System References
+
+- `docs/systems/staging-system.md`
+- `docs/systems/dialogue-system.md`
+- `docs/systems/challenge-system.md`
+- `docs/systems/narrative-system.md`
+- `docs/systems/visual-state-system.md`
+- `docs/systems/game-time-system.md`
 
 ## 1. Staging Approval (NPC Presence + Visual State)
 
@@ -46,7 +55,7 @@ Key decisions:
 
 Key decisions:
 
-- Keep responses short for tempo unless dramatic emphasis is desired.
+- Keep responses short unless dramatic emphasis is desired.
 - Approve or reject tool calls (reveal info, give item, change relationship).
 - Inject directorial notes to steer tone and pacing.
 
@@ -117,7 +126,7 @@ Key decisions:
 - Regenerate LLM suggestions with targeted guidance when needed.
 - Override AI for pivotal moments using take over.
 
-## Cadence Summary
+## DM Approval Cadence
 
 - **Fast approvals** for routine dialogue and staging in low stakes scenes.
 - **Deliberate approvals** for narrative events and challenge outcomes.

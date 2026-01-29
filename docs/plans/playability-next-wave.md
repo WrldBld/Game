@@ -89,6 +89,25 @@
   - Added Journal modal handler to PCView
   - Implemented `handle_open_lore_journal` with lore fetching and error handling
   - LoreJournal modal wiring complete with proper type conversions
-- [ ] P2 Creator/NPC refresh complete
+- [x] P2 Creator/NPC refresh complete (backend)
+- [x] P2 Creator/NPC refresh complete (frontend)
+   - Normalized relationship entity_id format: `rel_npc_{npc_id}_pc_{pc_id}` for NPC-PC relationships
+   - Normalized region relationship entity_id format: `rel_{type}_{char_id}_{region_id}` for home/work relationships
+   - Updated `ws_npc.rs` to emit EntityChanged with consistent payload containing npc_id, pc_id, relationship, disposition, reason
+   - Fixed broken test code in `creator_flow_npc.rs`
+   - Added `npc_set_relationship_emits_entity_changed_broadcast` test
+   - Added `npc_set_disposition_emits_entity_changed_broadcast_with_normalized_id` test
+   - Updated existing tests to verify normalized entity_id format
+- [x] P2 Creator/NPC refresh complete (frontend)
+   - Added `npc_dispositions_refresh_counter: Signal<u32>` to GameState
+   - Added `trigger_npc_dispositions_refresh()` method to GameState
+   - Updated `trigger_entity_refresh()` to call `trigger_npc_dispositions_refresh()` for "Relationship" entity_type
+   - Added `use_npc_service()` import to content.rs
+   - Added `npc_service` hook to DirectorModeContent component
+   - Added `dispositions_loading` signal for loading state
+   - Subscribed to `npc_dispositions_refresh_counter` with `use_effect` to refetch dispositions when changed
+   - Replaced `ClientMessageBuilder::set_npc_disposition` with `npc_service.set_disposition`
+   - Replaced `ClientMessageBuilder::set_npc_relationship` with `npc_service.set_relationship`
+   - Removed unused `command_bus_disposition` and `command_bus_rel` signals
 - [ ] Code review + architecture review
 - [x] Checks/tests clean

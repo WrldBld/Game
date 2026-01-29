@@ -6,6 +6,13 @@
 - Keep the player focused on who is speaking and what choices exist.
 - Use subtle transitions to avoid disorientation.
 
+## System References
+
+- `docs/systems/scene-system.md`
+- `docs/systems/visual-state-system.md`
+- `docs/systems/staging-system.md`
+- `docs/systems/dialogue-system.md`
+
 ## Scene Composition
 
 - **Backdrop**: Full-screen image for the region or scene.

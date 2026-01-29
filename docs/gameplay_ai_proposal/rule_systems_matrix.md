@@ -2,6 +2,10 @@
 
 This table aligns the Challenge System with multiple rule systems while preserving a consistent outcome model (success, failure, partial, critical).
 
+## System References
+
+- `docs/systems/challenge-system.md`
+
 ```
 | Rule System Family | Example Systems              | Roll Model             | Resolution Mapping                          |
 |-------------------|------------------------------|------------------------|---------------------------------------------|

@@ -102,35 +102,16 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
             if let Some(ref handler) = props.on_log {
                 SystemButton {
                     label: "Log",
-                    icon: get_system_button_icon("scroll"),
+                    icon: "scroll",
                     on_click: *handler,
                     disabled: props.disabled,
                 }
-            }
-
-            if let Some(ref handler) = props.on_lore {
-                SystemButton {
-                    label: "Journal",
-                    icon: get_system_button_icon("book"),
-                    on_click: *handler,
-                    disabled: props.disabled,
-                }
-            }
             }
 
             if let Some(ref handler) = props.on_skills {
                 SystemButton {
                     label: "Skills",
                     icon: "skills",
-                    on_click: *handler,
-                    disabled: props.disabled,
-                }
-            }
-
-            if let Some(ref handler) = props.on_lore {
-                SystemButton {
-                    label: "Journal",
-                    icon: "book",
                     on_click: *handler,
                     disabled: props.disabled,
                 }

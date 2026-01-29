@@ -256,6 +256,8 @@ pub struct GameState {
     pub view_mode: Signal<ViewMode>,
     /// Counter to trigger actantial/motivations refresh (incremented on wants/goals changes)
     pub actantial_refresh_counter: Signal<u32>,
+    /// Counter to trigger NPC dispositions refresh (incremented on relationship changes)
+    pub npc_dispositions_refresh_counter: Signal<u32>,
     /// NPC dispositions toward the currently selected PC (populated from NpcDispositionsResponse)
     pub npc_dispositions: Signal<Vec<NpcDispositionData>>,
     /// Per-region staging status for DM panel (updated from staging events)
@@ -304,6 +306,7 @@ impl GameState {
             split_party_locations: Signal::new(Vec::new()),
             view_mode: Signal::new(ViewMode::default()),
             actantial_refresh_counter: Signal::new(0),
+            npc_dispositions_refresh_counter: Signal::new(0),
             npc_dispositions: Signal::new(Vec::new()),
             region_staging_statuses: Signal::new(HashMap::new()),
             pending_time_suggestions: Signal::new(Vec::new()),
@@ -477,6 +480,13 @@ impl GameState {
     pub fn trigger_actantial_refresh(&mut self) {
         let current = *self.actantial_refresh_counter.read();
         self.actantial_refresh_counter.set(current.wrapping_add(1));
+    }
+
+    /// Trigger NPC dispositions refresh (increments counter to signal UI components)
+    pub fn trigger_npc_dispositions_refresh(&mut self) {
+        let current = *self.npc_dispositions_refresh_counter.read();
+        self.npc_dispositions_refresh_counter
+            .set(current.wrapping_add(1));
     }
 
     /// Set NPC dispositions (from NpcDispositionsResponse)
@@ -654,6 +664,10 @@ impl GameState {
             }
             "Observation" => {
                 self.trigger_observations_refresh();
+            }
+            "Relationship" => {
+                // Relationships affect NPC dispositions
+                self.trigger_npc_dispositions_refresh();
             }
             // For other entity types, we might need to trigger world reload
             // but for now just log them

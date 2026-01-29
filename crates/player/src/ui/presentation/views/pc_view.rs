@@ -31,7 +31,7 @@ use crate::presentation::components::visual_novel::{
 };
 use crate::presentation::services::{
     use_character_service, use_command_bus, use_location_service, use_observation_service,
-    use_skill_service, use_lore_service, use_world_service,
+    use_skill_service, use_world_service,
 };
 use crate::presentation::state::{
     use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
@@ -459,127 +459,46 @@ pub fn PCView() -> Element {
                         }
                     }
                 })),
-                on_people: Some(EventHandler::new({
-                    let game_state = game_state.clone();
-                    let observation_service = observation_service.clone();
-                    move |_| {
-                        tracing::info!("Open known NPCs panel");
-                        show_known_npcs_panel.set(true);
-                        is_loading_npcs.set(true);
+                on_people: Some(EventHandler::new(move |_| {
+                    tracing::info!("Open known NPCs panel");
+                    show_known_npcs_panel.set(true);
+                    is_loading_npcs.set(true);
 
-                        // Get the selected PC ID
-                        let pc_id = game_state.selected_pc_id.read().clone();
-
-                        if let Some(pid) = pc_id {
-                            let obs_svc = observation_service.clone();
-                            spawn_task(async move {
-                                match obs_svc.list_observations(&pid).await {
-                                    Ok(observations) => {
-                                        // Convert to component data type
-                                        let npc_data: Vec<NpcObservationData> = observations
-                                            .into_iter()
-                                            .map(|o| NpcObservationData {
-                                                npc_id: o.npc_id,
-                                                npc_name: o.npc_name,
-                                                npc_portrait: o.npc_portrait,
-                                                location_name: o.location_name,
-                                                region_name: o.region_name,
-                                                game_time: o.game_time,
-                                                observation_type: o.observation_type,
-                                                observation_type_icon: o.observation_type_icon,
-                                                notes: o.notes,
-                                            })
-                                            .collect();
-                                        known_npcs.set(npc_data);
-                                    }
-                                    Err(e) => {
-                                        tracing::warn!("Failed to load observations: {}", e);
-                                        known_npcs.set(Vec::new());
-                                    }
-                                }
-                                is_loading_npcs.set(false);
-                            });
-                        } else {
-                                is_loading_npcs.set(false);
-                        }
-                });
-
-            // Lore journal handler - open journal modal and load lore
-            let handle_open_lore_journal = {
-                let command_bus = command_bus.clone();
-                let game_state = game_state.clone();
-                let lore_service = crate::presentation::services::use_lore_service();
-                let mut show_lore_journal = show_lore_journal.clone();
-                let mut lore_entries = lore_entries.clone();
-                let mut is_loading_lore = is_loading_lore.clone();
-                let mut action_error = action_error.clone();
-
-                move |_| {
-                    // Get selected PC ID
+                    // Get the selected PC ID
                     let pc_id = game_state.selected_pc_id.read().clone();
 
                     if let Some(pid) = pc_id {
-                        show_lore_journal.set(true);
-                        is_loading_lore.set(true);
-                        lore_entries.set(Vec::new());
-                        action_error.set(None);
-
-                        let lore_svc = lore_service.clone();
-                        let lore_entries_clone = lore_entries.clone();
-                        let show_lore_clone = show_lore_journal.clone();
-                        let is_loading_clone = is_loading_lore.clone();
-                        let action_error_clone = action_error.clone();
-
+                        let obs_svc = observation_service.clone();
                         spawn_task(async move {
-                            match lore_svc.get_character_lore(&pid).await {
-                                Ok(entries) => {
-                                    // Convert LoreJournalEntryData to LoreEntryDisplay
-                                    let display_entries: Vec<LoreEntryDisplay> = entries
+                            match obs_svc.list_observations(&pid).await {
+                                Ok(observations) => {
+                                    // Convert to component data type
+                                    let npc_data: Vec<NpcObservationData> = observations
                                         .into_iter()
-                                        .map(|entry| LoreEntryDisplay {
-                                            id: entry.lore.id.clone(),
-                                            title: entry.lore.title.clone(),
-                                            category: format!("{:?}", entry.lore.category),
-                                            category_icon: crate::presentation::components::lore_journal::category_icon(&format!("{:?}", entry.lore.category)),
-                                            chunks: entry.lore.chunks.iter().map(|c| lore_journal::LoreChunkDisplay {
-                                                id: c.id.clone(),
-                                                title: c.title.clone(),
-                                                content: c.content.clone(),
-                                                order: c.order,
-                                            }).collect(),
-                                            known_chunk_ids: entry.knowledge.known_chunk_ids.clone(),
-                                            discovery_source: format!("{:?}", entry.knowledge.discovery_source),
-                                            discovered_at: entry.knowledge.discovered_at.clone(),
-                                            tags: entry.lore.tags.clone(),
-                                            knows_all: entry.knowledge.known_chunk_ids.is_empty() || entry.knowledge.known_chunk_ids.len() >= entry.lore.chunks.len(),
-                                            known_count: if entry.knowledge.known_chunk_ids.is_empty() {
-                                                entry.lore.chunks.len()
-                                            } else {
-                                                entry.knowledge.known_chunk_ids.len()
-                                            },
+                                        .map(|o| NpcObservationData {
+                                            npc_id: o.npc_id,
+                                            npc_name: o.npc_name,
+                                            npc_portrait: o.npc_portrait,
+                                            location_name: o.location_name,
+                                            region_name: o.region_name,
+                                            game_time: o.game_time,
+                                            observation_type: o.observation_type,
+                                            observation_type_icon: o.observation_type_icon,
+                                            notes: o.notes,
                                         })
                                         .collect();
-
-                                    lore_entries_clone.set(display_entries);
-                                    is_loading_lore.set(false);
+                                    known_npcs.set(npc_data);
                                 }
                                 Err(e) => {
-                                    tracing::warn!("Failed to load lore: {}", e);
-                                    is_loading_lore.set(false);
-                                    action_error.set(Some(format!("Failed to load lore: {}", e)));
+                                    tracing::warn!("Failed to load observations: {}", e);
+                                    known_npcs.set(Vec::new());
                                 }
                             }
+                            is_loading_npcs.set(false);
                         });
                     } else {
-                        action_error.set(Some("No character selected".to_string()));
+                        is_loading_npcs.set(false);
                     }
-                }
-            };
-
-            // Imports for LoreJournal component
-            use crate::presentation::components::lore_journal::{
-                LoreEntryDisplay, LoreJournal as LoreJournalComponent, LoreChunkDisplay,
-            };
                 })),
                 on_log: Some(EventHandler::new(move |_| {
                     tracing::info!("Open log");

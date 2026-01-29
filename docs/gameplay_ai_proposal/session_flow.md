@@ -2,15 +2,19 @@
 
 ## Overview
 
-This describes the intended end-to-end session loop using the existing systems:
+End-to-end session loop across existing systems: navigation, staging, scene, dialogue, challenge, narrative events, and game time.
 
-- Navigation (region movement)
-- Staging (NPC presence + visual state approval)
-- Scene (visual novel presentation)
-- Dialogue (LLM responses with DM approval)
-- Challenge (rolls and outcomes)
-- Narrative events (triggered story effects)
-- Game time (DM-controlled time progression)
+## System References
+
+- `docs/systems/session-system.md`
+- `docs/systems/navigation-system.md`
+- `docs/systems/staging-system.md`
+- `docs/systems/scene-system.md`
+- `docs/systems/dialogue-system.md`
+- `docs/systems/challenge-system.md`
+- `docs/systems/narrative-system.md`
+- `docs/systems/visual-state-system.md`
+- `docs/systems/game-time-system.md`
 
 ## Core Loop (Player + DM)
 
@@ -48,7 +52,7 @@ This describes the intended end-to-end session loop using the existing systems:
   (loop back to movement or dialogue)
 ```
 
-## Approval Cadence (Golden Path)
+## DM Approval Cadence
 
 Approval exists to preserve DM authority and tone. The cadence is predictable:
 
@@ -56,7 +60,7 @@ Approval exists to preserve DM authority and tone. The cadence is predictable:
 2. **Dialogue approval** for every AI response.
 3. **Challenge approval** for AI suggestions and for outcome text.
 4. **Narrative event approval** for triggers suggested by AI or system detection.
-5. **Time suggestion approval** when actions imply time passage (if time mode is suggested).
+5. **Time suggestion approval** when actions imply time passage.
 
 ## Scene Pacing Rules
 
@@ -71,12 +75,12 @@ Approval exists to preserve DM authority and tone. The cadence is predictable:
 ### 1. Arrival and Orientation
 
 - Player joins world and receives initial location, region, and scene.
-- If staging is needed, player sees a short loading overlay.
+- If staging is needed, player sees a brief loading overlay.
 
 ### 2. Exploration Loop
 
 - Player navigates between regions and exits to connected locations.
-- Each movement can create a staging request and/or time suggestion.
+- Movement can create staging and time suggestions.
 
 ### 3. Interaction Loop
 

@@ -2,7 +2,18 @@
 
 ## Overview
 
-Players experience a visual novel style interface with navigation, dialogue, and challenge resolution, driven by DM-approved AI suggestions.
+Players use a visual novel interface with navigation, dialogue, and challenge resolution driven by DM-approved AI suggestions.
+
+## System References
+
+- `docs/systems/session-system.md`
+- `docs/systems/navigation-system.md`
+- `docs/systems/scene-system.md`
+- `docs/systems/staging-system.md`
+- `docs/systems/dialogue-system.md`
+- `docs/systems/challenge-system.md`
+- `docs/systems/visual-state-system.md`
+- `docs/systems/game-time-system.md`
 
 ## 1. Enter World and See Scene
 
@@ -10,7 +21,7 @@ Players experience a visual novel style interface with navigation, dialogue, and
 [Join World] -> [Current Region] -> [Scene Backdrop + NPCs]
 ```
 
-If staging is pending, the player sees a short loading overlay before the scene appears.
+If staging is pending, the player sees a brief loading overlay before the scene appears.
 
 ## 2. Explore Regions and Locations
 
@@ -38,7 +49,7 @@ Movement updates the scene and may prompt staging approval.
 [DM-approved response appears]
 ```
 
-Dialogue stays short and responsive to keep momentum.
+Dialogue stays short to keep momentum.
 
 ## 4. Make Choices
 
