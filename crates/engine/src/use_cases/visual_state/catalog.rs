@@ -479,9 +479,10 @@ impl VisualStateCatalog {
         description: String,
         prompt: String,
         workflow_id: String,
+        map_workflow_id: Option<String>,
         _tags: Vec<String>,  // Tags reserved for future use
         generate_backdrop: bool,  // Whether to generate backdrop asset
-        _generate_map: bool,  // Map generation not yet implemented
+        generate_map: bool,  // Whether to generate map asset
         activation_rules: Vec<ActivationRule>,
         activation_logic: ActivationLogic,
         priority: i32,
@@ -557,14 +558,45 @@ impl VisualStateCatalog {
                 entity_type,
                 entity_id,
                 workflow_id,
-                prompt,
+                prompt: prompt.clone(),
                 count: 1,
             };
 
             self.queue.enqueue_asset_generation(&data).await?;
         }
 
-        // Note: Map generation would be queued separately here when implemented
+        // Enqueue map generation if requested
+        if generate_map {
+            // Map generation only supported for location states (has map_overlay field)
+            if location_state.is_none() {
+                return Err(CatalogError::Validation(
+                    "Map generation is only supported for location states".to_string(),
+                ));
+            }
+
+            // Map workflow must be configured
+            let map_workflow_id = map_workflow_id.ok_or_else(|| {
+                CatalogError::Validation(
+                    "Map workflow not configured. Please set map_workflow in request.".to_string(),
+                )
+            })?;
+
+            let entity_id: String = location_state
+                .as_ref()
+                .map(|s| s.id().to_string())
+                .ok_or_else(|| CatalogError::Validation("Failed to determine state ID".to_string()))?;
+
+            let data = AssetGenerationData {
+                world_id: Some(world_id),
+                entity_type: "LocationStateMapOverlay".to_string(),
+                entity_id,
+                workflow_id: map_workflow_id,
+                prompt: format!("Map overlay: {}", prompt),
+                count: 1,
+            };
+
+            self.queue.enqueue_asset_generation(&data).await?;
+        }
 
         Ok(GeneratedVisualState {
             location_state,
@@ -578,6 +610,7 @@ impl VisualStateCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_domain::{Location, LocationName, LocationType, WorldId};
     use crate::infrastructure::ports::{
         MockAssetRepo, MockLocationRepo, MockLocationStateRepo, MockRegionStateRepo,
     };
@@ -633,5 +666,187 @@ mod tests {
         );
         let result = catalog.parse_activation_logic(Some("Invalid".to_string()));
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn generate_map_without_workflow_returns_validation_error() {
+        let mut mock_queue = MockQueueForTesting::new();
+        // Enqueue should not be called
+        mock_queue.expect_enqueue_asset_generation().never();
+
+        let catalog = VisualStateCatalog::new(
+            Arc::new(MockLocationRepo::new()),
+            Arc::new(MockLocationStateRepo::new()),
+            Arc::new(MockRegionStateRepo::new()),
+            Arc::new(MockImageGenPort::new()),
+            Arc::new(MockAssetRepo::new()),
+            Arc::new(mock_queue),
+            Arc::new(SystemClock::new()),
+            Arc::new(SystemRandom::new()),
+        );
+
+        // Create a mock location
+        let location_id = LocationId::new();
+        let world_id = WorldId::new();
+        let mut mock_location_repo = MockLocationRepo::new();
+        mock_location_repo
+            .expect_get_location()
+            .returning(move |_| {
+                Ok(Some(Location::new(
+                    world_id,
+                    LocationName::new("Test Location").unwrap(),
+                    LocationType::Interior,
+                )))
+            });
+
+        let catalog = VisualStateCatalog::new(
+            Arc::new(mock_location_repo),
+            Arc::new(MockLocationStateRepo::new()),
+            Arc::new(MockRegionStateRepo::new()),
+            Arc::new(MockImageGenPort::new()),
+            Arc::new(MockAssetRepo::new()),
+            Arc::new(MockQueueForTesting::new()),
+            Arc::new(SystemClock::new()),
+            Arc::new(SystemRandom::new()),
+        );
+
+        // Try to generate map without workflow - should fail
+        let result = catalog
+            .generate_visual_state(
+                Some(location_id),
+                None,
+                "Test State".to_string(),
+                "Test description".to_string(),
+                "Test prompt".to_string(),
+                "backdrop_v1".to_string(),
+                None, // map_workflow_id not provided
+                vec![],
+                false, // generate_backdrop false
+                true,  // generate_map true - should fail
+                vec![],
+                ActivationLogic::All,
+                0,
+                false,
+            )
+            .await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CatalogError::Validation(msg) => {
+                assert!(msg.contains("map_workflow"));
+            }
+            _ => panic!("Expected CatalogError::Validation"),
+        }
+    }
+
+    #[tokio::test]
+    async fn generate_map_with_workflow_enqueues_asset() {
+        let mut mock_queue = MockQueueForTesting::new();
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+
+        // Enqueue should be called for map generation
+        mock_queue
+            .expect_enqueue_asset_generation()
+            .times(1)
+            .withf(move |data| {
+                data.workflow_id == "map_v1"
+                    && data.entity_type == "LocationStateMapOverlay"
+                    && data.prompt.contains("Map overlay:")
+            })
+            .returning(|_| Ok(()));
+
+        // Mock location repo
+        let mut mock_location_repo = MockLocationRepo::new();
+        mock_location_repo
+            .expect_get_location()
+            .returning(move |_| {
+                Ok(Some(Location::new(
+                    world_id,
+                    LocationName::new("Test Location").unwrap(),
+                    LocationType::Interior,
+                )))
+            });
+
+        let catalog = VisualStateCatalog::new(
+            Arc::new(mock_location_repo),
+            Arc::new(MockLocationStateRepo::new()),
+            Arc::new(MockRegionStateRepo::new()),
+            Arc::new(MockImageGenPort::new()),
+            Arc::new(MockAssetRepo::new()),
+            Arc::new(mock_queue),
+            Arc::new(SystemClock::new()),
+            Arc::new(SystemRandom::new()),
+        );
+
+        // Generate with map workflow provided
+        let result = catalog
+            .generate_visual_state(
+                Some(location_id),
+                None,
+                "Test State".to_string(),
+                "Test description".to_string(),
+                "Test prompt".to_string(),
+                "backdrop_v1".to_string(),
+                Some("map_v1".to_string()), // map_workflow provided
+                vec![],
+                false, // generate_backdrop false
+                true,  // generate_map true - should succeed
+                vec![],
+                ActivationLogic::All,
+                0,
+                false,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(!result.is_complete);
+    }
+
+    #[tokio::test]
+    async fn generate_map_for_region_state_fails_validation() {
+        let mut mock_queue = MockQueueForTesting::new();
+        // Enqueue should not be called
+        mock_queue.expect_enqueue_asset_generation().never();
+
+        let catalog = VisualStateCatalog::new(
+            Arc::new(MockLocationRepo::new()),
+            Arc::new(MockLocationStateRepo::new()),
+            Arc::new(MockRegionStateRepo::new()),
+            Arc::new(MockImageGenPort::new()),
+            Arc::new(MockAssetRepo::new()),
+            Arc::new(mock_queue),
+            Arc::new(SystemClock::new()),
+            Arc::new(SystemRandom::new()),
+        );
+
+        // Try to generate map for region state - should fail
+        let result = catalog
+            .generate_visual_state(
+                None,
+                Some(RegionId::new()),
+                "Test State".to_string(),
+                "Test description".to_string(),
+                "Test prompt".to_string(),
+                "backdrop_v1".to_string(),
+                Some("map_v1".to_string()),
+                vec![],
+                false,
+                true, // generate_map true for region - should fail
+                vec![],
+                ActivationLogic::All,
+                0,
+                false,
+            )
+            .await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CatalogError::Validation(msg) => {
+                assert!(msg.contains("Map generation is only supported for location states"));
+            }
+            _ => panic!("Expected CatalogError::Validation"),
+        }
     }
 }

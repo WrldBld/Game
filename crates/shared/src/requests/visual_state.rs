@@ -196,8 +196,11 @@ pub struct GenerateVisualStateRequest {
     pub description: String,
     /// Generation prompt for images
     pub prompt: String,
-    /// ComfyUI workflow to use
+    /// ComfyUI workflow to use for backdrop generation
     pub workflow: String,
+    /// ComfyUI workflow to use for map generation (location only)
+    #[serde(default)]
+    pub map_workflow: Option<String>,
     /// Negative prompt (optional)
     #[serde(default)]
     pub negative_prompt: Option<String>,
@@ -398,6 +401,7 @@ mod tests {
             description: "Warm evening atmosphere".to_string(),
             prompt: "tavern interior warm lighting evening".to_string(),
             workflow: "backdrop_v2".to_string(),
+            map_workflow: None,
             negative_prompt: None,
             tags: vec!["evening".to_string(), "tavern".to_string()],
             generate_backdrop: true,

@@ -1132,6 +1132,11 @@ pub struct AppSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     style_reference_asset_id: Option<String>,
 
+    /// ComfyUI workflow name for map overlay generation
+    /// When set, allows map asset generation in visual states
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    map_workflow_name: Option<String>,
+
     /// Policy for how to handle failures while queueing prompts for a batch.
     #[serde(default = "default_batch_queue_failure_policy")]
     batch_queue_failure_policy: BatchQueueFailurePolicy,
@@ -1162,6 +1167,7 @@ impl Default for AppSettings {
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
             style_reference_asset_id: None,
+            map_workflow_name: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
             list_default_page_size: default_list_default_page_size(),
             list_max_page_size: default_list_max_page_size(),
@@ -1309,6 +1315,11 @@ impl AppSettings {
     /// Default style reference asset ID for image generation
     pub fn style_reference_asset_id(&self) -> Option<&str> {
         self.style_reference_asset_id.as_deref()
+    }
+
+    /// ComfyUI workflow name for map overlay generation
+    pub fn map_workflow_name(&self) -> Option<&str> {
+        self.map_workflow_name.as_deref()
     }
 
     /// Policy for how to handle failures while queueing prompts for a batch
@@ -1520,6 +1531,14 @@ impl AppSettings {
     pub fn with_style_reference_asset_id(self, style_reference_asset_id: Option<String>) -> Self {
         Self {
             style_reference_asset_id,
+            ..self
+        }
+    }
+
+    /// Set map workflow name
+    pub fn with_map_workflow_name(self, map_workflow_name: Option<String>) -> Self {
+        Self {
+            map_workflow_name,
             ..self
         }
     }
@@ -1780,5 +1799,34 @@ mod tests {
 
         assert!(enforcer.would_exceed(ContextCategory::Scene, "This is a longer text"));
         assert!(!enforcer.would_exceed(ContextCategory::Scene, "Hi"));
+    }
+
+    // -------------------------------------------------------------------------
+    // App Settings Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_app_settings_default() {
+        let settings = AppSettings::default();
+
+        assert!(settings.map_workflow_name().is_none());
+        assert!(settings.style_reference_asset_id().is_none());
+    }
+
+    #[test]
+    fn test_app_settings_with_map_workflow() {
+        let settings = AppSettings::default().with_map_workflow_name(Some("map_v1".to_string()));
+
+        assert_eq!(settings.map_workflow_name(), Some("map_v1"));
+    }
+
+    #[test]
+    fn test_app_settings_builder_chaining() {
+        let settings = AppSettings::default()
+            .with_map_workflow_name(Some("map_v1".to_string()))
+            .with_style_reference_asset_id(Some("style_ref_123".to_string()));
+
+        assert_eq!(settings.map_workflow_name(), Some("map_v1"));
+        assert_eq!(settings.style_reference_asset_id(), Some("style_ref_123"));
     }
 }

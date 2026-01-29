@@ -65,6 +65,46 @@ Node labels and properties in this document are intended to reflect the live per
     use_llm_presence: true
 })
 
+(:LocationState {
+    id: "uuid",
+    location_id: "uuid",
+    world_id: "uuid",
+    name: "Rainy Evening",
+    description: "Rain pelts the roof...",
+    backdrop_override: "/assets/backdrops/tavern_rainy.png",
+    atmosphere_override: "Damp, melancholy",
+    ambient_sound: "/assets/sounds/rain_ambient.mp3",
+    map_overlay: "/assets/maps/tavern_rainy_overlay.png",
+    activation_rules: "[...]",  // JSON array of activation rules
+    activation_logic: "All",
+    priority: 10,
+    is_default: false,
+    generation_prompt: "tavern interior rain evening atmosphere",
+    workflow_id: "backdrop_v2",
+    created_at: datetime(),
+    updated_at: datetime()
+})
+
+(:RegionState {
+    id: "uuid",
+    region_id: "uuid",
+    location_id: "uuid",
+    world_id: "uuid",
+    name: "Firelit Counter",
+    description: "The counter glows in firelight...",
+    backdrop_override: "/assets/backdrops/bar_firelit.png",
+    atmosphere_override: "Warm, intimate",
+    ambient_sound: "/assets/sounds/fire_crackle.mp3",
+    activation_rules: "[...]",  // JSON array of activation rules
+    activation_logic: "All",
+    priority: 5,
+    is_default: false,
+    generation_prompt: "bar counter warm firelight evening",
+    workflow_id: "backdrop_v2",
+    created_at: datetime(),
+    updated_at: datetime()
+})
+
 (:Region {
     id: "uuid",
     location_id: "uuid",

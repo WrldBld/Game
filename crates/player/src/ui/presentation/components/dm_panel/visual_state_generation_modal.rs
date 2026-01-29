@@ -199,6 +199,7 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
             description: desc.clone(),
             prompt: format!("{} - {}", desc, atmosphere_guidance.read()),
             workflow: "backdrop_v2".to_string(),
+            map_workflow: None,
             negative_prompt: Some("blurry, low quality, ugly, distorted".to_string()),
             tags: tags.read().clone(),
             generate_backdrop: *generate_backdrop.read(),

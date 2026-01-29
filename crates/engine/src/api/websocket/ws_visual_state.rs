@@ -747,25 +747,26 @@ async fn handle_generate_visual_state(
 
             match state
                 .app
-                .use_cases
-                .visual_state
-                .catalog
-                .generate_visual_state(
-                    Some(loc_id),
-                    None,
-                    request.name,
-                    request.description,
-                    request.prompt,
-                    request.workflow,
-                    request.tags,
-                    request.generate_backdrop,
-                    request.generate_map,
-                    activation_rules,
-                    activation_logic,
-                    request.priority,
-                    request.is_default,
-                )
-                .await
+                    .use_cases
+                    .visual_state
+                    .catalog
+                    .generate_visual_state(
+                        Some(loc_id),
+                        None,
+                        request.name,
+                        request.description,
+                        request.prompt,
+                        request.workflow,
+                        request.map_workflow,
+                        request.tags,
+                        request.generate_backdrop,
+                        request.generate_map,
+                        activation_rules,
+                        activation_logic,
+                        request.priority,
+                        request.is_default,
+                    )
+                    .await
             {
                 Ok(result) => {
                     // Convert BatchId to string at API boundary
@@ -814,25 +815,26 @@ async fn handle_generate_visual_state(
 
             match state
                 .app
-                .use_cases
-                .visual_state
-                .catalog
-                .generate_visual_state(
-                    None,
-                    Some(reg_id),
-                    request.name,
-                    request.description,
-                    request.prompt,
-                    request.workflow,
-                    request.tags,
-                    request.generate_backdrop,
-                    request.generate_map,
-                    activation_rules,
-                    activation_logic,
-                    request.priority,
-                    request.is_default,
-                )
-                .await
+                    .use_cases
+                    .visual_state
+                    .catalog
+                    .generate_visual_state(
+                        None,
+                        Some(reg_id),
+                        request.name,
+                        request.description,
+                        request.prompt,
+                        request.workflow,
+                        request.map_workflow,
+                        request.tags,
+                        request.generate_backdrop,
+                        request.generate_map,
+                        activation_rules,
+                        activation_logic,
+                        request.priority,
+                        request.is_default,
+                    )
+                    .await
             {
                 Ok(result) => {
                     // Convert BatchId to string at API boundary
