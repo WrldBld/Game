@@ -653,7 +653,7 @@ These fields allow the client to track which conversation an approval belongs to
 
 // Location has common lore (visitors learn it)
 (location:Location)-[:COMMON_LORE {
-    chunk_ids: ["uuid1"]  // Optional: only specific chunks. Empty = all
+    chunk_ids: null | ["uuid1"]  // null = all chunks; optional list = specific chunks only
 }]->(lore:Lore)
 ```
 

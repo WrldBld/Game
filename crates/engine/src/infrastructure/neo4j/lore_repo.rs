@@ -16,6 +16,7 @@ use super::helpers::{
     match_character_by_param, return_knowledge_fields,
 };
 use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
+use crate::infrastructure::ports::types::{LoreJournalEntry, LoreDetailRepo, LoreChunkRepo, LoreKnowledgeRepo, LoreDiscoverySourceRepo};
 
 /// Repository for Lore operations.
 pub struct Neo4jLoreRepo {
@@ -232,11 +233,11 @@ impl Neo4jLoreRepo {
         format!("{}_{}", lore_id, order)
     }
 
-    /// Helper function to convert a row to LoreJournalEntryData.
+    /// Helper function to convert a row to LoreJournalEntry (use-case DTO).
     fn row_to_journal_entry(
         &self,
         row: Row,
-    ) -> Result<wrldbldr_shared::LoreJournalEntryData, RepoError> {
+    ) -> Result<LoreJournalEntry, RepoError> {
         // Get lore node with explicit type
         let lore_node: neo4rs::Node = row
             .get::<neo4rs::Node>("l")
@@ -276,11 +277,11 @@ impl Neo4jLoreRepo {
         // Parse knowledge data
         let known_chunk_ids: Vec<String> = serde_json::from_str(&known_chunk_ids_json)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let discovery_source: wrldbldr_shared::LoreDiscoverySourceData =
+        let discovery_source: LoreDiscoverySourceRepo =
             serde_json::from_str(&discovery_source_json)
                 .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
-        let knowledge_data = wrldbldr_shared::LoreKnowledgeData {
+        let knowledge_data = LoreKnowledgeRepo {
             lore_id: lore_id_str.clone(),
             character_id: character_id_str,
             known_chunk_ids,
@@ -289,21 +290,21 @@ impl Neo4jLoreRepo {
             notes,
         };
 
-        // Build LoreData from node + chunks
-        let lore_data = self.node_to_lore_data_with_chunks(lore_node, &row)?;
+        // Build LoreDetailRepo from node + chunks
+        let lore_data = self.node_to_lore_detail_repo(lore_node, &row)?;
 
-        Ok(wrldbldr_shared::LoreJournalEntryData {
+        Ok(LoreJournalEntry {
             lore: lore_data,
             knowledge: knowledge_data,
         })
     }
 
-    /// Helper function to convert a node to LoreData with chunks.
-    fn node_to_lore_data_with_chunks(
+    /// Helper function to convert a node to LoreDetailRepo with chunks.
+    fn node_to_lore_detail_repo(
         &self,
         node: neo4rs::Node,
         row: &Row,
-    ) -> Result<wrldbldr_shared::LoreData, RepoError> {
+    ) -> Result<LoreDetailRepo, RepoError> {
         let _fallback = self.clock.now();
 
         let id: String = node.get("id").map_err(|e| {
@@ -317,24 +318,13 @@ impl Neo4jLoreRepo {
         })?;
         let summary: String = node.get_string_or("summary", "");
         let category_str: String = node.get_string_or("category", "");
-        let category: wrldbldr_shared::LoreCategoryData = if category_str.is_empty() {
+        let category: String = if category_str.is_empty() {
             return Err(RepoError::database(
                 "parse",
                 format!("Missing required field 'category' for lore: {}", id),
             ));
         } else {
-            // Use match on string instead of .parse()
-            match category_str.as_str() {
-                "Historical" => wrldbldr_shared::LoreCategoryData::Historical,
-                "Legend" => wrldbldr_shared::LoreCategoryData::Legend,
-                "Secret" => wrldbldr_shared::LoreCategoryData::Secret,
-                "Common" => wrldbldr_shared::LoreCategoryData::Common,
-                "Technical" => wrldbldr_shared::LoreCategoryData::Technical,
-                "Political" => wrldbldr_shared::LoreCategoryData::Political,
-                "Natural" => wrldbldr_shared::LoreCategoryData::Natural,
-                "Religious" => wrldbldr_shared::LoreCategoryData::Religious,
-                _ => wrldbldr_shared::LoreCategoryData::Unknown,
-            }
+            category_str
         };
         let is_common_knowledge: bool = node.get_bool_or("is_common_knowledge", false);
 
@@ -353,7 +343,7 @@ impl Neo4jLoreRepo {
             )
         })?;
 
-        let chunks: Vec<wrldbldr_shared::LoreChunkData> = chunk_nodes
+        let chunks: Vec<LoreChunkRepo> = chunk_nodes
             .into_iter()
             .map(|c| {
                 let chunk_id: String = c.get("id").unwrap_or_default();
@@ -362,7 +352,7 @@ impl Neo4jLoreRepo {
                 let content: String = c.get("content").unwrap_or_default();
                 let discovery_hint: Option<String> = c.get_optional_string("discovery_hint");
 
-                wrldbldr_shared::LoreChunkData {
+                LoreChunkRepo {
                     id: chunk_id,
                     order: order as u32,
                     title,
@@ -372,7 +362,7 @@ impl Neo4jLoreRepo {
             })
             .collect();
 
-        Ok(wrldbldr_shared::LoreData {
+        Ok(LoreDetailRepo {
             id,
             world_id,
             title,
@@ -1026,7 +1016,7 @@ impl LoreRepo for Neo4jLoreRepo {
     async fn get_character_lore_journal(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<wrldbldr_shared::LoreJournalEntryData>, RepoError> {
+    ) -> Result<Vec<LoreJournalEntry>, RepoError> {
         // Single query to fetch both lore and knowledge (avoid N+1)
         // Fetches chunks separately for each lore (still N+1 for chunks, but acceptable for now)
         let q = query(&format!(
@@ -1062,6 +1052,11 @@ impl LoreRepo for Neo4jLoreRepo {
         lore_id: LoreId,
         target: wrldbldr_domain::value_objects::AboutTarget,
     ) -> Result<(), RepoError> {
+        // Validate lore exists
+        self.get(lore_id).await?.ok_or_else(|| {
+            RepoError::not_found("Lore", lore_id.to_string())
+        })?;
+
         let (edge_type, target_id, target_label) = match target {
             wrldbldr_domain::value_objects::AboutTarget::Character { character_id } => {
                 ("ABOUT_CHARACTER", character_id.to_string(), "Character")
@@ -1085,12 +1080,20 @@ impl LoreRepo for Neo4jLoreRepo {
             target_label, edge_type
         ))
         .param("lore_id", lore_id.to_string())
-        .param("target_id", target_id);
+        .param("target_id", target_id.clone());
 
-        self.graph
-            .run(q)
+        // The query will fail silently if target doesn't exist
+        // Check result count to verify target exists
+        let mut result = self
+            .graph
+            .execute(q)
             .await
             .map_err(|e| RepoError::database("link_lore_about", e))?;
+
+        let has_result = result.next().await.is_ok();
+        if !has_result {
+            return Err(RepoError::not_found(target_label, target_id));
+        }
 
         tracing::debug!("Linked lore {} about {}", lore_id, edge_type);
         Ok(())
@@ -1101,6 +1104,11 @@ impl LoreRepo for Neo4jLoreRepo {
         lore_id: LoreId,
         target: &wrldbldr_domain::value_objects::AboutTarget,
     ) -> Result<(), RepoError> {
+        // Validate lore exists
+        self.get(lore_id).await?.ok_or_else(|| {
+            RepoError::not_found("Lore", lore_id.to_string())
+        })?;
+
         let (edge_type, target_id, target_label) = match target {
             wrldbldr_domain::value_objects::AboutTarget::Character { character_id } => {
                 ("ABOUT_CHARACTER", character_id.to_string(), "Character")
@@ -1138,10 +1146,16 @@ impl LoreRepo for Neo4jLoreRepo {
         &self,
         lore_id: LoreId,
     ) -> Result<Vec<wrldbldr_domain::value_objects::AboutTarget>, RepoError> {
-        // Query all ABOUT_* relationships for a lore entry
+        // Query only ABOUT_* relationships for a lore entry
+        // Use label membership checks instead of labels(t)[0] for performance and clarity
         let q = query(
-            "MATCH (l:Lore {id: $lore_id})-[r]->(t)
-            RETURN l.id AS lore_id, labels(t)[0] AS target_label, t.id AS target_id
+            "MATCH (l:Lore {id: $lore_id})-[r:ABOUT_CHARACTER|ABOUT_LOCATION|ABOUT_REGION|ABOUT_ITEM]->(t)
+            RETURN type(r) AS rel_type, t.id AS target_id,
+                   CASE WHEN t:Character THEN 'Character'
+                        WHEN t:Location THEN 'Location'
+                        WHEN t:Region THEN 'Region'
+                        WHEN t:Item THEN 'Item'
+                        ELSE 'Unknown' END AS target_label
         ",
         )
         .param("lore_id", lore_id.to_string());
@@ -1158,6 +1172,9 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
+            let rel_type: String = row
+                .get("rel_type")
+                .map_err(|e| RepoError::database("query", format!("Failed to get rel_type: {}", e)))?;
             let target_label: String = row
                 .get("target_label")
                 .map_err(|e| RepoError::database("query", format!("Failed to get target_label: {}", e)))?;
@@ -1202,6 +1219,18 @@ impl LoreRepo for Neo4jLoreRepo {
                 }
             };
 
+            // Verify relationship type matches expected ABOUT_* type
+            let expected_rel = target.edge_type();
+            if rel_type != expected_rel {
+                return Err(RepoError::database(
+                    "parse",
+                    format!(
+                        "Relationship type mismatch: got {}, expected {} for target {}",
+                        rel_type, expected_rel, target_label
+                    ),
+                ));
+            }
+
             targets.push(target);
         }
 
@@ -1214,10 +1243,54 @@ impl LoreRepo for Neo4jLoreRepo {
         lore_id: LoreId,
         chunk_ids: Option<Vec<LoreChunkId>>,
     ) -> Result<(), RepoError> {
-        let chunk_ids_json = chunk_ids
-            .map(|ids| {
-                serde_json::to_string(&ids).map_err(|e| RepoError::Serialization(e.to_string()))
-            })
+        // Validate lore exists and chunk_ids belong to it (if provided)
+        let lore = self.get(lore_id).await?.ok_or_else(|| {
+            RepoError::not_found("Lore", lore_id.to_string())
+        })?;
+
+        // Validate location exists
+        let check_location_q = query(
+            "MATCH (l:Location {id: $location_id}) RETURN l.id AS location_id",
+        )
+        .param("location_id", location_id.to_string());
+
+        let mut location_result = self
+            .graph
+            .execute(check_location_q)
+            .await
+            .map_err(|e| RepoError::database("mark_common_lore", e))?;
+
+        if location_result.next().await.is_err() {
+            return Err(RepoError::not_found("Location", location_id.to_string()));
+        }
+
+        // If chunk_ids provided, validate they all belong to this lore
+        if let Some(ref ids) = chunk_ids {
+            let valid_chunk_ids: std::collections::HashSet<_> =
+                lore.chunks().iter().map(|c| c.id).collect();
+            let invalid_ids: Vec<_> = ids
+                .iter()
+                .filter(|id| !valid_chunk_ids.contains(id))
+                .collect();
+
+            if !invalid_ids.is_empty() {
+                return Err(RepoError::ConstraintViolation(format!(
+                    "Invalid chunk IDs for lore {}: {}",
+                    lore_id,
+                    invalid_ids
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )));
+            }
+        }
+
+        // Serialize chunk_ids - normalize empty list to None for consistency
+        let chunk_ids_to_store = chunk_ids.filter(|ids| !ids.is_empty());
+        let chunk_ids_json = chunk_ids_to_store
+            .as_ref()
+            .map(|ids| serde_json::to_string(ids).map_err(|e| RepoError::Serialization(e.to_string())))
             .transpose()?;
 
         let q = query(
@@ -1229,7 +1302,7 @@ impl LoreRepo for Neo4jLoreRepo {
         )
         .param("location_id", location_id.to_string())
         .param("lore_id", lore_id.to_string())
-        .param("chunk_ids", chunk_ids_json.unwrap_or_else(|| "null".to_string()));
+        .param("chunk_ids", chunk_ids_json); // Pass null when chunk_ids is None
 
         self.graph
             .run(q)
@@ -1310,14 +1383,12 @@ impl LoreRepo for Neo4jLoreRepo {
                     Some(
                         ids.into_iter()
                             .map(|s| {
-                                LoreChunkId::from_uuid(
-                                    uuid::Uuid::parse_str(&s).map_err(|e| {
-                                        RepoError::database("parse", format!("Invalid LoreChunkId: {}", e))
-                                    })
-                                    .unwrap()
-                                )
+                                let uuid = uuid::Uuid::parse_str(&s).map_err(|e| {
+                                    RepoError::database("parse", format!("Invalid LoreChunkId: {}", e))
+                                })?;
+                                Ok(LoreChunkId::from_uuid(uuid))
                             })
-                            .collect(),
+                            .collect::<Result<Vec<_>, RepoError>>()?
                     )
                 }
                 None => None,
@@ -1534,5 +1605,148 @@ mod tests {
         graph.run(cleanup_q).await.ok();
 
         (graph, clock)
+    }
+
+    // ==========================================================================
+    // New Tests for ABOUT_* filtering, NotFound handling, and chunk ID validation
+    // ==========================================================================
+
+    #[tokio::test]
+    async fn get_lore_about_targets_filters_about_relationships_only() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let character_id = CharacterId::new();
+        let item_id = ItemId::new();
+
+        repo.save(&lore).await.unwrap();
+
+        // Create a KNOWS_LORE relationship (should NOT appear in get_lore_about_targets)
+        let q = query(
+            "MATCH (c:Character {id: $character_id})
+            MATCH (l:Lore {id: $lore_id})
+            MERGE (c)-[:KNOWS_LORE]->(l)
+            RETURN l.id AS lore_id"
+        )
+        .param("character_id", character_id.to_string())
+        .param("lore_id", lore.id().to_string());
+        graph.run(q).await.unwrap();
+
+        // Create ABOUT_CHARACTER relationship (should appear)
+        let target = wrldbldr_domain::value_objects::AboutTarget::Character {
+            character_id,
+        };
+        repo.link_lore_about(lore.id(), target).await.unwrap();
+
+        // Get targets - should only return ABOUT_* relationships
+        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        assert_eq!(targets.len(), 1);
+        match &targets[0] {
+            wrldbldr_domain::value_objects::AboutTarget::Character { character_id: id } => {
+                assert_eq!(*id, character_id);
+            }
+            _ => panic!("Expected Character target"),
+        }
+    }
+
+    #[tokio::test]
+    async fn link_lore_about_fails_when_target_missing() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let location_id = LocationId::new();
+
+        repo.save(&lore).await.unwrap();
+
+        // Try to link to non-existent location - should fail with NotFound
+        let target = wrldbldr_domain::value_objects::AboutTarget::Location {
+            location_id,
+        };
+        let result = repo.link_lore_about(lore.id(), target).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            RepoError::NotFound { entity_type, .. } => {
+                assert_eq!(entity_type, "Location");
+            }
+            _ => panic!("Expected NotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn mark_common_lore_fails_when_location_missing() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let location_id = LocationId::new();
+
+        repo.save(&lore).await.unwrap();
+
+        // Try to mark as common at non-existent location - should fail with NotFound
+        let result = repo.mark_common_lore(location_id, lore.id(), None).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            RepoError::NotFound { entity_type, .. } => {
+                assert_eq!(entity_type, "Location");
+            }
+            _ => panic!("Expected NotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn mark_common_lore_fails_when_chunk_ids_invalid() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+
+        // Lore with only one chunk
+        let chunk_id = lore.chunks()[0].id;
+        let other_chunk_id = LoreChunkId::new(); // Not part of this lore
+
+        repo.save(&lore).await.unwrap();
+
+        // Try to mark with invalid chunk ID - should fail with ConstraintViolation
+        let result = repo.mark_common_lore(
+            LocationId::new(),
+            lore.id(),
+            Some(vec![other_chunk_id]),
+        ).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            RepoError::ConstraintViolation { .. } => {
+                // Expected
+            }
+            _ => panic!("Expected ConstraintViolation error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn mark_common_lore_normalizes_empty_list_to_none() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let location_id = LocationId::new();
+
+        repo.save(&lore).await.unwrap();
+
+        // Mark with empty list - should normalize to None (all chunks)
+        repo.mark_common_lore(location_id, lore.id(), Some(vec![])).await.unwrap();
+
+        // Verify it's stored as None
+        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        assert_eq!(common_lore.len(), 1);
+        assert_eq!(common_lore[0].1, None); // None means all chunks
     }
 }

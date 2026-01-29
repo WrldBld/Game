@@ -7,7 +7,8 @@ use crate::use_cases::lore::{
     UpdateLoreChunkInput, UpdateLoreInput,
 };
 
-use wrldbldr_shared::{AboutTargetData, LoreDiscoverySourceData, LoreRequest};
+use wrldbldr_shared::{AboutTargetData, LoreDiscoverySourceData, LoreRequest, LoreJournalEntryData, LoreData, LoreChunkData, LoreKnowledgeData};
+use crate::infrastructure::ports::types::LoreJournalEntry;
 
 /// Maximum string lengths for lore fields to prevent unbounded inputs.
 const MAX_LORE_TITLE: usize = 200;
@@ -741,7 +742,14 @@ pub(super) async fn handle_lore_request(
                 .get_character_lore_journal(char_uuid)
                 .await
             {
-                Ok(data) => Ok(ResponseResult::success(data)),
+                Ok(journal_entries) => {
+                    // Map from use-case DTO to protocol type
+                    let protocol_entries: Vec<wrldbldr_shared::LoreJournalEntryData> = journal_entries
+                        .into_iter()
+                        .map(|entry| convert_journal_entry_to_protocol(entry))
+                        .collect();
+                    Ok(ResponseResult::success(protocol_entries))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "get character lore"),
@@ -806,6 +814,12 @@ pub(super) async fn handle_lore_request(
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore or target not found"))
+                }
+                Err(crate::use_cases::lore::LoreError::Repo(ref e)) if e.is_not_found() => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Target not found"))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "link lore about"),
@@ -950,6 +964,15 @@ pub(super) async fn handle_lore_request(
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore or location not found"))
+                }
+                Err(crate::use_cases::lore::LoreError::Repo(ref e)) if e.is_not_found() => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore or location not found"))
+                }
+                Err(crate::use_cases::lore::LoreError::InvalidChunkIds(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &format!("Invalid chunk IDs: {}", msg)))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "mark common lore"),
@@ -979,6 +1002,12 @@ pub(super) async fn handle_lore_request(
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore or location not found"))
+                }
+                Err(crate::use_cases::lore::LoreError::Repo(ref e)) if e.is_not_found() => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore or location not found"))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "unmark common lore"),
@@ -1040,6 +1069,93 @@ fn proto_about_target_to_domain(target: &AboutTargetData) -> Result<wrldbldr_dom
             Ok(wrldbldr_domain::value_objects::AboutTarget::Item {
                 item_id: wrldbldr_domain::ItemId::from_uuid(uuid),
             })
+        }
+    }
+}
+
+/// Convert use-case LoreJournalEntry DTO to protocol LoreJournalEntryData
+fn convert_journal_entry_to_protocol(entry: LoreJournalEntry) -> LoreJournalEntryData {
+    // Convert LoreDetailRepo to LoreData
+    let lore_data = LoreData {
+        id: entry.lore.id,
+        world_id: entry.lore.world_id,
+        title: entry.lore.title,
+        summary: entry.lore.summary,
+        category: convert_lore_category_to_protocol(&entry.lore.category),
+        chunks: entry.lore.chunks.into_iter().map(|c| LoreChunkData {
+            id: c.id,
+            order: c.order,
+            title: c.title,
+            content: c.content,
+            discovery_hint: c.discovery_hint,
+        }).collect(),
+        is_common_knowledge: entry.lore.is_common_knowledge,
+        tags: entry.lore.tags,
+    };
+
+    // Convert LoreKnowledgeRepo to LoreKnowledgeData
+    let knowledge_data = LoreKnowledgeData {
+        lore_id: entry.knowledge.lore_id,
+        character_id: entry.knowledge.character_id,
+        known_chunk_ids: entry.knowledge.known_chunk_ids,
+        discovery_source: convert_discovery_source_to_protocol(&entry.knowledge.discovery_source),
+        discovered_at: entry.knowledge.discovered_at,
+        notes: entry.knowledge.notes,
+    };
+
+    LoreJournalEntryData {
+        lore: lore_data,
+        knowledge: knowledge_data,
+    }
+}
+
+/// Convert lore category string to protocol LoreCategoryData
+fn convert_lore_category_to_protocol(category: &str) -> wrldbldr_shared::LoreCategoryData {
+    match category {
+        "Historical" => wrldbldr_shared::LoreCategoryData::Historical,
+        "Legend" => wrldbldr_shared::LoreCategoryData::Legend,
+        "Secret" => wrldbldr_shared::LoreCategoryData::Secret,
+        "Common" => wrldbldr_shared::LoreCategoryData::Common,
+        "Technical" => wrldbldr_shared::LoreCategoryData::Technical,
+        "Political" => wrldbldr_shared::LoreCategoryData::Political,
+        "Natural" => wrldbldr_shared::LoreCategoryData::Natural,
+        "Religious" => wrldbldr_shared::LoreCategoryData::Religious,
+        _ => wrldbldr_shared::LoreCategoryData::Unknown,
+    }
+}
+
+/// Convert discovery source repo type to protocol LoreDiscoverySourceData
+fn convert_discovery_source_to_protocol(source: &crate::infrastructure::ports::types::LoreDiscoverySourceRepo) -> LoreDiscoverySourceData {
+    match source {
+        crate::infrastructure::ports::types::LoreDiscoverySourceRepo::ReadBook { book_name } => {
+            LoreDiscoverySourceData::ReadBook {
+                book_name: book_name.clone(),
+            }
+        }
+        crate::infrastructure::ports::types::LoreDiscoverySourceRepo::Conversation { npc_id, npc_name } => {
+            LoreDiscoverySourceData::Conversation {
+                npc_id: npc_id.clone(),
+                npc_name: npc_name.clone(),
+            }
+        }
+        crate::infrastructure::ports::types::LoreDiscoverySourceRepo::Investigation => {
+            LoreDiscoverySourceData::Investigation
+        }
+        crate::infrastructure::ports::types::LoreDiscoverySourceRepo::DmGranted { reason } => {
+            LoreDiscoverySourceData::DmGranted {
+                reason: reason.clone(),
+            }
+        }
+        crate::infrastructure::ports::types::LoreDiscoverySourceRepo::CommonKnowledge => {
+            LoreDiscoverySourceData::CommonKnowledge
+        }
+        crate::infrastructure::ports::types::LoreDiscoverySourceRepo::LlmDiscovered { context } => {
+            LoreDiscoverySourceData::LlmDiscovered {
+                context: context.clone(),
+            }
+        }
+        crate::infrastructure::ports::types::LoreDiscoverySourceRepo::Unknown => {
+            LoreDiscoverySourceData::Unknown
         }
     }
 }

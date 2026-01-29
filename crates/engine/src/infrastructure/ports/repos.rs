@@ -11,7 +11,7 @@ use super::error::RepoError;
 use super::types::{
     ActantialViewRecord, ActiveConversationRecord, ConversationDetails,
     ConversationSpeaker, ConversationTurnRecord, GoalDetails, NpcRegionRelationType,
-    NpcWithRegionInfo, WantDetails, WantTargetRef,
+    NpcWithRegionInfo, WantDetails, WantTargetRef, LoreJournalEntry,
 };
 use crate::infrastructure::app_settings::AppSettings;
 
@@ -888,7 +888,7 @@ pub trait LoreRepo: Send + Sync {
     async fn get_character_lore_journal(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<wrldbldr_shared::LoreJournalEntryData>, RepoError>;
+    ) -> Result<Vec<LoreJournalEntry>, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

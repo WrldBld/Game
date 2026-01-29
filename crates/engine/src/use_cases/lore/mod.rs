@@ -802,7 +802,13 @@ impl LoreOps {
 
         self.lore
             .mark_common_lore(location_id, lore_id, input.chunk_ids)
-            .await?;
+            .await.map_err(|e| {
+                if matches!(e, RepoError::ConstraintViolation {..}) {
+                    LoreError::InvalidChunkIds(e.to_string())
+                } else {
+                    LoreError::Repo(e)
+                }
+            })?;
 
         Ok(MarkCommonLoreResult {
             marked: true,
@@ -854,7 +860,7 @@ impl LoreOps {
     pub async fn get_character_lore_journal(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<wrldbldr_shared::LoreJournalEntryData>, LoreError> {
+    ) -> Result<Vec<crate::infrastructure::ports::types::LoreJournalEntry>, LoreError> {
         self.lore.get_character_lore_journal(character_id).await.map_err(LoreError::Repo)
     }
 }

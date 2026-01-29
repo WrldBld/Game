@@ -4,6 +4,7 @@
 //! Helper types for port operations.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::*;
 
 // WorldRole is re-exported from wrldbldr_domain (imported via `use wrldbldr_domain::*`)
@@ -93,6 +94,67 @@ pub struct NpcDispositionInfo {
     pub relationship: String,
     pub sentiment: f32,
     pub last_reason: Option<String>,
+}
+
+// =============================================================================
+// Lore Journal Types (Repository DTOs)
+// =============================================================================
+
+/// Lore journal entry DTO (combined lore + knowledge)
+///
+/// This is a repository-level type used for `get_character_lore_journal`.
+/// It avoids pulling in wrldbldr_shared protocol types at the repo layer.
+#[derive(Debug, Clone)]
+pub struct LoreJournalEntry {
+    pub lore: LoreDetailRepo,
+    pub knowledge: LoreKnowledgeRepo,
+}
+
+/// Lore detail for repository use (simplified version of domain Lore)
+#[derive(Debug, Clone)]
+pub struct LoreDetailRepo {
+    pub id: String,
+    pub world_id: String,
+    pub title: String,
+    pub summary: String,
+    pub category: String,
+    pub chunks: Vec<LoreChunkRepo>,
+    pub is_common_knowledge: bool,
+    pub tags: Vec<String>,
+}
+
+/// Lore chunk for repository use
+#[derive(Debug, Clone)]
+pub struct LoreChunkRepo {
+    pub id: String,
+    pub order: u32,
+    pub title: Option<String>,
+    pub content: String,
+    pub discovery_hint: Option<String>,
+}
+
+/// Lore knowledge for repository use
+#[derive(Debug, Clone)]
+pub struct LoreKnowledgeRepo {
+    pub lore_id: String,
+    pub character_id: String,
+    pub known_chunk_ids: Vec<String>,
+    pub discovery_source: LoreDiscoverySourceRepo,
+    pub discovered_at: String,
+    pub notes: Option<String>,
+}
+
+/// Discovery source for repository use
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum LoreDiscoverySourceRepo {
+    ReadBook { book_name: String },
+    Conversation { npc_id: String, npc_name: String },
+    Investigation,
+    DmGranted { reason: Option<String> },
+    CommonKnowledge,
+    LlmDiscovered { context: String },
+    Unknown,
 }
 
 // =============================================================================
