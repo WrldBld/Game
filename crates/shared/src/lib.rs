@@ -266,7 +266,7 @@ pub use requests::{
     interaction::InteractionRequest,
     items::ItemsRequest,
     location::LocationRequest,
-    lore::LoreRequest,
+    lore::{AboutTargetData, LoreRequest},
     narrative_event::NarrativeEventRequest,
     npc::NpcRequest,
     observation::ObservationRequest,

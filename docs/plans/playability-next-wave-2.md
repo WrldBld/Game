@@ -12,7 +12,7 @@
     - UI toggle should fail fast when workflow missing
     - Backend only - enqueues map asset generation to queue
 
-2) **Lore linking + common lore** (P1)
+2) **Lore linking + common lore** (P1) - ✅ COMPLETE (Backend)
     - ABOUT_* edges and COMMON_LORE exposure in player journal
     - Lore discovery tool wiring for LLM suggestions
 
@@ -50,7 +50,16 @@
   - Added unit tests for validation and enqueueing
   - Updated neo4j-schema.md to document LocationState/RegionState
 - [ ] P0 Map asset generation frontend integration
-- [ ] P1 Lore linking + common lore complete
+- [x] P1 Lore linking + common lore complete (Backend)
+  - Added `AboutTarget` enum in `domain/src/value_objects/about_target.rs` with typed IDs
+  - Added ABOUT_* edge methods to `LoreRepo` trait: `link_lore_about`, `unlink_lore_about`, `get_lore_about_targets`
+  - Added COMMON_LORE edge methods to `LoreRepo` trait: `mark_common_lore`, `unmark_common_lore`, `get_location_common_lore`
+  - Implemented ABOUT_* and COMMON_LORE methods in `Neo4jLoreRepo`
+  - Added use case methods in `LoreOps`: `link_lore_about`, `unlink_lore_about`, `get_lore_about_targets`, `mark_common_lore`, `unmark_common_lore`, `get_location_common_lore`
+  - Added protocol types: `AboutTargetData` and new `LoreRequest` variants
+  - Updated WebSocket handler `ws_lore.rs` with link/unlink/common lore request handling
+  - Updated `docs/architecture/neo4j-schema.md` with Lore node and ABOUT_*/COMMON_LORE edges
+  - Updated `docs/systems/lore-system.md` with implementation status
 - [ ] P1 Challenge region availability complete
 - [ ] P1 Observation snapshot + updates complete
 - [ ] P2 Story arc chains complete

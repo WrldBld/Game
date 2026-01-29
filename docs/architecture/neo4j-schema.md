@@ -565,6 +565,27 @@ These fields allow the client to track which conversation an approval belongs to
     height: 15,
     created_at: datetime()
 })
+
+(:Lore {
+    id: "uuid",
+    world_id: "uuid",
+    title: "The Fall of House Valeren",
+    summary: "DM reference summary...",
+    category: "historical",  // historical, legend, secret, common, technical, political, natural, religious
+    is_common_knowledge: false,
+    tags: ["politics", "history", "valeren"],
+    created_at: datetime(),
+    updated_at: datetime()
+})
+
+(:LoreChunk {
+    id: "uuid",
+    lore_id: "uuid",
+    order: 0,
+    title: "The Glory Days",
+    content: "House Valeren was once...",
+    discovery_hint: "Common knowledge in eastern provinces"
+})
 ```
 
 ### Staging (NPC Presence)
@@ -583,6 +604,57 @@ These fields allow the client to track which conversation an approval belongs to
     dm_guidance: "" | "...",     // Optional guidance for regeneration
     is_active: true              // Current active staging for region
 })
+```
+
+### Lore System (P1: Lore linking + common lore)
+
+```cypher
+(:Lore {
+    id: "uuid",
+    world_id: "uuid",
+    title: "The Fall of House Valeren",
+    summary: "DM reference summary...",
+    category: "historical",  // historical, legend, secret, common, technical, political, natural, religious
+    is_common_knowledge: false,
+    tags: ["politics", "history", "valeren"],
+    created_at: datetime(),
+    updated_at: datetime()
+})
+
+(:LoreChunk {
+    id: "uuid",
+    lore_id: "uuid",
+    order: 0,
+    title: "The Glory Days",
+    content: "House Valeren was once...",
+    discovery_hint: "Common knowledge in eastern provinces"
+})
+
+// Lore is about a character (PC or NPC)
+(lore:Lore)-[:ABOUT_CHARACTER]->(character:Character)
+
+// Lore is about a location
+(lore:Lore)-[:ABOUT_LOCATION]->(location:Location)
+
+// Lore is about a region (part of a location)
+(lore:Lore)-[:ABOUT_REGION]->(region:Region)
+
+// Lore is about an item
+(lore:Lore)-[:ABOUT_ITEM]->(item:Item)
+
+// Character knows lore (with discovery details)
+(character:Character)-[:KNOWS_LORE {
+    known_chunk_ids: ["uuid1", "uuid2"],  // Empty = knows all
+    discovery_source: "conversation",     // conversation, investigation, dm_granted, etc.
+    source_details: "{npc_id: '...', npc_name: 'Old Historian'}",  // JSON
+    discovered_at: datetime,              // Game time
+    notes: "Learned while asking about local history"
+}]->(lore:Lore)
+
+// Location has common lore (visitors learn it)
+(location:Location)-[:COMMON_LORE {
+    chunk_ids: ["uuid1"]  // Optional: only specific chunks. Empty = all
+}]->(lore:Lore)
 ```
 
 ---

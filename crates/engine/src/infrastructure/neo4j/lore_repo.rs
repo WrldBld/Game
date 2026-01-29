@@ -12,7 +12,7 @@ use neo4rs::{query, Row};
 use wrldbldr_domain::*;
 
 use super::helpers::{
-    parse_typed_id, NodeExt, match_lore_by_id, match_lore_by_world,
+    parse_typed_id, RowExt, NodeExt, match_lore_by_id, match_lore_by_world,
     match_character_by_param, return_knowledge_fields,
 };
 use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
@@ -1055,5 +1055,484 @@ impl LoreRepo for Neo4jLoreRepo {
         }
 
         Ok(journal_entries)
+    }
+
+    async fn link_lore_about(
+        &self,
+        lore_id: LoreId,
+        target: wrldbldr_domain::value_objects::AboutTarget,
+    ) -> Result<(), RepoError> {
+        let (edge_type, target_id, target_label) = match target {
+            wrldbldr_domain::value_objects::AboutTarget::Character { character_id } => {
+                ("ABOUT_CHARACTER", character_id.to_string(), "Character")
+            }
+            wrldbldr_domain::value_objects::AboutTarget::Location { location_id } => {
+                ("ABOUT_LOCATION", location_id.to_string(), "Location")
+            }
+            wrldbldr_domain::value_objects::AboutTarget::Region { region_id } => {
+                ("ABOUT_REGION", region_id.to_string(), "Region")
+            }
+            wrldbldr_domain::value_objects::AboutTarget::Item { item_id } => {
+                ("ABOUT_ITEM", item_id.to_string(), "Item")
+            }
+        };
+
+        let q = query(&format!(
+            "MATCH (l:Lore {{id: $lore_id}})
+            MATCH (t:{} {{id: $target_id}})
+            MERGE (l)-[:{}]->(t)
+            RETURN l.id AS lore_id",
+            target_label, edge_type
+        ))
+        .param("lore_id", lore_id.to_string())
+        .param("target_id", target_id);
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::database("link_lore_about", e))?;
+
+        tracing::debug!("Linked lore {} about {}", lore_id, edge_type);
+        Ok(())
+    }
+
+    async fn unlink_lore_about(
+        &self,
+        lore_id: LoreId,
+        target: &wrldbldr_domain::value_objects::AboutTarget,
+    ) -> Result<(), RepoError> {
+        let (edge_type, target_id, target_label) = match target {
+            wrldbldr_domain::value_objects::AboutTarget::Character { character_id } => {
+                ("ABOUT_CHARACTER", character_id.to_string(), "Character")
+            }
+            wrldbldr_domain::value_objects::AboutTarget::Location { location_id } => {
+                ("ABOUT_LOCATION", location_id.to_string(), "Location")
+            }
+            wrldbldr_domain::value_objects::AboutTarget::Region { region_id } => {
+                ("ABOUT_REGION", region_id.to_string(), "Region")
+            }
+            wrldbldr_domain::value_objects::AboutTarget::Item { item_id } => {
+                ("ABOUT_ITEM", item_id.to_string(), "Item")
+            }
+        };
+
+        let q = query(&format!(
+            "MATCH (l:Lore {{id: $lore_id}})-[r:{}]->(t:{} {{id: $target_id}})
+            DELETE r
+            RETURN count(r) AS deleted_count",
+            edge_type, target_label
+        ))
+        .param("lore_id", lore_id.to_string())
+        .param("target_id", target_id);
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::database("unlink_lore_about", e))?;
+
+        tracing::debug!("Unlinked lore {} from {}", lore_id, edge_type);
+        Ok(())
+    }
+
+    async fn get_lore_about_targets(
+        &self,
+        lore_id: LoreId,
+    ) -> Result<Vec<wrldbldr_domain::value_objects::AboutTarget>, RepoError> {
+        // Query all ABOUT_* relationships for a lore entry
+        let q = query(
+            "MATCH (l:Lore {id: $lore_id})-[r]->(t)
+            RETURN l.id AS lore_id, labels(t)[0] AS target_label, t.id AS target_id
+        ",
+        )
+        .param("lore_id", lore_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("get_lore_about_targets", e))?;
+
+        let mut targets = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let target_label: String = row
+                .get("target_label")
+                .map_err(|e| RepoError::database("query", format!("Failed to get target_label: {}", e)))?;
+            let target_id_str: String = row
+                .get("target_id")
+                .map_err(|e| RepoError::database("query", format!("Failed to get target_id: {}", e)))?;
+
+            let target = match target_label.as_str() {
+                "Character" => {
+                    let id = uuid::Uuid::parse_str(&target_id_str)
+                        .map_err(|e| RepoError::database("parse", format!("Invalid CharacterId: {}", e)))?;
+                    wrldbldr_domain::value_objects::AboutTarget::Character {
+                        character_id: CharacterId::from_uuid(id),
+                    }
+                }
+                "Location" => {
+                    let id = uuid::Uuid::parse_str(&target_id_str)
+                        .map_err(|e| RepoError::database("parse", format!("Invalid LocationId: {}", e)))?;
+                    wrldbldr_domain::value_objects::AboutTarget::Location {
+                        location_id: LocationId::from_uuid(id),
+                    }
+                }
+                "Region" => {
+                    let id = uuid::Uuid::parse_str(&target_id_str)
+                        .map_err(|e| RepoError::database("parse", format!("Invalid RegionId: {}", e)))?;
+                    wrldbldr_domain::value_objects::AboutTarget::Region {
+                        region_id: RegionId::from_uuid(id),
+                    }
+                }
+                "Item" => {
+                    let id = uuid::Uuid::parse_str(&target_id_str)
+                        .map_err(|e| RepoError::database("parse", format!("Invalid ItemId: {}", e)))?;
+                    wrldbldr_domain::value_objects::AboutTarget::Item {
+                        item_id: ItemId::from_uuid(id),
+                    }
+                }
+                _ => {
+                    return Err(RepoError::database(
+                        "parse",
+                        format!("Unknown target label: {}", target_label),
+                    ));
+                }
+            };
+
+            targets.push(target);
+        }
+
+        Ok(targets)
+    }
+
+    async fn mark_common_lore(
+        &self,
+        location_id: LocationId,
+        lore_id: LoreId,
+        chunk_ids: Option<Vec<LoreChunkId>>,
+    ) -> Result<(), RepoError> {
+        let chunk_ids_json = chunk_ids
+            .map(|ids| {
+                serde_json::to_string(&ids).map_err(|e| RepoError::Serialization(e.to_string()))
+            })
+            .transpose()?;
+
+        let q = query(
+            "MATCH (l:Location {id: $location_id})
+            MATCH (lo:Lore {id: $lore_id})
+            MERGE (l)-[r:COMMON_LORE]->(lo)
+            SET r.chunk_ids = $chunk_ids
+            RETURN l.id AS location_id",
+        )
+        .param("location_id", location_id.to_string())
+        .param("lore_id", lore_id.to_string())
+        .param("chunk_ids", chunk_ids_json.unwrap_or_else(|| "null".to_string()));
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::database("mark_common_lore", e))?;
+
+        tracing::debug!(
+            "Marked lore {} as common at location {}",
+            lore_id,
+            location_id
+        );
+        Ok(())
+    }
+
+    async fn unmark_common_lore(
+        &self,
+        location_id: LocationId,
+        lore_id: LoreId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (l:Location {id: $location_id})-[r:COMMON_LORE]->(lo:Lore {id: $lore_id})
+            DELETE r
+            RETURN count(r) AS deleted_count",
+        )
+        .param("location_id", location_id.to_string())
+        .param("lore_id", lore_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::database("unmark_common_lore", e))?;
+
+        tracing::debug!(
+            "Unmarked lore {} as common at location {}",
+            lore_id,
+            location_id
+        );
+        Ok(())
+    }
+
+    async fn get_location_common_lore(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<(LoreId, Option<Vec<LoreChunkId>>)>, RepoError> {
+        let q = query(
+            "MATCH (l:Location {id: $location_id})-[r:COMMON_LORE]->(lo:Lore)
+            RETURN lo.id AS lore_id, r.chunk_ids AS chunk_ids
+        ",
+        )
+        .param("location_id", location_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("get_location_common_lore", e))?;
+
+        let mut common_lore = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let lore_id_str: String = row
+                .get("lore_id")
+                .map_err(|e| RepoError::database("query", format!("Failed to get lore_id: {}", e)))?;
+
+            let lore_id = LoreId::from_uuid(
+                uuid::Uuid::parse_str(&lore_id_str)
+                    .map_err(|e| RepoError::database("parse", format!("Invalid LoreId: {}", e)))?,
+            );
+
+            let chunk_ids: Option<Vec<LoreChunkId>> = match row.get_optional_string("chunk_ids") {
+                Some(json_str) if json_str == "null" || json_str.is_empty() => None,
+                Some(json_str) => {
+                    let ids: Vec<String> = serde_json::from_str::<Vec<String>>(&json_str)
+                        .map_err(|e| RepoError::database("parse", format!("Invalid chunk_ids JSON: {}", e)))?;
+                    Some(
+                        ids.into_iter()
+                            .map(|s| {
+                                LoreChunkId::from_uuid(
+                                    uuid::Uuid::parse_str(&s).map_err(|e| {
+                                        RepoError::database("parse", format!("Invalid LoreChunkId: {}", e))
+                                    })
+                                    .unwrap()
+                                )
+                            })
+                            .collect(),
+                    )
+                }
+                None => None,
+            };
+
+            common_lore.push((lore_id, chunk_ids));
+        }
+
+        Ok(common_lore)
+    }
+}
+
+// =============================================================================
+// Integration Tests (P1: Lore linking + common lore)
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::clock::FixedClock;
+    use std::sync::Arc;
+    use wrldbldr_domain::{LoreCategory, LocationId, RegionId, ItemId, WorldId, CharacterId};
+
+    fn create_test_lore(world_id: WorldId) -> Lore {
+        Lore::new(world_id, "Test Lore", LoreCategory::Common, chrono::Utc::now())
+    }
+
+    #[tokio::test]
+    async fn link_lore_about_character() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let character_id = CharacterId::new();
+
+        // Save lore
+        repo.save(&lore).await.unwrap();
+
+        // Link lore about character
+        let target = wrldbldr_domain::value_objects::AboutTarget::Character {
+            character_id,
+        };
+        repo.link_lore_about(lore.id(), target).await.unwrap();
+
+        // Verify link exists
+        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        assert_eq!(targets.len(), 1);
+        match &targets[0] {
+            wrldbldr_domain::value_objects::AboutTarget::Character { character_id: id } => {
+                assert_eq!(*id, character_id);
+            }
+            _ => panic!("Expected Character target"),
+        }
+    }
+
+    #[tokio::test]
+    async fn link_lore_about_location() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let location_id = LocationId::new();
+
+        // Save lore
+        repo.save(&lore).await.unwrap();
+
+        // Link lore about location
+        let target = wrldbldr_domain::value_objects::AboutTarget::Location {
+            location_id,
+        };
+        repo.link_lore_about(lore.id(), target).await.unwrap();
+
+        // Verify link exists
+        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        assert_eq!(targets.len(), 1);
+        match &targets[0] {
+            wrldbldr_domain::value_objects::AboutTarget::Location { location_id: id } => {
+                assert_eq!(*id, location_id);
+            }
+            _ => panic!("Expected Location target"),
+        }
+    }
+
+    #[tokio::test]
+    async fn unlink_lore_about() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let character_id = CharacterId::new();
+
+        // Save lore and link
+        repo.save(&lore).await.unwrap();
+        let target = wrldbldr_domain::value_objects::AboutTarget::Character {
+            character_id,
+        };
+        repo.link_lore_about(lore.id(), target.clone()).await.unwrap();
+
+        // Verify link exists
+        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        assert_eq!(targets.len(), 1);
+
+        // Unlink
+        repo.unlink_lore_about(lore.id(), &target).await.unwrap();
+
+        // Verify link removed
+        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        assert_eq!(targets.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn mark_common_lore() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let location_id = LocationId::new();
+
+        // Save lore
+        repo.save(&lore).await.unwrap();
+
+        // Mark as common lore
+        repo.mark_common_lore(location_id, lore.id(), None).await.unwrap();
+
+        // Verify common lore exists
+        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        assert_eq!(common_lore.len(), 1);
+        assert_eq!(common_lore[0].0, lore.id());
+        assert!(common_lore[0].1.is_none()); // No chunk_ids means all chunks
+    }
+
+    #[tokio::test]
+    async fn mark_common_lore_with_chunks() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let mut lore = create_test_lore(world_id);
+        lore = lore.with_chunks(vec![
+            wrldbldr_domain::LoreChunk::new("Chunk 1").with_order(0),
+            wrldbldr_domain::LoreChunk::new("Chunk 2").with_order(1),
+        ]);
+        let location_id = LocationId::new();
+
+        // Save lore with chunks
+        repo.save(&lore).await.unwrap();
+
+        // Mark specific chunks as common
+        let common_chunk_ids = vec![lore.chunks()[0].id];
+        repo.mark_common_lore(location_id, lore.id(), Some(common_chunk_ids.clone())).await.unwrap();
+
+        // Verify common lore with specific chunks
+        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        assert_eq!(common_lore.len(), 1);
+        assert_eq!(common_lore[0].0, lore.id());
+        match &common_lore[0].1 {
+            Some(ids) if ids.len() == 1 => {
+                assert_eq!(ids[0], common_chunk_ids[0]);
+            }
+            _ => panic!("Expected specific chunk_ids"),
+        }
+    }
+
+    #[tokio::test]
+    async fn unmark_common_lore() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let location_id = LocationId::new();
+
+        // Save lore and mark as common
+        repo.save(&lore).await.unwrap();
+        repo.mark_common_lore(location_id, lore.id(), None).await.unwrap();
+
+        // Verify common lore exists
+        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        assert_eq!(common_lore.len(), 1);
+
+        // Unmark
+        repo.unmark_common_lore(location_id, lore.id()).await.unwrap();
+
+        // Verify common lore removed
+        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        assert_eq!(common_lore.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn get_location_common_lore_empty() {
+        let (graph, clock) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+
+        let location_id = LocationId::new();
+
+        // Query common lore for location with no common lore
+        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        assert_eq!(common_lore.len(), 0);
+    }
+
+    async fn setup_test_graph() -> (Neo4jGraph, crate::infrastructure::clock::FixedClock) {
+        use crate::infrastructure::neo4j::Neo4jGraph;
+        let graph = Neo4jGraph::new("bolt://localhost:7687", None)
+            .await
+            .expect("Failed to create test graph");
+        let clock = crate::infrastructure::clock::FixedClock(chrono::Utc::now());
+
+        // Clean up test data
+        let cleanup_q = query("MATCH (n) DETACH DELETE n");
+        graph.run(cleanup_q).await.ok();
+
+        (graph, clock)
     }
 }

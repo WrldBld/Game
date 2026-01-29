@@ -15,6 +15,7 @@ mod dice;
 mod directorial;
 mod names;
 // IDs live in `wrldbldr-domain`
+mod about_target;
 mod dialogue_markers;
 mod disposition;
 mod expression_config;
@@ -96,6 +97,9 @@ pub use names::{
 
 // Character lifecycle state enum
 pub use character_state::CharacterState;
+
+// About target for lore linking
+pub use about_target::AboutTarget;
 
 // Presence cache TTL in hours
 pub use presence_ttl::PresenceTtlHours;

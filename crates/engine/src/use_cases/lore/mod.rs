@@ -6,7 +6,8 @@ use serde::Serialize;
 
 use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
 use wrldbldr_domain::{
-    CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
+    CharacterId, LocationId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId,
+    LoreKnowledge, WorldId,
 };
 
 // =============================================================================
@@ -52,6 +53,48 @@ pub struct DeleteChunkResult {
     pub deleted: bool,
     pub lore_id: String,
     pub chunk_id: String,
+}
+
+/// Result of linking lore about a target.
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkLoreAboutResult {
+    pub linked: bool,
+    pub lore_id: String,
+    pub target_type: String,
+    pub target_id: String,
+}
+
+/// Result of unlinking lore from a target.
+#[derive(Debug, Clone, Serialize)]
+pub struct UnlinkLoreAboutResult {
+    pub unlinked: bool,
+    pub lore_id: String,
+    pub target_type: String,
+    pub target_id: String,
+}
+
+/// Result of marking lore as common at a location.
+#[derive(Debug, Clone, Serialize)]
+pub struct MarkCommonLoreResult {
+    pub marked: bool,
+    pub lore_id: String,
+    pub location_id: String,
+}
+
+/// Result of unmarking lore as common at a location.
+#[derive(Debug, Clone, Serialize)]
+pub struct UnmarkCommonLoreResult {
+    pub unmarked: bool,
+    pub lore_id: String,
+    pub location_id: String,
+}
+
+/// Common lore at a location.
+#[derive(Debug, Clone, Serialize)]
+pub struct CommonLoreAtLocation {
+    pub lore_id: String,
+    pub location_id: String,
+    pub chunk_ids: Option<Vec<String>>,
 }
 
 /// Result of granting knowledge.
@@ -161,6 +204,18 @@ pub struct UpdateLoreChunkInput {
     pub content: Option<String>,
     pub order: Option<u32>,
     pub discovery_hint: Option<String>,
+}
+
+/// Input for linking lore about a target.
+#[derive(Debug, Clone)]
+pub struct LinkLoreAboutInput {
+    pub target: wrldbldr_domain::value_objects::AboutTarget,
+}
+
+/// Input for marking lore as common at a location.
+#[derive(Debug, Clone)]
+pub struct MarkCommonLoreInput {
+    pub chunk_ids: Option<Vec<LoreChunkId>>,
 }
 
 /// Source of lore discovery (domain representation).
@@ -680,6 +735,117 @@ impl LoreOps {
                 character_id: k.character_id.to_string(),
                 known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
                 discovered_at: k.discovered_at.to_rfc3339(),
+            })
+            .collect())
+    }
+
+    pub async fn link_lore_about(
+        &self,
+        lore_id: LoreId,
+        input: LinkLoreAboutInput,
+    ) -> Result<LinkLoreAboutResult, LoreError> {
+        // Validate lore exists
+        self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+
+        let target = input.target.clone();
+        self.lore
+            .link_lore_about(lore_id, target.clone())
+            .await?;
+
+        let target_type = target.node_label().to_string();
+        Ok(LinkLoreAboutResult {
+            linked: true,
+            lore_id: lore_id.to_string(),
+            target_type,
+            target_id: target.id_str(),
+        })
+    }
+
+    pub async fn unlink_lore_about(
+        &self,
+        lore_id: LoreId,
+        input: LinkLoreAboutInput,
+    ) -> Result<UnlinkLoreAboutResult, LoreError> {
+        // Validate lore exists
+        self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+
+        self.lore
+            .unlink_lore_about(lore_id, &input.target)
+            .await?;
+
+        Ok(UnlinkLoreAboutResult {
+            unlinked: true,
+            lore_id: lore_id.to_string(),
+            target_type: input.target.node_label().to_string(),
+            target_id: input.target.id_str(),
+        })
+    }
+
+    pub async fn get_lore_about_targets(
+        &self,
+        lore_id: LoreId,
+    ) -> Result<Vec<wrldbldr_domain::value_objects::AboutTarget>, LoreError> {
+        // Validate lore exists
+        self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+
+        self.lore.get_lore_about_targets(lore_id).await.map_err(LoreError::Repo)
+    }
+
+    pub async fn mark_common_lore(
+        &self,
+        location_id: LocationId,
+        lore_id: LoreId,
+        input: MarkCommonLoreInput,
+    ) -> Result<MarkCommonLoreResult, LoreError> {
+        // Validate lore exists
+        self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+
+        self.lore
+            .mark_common_lore(location_id, lore_id, input.chunk_ids)
+            .await?;
+
+        Ok(MarkCommonLoreResult {
+            marked: true,
+            lore_id: lore_id.to_string(),
+            location_id: location_id.to_string(),
+        })
+    }
+
+    pub async fn unmark_common_lore(
+        &self,
+        location_id: LocationId,
+        lore_id: LoreId,
+    ) -> Result<UnmarkCommonLoreResult, LoreError> {
+        // Validate lore exists
+        self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+
+        self.lore
+            .unmark_common_lore(location_id, lore_id)
+            .await?;
+
+        Ok(UnmarkCommonLoreResult {
+            unmarked: true,
+            lore_id: lore_id.to_string(),
+            location_id: location_id.to_string(),
+        })
+    }
+
+    pub async fn get_location_common_lore(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<CommonLoreAtLocation>, LoreError> {
+        let common_lore = self
+            .lore
+            .get_location_common_lore(location_id)
+            .await
+            .map_err(LoreError::Repo)?;
+
+        Ok(common_lore
+            .into_iter()
+            .map(|(lore_id, chunk_ids)| CommonLoreAtLocation {
+                lore_id: lore_id.to_string(),
+                location_id: location_id.to_string(),
+                chunk_ids: chunk_ids.map(|ids| ids.iter().map(|id| id.to_string()).collect()),
             })
             .collect())
     }

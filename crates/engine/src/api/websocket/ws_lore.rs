@@ -7,7 +7,7 @@ use crate::use_cases::lore::{
     UpdateLoreChunkInput, UpdateLoreInput,
 };
 
-use wrldbldr_shared::{LoreDiscoverySourceData, LoreRequest};
+use wrldbldr_shared::{AboutTargetData, LoreDiscoverySourceData, LoreRequest};
 
 /// Maximum string lengths for lore fields to prevent unbounded inputs.
 const MAX_LORE_TITLE: usize = 200;
@@ -769,6 +769,277 @@ pub(super) async fn handle_lore_request(
                     sanitize_repo_error(&e, "get lore knowers"),
                 )),
             }
+        }
+
+        // ========================================================================
+        // P1: Lore linking + common lore backend
+        // ========================================================================
+
+        LoreRequest::LinkLoreAbout { lore_id, target } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            let domain_target = match proto_about_target_to_domain(&target) {
+                Ok(t) => t,
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        &format!("Invalid about target: {}", e),
+                    ))
+                }
+            };
+
+            let input = crate::use_cases::lore::LinkLoreAboutInput {
+                target: domain_target,
+            };
+
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .link_lore_about(lore_uuid, input)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "link lore about"),
+                )),
+            }
+        }
+
+        LoreRequest::UnlinkLoreAbout { lore_id, target } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            let domain_target = match proto_about_target_to_domain(&target) {
+                Ok(t) => t,
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        &format!("Invalid about target: {}", e),
+                    ))
+                }
+            };
+
+            let input = crate::use_cases::lore::LinkLoreAboutInput {
+                target: domain_target,
+            };
+
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .unlink_lore_about(lore_uuid, input)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "unlink lore about"),
+                )),
+            }
+        }
+
+        LoreRequest::GetLoreAboutTargets { lore_id } => {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .get_lore_about_targets(lore_uuid)
+                .await
+            {
+                Ok(targets) => {
+                    let data: Vec<_> = targets.into_iter().map(|t| match t {
+                        wrldbldr_domain::value_objects::AboutTarget::Character { character_id } => {
+                            wrldbldr_shared::AboutTargetData::Character {
+                                character_id: character_id.to_string(),
+                            }
+                        }
+                        wrldbldr_domain::value_objects::AboutTarget::Location { location_id } => {
+                            wrldbldr_shared::AboutTargetData::Location {
+                                location_id: location_id.to_string(),
+                            }
+                        }
+                        wrldbldr_domain::value_objects::AboutTarget::Region { region_id } => {
+                            wrldbldr_shared::AboutTargetData::Region {
+                                region_id: region_id.to_string(),
+                            }
+                        }
+                        wrldbldr_domain::value_objects::AboutTarget::Item { item_id } => {
+                            wrldbldr_shared::AboutTargetData::Item {
+                                item_id: item_id.to_string(),
+                            }
+                        }
+                    }).collect();
+
+                    Ok(ResponseResult::success(data))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "get lore about targets"),
+                )),
+            }
+        }
+
+        LoreRequest::MarkCommonLore { location_id, lore_id, chunk_ids } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let location_uuid = match parse_uuid_for_request(&location_id, request_id, "Invalid location_id") {
+                Ok(u) => wrldbldr_domain::LocationId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            let chunk_uuids = match chunk_ids {
+                Some(ids) => {
+                    let mut valid_uuids = Vec::with_capacity(ids.len());
+                    let mut invalid_ids = Vec::new();
+
+                    for id in ids {
+                        match Uuid::parse_str(&id) {
+                            Ok(uuid) => {
+                                valid_uuids.push(wrldbldr_domain::LoreChunkId::from_uuid(uuid))
+                            }
+                            Err(_) => invalid_ids.push(id),
+                        }
+                    }
+
+                    if !invalid_ids.is_empty() {
+                        return Ok(ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Invalid chunk_ids: {}", invalid_ids.join(", ")),
+                        ));
+                    }
+
+                    Some(valid_uuids)
+                }
+                None => None,
+            };
+
+            let input = crate::use_cases::lore::MarkCommonLoreInput {
+                chunk_ids: chunk_uuids,
+            };
+
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .mark_common_lore(location_uuid, lore_uuid, input)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "mark common lore"),
+                )),
+            }
+        }
+
+        LoreRequest::UnmarkCommonLore { location_id, lore_id } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let location_uuid = match parse_uuid_for_request(&location_id, request_id, "Invalid location_id") {
+                Ok(u) => wrldbldr_domain::LocationId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .unmark_common_lore(location_uuid, lore_uuid)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "unmark common lore"),
+                )),
+            }
+        }
+
+        LoreRequest::GetLocationCommonLore { location_id } => {
+            let location_uuid = match parse_uuid_for_request(&location_id, request_id, "Invalid location_id") {
+                Ok(u) => wrldbldr_domain::LocationId::from_uuid(u),
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .get_location_common_lore(location_uuid)
+                .await
+            {
+                Ok(data) => Ok(ResponseResult::success(data)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "get location common lore"),
+                )),
+            }
+        }
+    }
+}
+
+/// Convert protocol AboutTargetData to domain AboutTarget
+fn proto_about_target_to_domain(target: &AboutTargetData) -> Result<wrldbldr_domain::value_objects::AboutTarget, String> {
+    match target {
+        AboutTargetData::Character { character_id } => {
+            let uuid = Uuid::parse_str(character_id)
+                .map_err(|e| format!("Invalid character_id: {}", e))?;
+            Ok(wrldbldr_domain::value_objects::AboutTarget::Character {
+                character_id: wrldbldr_domain::CharacterId::from_uuid(uuid),
+            })
+        }
+        AboutTargetData::Location { location_id } => {
+            let uuid = Uuid::parse_str(location_id)
+                .map_err(|e| format!("Invalid location_id: {}", e))?;
+            Ok(wrldbldr_domain::value_objects::AboutTarget::Location {
+                location_id: wrldbldr_domain::LocationId::from_uuid(uuid),
+            })
+        }
+        AboutTargetData::Region { region_id } => {
+            let uuid = Uuid::parse_str(region_id)
+                .map_err(|e| format!("Invalid region_id: {}", e))?;
+            Ok(wrldbldr_domain::value_objects::AboutTarget::Region {
+                region_id: wrldbldr_domain::RegionId::from_uuid(uuid),
+            })
+        }
+        AboutTargetData::Item { item_id } => {
+            let uuid = Uuid::parse_str(item_id)
+                .map_err(|e| format!("Invalid item_id: {}", e))?;
+            Ok(wrldbldr_domain::value_objects::AboutTarget::Item {
+                item_id: wrldbldr_domain::ItemId::from_uuid(uuid),
+            })
         }
     }
 }

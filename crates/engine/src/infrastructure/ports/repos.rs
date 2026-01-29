@@ -812,6 +812,39 @@ pub trait LoreRepo: Send + Sync {
         tags: &[String],
     ) -> Result<Vec<Lore>, RepoError>;
 
+    // About relationships (Lore -> Character/Location/Region/Item)
+    async fn link_lore_about(
+        &self,
+        lore_id: LoreId,
+        target: wrldbldr_domain::value_objects::AboutTarget,
+    ) -> Result<(), RepoError>;
+    async fn unlink_lore_about(
+        &self,
+        lore_id: LoreId,
+        target: &wrldbldr_domain::value_objects::AboutTarget,
+    ) -> Result<(), RepoError>;
+    async fn get_lore_about_targets(
+        &self,
+        lore_id: LoreId,
+    ) -> Result<Vec<wrldbldr_domain::value_objects::AboutTarget>, RepoError>;
+
+    // Common lore relationships (Location -> Lore)
+    async fn mark_common_lore(
+        &self,
+        location_id: LocationId,
+        lore_id: LoreId,
+        chunk_ids: Option<Vec<LoreChunkId>>,
+    ) -> Result<(), RepoError>;
+    async fn unmark_common_lore(
+        &self,
+        location_id: LocationId,
+        lore_id: LoreId,
+    ) -> Result<(), RepoError>;
+    async fn get_location_common_lore(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<(LoreId, Option<Vec<LoreChunkId>>)>, RepoError>;
+
     // Knowledge management
     async fn grant_knowledge(&self, knowledge: &LoreKnowledge) -> Result<(), RepoError>;
     async fn revoke_knowledge(
@@ -842,7 +875,7 @@ pub trait LoreRepo: Send + Sync {
     ) -> Result<(), RepoError>;
 
     // Remove chunks from existing knowledge (partial revocation)
-    // Returns true if the knowledge relationship was completely removed (no chunks left)
+    // Returns true if knowledge relationship was completely removed (no chunks left)
     async fn remove_chunks_from_knowledge(
         &self,
         character_id: CharacterId,

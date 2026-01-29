@@ -62,7 +62,7 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
   - *UI*: Creator mode editor not yet implemented
 
 - [x] **US-LORE-002**: As a DM, I can link lore to characters, locations, regions, or items so that lore is contextually organized
-  - *Backend*: Domain supports `about_*` references in Lore entity
+  - *Backend*: `AboutTarget` enum in `value_objects/about_target.rs`, `LoreRepo::link_lore_about()` and `get_lore_about_targets()`, `LoreOps::link_lore_about()` and `get_lore_about_targets()`
   - *UI*: Link editor not yet implemented
 
 - [x] **US-LORE-003**: As a DM, I can mark lore as common knowledge so that all characters automatically know it
@@ -70,7 +70,7 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
   - *UI*: Toggle in lore editor not yet implemented
 
 - [x] **US-LORE-004**: As a DM, I can associate common lore with a location so that visitors learn it
-  - *Backend*: COMMON_LORE edge support in lore_repo.rs
+  - *Backend*: `LoreRepo::mark_common_lore()`, `unmark_common_lore()`, and `get_location_common_lore()`, `LoreOps::mark_common_lore()`, `unmark_common_lore()`, and `get_location_common_lore()`
   - *UI*: Location lore association not yet implemented
 
 - [x] **US-LORE-007**: As a DM, I can manually grant lore (full or specific chunks) to characters
@@ -80,6 +80,26 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 - [x] **US-LORE-008**: As a DM, I can revoke lore knowledge from characters
   - *Backend*: `revoke_knowledge()` method in lore.rs
   - *UI*: Revoke action not yet implemented
+
+- [x] **US-LORE-LINK-001**: As a DM, I can link lore about characters, locations, regions, or items
+  - *Backend*: `LoreRepo::link_lore_about()` method, `LoreOps::link_lore_about()` and `get_lore_about_targets()`
+  - *UI*: Link actions not yet implemented
+
+- [x] **US-LORE-LINK-002**: As a DM, I can unlink lore from targets
+  - *Backend*: `LoreRepo::unlink_lore_about()` method, `LoreOps::unlink_lore_about()`
+  - *UI*: Unlink actions not yet implemented
+
+- [x] **US-LORE-COMMON-001**: As a DM, I can mark lore as common knowledge at a location
+  - *Backend*: `LoreRepo::mark_common_lore()` method, `LoreOps::mark_common_lore()`
+  - *UI*: Mark common lore actions not yet implemented
+
+- [x] **US-LORE-COMMON-002**: As a DM, I can unmark lore as common knowledge at a location
+  - *Backend*: `LoreRepo::unmark_common_lore()` method, `LoreOps::unmark_common_lore()`
+  - *UI*: Unmark actions not yet implemented
+
+- [x] **US-LORE-COMMON-003**: As a DM, I can query common lore for a location
+  - *Backend*: `LoreRepo::get_location_common_lore()` method, `LoreOps::get_location_common_lore()`
+  - *UI*: Common lore display not yet implemented
 
 ### UI Pending
 
@@ -366,10 +386,11 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 | Lore Entity | ✅ | - | `crates/domain/src/entities/lore.rs` |
 | LoreChunk Value Object | ✅ | - | Part of Lore entity |
 | LoreKnowledge Edge | ✅ | - | KNOWS_LORE edge data |
+| AboutTarget Enum | ✅ | - | `crates/domain/src/value_objects/about_target.rs` - typed wrapper for ABOUT_* edges |
 | LoreRepository | ✅ | - | `crates/engine/src/repositories/lore.rs` |
-| LoreService | ✅ | - | `crates/engine/src/use_cases/lore/mod.rs` |
-| Protocol Messages | ✅ | ⏳ | Lore-specific messages |
-| WebSocket Handlers | ✅ | ⏳ | Lore request handlers |
+| LoreService (LoreOps) | ✅ | - | `crates/engine/src/use_cases/lore/mod.rs` - includes linking/unlinking/common operations |
+| Protocol Messages | ✅ | ⏳ | Lore-specific messages including AboutTargetData |
+| WebSocket Handlers | ✅ | ⏳ | Lore request handlers including link/unlink/common operations |
 | Lore Editor UI | - | Pending | Creator mode |
 | Lore Journal UI | - | Pending | Player codex |
 | DM Grant Modal | - | Pending | Manual grant UI |
