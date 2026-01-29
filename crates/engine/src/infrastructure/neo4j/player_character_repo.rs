@@ -335,14 +335,14 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
     }
 
     /// Modify a stat on a player character.
-    /// Stats are stored in a JSON field `stats_json` on the PC node.
+    /// Stats are stored in a JSON field `stats_json` on PC node.
     /// Uses explicit transaction to ensure atomicity and prevent race conditions.
     async fn modify_stat(
         &self,
         id: PlayerCharacterId,
         stat: &str,
         modifier: i32,
-    ) -> Result<(), RepoError> {
+    ) -> Result<crate::infrastructure::ports::StatModificationResult, RepoError> {
         // Use explicit transaction to ensure read-modify-write is atomic
         let mut txn = self
             .graph
@@ -391,6 +391,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         })?;
 
         let current_value = stats.get(stat).copied().unwrap_or(0);
+        let old_value = current_value as i32;
         let new_value = current_value + modifier as i64;
         stats.insert(stat.to_string(), new_value);
 
@@ -414,8 +415,13 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
+        let delta = modifier;
         tracing::info!(pc_id = %id, stat = %stat, modifier = %modifier, new_value = %new_value, "Modified stat");
-        Ok(())
+        Ok(crate::infrastructure::ports::StatModificationResult {
+            old_value,
+            new_value: new_value as i32,
+            delta,
+        })
     }
 }
 

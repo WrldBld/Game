@@ -377,7 +377,7 @@ pub enum ToolArgs {
 
     /// Update a character's stat value
     UpdateCharacterStat {
-        character_id: CharacterId,
+        character_id: PlayerCharacterId,
         stat_name: String,
         delta: i32,
     },

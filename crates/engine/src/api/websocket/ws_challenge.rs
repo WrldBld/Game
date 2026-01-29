@@ -2,7 +2,8 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_domain::{ConnectionId, DiceRollInput, OutcomeType};
+use uuid::Uuid;
+use wrldbldr_domain::{ConnectionId, DiceRollInput, OutcomeType, SkillId};
 use wrldbldr_shared::types::ProposedToolInfo;
 use wrldbldr_shared::{ChallengeRequest, ErrorCode, ResponseResult};
 
@@ -47,8 +48,16 @@ pub(super) async fn handle_challenge_request(
         ChallengeRequest::CreateChallenge { world_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
+            let skill_uuid = Uuid::parse_str(&data.skill_id).map_err(|_| {
+                error_response(
+                    ErrorCode::ValidationError,
+                    "Invalid skill_id format",
+                )
+            })?;
+            let skill_id = Some(SkillId::from_uuid(skill_uuid));
             let input = crate::use_cases::challenge::CreateChallengeInput {
                 name: data.name,
+                skill_id,
                 difficulty: data.difficulty,
                 description: data.description,
                 success_outcome: data.success_outcome,
@@ -72,8 +81,21 @@ pub(super) async fn handle_challenge_request(
         ChallengeRequest::UpdateChallenge { challenge_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let challenge_id_typed = parse_challenge_id_for_request(&challenge_id, request_id)?;
+            let skill_id = match data.skill_id {
+                Some(s) => {
+                    let skill_uuid = Uuid::parse_str(&s).map_err(|_| {
+                        error_response(
+                            ErrorCode::ValidationError,
+                            "Invalid skill_id format",
+                        )
+                    })?;
+                    Some(SkillId::from_uuid(skill_uuid))
+                }
+                None => None,
+            };
             let input = crate::use_cases::challenge::UpdateChallengeInput {
                 name: data.name,
+                skill_id,
                 description: data.description,
                 difficulty: data.difficulty,
                 success_outcome: data.success_outcome,

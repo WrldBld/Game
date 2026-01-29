@@ -544,4 +544,72 @@ impl ChallengeRepo for Neo4jChallengeRepo {
 
         Ok(challenge_ids)
     }
+
+    async fn set_required_skill(
+        &self,
+        challenge_id: ChallengeId,
+        skill_id: SkillId,
+    ) -> Result<(), RepoError> {
+        // Delete existing REQUIRES_SKILL edge if present
+        let q_delete = query(
+            "MATCH (c:Challenge {id: $challenge_id})-[r:REQUIRES_SKILL]->(s:Skill)
+            DELETE r",
+        )
+        .param("challenge_id", challenge_id.to_string());
+
+        self.graph
+            .run(q_delete)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Create new REQUIRES_SKILL edge
+        let q_create = query(
+            "MATCH (c:Challenge {id: $challenge_id}), (s:Skill {id: $skill_id})
+            MERGE (c)-[:REQUIRES_SKILL]->(s)",
+        )
+        .param("challenge_id", challenge_id.to_string())
+        .param("skill_id", skill_id.to_string());
+
+        self.graph
+            .run(q_create)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        tracing::debug!(
+            challenge_id = %challenge_id,
+            skill_id = %skill_id,
+            "Set REQUIRES_SKILL edge"
+        );
+        Ok(())
+    }
+
+    async fn get_required_skill(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Option<SkillId>, RepoError> {
+        let q = query(
+            "MATCH (c:Challenge {id: $challenge_id})-[:REQUIRES_SKILL]->(s:Skill)
+            RETURN s.id AS skill_id",
+        )
+        .param("challenge_id", challenge_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let skill_id_str: String = row.get("skill_id").map_err(|e| RepoError::database("query", e))?;
+            if let Ok(uuid) = skill_id_str.parse::<uuid::Uuid>() {
+                return Ok(Some(SkillId::from(uuid)));
+            }
+        }
+
+        Ok(None)
+    }
 }

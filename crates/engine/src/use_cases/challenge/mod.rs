@@ -325,7 +325,7 @@ impl RollChallenge {
                                 "update_character_stat",
                                 t.to_string(),
                                 crate::game_tools::ToolArgs::UpdateCharacterStat {
-                                    character_id: wrldbldr_domain::CharacterId::new(), // Will be set by resolver
+                                    character_id: wrldbldr_domain::PlayerCharacterId::new(), // Will be set by resolver
                                     stat_name: stat.to_string(),
                                     delta: *modifier,
                                 },
@@ -1085,7 +1085,11 @@ mod tests {
         pc_repo
             .expect_modify_stat()
             .withf(move |id, stat, delta| *id == pc_id && stat == "CON" && *delta == -1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _| Ok(crate::infrastructure::ports::StatModificationResult {
+                old_value: 10,
+                new_value: 9,
+                delta: -1,
+            }));
 
         // ---------------------------------------------------------------------
         // Scene expectations

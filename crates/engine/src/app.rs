@@ -285,6 +285,7 @@ impl App {
             outcome_decision,
             Arc::new(use_cases::challenge::ChallengeOps::new(
                 repos.challenge.clone(),
+                repos.content.clone(),
             )),
         );
 

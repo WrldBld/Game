@@ -256,6 +256,7 @@ impl ApprovalDecisionFlow {
             .map_err(ApprovalDecisionError::Approval)?;
 
         let mut time_suggestion: Option<crate::infrastructure::ports::TimeSuggestion> = None;
+        let mut stat_updates: Vec<tool_executor::StatUpdate> = Vec::new();
 
         if result.approved {
             // Record dialogue exchange
@@ -409,6 +410,12 @@ impl ApprovalDecisionFlow {
                         "Executed approved tools"
                     );
                 }
+
+                // Collect stat updates from tool results
+                stat_updates = tool_results
+                    .into_iter()
+                    .filter_map(|r| r.stat_update)
+                    .collect();
             }
         }
 
@@ -421,6 +428,7 @@ impl ApprovalDecisionFlow {
             npc_name: result.npc_name,
             conversation_id: result.conversation_id,
             time_suggestion,
+            stat_updates,
         })
     }
 }
@@ -435,6 +443,8 @@ pub struct ApprovalDecisionOutcome {
     pub conversation_id: Option<ConversationId>,
     /// Time suggestion generated for dialogue approval (US-TIME-013)
     pub time_suggestion: Option<crate::infrastructure::ports::TimeSuggestion>,
+    /// Stat updates from executed tools (for CharacterStatUpdated broadcast)
+    pub stat_updates: Vec<tool_executor::StatUpdate>,
 }
 
 #[derive(Debug, thiserror::Error)]

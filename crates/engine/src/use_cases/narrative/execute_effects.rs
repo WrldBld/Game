@@ -784,10 +784,10 @@ impl StatEffectExecutor {
     ) -> EffectExecutionResult {
         // Use the PC from context for stat modification
         match self.pc.modify_stat(pc_id, stat_name, modifier).await {
-            Ok(()) => EffectExecutionResult {
+            Ok(result) => EffectExecutionResult {
                 description: format!(
-                    "Modified stat {} by {:+} for {}",
-                    stat_name, modifier, character_name
+                    "Modified stat {} by {:+} for {} ({} -> {})",
+                    stat_name, modifier, character_name, result.old_value, result.new_value
                 ),
                 success: true,
                 error: None,

@@ -37,6 +37,16 @@ pub trait SettingsRepo: Send + Sync {
 // Database Ports (one per entity type)
 // =============================================================================
 
+/// Result of modifying a stat on a player character
+pub struct StatModificationResult {
+    /// Old value before modification
+    pub old_value: i32,
+    /// New value after modification
+    pub new_value: i32,
+    /// Delta that was applied (can be negative)
+    pub delta: i32,
+}
+
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait CharacterRepo: Send + Sync {
@@ -226,7 +236,7 @@ pub trait PlayerCharacterRepo: Send + Sync {
         id: PlayerCharacterId,
         stat: &str,
         modifier: i32,
-    ) -> Result<(), RepoError>;
+    ) -> Result<StatModificationResult, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]
@@ -403,6 +413,10 @@ pub trait ChallengeRepo: Send + Sync {
         &self,
         world_id: WorldId,
     ) -> Result<Vec<ChallengeId>, RepoError>;
+    /// Set the skill required for a challenge via REQUIRES_SKILL edge.
+    async fn set_required_skill(&self, challenge_id: ChallengeId, skill_id: SkillId) -> Result<(), RepoError>;
+    /// Get the skill ID required for a challenge via REQUIRES_SKILL edge.
+    async fn get_required_skill(&self, challenge_id: ChallengeId) -> Result<Option<SkillId>, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

@@ -161,6 +161,31 @@ pub(super) async fn handle_approval_decision(
                         "Emitted time suggestion for dialogue approval"
                     );
                 }
+
+                // Broadcast stat updates from tool execution
+                for stat_update in &result.stat_updates {
+                    let stat_msg = ServerMessage::CharacterStatUpdated {
+                        character_id: stat_update.character_id.to_string(),
+                        character_name: stat_update.character_name.clone(),
+                        stat_name: stat_update.stat_name.clone(),
+                        old_value: stat_update.old_value,
+                        new_value: stat_update.new_value,
+                        delta: stat_update.delta,
+                        source: "tool_call".to_string(),
+                    };
+                    state.connections.broadcast_to_world(world_id, stat_msg).await;
+
+                    tracing::info!(
+                        approval_id = %approval_id,
+                        character_id = %stat_update.character_id,
+                        character_name = %stat_update.character_name,
+                        stat_name = %stat_update.stat_name,
+                        old_value = stat_update.old_value,
+                        new_value = stat_update.new_value,
+                        delta = stat_update.delta,
+                        "Emitted CharacterStatUpdated for tool execution"
+                    );
+                }
             }
             None
         }

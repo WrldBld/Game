@@ -40,15 +40,35 @@ pub struct ToolExecutionResult {
     pub tool_id: String,
     /// Human-readable description of what happened
     pub description: String,
+    /// Stat update result (for update_character_stat tool)
+    pub stat_update: Option<StatUpdate>,
+}
+
+/// Result of updating a character stat.
+#[derive(Debug, Clone)]
+pub struct StatUpdate {
+    /// Character ID whose stat was updated
+    pub character_id: PlayerCharacterId,
+    /// Character name (for UI display)
+    pub character_name: String,
+    /// Stat name that was updated
+    pub stat_name: String,
+    /// Old value before update
+    pub old_value: i32,
+    /// New value after update
+    pub new_value: i32,
+    /// Delta that was applied (can be negative)
+    pub delta: i32,
 }
 
 /// Executor for approved LLM tool calls.
 ///
-/// Takes the proposed tools from an approval request and executes the ones
+/// Takes proposed tools from an approval request and executes ones
 /// that were approved by the DM.
 pub struct ToolExecutor {
     give_item: Arc<GiveItem>,
     character_repo: Arc<dyn CharacterRepo>,
+    pc_repo: Arc<dyn PlayerCharacterRepo>,
 }
 
 impl ToolExecutor {
@@ -58,8 +78,9 @@ impl ToolExecutor {
         character_repo: Arc<dyn CharacterRepo>,
     ) -> Self {
         Self {
-            give_item: Arc::new(GiveItem::new(item_repo, pc_repo)),
+            give_item: Arc::new(GiveItem::new(item_repo, pc_repo.clone())),
             character_repo,
+            pc_repo,
         }
     }
 
@@ -172,7 +193,7 @@ impl ToolExecutor {
                 self.execute_trigger_event_typed(tool_id, event_type, description).await
             }
             crate::game_tools::ToolArgs::UpdateCharacterStat {
-                character_id: _,
+                character_id,
                 stat_name,
                 delta,
             } => {
@@ -182,7 +203,7 @@ impl ToolExecutor {
                         tool.name
                     )));
                 }
-                self.execute_update_character_stat_typed(tool_id, stat_name, *delta).await
+                self.execute_update_character_stat_typed(tool_id, *character_id, stat_name, *delta).await
             }
             crate::game_tools::ToolArgs::Unknown => {
                 tracing::error!(tool_name = %tool.name, "Unknown tool variant in ToolArgs");
@@ -214,6 +235,7 @@ impl ToolExecutor {
         Ok(ToolExecutionResult {
             tool_id,
             description: format!("Gave '{}' to player", item_name),
+            stat_update: None,
         })
     }
 
@@ -245,6 +267,7 @@ impl ToolExecutor {
                 amount.as_str(),
                 reason
             ),
+            stat_update: None,
         })
     }
 
@@ -263,6 +286,7 @@ impl ToolExecutor {
         Ok(ToolExecutionResult {
             tool_id,
             description: "Disposition change not supported".to_string(),
+            stat_update: None,
         })
     }
 
@@ -281,6 +305,7 @@ impl ToolExecutor {
         Ok(ToolExecutionResult {
             tool_id,
             description: "Mood change not supported".to_string(),
+            stat_update: None,
         })
     }
 
@@ -301,6 +326,7 @@ impl ToolExecutor {
         Ok(ToolExecutionResult {
             tool_id,
             description: format!("Revealed {} information", info_type),
+            stat_update: None,
         })
     }
 
@@ -321,23 +347,36 @@ impl ToolExecutor {
         Ok(ToolExecutionResult {
             tool_id,
             description: format!("Triggered {} event: {}", event_type, description),
+            stat_update: None,
         })
     }
 
-    /// Execute update_character_stat tool (currently just logs - stat updates TBD).
+    /// Execute update_character_stat tool.
     async fn execute_update_character_stat_typed(
         &self,
         tool_id: String,
+        pc_id: PlayerCharacterId,
         stat_name: &str,
         delta: i32,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        tracing::info!(
-            stat_name = %stat_name,
-            delta = %delta,
-            "Stat update requested (not yet implemented)"
-        );
+        // Get current PC to read current stat value
+        let pc = self
+            .pc_repo
+            .get(pc_id)
+            .await?
+            .ok_or(ToolExecutionError::InvalidArgument(format!(
+                "Player character not found: {}",
+                pc_id
+            )))?;
 
-        // TODO: Implement stat updates via PlayerCharacterRepo when appropriate
+        let character_name = pc.name().to_string();
+
+        // Apply stat update via PlayerCharacterRepo
+        let stat_result = self
+            .pc_repo
+            .modify_stat(pc_id, stat_name, delta)
+            .await?;
+
         let change_str = if delta >= 0 {
             format!("+{}", delta)
         } else {
@@ -346,7 +385,18 @@ impl ToolExecutor {
 
         Ok(ToolExecutionResult {
             tool_id,
-            description: format!("Updated {} by {}", stat_name, change_str),
+            description: format!(
+                "Updated {} by {} (new value: {})",
+                stat_name, change_str, stat_result.new_value
+            ),
+            stat_update: Some(StatUpdate {
+                character_id: pc_id,
+                character_name,
+                stat_name: stat_name.to_string(),
+                old_value: stat_result.old_value,
+                new_value: stat_result.new_value,
+                delta: stat_result.delta,
+            }),
         })
     }
 }
@@ -369,9 +419,30 @@ mod tests {
         let result = ToolExecutionResult {
             tool_id: "call_123".to_string(),
             description: "Gave 'Healing Potion' to player".to_string(),
+            stat_update: None,
         };
         assert_eq!(result.tool_id, "call_123");
         assert!(result.description.contains("Healing Potion"));
+        assert!(result.stat_update.is_none());
+    }
+
+    #[test]
+    fn test_stat_update_fields() {
+        let pc_id = PlayerCharacterId::new();
+        let stat_update = StatUpdate {
+            character_id: pc_id,
+            character_name: "Test PC".to_string(),
+            stat_name: "STR".to_string(),
+            old_value: 10,
+            new_value: 12,
+            delta: 2,
+        };
+        assert_eq!(stat_update.character_id, pc_id);
+        assert_eq!(stat_update.character_name, "Test PC");
+        assert_eq!(stat_update.stat_name, "STR");
+        assert_eq!(stat_update.old_value, 10);
+        assert_eq!(stat_update.new_value, 12);
+        assert_eq!(stat_update.delta, 2);
     }
 
     #[tokio::test]

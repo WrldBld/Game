@@ -761,9 +761,22 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             code: "NOT_IMPLEMENTED".to_string(),
             message: "InventoryUpdated not implemented yet".to_string(),
         },
-        ServerMessage::CharacterStatUpdated { .. } => PlayerEvent::Error {
-            code: "NOT_IMPLEMENTED".to_string(),
-            message: "CharacterStatUpdated not implemented yet".to_string(),
+        ServerMessage::CharacterStatUpdated {
+            character_id,
+            character_name,
+            stat_name,
+            old_value,
+            new_value,
+            delta,
+            source,
+        } => PlayerEvent::CharacterStatUpdated {
+            character_id,
+            character_name,
+            stat_name,
+            old_value,
+            new_value,
+            delta,
+            source,
         },
         ServerMessage::NpcDispositionChanged { .. } => PlayerEvent::Error {
             code: "NOT_IMPLEMENTED".to_string(),

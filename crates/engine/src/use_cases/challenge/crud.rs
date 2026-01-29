@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    self as domain, ChallengeId, ChallengeName, Description, Difficulty, WorldId, DomainError,
+    self as domain, ChallengeId, ChallengeName, Description, Difficulty, WorldId, DomainError, SkillId,
 };
 
-use crate::infrastructure::ports::{ChallengeRepo, RepoError};
+use crate::infrastructure::ports::{ChallengeRepo, ContentRepo, RepoError};
 use crate::use_cases::validation::ValidationError;
 
 use super::types::{
@@ -15,6 +15,7 @@ use super::types::{
 /// Input for creating a challenge (domain representation).
 pub struct CreateChallengeInput {
     pub name: String,
+    pub skill_id: Option<SkillId>,
     pub difficulty: String,
     pub description: Option<String>,
     pub success_outcome: Option<String>,
@@ -24,6 +25,7 @@ pub struct CreateChallengeInput {
 /// Input for updating a challenge (domain representation).
 pub struct UpdateChallengeInput {
     pub name: Option<String>,
+    pub skill_id: Option<SkillId>,
     pub description: Option<String>,
     pub difficulty: Option<String>,
     pub success_outcome: Option<String>,
@@ -42,7 +44,23 @@ impl ChallengeOps {
 
     pub async fn list(&self, world_id: WorldId) -> Result<Vec<ChallengeSummary>, ChallengeError> {
         let challenges = self.challenge.list_for_world(world_id).await?;
-        Ok(challenges.iter().map(challenge_to_summary).collect())
+        let mut summaries = Vec::new();
+        for challenge in &challenges {
+            // Fetch skill_id from REQUIRES_SKILL edge
+            // TODO: Avoid N+1 query by creating a list_for_world_with_skills method that
+            // fetches skill_id in a single query using OPTIONAL MATCH on REQUIRES_SKILL edge
+            let skill_id = self
+                .challenge
+                .get_required_skill(challenge.id())
+                .await?;
+
+            if let Some(sid) = skill_id {
+                summaries.push(challenge_to_summary_with_skill(challenge, Some(sid)));
+            } else {
+                summaries.push(challenge_to_summary(challenge));
+            }
+        }
+        Ok(summaries)
     }
 
     pub async fn get(
@@ -50,7 +68,21 @@ impl ChallengeOps {
         challenge_id: ChallengeId,
     ) -> Result<Option<ChallengeSummary>, ChallengeError> {
         let challenge = self.challenge.get(challenge_id).await?;
-        Ok(challenge.as_ref().map(challenge_to_summary))
+        if let Some(ref ch) = challenge {
+            // Fetch skill_id from REQUIRES_SKILL edge
+            let skill_id = self
+                .challenge
+                .get_required_skill(challenge_id)
+                .await?;
+
+            Ok(Some(if let Some(sid) = skill_id {
+                challenge_to_summary_with_skill(ch, Some(sid))
+            } else {
+                challenge_to_summary(ch)
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn create(
@@ -61,9 +93,9 @@ impl ChallengeOps {
         // Convert input name to ChallengeName with validation
         let challenge_name = ChallengeName::new(&input.name)?;
 
-        // Validate and parse skill_id
-        let skill_id = input.skill_id.parse::<SkillId>().map_err(|_| {
-            ChallengeError::ValidationError(DomainError::validation("Invalid skill_id format"))
+        // Get skill_id from input
+        let skill_id = input.skill_id.ok_or_else(|| {
+            ChallengeError::ValidationError(DomainError::validation("skill_id is required"))
         })?;
 
         // Fetch skill to get base_attribute
@@ -120,7 +152,7 @@ impl ChallengeOps {
         // Persist REQUIRES_SKILL edge
         self.challenge.set_required_skill(challenge.id(), skill_id).await?;
 
-        Ok(challenge_to_summary_with_skill(&challenge, skill_id))
+        Ok(challenge_to_summary_with_skill(&challenge, Some(skill_id)))
     }
 
     pub async fn update(
@@ -156,6 +188,28 @@ impl ChallengeOps {
             challenge.difficulty().clone()
         };
 
+        // Handle skill_id update
+        let check_stat = if let Some(skill_id) = input.skill_id {
+            // Fetch skill to get base_attribute
+            let skill = self
+                .content
+                .get_skill(skill_id)
+                .await?
+                .ok_or(ChallengeError::ValidationError(DomainError::validation(
+                    "Skill not found",
+                )))?;
+
+            // Update REQUIRES_SKILL edge if skill_id is provided
+            self.challenge
+                .set_required_skill(challenge_id, skill_id)
+                .await?;
+
+            skill.base_attribute
+        } else {
+            // If no skill_id provided, keep existing check_stat
+            challenge.check_stat()
+        };
+
         // For outcomes, we need to preserve existing and update what's provided
         let success_desc = input
             .success_outcome
@@ -180,6 +234,11 @@ impl ChallengeOps {
             .with_order(challenge.order())
             .with_is_favorite(challenge.is_favorite());
 
+        // Apply check_stat from skill or keep existing
+        if let Some(stat) = check_stat {
+            challenge = challenge.with_check_stat(stat);
+        }
+
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
         if !trigger_errors.is_empty() {
@@ -192,7 +251,21 @@ impl ChallengeOps {
         }
 
         self.challenge.save(&challenge).await?;
-        Ok(challenge_to_summary(&challenge))
+
+        // Get skill_id for summary
+        let skill_id_for_summary = match input.skill_id {
+            Some(sid) => Some(sid),
+            None => {
+                // Try to get from existing edge
+                self.challenge.get_required_skill(challenge_id).await.ok().flatten()
+            }
+        };
+
+        Ok(if let Some(sid) = skill_id_for_summary {
+            challenge_to_summary_with_skill(&challenge, Some(sid))
+        } else {
+            challenge_to_summary(&challenge)
+        })
     }
 
     pub async fn delete(&self, challenge_id: ChallengeId) -> Result<(), ChallengeError> {
@@ -266,6 +339,48 @@ pub enum ChallengeError {
 impl From<ValidationError> for ChallengeError {
     fn from(err: ValidationError) -> Self {
         ChallengeError::ValidationError(DomainError::validation(err.to_string()))
+    }
+}
+
+fn challenge_to_summary_with_skill(challenge: &domain::Challenge, skill_id: Option<SkillId>) -> ChallengeSummary {
+    ChallengeSummary {
+        id: challenge.id(),
+        world_id: challenge.world_id(),
+        scene_id: None,
+        name: challenge.name().to_string(),
+        description: challenge.description().to_string(),
+        challenge_type: challenge_type_to_str(&challenge.challenge_type()).to_string(),
+        skill_id: skill_id.map(|id| id.to_string()).unwrap_or_default(),
+        difficulty: difficulty_to_summary(challenge.difficulty()),
+        outcomes: OutcomesSummary {
+            success: outcome_to_summary(&challenge.outcomes().success),
+            failure: outcome_to_summary(&challenge.outcomes().failure),
+            partial: challenge
+                .outcomes()
+                .partial
+                .as_ref()
+                .map(outcome_to_summary),
+            critical_success: challenge
+                .outcomes()
+                .critical_success
+                .as_ref()
+                .map(outcome_to_summary),
+            critical_failure: challenge
+                .outcomes()
+                .critical_failure
+                .as_ref()
+                .map(outcome_to_summary),
+        },
+        trigger_conditions: challenge
+            .trigger_conditions()
+            .iter()
+            .map(trigger_condition_to_summary)
+            .collect(),
+        prerequisite_challenges: Vec::new(),
+        active: challenge.active(),
+        order: challenge.order(),
+        is_favorite: challenge.is_favorite(),
+        tags: challenge.tags().iter().map(|t| t.to_string()).collect(),
     }
 }
 

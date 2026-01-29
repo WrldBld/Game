@@ -44,8 +44,13 @@
    - If use_llm_presence=false, skip LLM suggestions.
 
 3) **Challenge skill binding + stat sync** (P1)
-   - Persist skill_id/check_stat in challenge CRUD.
-   - Broadcast CharacterStatUpdated and handle in client.
+    - Persist skill_id/check_stat in challenge CRUD.
+    - Broadcast CharacterStatUpdated and handle in client.
+    - Fix ToolArgs::UpdateCharacterStat.character_id type (CharacterId → PlayerCharacterId).
+    - Persist stat updates via PlayerCharacterRepo::modify_stat with return values.
+    - Extend StatUpdate struct with old_value, delta, and character_name.
+    - Remove repo lookup and computed delta from ws_approval handler.
+    - Add TODO comment for N+1 skill_id query in ChallengeOps::list.
 
 4) **Lore player pipeline** (P2)
    - Translate lore messages to PlayerEvents; add LoreService; wire journal UI.
@@ -58,33 +63,18 @@
 
 ## Progress
 
-- [x] P0 Dialogue persistence + scoping complete (backend)
-  - ConversationSpeaker enum added for type-safe speaker identification
-  - create_conversation uses MATCH/MERGE (fail-fast on missing nodes)
-  - add_dialogue_turn auto-computes order (turn_counter)
-  - DialogueTurn stores game_time as epoch seconds (i64)
-  - Optional context edges (IN_SCENE/AT_LOCATION/AT_REGION) fixed
-  - Backend review + checks complete
-- [x] P0 Dialogue persistence + scoping complete (frontend)
-  - ApprovalRequired and LLMProcessing include conversation_id
-  - Dialogue state scoped by conversation_id
-  - ConversationEnded clears only matching conversation
 - [x] P1 Staging defaults + LLM gating complete (backend)
-  - Added optional `presence_cache_ttl_hours` and `use_llm_presence` to `StagingApprovalInput`
-  - Location defaults are fetched and merged with input overrides (input takes precedence)
-  - LLM suggestions are gated based on effective `use_llm_presence` flag
-  - Effective TTL is used in result instead of settings default
-  - Added unit tests:
-    - `test_llm_presence_disabled_skips_llm_calls`: Verifies LLM port is not called when disabled
-    - `test_location_defaults_applied_when_input_omitted`: Verifies location defaults are applied
-    - `test_input_overrides_take_precedence`: Verifies input overrides take precedence over location defaults
 - [x] P1 Staging defaults + LLM gating complete (review)
-  - Added validation for `presence_cache_ttl_hours` (effective value must be > 0)
-  - Added unit tests for invalid TTL (zero and negative values)
-  - Mapped `StagingError` to proper `ErrorCode` in `ws_movement.rs` (ValidationError, NotFound)
-  - Fixed `staging_game_time_to_protocol` to guard against day=0 causing negative total_seconds
-- [ ] P1 Staging defaults + LLM gating complete (frontend)
-- [ ] P1 Challenge skill binding + stat sync complete
+- [x] P1 Staging defaults + LLM gating complete (frontend)
+- [x] P1 Challenge skill binding + stat sync complete (backend)
+- [x] P1 Challenge skill binding + stat sync complete (frontend)
+  - Implemented `CharacterStatUpdated` message translation in `message_translator.rs`
+  - Handler already existed in `session_message_handler.rs` (logs stat change + triggers refresh)
+  - Challenge UI already displays skill name via skill_id-to-skill_name translation:
+    - `ChallengeLibrary` builds `skills_map` from skills prop
+    - `ChallengeList` displays skill name via `skills_map.get(&challenge.skill_id)`
+    - `ChallengeEditor` has skill selector dropdown with skill_id binding
+    - `ChallengeRollModal` displays `skill_name` from challenge prompt
 - [ ] P2 Lore pipeline complete
 - [ ] P2 Creator/NPC refresh complete
 - [x] Code review + architecture review
