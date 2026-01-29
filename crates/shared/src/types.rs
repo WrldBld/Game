@@ -701,6 +701,15 @@ pub struct LoreSummaryData {
     pub known_chunk_count: Option<u32>,
 }
 
+/// Combined lore entry + character knowledge (for player journal)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoreJournalEntryData {
+    /// The lore entry
+    pub lore: LoreData,
+    /// Character's knowledge of this lore
+    pub knowledge: LoreKnowledgeData,
+}
+
 // =============================================================================
 // Visual State Types
 // =============================================================================

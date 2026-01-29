@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 use std::collections::HashMap;
-use wrldbldr_shared::types::{LoreData, LoreKnowledgeData, LoreSummaryData};
+use wrldbldr_shared::types::{LoreData, LoreJournalEntryData, LoreKnowledgeData, LoreSummaryData};
 
 /// Lore state for tracking player knowledge
 #[derive(Clone)]
@@ -102,6 +102,27 @@ impl LoreState {
             .filter(|e| format!("{:?}", e.lore.category) == category)
             .cloned()
             .collect()
+    }
+
+    /// Apply lore journal from CharacterLoreResponse
+    /// Populates known_lore with full journal entries
+    pub fn apply_lore_journal(&mut self, journal_entries: Vec<LoreJournalEntryData>) {
+        let mut entries = self.known_lore.write();
+
+        for entry in journal_entries {
+            let known_entry = KnownLoreEntry {
+                lore: entry.lore.clone(),
+                knowledge: entry.knowledge.clone(),
+            };
+
+            // Check if we already have this lore (update if so)
+            if let Some(existing) = entries.iter_mut().find(|e| e.lore.id == entry.lore.id) {
+                existing.lore = entry.lore;
+                existing.knowledge = entry.knowledge;
+            } else {
+                entries.push(known_entry);
+            }
+        }
     }
 }
 

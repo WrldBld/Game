@@ -892,7 +892,7 @@ pub enum ServerMessage {
     /// All known lore for a character (response to GetCharacterLore)
     CharacterLoreResponse {
         character_id: String,
-        known_lore: Vec<crate::types::LoreSummaryData>,
+        known_lore: Vec<crate::types::LoreJournalEntryData>,
     },
 
     // =========================================================================

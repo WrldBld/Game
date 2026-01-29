@@ -14,6 +14,7 @@ mod creator_flow;
 mod creator_flow_npc;
 mod creator_flow_sheet;
 mod e2e_conversation;
+mod lore;
 mod staging_approval;
 mod staging_prestage;
 mod staging_regenerate;

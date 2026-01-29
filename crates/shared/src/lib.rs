@@ -169,6 +169,7 @@ pub use types::{
     LoreChunkData,
     LoreData,
     LoreDiscoverySourceData,
+    LoreJournalEntryData,
     LoreKnowledgeData,
     LoreSummaryData,
     // Monomyth stages

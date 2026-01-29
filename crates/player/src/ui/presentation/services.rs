@@ -20,7 +20,7 @@ use std::sync::Arc;
 use crate::application::services::{
     ActantialService, AssetService, ChallengeService, CharacterService, CharacterSheetService,
     ConversationService, EventChainService, GenerationService, LocationService,
-    NarrativeEventService, NpcService, ObservationService, PlayerCharacterService, SettingsService,
+    LoreService, NarrativeEventService, NpcService, ObservationService, PlayerCharacterService, SettingsService,
     SkillService, StoryEventService, SuggestionService, VisualStateService, WorkflowService,
     WorldService,
 };
@@ -110,6 +110,7 @@ impl<A: ApiPort + Clone> Services<A> {
             character_sheet: Arc::new(CharacterSheetService::new(command_bus.clone())),
             visual_state: Arc::new(VisualStateService::new(command_bus.clone())),
             npc: Arc::new(NpcService::new(command_bus.clone())),
+            lore: Arc::new(LoreService::new(command_bus.clone(), raw_api)),
             // REST-based services - file uploads, large payloads, admin config
             workflow: Arc::new(WorkflowService::new(api.clone())),
             asset: Arc::new(AssetService::new(api.clone())),
@@ -254,6 +255,12 @@ pub fn use_visual_state_service() -> Arc<VisualStateService> {
 pub fn use_npc_service() -> Arc<NpcService> {
     let services = use_context::<UiServices>();
     services.npc.clone()
+}
+
+/// Hook to access LoreService from context
+pub fn use_lore_service() -> Arc<LoreService> {
+    let services = use_context::<UiServices>();
+    services.lore.clone()
 }
 
 use crate::ports::outbound::PlatformPort;

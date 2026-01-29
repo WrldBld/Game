@@ -70,17 +70,6 @@ pub struct RevokeKnowledgeResult {
     pub relationship_deleted: bool,
 }
 
-/// Lore knowledge info for a character.
-#[derive(Debug, Clone, Serialize)]
-pub struct CharacterLoreInfo {
-    pub lore_id: String,
-    pub character_id: String,
-    pub known_chunk_ids: Vec<String>,
-    pub discovered_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-}
-
 /// Info about a character who knows some lore.
 #[derive(Debug, Clone, Serialize)]
 pub struct LoreKnowerInfo {
@@ -680,23 +669,6 @@ impl LoreOps {
         }
     }
 
-    pub async fn get_character_lore(
-        &self,
-        character_id: CharacterId,
-    ) -> Result<Vec<CharacterLoreInfo>, LoreError> {
-        let knowledge_list = self.lore.get_character_knowledge(character_id).await?;
-        Ok(knowledge_list
-            .into_iter()
-            .map(|k| CharacterLoreInfo {
-                lore_id: k.lore_id.to_string(),
-                character_id: k.character_id.to_string(),
-                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
-                discovered_at: k.discovered_at.to_rfc3339(),
-                notes: k.notes.clone(),
-            })
-            .collect())
-    }
-
     pub async fn get_lore_knowers(
         &self,
         lore_id: LoreId,
@@ -710,6 +682,14 @@ impl LoreOps {
                 discovered_at: k.discovered_at.to_rfc3339(),
             })
             .collect())
+    }
+
+    /// Get character's lore journal (combined lore + knowledge)
+    pub async fn get_character_lore_journal(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<wrldbldr_shared::LoreJournalEntryData>, LoreError> {
+        self.lore.get_character_lore_journal(character_id).await.map_err(LoreError::Repo)
     }
 }
 

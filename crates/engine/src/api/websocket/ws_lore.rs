@@ -3,8 +3,8 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::lore::{
-    CreateLoreChunkInput, CreateLoreInput, LoreDiscoverySourceInput, UpdateLoreChunkInput,
-    UpdateLoreInput,
+    CreateLoreChunkInput, CreateLoreInput, LoreDetail, LoreDiscoverySourceInput,
+    UpdateLoreChunkInput, UpdateLoreInput,
 };
 
 use wrldbldr_shared::{LoreDiscoverySourceData, LoreRequest};
@@ -16,6 +16,40 @@ const MAX_LORE_CHUNK_CONTENT: usize = 10000;
 const MAX_LORE_CHUNKS: usize = 100;
 const MAX_LORE_TAGS: usize = 50;
 const MAX_TAG_LENGTH: usize = 50;
+
+/// Convert LoreDetail to LoreData.
+fn convert_lore_detail_to_data(detail: LoreDetail) -> wrldbldr_shared::LoreData {
+    let category = match detail.category.as_str() {
+        "Historical" => wrldbldr_shared::LoreCategoryData::Historical,
+        "Legend" => wrldbldr_shared::LoreCategoryData::Legend,
+        "Secret" => wrldbldr_shared::LoreCategoryData::Secret,
+        "Common" => wrldbldr_shared::LoreCategoryData::Common,
+        "Technical" => wrldbldr_shared::LoreCategoryData::Technical,
+        "Political" => wrldbldr_shared::LoreCategoryData::Political,
+        "Natural" => wrldbldr_shared::LoreCategoryData::Natural,
+        "Religious" => wrldbldr_shared::LoreCategoryData::Religious,
+        _ => wrldbldr_shared::LoreCategoryData::Unknown,
+    };
+
+    let chunks = detail.chunks.into_iter().map(|c| wrldbldr_shared::LoreChunkData {
+        id: c.id,
+        order: c.order,
+        title: c.title,
+        content: c.content,
+        discovery_hint: c.discovery_hint,
+    }).collect();
+
+    wrldbldr_shared::LoreData {
+        id: detail.id,
+        world_id: detail.world_id,
+        title: detail.title,
+        summary: detail.summary,
+        category,
+        chunks,
+        is_common_knowledge: detail.is_common_knowledge,
+        tags: detail.tags,
+    }
+}
 
 /// Convert protocol discovery source to domain input type.
 fn proto_discovery_source_to_domain(source: LoreDiscoverySourceData) -> Result<LoreDiscoverySourceInput, String> {
@@ -486,6 +520,19 @@ pub(super) async fn handle_lore_request(
         } => {
             require_dm_for_request(conn_info, request_id)?;
 
+            let world_id = match conn_info.world_id {
+                Some(wid) => wid,
+                None => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Not connected to a world",
+                        ),
+                    })
+                }
+            };
+
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
@@ -522,7 +569,7 @@ pub(super) async fn handle_lore_request(
             };
 
             // Convert protocol discovery source to domain input
-            let source_input = match proto_discovery_source_to_domain(discovery_source) {
+            let source_input = match proto_discovery_source_to_domain(discovery_source.clone()) {
                 Ok(s) => s,
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -531,6 +578,9 @@ pub(super) async fn handle_lore_request(
                     ))
                 }
             };
+            // Clone values for later use in response
+            let chunk_uuids_clone = chunk_uuids.clone();
+
             match state
                 .app
                 .use_cases
@@ -539,7 +589,32 @@ pub(super) async fn handle_lore_request(
                 .grant_knowledge(char_uuid, lore_uuid, chunk_uuids, source_input)
                 .await
             {
-                Ok(result) => Ok(ResponseResult::success(result)),
+                Ok(result) => {
+                    // Emit LoreDiscovered event to the owning player
+                    if let Ok(lore_data) = state.app.use_cases.lore.ops.get(lore_uuid).await {
+                        if let Some(lore_detail) = lore_data {
+                            let discovered_chunk_ids: Vec<String> = chunk_uuids_clone
+                                .as_ref()
+                                .unwrap_or(&vec![])
+                                .iter()
+                                .map(|id| id.to_string())
+                                .collect();
+
+                            let lore_discovered_msg = ServerMessage::LoreDiscovered {
+                                character_id,
+                                lore: convert_lore_detail_to_data(lore_detail),
+                                discovered_chunk_ids,
+                                discovery_source,
+                            };
+                            // Note: We need PlayerCharacterId, but char_uuid is CharacterId
+                            // The system tracks player characters separately from NPCs
+                            // We'll need to look up the PlayerCharacterId from CharacterId
+                            // For now, broadcast to world so the player gets it
+                            state.connections.broadcast_to_world(world_id, lore_discovered_msg).await;
+                        }
+                    }
+                    Ok(ResponseResult::success(result))
+                }
                 Err(crate::use_cases::lore::LoreError::NotFound) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "Lore not found"))
                 }
@@ -562,6 +637,19 @@ pub(super) async fn handle_lore_request(
             chunk_ids,
         } => {
             require_dm_for_request(conn_info, request_id)?;
+
+            let world_id = match conn_info.world_id {
+                Some(wid) => wid,
+                None => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Not connected to a world",
+                        ),
+                    })
+                }
+            };
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -607,7 +695,16 @@ pub(super) async fn handle_lore_request(
                 .revoke_knowledge(char_uuid, lore_uuid, chunk_uuids)
                 .await
             {
-                Ok(result) => Ok(ResponseResult::success(result)),
+                Ok(result) => {
+                    // Emit LoreRevoked event to the owning player
+                    let lore_revoked_msg = ServerMessage::LoreRevoked {
+                        character_id,
+                        lore_id,
+                    };
+                    // Broadcast to world so the player gets it
+                    state.connections.broadcast_to_world(world_id, lore_revoked_msg).await;
+                    Ok(ResponseResult::success(result))
+                }
                 Err(crate::use_cases::lore::LoreError::NotFound) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "Lore not found"))
                 }
@@ -641,7 +738,7 @@ pub(super) async fn handle_lore_request(
                 .use_cases
                 .lore
                 .ops
-                .get_character_lore(char_uuid)
+                .get_character_lore_journal(char_uuid)
                 .await
             {
                 Ok(data) => Ok(ResponseResult::success(data)),

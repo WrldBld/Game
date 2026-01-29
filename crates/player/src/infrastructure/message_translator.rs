@@ -792,24 +792,39 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             message: "NpcDispositionsResponse not implemented yet".to_string(),
         },
 
-        ServerMessage::LoreDiscovered { .. } => PlayerEvent::Error {
-            code: "NOT_IMPLEMENTED".to_string(),
-            message: "LoreDiscovered not implemented yet".to_string(),
+        // =====================================================================
+        // Lore Events
+        // =====================================================================
+        ServerMessage::LoreDiscovered {
+            character_id,
+            lore,
+            discovered_chunk_ids,
+            discovery_source,
+        } => PlayerEvent::LoreDiscovered {
+            character_id,
+            lore, // Direct assignment - same type now
+            discovered_chunk_ids,
+            discovery_source, // Direct assignment - same type now
         },
 
-        ServerMessage::LoreRevoked { .. } => PlayerEvent::Error {
-            code: "NOT_IMPLEMENTED".to_string(),
-            message: "LoreRevoked not implemented yet".to_string(),
+        ServerMessage::LoreRevoked {
+            character_id,
+            lore_id,
+        } => PlayerEvent::LoreRevoked {
+            character_id,
+            lore_id,
         },
 
-        ServerMessage::CharacterLoreResponse { .. } => PlayerEvent::Error {
-            code: "NOT_IMPLEMENTED".to_string(),
-            message: "CharacterLoreResponse not implemented yet".to_string(),
+        ServerMessage::CharacterLoreResponse {
+            character_id,
+            known_lore,
+        } => PlayerEvent::CharacterLoreResponse {
+            character_id,
+            known_lore, // Direct assignment - same type now
         },
 
-        ServerMessage::LoreUpdated { .. } => PlayerEvent::Error {
-            code: "NOT_IMPLEMENTED".to_string(),
-            message: "LoreUpdated not implemented yet".to_string(),
+        ServerMessage::LoreUpdated { lore } => PlayerEvent::LoreUpdated {
+            lore, // Direct assignment - same type now
         },
 
         ServerMessage::NpcWantCreated { npc_id, want } => PlayerEvent::NpcWantCreated {

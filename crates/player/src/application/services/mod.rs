@@ -14,6 +14,7 @@ pub mod conversation_service;
 pub mod event_chain_service;
 pub mod generation_service;
 pub mod location_service;
+pub mod lore_service;
 pub mod narrative_event_service;
 pub mod npc_service;
 pub mod observation_service;
@@ -121,6 +122,9 @@ pub use character_sheet_service::{
 
 // Re-export conversation service types
 pub use conversation_service::ConversationService;
+
+// Re-export lore service types
+pub use lore_service::{LoreService, get_character_lore};
 
 // Re-export NPC service types
 pub use npc_service::{

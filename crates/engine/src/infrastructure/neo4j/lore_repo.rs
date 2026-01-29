@@ -231,6 +231,158 @@ impl Neo4jLoreRepo {
     fn make_lore_order_key(lore_id: &LoreId, order: u32) -> String {
         format!("{}_{}", lore_id, order)
     }
+
+    /// Helper function to convert a row to LoreJournalEntryData.
+    fn row_to_journal_entry(
+        &self,
+        row: Row,
+    ) -> Result<wrldbldr_shared::LoreJournalEntryData, RepoError> {
+        // Get lore node with explicit type
+        let lore_node: neo4rs::Node = row
+            .get::<neo4rs::Node>("l")
+            .map_err(|e| RepoError::database("query", format!("Failed to get 'l' node: {}", e)))?;
+
+        // Get knowledge relationship with explicit type
+        let k: neo4rs::Relation = row
+            .get::<neo4rs::Relation>("k")
+            .map_err(|e| RepoError::database("query", format!("Failed to get knowledge: {}", e)))?;
+
+        let lore_id_str: String = k.get("lore_id").map_err(|e| {
+            RepoError::database("query", format!("Failed to get lore_id from knowledge: {}", e))
+        })?;
+        let character_id_str: String = k.get("character_id").map_err(|e| {
+            RepoError::database("query", format!("Failed to get character_id from knowledge: {}", e))
+        })?;
+        let known_chunk_ids_json: String = k.get("known_chunk_ids").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing known_chunk_ids in knowledge: {}", e),
+            )
+        })?;
+        let discovery_source_json: String = k.get("discovery_source").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing discovery_source in knowledge: {}", e),
+            )
+        })?;
+        let discovered_at_str: String = k.get("discovered_at").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing discovered_at in knowledge: {}", e),
+            )
+        })?;
+        let notes: Option<String> = k.get("notes").ok();
+
+        // Parse knowledge data
+        let known_chunk_ids: Vec<String> = serde_json::from_str(&known_chunk_ids_json)
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let discovery_source: wrldbldr_shared::LoreDiscoverySourceData =
+            serde_json::from_str(&discovery_source_json)
+                .map_err(|e| RepoError::Serialization(e.to_string()))?;
+
+        let knowledge_data = wrldbldr_shared::LoreKnowledgeData {
+            lore_id: lore_id_str.clone(),
+            character_id: character_id_str,
+            known_chunk_ids,
+            discovery_source,
+            discovered_at: discovered_at_str,
+            notes,
+        };
+
+        // Build LoreData from node + chunks
+        let lore_data = self.node_to_lore_data_with_chunks(lore_node, &row)?;
+
+        Ok(wrldbldr_shared::LoreJournalEntryData {
+            lore: lore_data,
+            knowledge: knowledge_data,
+        })
+    }
+
+    /// Helper function to convert a node to LoreData with chunks.
+    fn node_to_lore_data_with_chunks(
+        &self,
+        node: neo4rs::Node,
+        row: &Row,
+    ) -> Result<wrldbldr_shared::LoreData, RepoError> {
+        let _fallback = self.clock.now();
+
+        let id: String = node.get("id").map_err(|e| {
+            RepoError::database("query", format!("Failed to get lore id: {}", e))
+        })?;
+        let world_id: String = node.get("world_id").map_err(|e| {
+            RepoError::database("query", format!("Failed to get world_id for lore: {}", e))
+        })?;
+        let title: String = node.get("title").map_err(|e| {
+            RepoError::database("query", format!("Failed to get title for lore {}: {}", id, e))
+        })?;
+        let summary: String = node.get_string_or("summary", "");
+        let category_str: String = node.get_string_or("category", "");
+        let category: wrldbldr_shared::LoreCategoryData = if category_str.is_empty() {
+            return Err(RepoError::database(
+                "parse",
+                format!("Missing required field 'category' for lore: {}", id),
+            ));
+        } else {
+            // Use match on string instead of .parse()
+            match category_str.as_str() {
+                "Historical" => wrldbldr_shared::LoreCategoryData::Historical,
+                "Legend" => wrldbldr_shared::LoreCategoryData::Legend,
+                "Secret" => wrldbldr_shared::LoreCategoryData::Secret,
+                "Common" => wrldbldr_shared::LoreCategoryData::Common,
+                "Technical" => wrldbldr_shared::LoreCategoryData::Technical,
+                "Political" => wrldbldr_shared::LoreCategoryData::Political,
+                "Natural" => wrldbldr_shared::LoreCategoryData::Natural,
+                "Religious" => wrldbldr_shared::LoreCategoryData::Religious,
+                _ => wrldbldr_shared::LoreCategoryData::Unknown,
+            }
+        };
+        let is_common_knowledge: bool = node.get_bool_or("is_common_knowledge", false);
+
+        // Parse tags from JSON
+        let tags_str = node.get_optional_string("tags");
+        let tags: Vec<String> = tags_str
+            .as_ref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or_default();
+
+        // Get chunks from the collect result with explicit type
+        let chunk_nodes: Vec<neo4rs::Node> = row.get("chunks").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get chunks for lore {}: {}", id, e),
+            )
+        })?;
+
+        let chunks: Vec<wrldbldr_shared::LoreChunkData> = chunk_nodes
+            .into_iter()
+            .map(|c| {
+                let chunk_id: String = c.get("id").unwrap_or_default();
+                let order: i64 = c.get("order").unwrap_or(0);
+                let title: Option<String> = c.get_optional_string("title");
+                let content: String = c.get("content").unwrap_or_default();
+                let discovery_hint: Option<String> = c.get_optional_string("discovery_hint");
+
+                wrldbldr_shared::LoreChunkData {
+                    id: chunk_id,
+                    order: order as u32,
+                    title,
+                    content,
+                    discovery_hint,
+                }
+            })
+            .collect();
+
+        Ok(wrldbldr_shared::LoreData {
+            id,
+            world_id,
+            title,
+            summary,
+            category,
+            chunks,
+            is_common_knowledge,
+            tags,
+        })
+    }
 }
 
 #[async_trait]
@@ -869,5 +1021,39 @@ impl LoreRepo for Neo4jLoreRepo {
             remaining.len()
         );
         Ok(false)
+    }
+
+    async fn get_character_lore_journal(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<wrldbldr_shared::LoreJournalEntryData>, RepoError> {
+        // Single query to fetch both lore and knowledge (avoid N+1)
+        // Fetches chunks separately for each lore (still N+1 for chunks, but acceptable for now)
+        let q = query(&format!(
+            "{}-[k:KNOWS_LORE]->(l:Lore)
+            WITH c, k, l
+            OPTIONAL MATCH (l)-[:HAS_CHUNK]->(ch:LoreChunk)
+            RETURN l, k, collect(ch) as chunks
+            ORDER BY l.title",
+            match_character_by_param("character_id")
+        ))
+        .param("character_id", character_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut journal_entries = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            journal_entries.push(self.row_to_journal_entry(row)?);
+        }
+
+        Ok(journal_entries)
     }
 }

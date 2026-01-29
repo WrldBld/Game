@@ -849,6 +849,13 @@ pub trait LoreRepo: Send + Sync {
         lore_id: LoreId,
         chunk_ids: &[LoreChunkId],
     ) -> Result<bool, RepoError>;
+
+    // Get combined lore + knowledge for a character's journal
+    // Returns LoreJournalEntry records with both lore data and knowledge info
+    async fn get_character_lore_journal(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<wrldbldr_shared::LoreJournalEntryData>, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

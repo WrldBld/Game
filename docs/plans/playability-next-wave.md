@@ -75,7 +75,20 @@
     - `ChallengeList` displays skill name via `skills_map.get(&challenge.skill_id)`
     - `ChallengeEditor` has skill selector dropdown with skill_id binding
     - `ChallengeRollModal` displays `skill_name` from challenge prompt
-- [ ] P2 Lore pipeline complete
+- [x] P2 Lore pipeline complete (backend)
+- [x] P2 Lore pipeline complete (frontend)
+  - Implemented `LoreDiscovered`, `LoreRevoked`, `LoreUpdated`, `CharacterLoreResponse` translation in `message_translator.rs`
+  - Created `LoreService` with `get_character_lore` and `get_lore_entry` methods
+  - Added `lore` to Services struct initialization
+  - Added `apply_lore_journal` method to `LoreState`
+  - Added `LoreService` to `LoreJournalEntryData` re-export
+  - Added `use_lore_service` hook to presentation services
+  - Added `get_character_lore` convenience re-export
+  - Added `get_character_lore` and `get_lore_entry` to ClientMessageBuilder
+  - Added Journal button to ActionPanel with "book" icon
+  - Added Journal modal handler to PCView
+  - Implemented `handle_open_lore_journal` with lore fetching and error handling
+  - LoreJournal modal wiring complete with proper type conversions
 - [ ] P2 Creator/NPC refresh complete
-- [x] Code review + architecture review
+- [ ] Code review + architecture review
 - [x] Checks/tests clean

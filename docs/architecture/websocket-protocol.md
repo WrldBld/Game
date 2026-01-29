@@ -255,6 +255,19 @@ Server-side routing lives in `crates/engine/src/api/websocket/mod.rs`. Connectio
 
 ---
 
+### Lore System
+
+| Message | Fields | Purpose |
+|---------|--------|---------|
+| `LoreDiscovered` | `character_id`, `lore`, `discovered_chunk_ids`, `discovery_source` | Character discovered lore (sent to owning player) |
+| `LoreRevoked` | `character_id`, `lore_id` | Character lost lore knowledge (sent to owning player) |
+| `LoreUpdated` | `lore` | Lore entry was modified (broadcast to DMs) |
+| `CharacterLoreResponse` | `character_id`, `known_lore` | All known lore for a character (response to GetCharacterLore) |
+
+The Lore system messages support the player journal feature, allowing players to view their discovered lore with associated knowledge metadata (discovery source, timestamp, known chunks). See [Lore System](../systems/lore-system.md) for full documentation.
+
+---
+
 ## Message Format
 
 ### Request

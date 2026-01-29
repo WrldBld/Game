@@ -8,8 +8,9 @@ use uuid::Uuid;
 use wrldbldr_domain::DispositionLevel;
 use wrldbldr_shared::messages::DiceInputType;
 use wrldbldr_shared::{
-    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
-    DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
+    requests::LoreRequest, AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo,
+    ChallengeOutcomeDecisionData, ClientMessage, DirectorialContext, NpcRequest, RequestPayload,
+    TimeRequest, WorldRole,
 };
 
 /// Builder for ClientMessage variants
@@ -460,6 +461,36 @@ impl ClientMessageBuilder {
                 world_id: world_id.to_string(),
                 seconds,
                 reason: Some(reason.to_string()),
+            }),
+        }
+    }
+
+    // =========================================================================
+    // Lore Messages
+    // =========================================================================
+
+    /// Create a GetCharacterLore request message
+    ///
+    /// Request all known lore for a character.
+    pub fn get_character_lore(request_id: &str, character_id: &str) -> ClientMessage {
+        ClientMessage::Request {
+            request_id: request_id.to_string(),
+            payload: RequestPayload::Lore(
+                wrldbldr_shared::requests::LoreRequest::GetCharacterLore {
+                    character_id: character_id.to_string(),
+                },
+            ),
+        }
+    }
+
+    /// Create a GetLore request message
+    ///
+    /// Request a single lore entry for full details.
+    pub fn get_lore_entry(request_id: &str, lore_id: &str) -> ClientMessage {
+        ClientMessage::Request {
+            request_id: request_id.to_string(),
+            payload: RequestPayload::Lore(wrldbldr_shared::requests::LoreRequest::GetLore {
+                lore_id: lore_id.to_string(),
             }),
         }
     }
