@@ -12,12 +12,11 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ fenix.overlays.default ];
         };
         lib = pkgs.lib;
         isDarwin = pkgs.stdenv.isDarwin;
         isLinux = pkgs.stdenv.isLinux;
-        rustToolchain = pkgs.fenix.packages.${system}.stable.withComponents [
+        rustToolchain = fenix.packages.${system}.stable.withComponents [
           "cargo"
           "rustc"
           "rustfmt"
@@ -137,8 +136,8 @@
             # macOS frameworks are automatically linked via nix-darwin
             '' else ""}
 
-            # Ensure cargo binaries are in PATH
-            export PATH="$HOME/.cargo/bin:$PATH"
+            # Ensure user cargo bins don't shadow nix toolchain
+            export PATH="$PATH:$HOME/.cargo/bin"
 
             echo "WrldBldr development environment loaded!"
             echo "Platform: ${if isDarwin then "macOS (nix-darwin)" else "Linux"}"
