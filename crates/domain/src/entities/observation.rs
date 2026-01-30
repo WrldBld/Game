@@ -40,6 +40,28 @@ impl ObservationType {
             ObservationType::Deduced => "brain",
         }
     }
+
+    /// Get a canonical key for storage (persisted in Neo4j)
+    pub fn as_key(&self) -> &'static str {
+        match self {
+            ObservationType::Direct => "direct",
+            ObservationType::HeardAbout => "heard_about",
+            ObservationType::Deduced => "deduced",
+        }
+    }
+
+    /// Parse a storage key into ObservationType
+    pub fn from_key(key: &str) -> Result<Self, DomainError> {
+        match key {
+            "direct" => Ok(ObservationType::Direct),
+            "heard_about" => Ok(ObservationType::HeardAbout),
+            "deduced" => Ok(ObservationType::Deduced),
+            _ => Err(DomainError::parse(format!(
+                "Invalid observation type key: {}",
+                key
+            ))),
+        }
+    }
 }
 
 impl std::fmt::Display for ObservationType {
@@ -412,5 +434,29 @@ mod tests {
         assert_eq!(obs.observation_type(), ObservationType::HeardAbout);
         assert!(obs.is_revealed_to_player());
         assert_eq!(obs.notes(), Some("The bartender told me"));
+    }
+
+    #[test]
+    fn test_observation_type_keys() {
+        assert_eq!(ObservationType::Direct.as_key(), "direct");
+        assert_eq!(ObservationType::HeardAbout.as_key(), "heard_about");
+        assert_eq!(ObservationType::Deduced.as_key(), "deduced");
+    }
+
+    #[test]
+    fn test_observation_type_from_key() {
+        assert_eq!(
+            ObservationType::from_key("direct").unwrap(),
+            ObservationType::Direct
+        );
+        assert_eq!(
+            ObservationType::from_key("heard_about").unwrap(),
+            ObservationType::HeardAbout
+        );
+        assert_eq!(
+            ObservationType::from_key("deduced").unwrap(),
+            ObservationType::Deduced
+        );
+        assert!(ObservationType::from_key("invalid").is_err());
     }
 }

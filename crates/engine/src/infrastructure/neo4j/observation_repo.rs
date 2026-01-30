@@ -9,18 +9,30 @@ use neo4rs::query;
 use wrldbldr_domain::common::{parse_datetime_or, StringExt};
 use wrldbldr_domain::*;
 
-use crate::infrastructure::ports::{ClockPort, ObservationRepo, RepoError};
+use crate::infrastructure::ports::{ClockPort, ObservationRepo, PlayerCharacterRepo, RepoError, WorldRepo};
 
 use super::helpers::{match_player_character_by_id};
 
 pub struct Neo4jObservationRepo {
     graph: Neo4jGraph,
     clock: std::sync::Arc<dyn ClockPort>,
+    player_character: std::sync::Arc<dyn PlayerCharacterRepo>,
+    world: std::sync::Arc<dyn WorldRepo>,
 }
 
 impl Neo4jObservationRepo {
-    pub fn new(graph: Neo4jGraph, clock: std::sync::Arc<dyn ClockPort>) -> Self {
-        Self { graph, clock }
+    pub fn new(
+        graph: Neo4jGraph,
+        clock: std::sync::Arc<dyn ClockPort>,
+        player_character: std::sync::Arc<dyn PlayerCharacterRepo>,
+        world: std::sync::Arc<dyn WorldRepo>,
+    ) -> Self {
+        Self {
+            graph,
+            clock,
+            player_character,
+            world,
+        }
     }
 }
 
@@ -92,8 +104,7 @@ impl ObservationRepo for Neo4jObservationRepo {
                         .map_err(|e| RepoError::database("query", e))?,
                 ),
                 parse_datetime_or(&game_time_str, now),
-                observation_type_str
-                    .parse()
+                ObservationType::from_key(&observation_type_str)
                     .unwrap_or(ObservationType::Direct),
                 is_revealed_to_player,
                 notes.into_option(),
@@ -149,7 +160,7 @@ impl ObservationRepo for Neo4jObservationRepo {
         .param("game_time", observation.game_time().to_rfc3339())
         .param(
             "observation_type",
-            observation.observation_type().to_string(),
+            observation.observation_type().as_key(),
         )
         .param("is_revealed_to_player", observation.is_revealed_to_player())
         .param("notes", observation.notes().unwrap_or_default().to_string())
@@ -195,34 +206,82 @@ impl ObservationRepo for Neo4jObservationRepo {
     }
 
     /// Save deduced information from a challenge outcome.
-    /// Creates a JournalEntry node linked to PC for persistent info storage.
+    /// If npc_id is provided, creates a Deduced observation; otherwise creates a JournalEntry.
     async fn save_deduced_info(
         &self,
         pc_id: PlayerCharacterId,
         info: String,
+        npc_id: Option<CharacterId>,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
     ) -> Result<(), RepoError> {
         let now = self.clock.now();
-        let entry_id = uuid::Uuid::new_v4().to_string();
 
-        let q = query(&format!(
-            "{} CREATE (je:JournalEntry {{
-                id: $entry_id,
-                content: $info,
-                entry_type: 'deduced',
-                created_at: $created_at
-            }})
-            CREATE (pc)-[:HAS_JOURNAL_ENTRY]->(je)",
-            match_player_character_by_id().replace("$id", "$pc_id")
-        ))
-        .param("pc_id", pc_id.to_string())
-        .param("entry_id", entry_id)
-        .param("info", info)
-        .param("created_at", now.to_rfc3339());
+        // If npc_id provided, create a Deduced observation instead of JournalEntry
+        if let Some(npc) = npc_id {
+            // Validate required fields for observation
+            let location_id = location_id.ok_or_else(|| {
+                RepoError::constraint("location_id required when npc_id is provided for deduced info")
+            })?;
+            let region_id = region_id.ok_or_else(|| {
+                RepoError::constraint("region_id required when npc_id is provided for deduced info")
+            })?;
 
-        self.graph
-            .run(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
+            // Get world game time for the observation
+            let player = self
+                .player_character
+                .get(pc_id)
+                .await
+                .map_err(|e| RepoError::database("get player character", e))?
+                .ok_or_else(|| RepoError::not_found("PlayerCharacter", pc_id.to_string()))?;
+
+            let world = self
+                .world
+                .get(player.world_id())
+                .await
+                .map_err(|e| RepoError::database("get world", e))?
+                .ok_or_else(|| {
+                    RepoError::not_found("World", player.world_id().to_string())
+                })?;
+
+            let game_time = world.game_time().to_datetime();
+
+            let observation = wrldbldr_domain::NpcObservation::deduced(
+                pc_id,
+                npc,
+                location_id,
+                region_id,
+                game_time,
+                Some(info),
+                now,
+            );
+
+            self.save_observation(&observation).await?;
+        } else {
+            // No npc_id: create JournalEntry for general deduced info
+            let entry_id = uuid::Uuid::new_v4().to_string();
+
+            let q = query(&format!(
+                "{} CREATE (je:JournalEntry {{
+                    id: $entry_id,
+                    content: $info,
+                    entry_type: 'deduced',
+                    created_at: $created_at
+                }})
+                CREATE (pc)-[:HAS_JOURNAL_ENTRY]->(je)",
+                match_player_character_by_id().replace("$id", "$pc_id")
+            ))
+            .param("pc_id", pc_id.to_string())
+            .param("entry_id", entry_id)
+            .param("info", info)
+            .param("created_at", now.to_rfc3339());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::database("query", e))?;
+        }
+
         Ok(())
     }
 }

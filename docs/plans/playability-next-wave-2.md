@@ -55,8 +55,16 @@
       - All hooks at component root (Dioxus 0.7 compliance)
 
 4) **Observation snapshot + live updates** (P1)
-    - Player receives observation snapshot + incremental updates
-    - Observation UI panel in player view
+   - Player receives observation snapshot + incremental updates
+   - Observation UI panel in player view
+   - **Additional remediation (validated):**
+     - Enforce auth on ListObservations (pc_id must match or DM)
+     - Canonicalize ObservationType persistence (no Display strings)
+     - Direct sightings should upsert/overwrite non-Direct observations
+     - ShareNpcLocation uses world game time, not wall clock
+     - Validate region/location consistency for shared observations
+     - Deduced info should surface in Observations (or remove Deduced type)
+     - Approach events should create unrevealed observations
 
 5) **Story arc event chains** (P2)
     - Editor workflows for chains, activation, and visibility

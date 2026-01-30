@@ -422,6 +422,17 @@ pub(super) async fn handle_observation_request(
                 Err(e) => return Err(e),
             };
 
+            // Enforce auth: only DM or matching PC can access observations
+            if !conn_info.is_dm() && conn_info.pc_id != Some(pc_id_typed) {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::Unauthorized,
+                        "Can only list your own observations",
+                    ),
+                });
+            }
+
             match state
                 .app
                 .use_cases
@@ -549,5 +560,72 @@ fn relationship_type_to_string(relationship_type: &wrldbldr_domain::Relationship
         wrldbldr_domain::RelationshipType::Mentorship => "mentorship".to_string(),
         wrldbldr_domain::RelationshipType::Enmity => "enmity".to_string(),
         wrldbldr_domain::RelationshipType::Custom(value) => value.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wrldbldr_domain::{PlayerCharacterId, UserId};
+    use crate::api::websocket::test_support::{TestAppBuilder, TestConnectionInfo};
+
+    #[tokio::test]
+    async fn list_observations_unauthorized_for_different_pc() {
+        let mut builder = TestAppBuilder::new();
+        let pc_id = PlayerCharacterId::new();
+        let other_pc_id = PlayerCharacterId::new();
+        let user_id = UserId::new("user1").unwrap();
+
+        // Create PC for user
+        builder
+            .add_pc(pc_id, "TestPC", user_id.clone())
+            .await;
+
+        // Connect as user
+        let (addr, mut client) = builder
+            .connect_user(user_id, None, pc_id)
+            .await;
+
+        // Try to list observations for different PC
+        let request = crate::api::websocket::ClientMessage::ObservationRequest(
+            wrldbldr_shared::ObservationRequest::ListObservations {
+                pc_id: other_pc_id.to_string(),
+            },
+        );
+        let response = client.send_request(request).await;
+
+        // Should get Unauthorized error
+        assert!(response.is_error());
+        let error = response.get_error().unwrap();
+        assert_eq!(error.code, "Unauthorized");
+    }
+
+    #[tokio::test]
+    async fn list_observations_allows_dm_access() {
+        let mut builder = TestAppBuilder::new();
+        let pc_id = PlayerCharacterId::new();
+        let user_id = UserId::new("dm_user").unwrap();
+        let dm_user_id = UserId::new("dm").unwrap();
+
+        // Create PC for user
+        builder
+            .add_pc(pc_id, "TestPC", user_id.clone())
+            .await;
+
+        // Connect as DM
+        let (addr, mut client) = builder
+            .connect_user(dm_user_id, None, None)
+            .await;
+
+        // DM can list observations for any PC
+        let request = crate::api::websocket::ClientMessage::ObservationRequest(
+            wrldbldr_shared::ObservationRequest::ListObservations {
+                pc_id: pc_id.to_string(),
+            },
+        );
+        let response = client.send_request(request).await;
+
+        // Should succeed
+        assert!(response.is_success());
     }
 }

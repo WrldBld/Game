@@ -515,10 +515,17 @@ impl App {
                 repos.character.clone(),
                 repos.location.clone(),
                 repos.observation.clone(),
+                repos.player_character.clone(),
+                repos.world.clone(),
                 clock_port.clone(),
             )),
             Arc::new(use_cases::npc::NpcApproachEvents::new(
                 repos.character.clone(),
+                repos.location.clone(),
+                repos.observation.clone(),
+                repos.player_character.clone(),
+                repos.world.clone(),
+                clock_port.clone(),
             )),
         );
 

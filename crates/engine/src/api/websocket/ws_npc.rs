@@ -269,7 +269,7 @@ pub(super) async fn handle_npc_request(
                         .collect();
                     Ok(ResponseResult::success(data))
                 }
-                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                Err(crate::use_cases::npc::NpcError::NotFound { .. }) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
@@ -333,7 +333,7 @@ pub(super) async fn handle_npc_request(
                         serde_json::json!({"success": true}),
                     ))
                 },
-                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                Err(crate::use_cases::npc::NpcError::NotFound { .. }) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
@@ -397,7 +397,7 @@ pub(super) async fn handle_npc_request(
                         serde_json::json!({"success": true}),
                     ))
                 },
-                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                Err(crate::use_cases::npc::NpcError::NotFound { .. }) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
@@ -474,7 +474,7 @@ pub(super) async fn handle_npc_request(
                         serde_json::json!({"success": true}),
                     ))
                 },
-                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                Err(crate::use_cases::npc::NpcError::NotFound { .. }) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
@@ -521,9 +521,9 @@ pub(super) async fn handle_npc_request(
                         .collect();
                     Ok(ResponseResult::success(data))
                 }
-                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                Err(crate::use_cases::npc::NpcError::NotFound { .. }) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
-                    "Region not found",
+                    "Character not found",
                 )),
                 Err(e) => {
                     tracing::error!(error = %e, "Failed to list region NPCs");
@@ -636,7 +636,7 @@ pub(super) async fn handle_npc_request(
                         "mood": mood.to_string(),
                     })))
                 }
-                Err(crate::use_cases::npc::NpcError::NotFound) => {
+                Err(crate::use_cases::npc::NpcError::NotFound { .. }) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "NPC not found"))
                 }
                 Err(e) => {

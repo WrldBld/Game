@@ -87,12 +87,40 @@ pub(super) async fn handle_trigger_approach_event(
         Err(e) => return Some(e),
     };
 
+    // Get PC's current location for observation creation
+    let pc = match state.app.use_cases.management.player_character.get(pc_uuid).await {
+        Ok(Some(pc)) => pc,
+        Ok(None) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                "Player character not found",
+            ))
+        }
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "get player character"),
+            ))
+        }
+    };
+
+    let location_id = pc.current_location_id();
+    let region_id = match pc.current_region_id() {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Player must be in a region for approach event",
+            ))
+        }
+    };
+
     let approach = match state
         .app
         .use_cases
         .npc
         .approach_events
-        .build_event(npc_uuid, reveal)
+        .build_event(npc_uuid, reveal, pc_uuid, location_id, region_id)
         .await
     {
         Ok(result) => result,
@@ -106,6 +134,10 @@ pub(super) async fn handle_trigger_approach_event(
 
     if let Some(err) = approach.lookup_error.as_ref() {
         tracing::error!(error = %err, "Failed to load NPC for approach event");
+    }
+
+    if let Some(err) = approach.observation_error.as_ref() {
+        tracing::error!(error = %err, "Failed to create observation for approach event");
     }
 
     // Send approach event to target PC

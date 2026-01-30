@@ -1,7 +1,7 @@
 //! Record visit use case - tracks NPC observations when a PC enters a region.
 
 use std::sync::Arc;
-use wrldbldr_domain::{NpcObservation, PlayerCharacterId, RegionId, StagedNpc};
+use wrldbldr_domain::{NpcObservation, ObservationType, PlayerCharacterId, RegionId, StagedNpc};
 
 use crate::infrastructure::ports::{ClockPort, LocationRepo, ObservationRepo, RepoError};
 
@@ -61,23 +61,42 @@ impl RecordVisit {
             .iter()
             .filter(|n| n.is_present() && !n.is_hidden_from_players())
         {
-            // Check if already observed to avoid duplicates
-            let already_observed = self
-                .observation_repo
-                .has_observed(pc_id, npc.character_id)
-                .await?;
+            // Check if already observed and get the observation if it exists
+            let observations = self.observation_repo.get_observations(pc_id).await?;
+            let existing_obs = observations.iter().find(|obs| obs.npc_id() == npc.character_id);
 
-            if !already_observed {
-                let observation = NpcObservation::direct(
-                    pc_id,
-                    npc.character_id,
-                    location_id,
-                    region_id,
-                    game_time, // Game time for when the observation occurred in-game
-                    now,       // Real time for when record was created
-                );
+            match existing_obs {
+                Some(obs) if obs.observation_type() != ObservationType::Direct => {
+                    // Upgrade to Direct observation with new location/time
+                    let updated_obs = NpcObservation::from_storage(
+                        pc_id,
+                        npc.character_id,
+                        location_id,
+                        region_id,
+                        game_time,
+                        ObservationType::Direct,
+                        obs.is_revealed_to_player(),
+                        obs.notes().map(|s| s.to_string()),
+                        now,
+                    );
+                    self.observation_repo.save_observation(&updated_obs).await?;
+                }
+                Some(_) => {
+                    // Already a Direct observation, keep as-is
+                }
+                None => {
+                    // New observation
+                    let observation = NpcObservation::direct(
+                        pc_id,
+                        npc.character_id,
+                        location_id,
+                        region_id,
+                        game_time, // Game time for when the observation occurred in-game
+                        now,       // Real time for when record was created
+                    );
 
-                self.observation_repo.save_observation(&observation).await?;
+                    self.observation_repo.save_observation(&observation).await?;
+                }
             }
         }
 
@@ -262,5 +281,123 @@ mod tests {
 
         assert!(result.is_err());
         assert!(matches!(result, Err(RepoError::NotFound { .. })));
+    }
+
+    #[tokio::test]
+    async fn upgrades_heard_about_to_direct_on_visit() {
+        use chrono::{TimeZone, Utc};
+
+        let mut observation_repo = MockObservationRepo::new();
+        let mut location_repo = MockLocationRepo::new();
+        let mut clock = MockClockPort::new();
+
+        let _world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
+        let game_time_seconds: i64 = 86400; // 24 hours
+        let real_time = Utc.with_ymd_and_hms(2025, 6, 16, 10, 30, 0).unwrap();
+        let old_game_time = wrldbldr_domain::GameTime::from_seconds(43200).to_datetime();
+
+        location_repo
+            .expect_get_region()
+            .with(eq(region_id))
+            .returning(move |_| Ok(Some(test_region(location_id))));
+
+        clock.expect_now().returning(move || real_time);
+
+        // Simulate existing HeardAbout observation
+        let old_obs = NpcObservation::heard_about(
+            pc_id,
+            npc_id,
+            LocationId::new(), // Different location
+            RegionId::new(),   // Different region
+            old_game_time,
+            Some("Heard they were somewhere else".to_string()),
+            real_time,
+        );
+
+        observation_repo
+            .expect_get_observations()
+            .with(eq(pc_id))
+            .returning(move |_| Ok(vec![old_obs.clone()]));
+
+        // Expect save with Direct type and new location/time
+        observation_repo
+            .expect_save_observation()
+            .withf(|obs| {
+                obs.observation_type() == ObservationType::Direct
+                    && obs.notes().map(|n| n.contains("Heard")).unwrap_or(false)
+            })
+            .returning(|_| Ok(()));
+
+        let use_case = RecordVisit::new(
+            Arc::new(observation_repo),
+            Arc::new(location_repo),
+            Arc::new(clock),
+        );
+
+        let npcs = vec![test_staged_npc(npc_id, true, false)];
+        let result = use_case
+            .execute(pc_id, region_id, &npcs, game_time_seconds)
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn keeps_direct_observation_unchanged_on_revisit() {
+        use chrono::{TimeZone, Utc};
+
+        let mut observation_repo = MockObservationRepo::new();
+        let mut location_repo = MockLocationRepo::new();
+        let mut clock = MockClockPort::new();
+
+        let _world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
+        let game_time_seconds: i64 = 86400;
+        let real_time = Utc.with_ymd_and_hms(2025, 6, 16, 10, 30, 0).unwrap();
+        let old_game_time = wrldbldr_domain::GameTime::from_seconds(43200).to_datetime();
+
+        location_repo
+            .expect_get_region()
+            .with(eq(region_id))
+            .returning(move |_| Ok(Some(test_region(location_id))));
+
+        clock.expect_now().returning(move || real_time);
+
+        // Simulate existing Direct observation
+        let old_obs = NpcObservation::direct(
+            pc_id,
+            npc_id,
+            LocationId::new(),
+            RegionId::new(),
+            old_game_time,
+            real_time,
+        );
+
+        observation_repo
+            .expect_get_observations()
+            .with(eq(pc_id))
+            .returning(move |_| Ok(vec![old_obs.clone()]));
+
+        // No save expected - Direct observation should be kept as-is
+
+        let use_case = RecordVisit::new(
+            Arc::new(observation_repo),
+            Arc::new(location_repo),
+            Arc::new(clock),
+        );
+
+        let npcs = vec![test_staged_npc(npc_id, true, false)];
+        let result = use_case
+            .execute(pc_id, region_id, &npcs, game_time_seconds)
+            .await;
+
+        assert!(result.is_ok());
     }
 }

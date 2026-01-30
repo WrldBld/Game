@@ -861,10 +861,17 @@ pub(crate) fn build_test_app_with_ports(
             character_repo.clone(),
             location_repo.clone(),
             observation_repo.clone(),
+            player_character_repo.clone(),
+            world_repo.clone(),
             clock_port.clone(),
         )),
         Arc::new(crate::use_cases::npc::NpcApproachEvents::new(
             character_repo.clone(),
+            location_repo.clone(),
+            observation_repo.clone(),
+            player_character_repo.clone(),
+            world_repo.clone(),
+            clock_port.clone(),
         )),
     );
 

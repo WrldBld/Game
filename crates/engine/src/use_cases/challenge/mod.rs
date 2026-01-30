@@ -645,10 +645,16 @@ impl ResolveOutcome {
 
                 // If persistent, create an observation for the PC
                 if *persist {
-                    // Create a "deduced" observation from the challenge
-                    // This records that the PC learned this information
+                    // Create a "deduced" observation from challenge
+                    // This records that PC learned this information
                     self.observation
-                        .save_deduced_info(target_pc_id, info.clone())
+                        .save_deduced_info(
+                            target_pc_id,
+                            info.clone(),
+                            None, // npc_id - future enhancement to support observations from challenges
+                            None, // location_id - future enhancement to support observations from challenges
+                            None, // region_id - future enhancement to support observations from challenges
+                        )
                         .await
                         .map_err(|e| {
                             tracing::error!(
@@ -1116,8 +1122,10 @@ mod tests {
         let mut observation_repo = MockObservationRepo::new();
         observation_repo
             .expect_save_deduced_info()
-            .withf(move |id, info| *id == pc_id && info == "secret")
-            .returning(|_, _| Ok(()));
+            .withf(move |id, info, _, _, _| {
+                *id == pc_id && info == "secret"
+            })
+            .returning(|_, _, _, _, _| Ok(()));
 
         // ---------------------------------------------------------------------
         // Inventory expectations (give_item_to_pc)

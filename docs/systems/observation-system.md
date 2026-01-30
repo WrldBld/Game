@@ -65,6 +65,59 @@ This supports mystery scenarios where players must investigate to find people.
     - Player Known NPCs UI respects the reveal flag
   - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine/src/infrastructure/neo4j/observation_repo.rs`
 
+### Implemented (Observation Remediation)
+
+- [x] **Auth Enforcement**: ListObservations requires DM or matching PC
+  - *Implementation*: Added auth check in `ws_player.rs` ListObservations handler
+  - *Completed 2025-01-30*:
+    - DMs can list any PC's observations
+    - Players can only list their own observations
+    - Returns `ErrorCode::Unauthorized` for unauthorized access
+  - *Files*: `crates/engine/src/api/websocket/ws_player.rs`
+
+- [x] **Canonical Storage**: ObservationType uses keys for persistence
+  - *Implementation*: Added `as_key()` and `from_key()` methods
+  - *Completed 2025-01-30*:
+    - Storage uses canonical keys: `direct`, `heard_about`, `deduced`
+    - Display trait reserved for UI presentation only
+    - Repo uses `from_key()` when reading from storage
+    - Management use case uses `as_key()` for summaries
+  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine/src/infrastructure/neo4j/observation_repo.rs`, `crates/engine/src/use_cases/management/observation.rs`
+
+- [x] **Observation Upsert**: record_visit upgrades non-Direct to Direct
+  - *Implementation*: Updated RecordVisit use case
+  - *Completed 2025-01-30*:
+    - If observation exists and type != Direct, updates to Direct
+    - Updates location_id, region_id, and game_time
+    - Skips if already Direct (preserves original observation)
+  - *Files*: `crates/engine/src/use_cases/observation/record_visit.rs`
+
+- [x] **ShareNpcLocation Validation**: Validates region belongs to location
+  - *Implementation*: Updated NpcLocationSharing use case
+  - *Completed 2025-01-30*:
+    - Validates region.location_id matches provided location_id
+    - Returns `InvalidInput` error on mismatch (fail-fast)
+    - Uses world game time instead of clock.now()
+  - *Files*: `crates/engine/src/use_cases/npc/mod.rs`
+
+- [x] **Deduced Info Enhancement**: Creates observations when NPC present
+  - *Implementation*: Updated `save_deduced_info` signature
+  - *Completed 2025-01-30*:
+    - Accepts optional `npc_id`, `location_id`, `region_id`
+    - Creates Deduced observation if npc_id provided
+    - Falls back to JournalEntry for general deduced info
+    - Uses world game time for observations
+  - *Files*: `crates/engine/src/infrastructure/neo4j/observation_repo.rs`, `crates/engine/src/infrastructure/ports/repos.rs`
+
+- [x] **Approach Event Observations**: Creates unrevealed observations
+  - *Implementation*: Updated NpcApproachEvents use case
+  - *Completed 2025-01-30*:
+    - When `reveal=false`, creates unrevealed direct observation
+    - Validates region belongs to location
+    - Uses PC's current location/region
+    - Returns observation errors for tracking
+  - *Files*: `crates/engine/src/use_cases/npc/mod.rs`, `crates/engine/src/api/websocket/ws_dm.rs`
+
 ---
 
 ## UI Mockups
@@ -113,7 +166,7 @@ This supports mystery scenarios where players must investigate to find people.
     region_id: "uuid",
     conversation_id: "uuid",
     game_time: datetime(),
-    observation_type: "direct",  // direct, heard_about, deduced
+    observation_type: "direct",  // Stored as canonical keys: direct, heard_about, deduced
     is_revealed_to_player: true,  // false => show "Unknown Figure"
     notes: "Saw them arguing with the bartender"
 }]->(npc:Character)
@@ -121,11 +174,16 @@ This supports mystery scenarios where players must investigate to find people.
 
 ### Observation Types
 
-| Type | Source | Example |
-|------|--------|---------|
-| `Direct` | PC saw NPC in region | "You see Marcus at the bar" |
-| `HeardAbout` | DM shared information | "The bartender mentions Marcus was here earlier" |
-| `Deduced` | Challenge result | "Investigation success: Marcus frequents the docks at night" |
+| Type | Storage Key | Source | Example |
+|------|-------------|--------|---------|
+| `Direct` | `direct` | PC saw NPC in region | "You see Marcus at the bar" |
+| `HeardAbout` | `heard_about` | DM shared information | "The bartender mentions Marcus was here earlier" |
+| `Deduced` | `deduced` | Challenge result (optional NPC/location) | "Investigation success: Marcus frequents the docks at night" |
+
+**Storage Implementation Notes:**
+- ObservationType uses canonical keys (`as_key()`, `from_key()`) for persistence in Neo4j
+- Display trait is used for UI presentation only, not for storage
+- This ensures storage format is stable and independent of display text changes
 
 ### Domain Entity
 

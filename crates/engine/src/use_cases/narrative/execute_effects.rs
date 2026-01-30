@@ -671,7 +671,17 @@ impl ObservationEffectExecutor {
         if persist_to_journal {
             // Save as deduced info in the observation system
             let info_entry = format!("[{}] {}: {}", info_type, title, content);
-            match self.observation.save_deduced_info(pc_id, info_entry).await {
+            match self
+                .observation
+                .save_deduced_info(
+                    pc_id,
+                    info_entry,
+                    None, // npc_id - future enhancement to support observations from events
+                    None, // location_id - future enhancement to support observations from events
+                    None, // region_id - future enhancement to support observations from events
+                )
+                .await
+            {
                 Ok(()) => EffectExecutionResult {
                     description: format!("Revealed {} '{}' (saved to journal)", info_type, title),
                     success: true,

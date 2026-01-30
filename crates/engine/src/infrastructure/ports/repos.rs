@@ -819,10 +819,14 @@ pub trait ObservationRepo: Send + Sync {
         target_id: CharacterId,
     ) -> Result<bool, RepoError>;
     /// Save deduced information from a challenge (for RevealInformation trigger)
+    /// If npc_id is provided, creates a Deduced observation; otherwise creates a JournalEntry.
     async fn save_deduced_info(
         &self,
         pc_id: PlayerCharacterId,
         info: String,
+        npc_id: Option<CharacterId>,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
     ) -> Result<(), RepoError>;
 }
 
