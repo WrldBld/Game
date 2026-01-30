@@ -281,6 +281,9 @@ pub struct GameState {
     pub active_conversations: Signal<Vec<wrldbldr_shared::ConversationInfo>>,
     /// Conversation details (for DM panel - updated from ConversationDetails event)
     pub conversation_details: Signal<Option<wrldbldr_shared::ConversationFullDetails>>,
+    /// Observations for the currently selected PC (pc_id -> observations)
+    pub observations:
+        Signal<std::collections::HashMap<String, Vec<wrldbldr_shared::ObservationSummaryData>>>,
 }
 
 impl GameState {
@@ -318,6 +321,7 @@ impl GameState {
             visual_state_override: Signal::new(None),
             active_conversations: Signal::new(Vec::new()),
             conversation_details: Signal::new(None),
+            observations: Signal::new(std::collections::HashMap::new()),
         }
     }
 
@@ -763,6 +767,47 @@ impl GameState {
         None
     }
 
+    /// Set observations snapshot for a PC (replaces all observations for that PC)
+    pub fn set_observations_snapshot(
+        &mut self,
+        pc_id: String,
+        observations: Vec<wrldbldr_shared::ObservationSummaryData>,
+    ) {
+        let mut obs_map = self.observations.write();
+        obs_map.insert(pc_id, observations);
+    }
+
+    /// Update or insert a single observation for a PC
+    pub fn upsert_observation(
+        &mut self,
+        pc_id: String,
+        observation: wrldbldr_shared::ObservationSummaryData,
+    ) {
+        let mut obs_map = self.observations.write();
+        let pc_obs = obs_map.entry(pc_id).or_insert_with(Vec::new);
+        // Remove existing observation for the same NPC (if any)
+        pc_obs.retain(|o| o.npc_id != observation.npc_id);
+        // Add the updated observation
+        pc_obs.push(observation);
+    }
+
+    /// Remove an observation for a specific NPC from a PC's observations
+    pub fn remove_observation(&mut self, pc_id: String, npc_id: String) {
+        let mut obs_map = self.observations.write();
+        if let Some(pc_obs) = obs_map.get_mut(&pc_id) {
+            pc_obs.retain(|o| o.npc_id != npc_id);
+        }
+    }
+
+    /// Get observations for a specific PC
+    pub fn get_observations(
+        &self,
+        pc_id: &str,
+    ) -> Option<Vec<wrldbldr_shared::ObservationSummaryData>> {
+        let obs_map = self.observations.read();
+        obs_map.get(pc_id).cloned()
+    }
+
     /// Clear all scene data (e.g., when disconnecting)
     pub fn clear_scene(&mut self) {
         self.current_scene.set(None);
@@ -790,6 +835,7 @@ impl GameState {
         self.clear_visual_state_override();
         self.active_conversations.set(Vec::new());
         self.conversation_details.set(None);
+        self.observations.write().clear();
     }
 
     /// Clear all state

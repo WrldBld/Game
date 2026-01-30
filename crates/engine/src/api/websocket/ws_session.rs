@@ -1,4 +1,4 @@
-use wrldbldr_domain::{ConnectionId, UserId};
+use wrldbldr_domain::{ConnectionId, UserId, WorldRole};
 
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
@@ -217,4 +217,148 @@ pub(super) async fn handle_leave_world(
     }
     state.connections.leave_world(connection_id).await;
     None
+}
+
+pub(super) async fn handle_select_player_character(
+    state: &WsState,
+    connection_id: ConnectionId,
+    pc_id: &str,
+) -> Option<ServerMessage> {
+    // Parse PC ID
+    let pc_uuid = match parse_pc_id(pc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+
+    // Get connection info to verify authorization
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
+    };
+
+    // Get world_id from connection
+    let _world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
+    };
+
+    // Verify this PC belongs to this user
+    if conn_info.pc_id != Some(pc_uuid) {
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Cannot select other player's character",
+        ));
+    }
+
+    // Update connection with selected PC
+    state.connections
+        .update_pc_id(connection_id, pc_uuid)
+        .await;
+
+    // Send ObservationSnapshot for the selected PC
+    match state
+        .app
+        .use_cases
+        .management
+        .observation
+        .list_summaries(pc_uuid)
+        .await
+    {
+        Ok(observations) => {
+            Some(ServerMessage::ObservationSnapshot {
+                pc_id: pc_id.to_string(),
+                observations,
+            })
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to list observations for PC snapshot");
+            // Still return success - observation snapshot is optional
+            Some(ServerMessage::PcSelected {
+                pc_id: pc_id.to_string(),
+                pc_name: "PC".to_string(), // We don't have the name here
+                location_id: String::new(),
+                region_id: None,
+            })
+        }
+    }
+}
+
+pub(super) async fn handle_set_spectate_target(
+    state: &WsState,
+    connection_id: ConnectionId,
+    pc_id: Uuid,
+) -> Option<ServerMessage> {
+    // Get connection info to verify authorization
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
+    };
+
+    // Verify role is Spectator
+    if !matches!(conn_info.role, WorldRole::Spectator) {
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Only spectators can set spectate target",
+        ));
+    }
+
+    // Get world_id from connection
+    let _world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
+    };
+
+    // Convert Uuid to PlayerCharacterId
+    let pc_id_typed = PlayerCharacterId::from(pc_id);
+
+    // Update connection with spectate target
+    state
+        .connections
+        .update_spectate_pc_id(connection_id, pc_id_typed)
+        .await;
+
+    // Send ObservationSnapshot for the spectated PC
+    match state
+        .app
+        .use_cases
+        .management
+        .observation
+        .list_summaries(pc_id_typed)
+        .await
+    {
+        Ok(observations) => {
+            Some(ServerMessage::ObservationSnapshot {
+                pc_id: pc_id.to_string(),
+                observations,
+            })
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to list observations for spectate snapshot");
+            // Still return success - observation snapshot is optional
+            Some(ServerMessage::SpectateTargetChanged {
+                pc_id,
+                pc_name: "PC".to_string(), // We don't have the name here
+            })
+        }
+    }
 }

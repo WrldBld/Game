@@ -51,7 +51,7 @@ impl ObservationManagement {
     pub async fn list_summaries(
         &self,
         pc_id: PlayerCharacterId,
-    ) -> Result<Vec<ObservationSummaryData>, ManagementError> {
+    ) -> Result<Vec<wrldbldr_shared::types::ObservationSummaryData>, ManagementError> {
         let observations = self.observation.get_observations(pc_id).await?;
         let mut summaries = Vec::new();
 
@@ -86,7 +86,7 @@ impl ObservationManagement {
 
             let obs_type = observation.observation_type();
 
-            summaries.push(ObservationSummaryData {
+            summaries.push(wrldbldr_shared::types::ObservationSummaryData {
                 npc_id: observation.npc_id().to_string(),
                 npc_name,
                 npc_portrait,
@@ -203,21 +203,8 @@ impl ObservationManagement {
             }
             _ => Err(ManagementError::InvalidInput(
                 "location_id and/or region_id required".to_string(),
-            )),
+            )            ),
         }
     }
 }
 
-/// Summary of an NPC observation for UI consumption.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ObservationSummaryData {
-    pub npc_id: String,
-    pub npc_name: String,
-    pub npc_portrait: Option<String>,
-    pub location_name: String,
-    pub region_name: String,
-    pub game_time: String,
-    pub observation_type: String,
-    pub observation_type_icon: String,
-    pub notes: Option<String>,
-}

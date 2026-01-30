@@ -400,6 +400,24 @@ impl GameTime {
 }
 
 // =============================================================================
+// Observation Types (P1)
+// =============================================================================
+
+/// Observation summary data for wire transfer (matches use case return type)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObservationSummaryData {
+    pub npc_id: String,
+    pub npc_name: String,
+    pub npc_portrait: Option<String>,
+    pub location_name: String,
+    pub region_name: String,
+    pub game_time: String,
+    pub observation_type: String,
+    pub observation_type_icon: String,
+    pub notes: Option<String>,
+}
+
+// =============================================================================
 // Time Cost Configuration
 // =============================================================================
 

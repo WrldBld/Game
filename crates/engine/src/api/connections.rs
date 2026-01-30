@@ -220,6 +220,32 @@ impl ConnectionManager {
         }
     }
 
+    /// Update the PC ID for a connection.
+    pub async fn update_pc_id(&self, connection_id: ConnectionId, pc_id: PlayerCharacterId) {
+        let mut connections = self.connections.write().await;
+        if let Some((info, _)) = connections.get_mut(&connection_id) {
+            info.pc_id = Some(pc_id);
+            tracing::debug!(
+                connection_id = %connection_id,
+                pc_id = %pc_id,
+                "Updated connection PC ID"
+            );
+        }
+    }
+
+    /// Update the spectate PC ID for a connection.
+    pub async fn update_spectate_pc_id(&self, connection_id: ConnectionId, pc_id: PlayerCharacterId) {
+        let mut connections = self.connections.write().await;
+        if let Some((info, _)) = connections.get_mut(&connection_id) {
+            info.spectate_pc_id = Some(pc_id);
+            tracing::debug!(
+                connection_id = %connection_id,
+                spectate_pc_id = %pc_id,
+                "Updated connection spectate PC ID"
+            );
+        }
+    }
+
     /// Get all connections in a world.
     pub async fn get_world_connections(&self, world_id: WorldId) -> Vec<ConnectionInfo> {
         let connections = self.connections.read().await;

@@ -349,7 +349,7 @@ pub(super) async fn handle_move_to_region(
                                 crate::use_cases::staging::StagingError::Validation(_) => ErrorCode::ValidationError,
                                 _ => ErrorCode::InternalError,
                             };
-                            Some(error_response(code, &sanitize_repo_error(&e, "process staging")))
+                             Some(error_response(code, &sanitize_repo_error(&e, "process staging")))
                         }
                     }
                 }
@@ -357,6 +357,11 @@ pub(super) async fn handle_move_to_region(
                     maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion).await;
 
                     let npcs = result.npcs.clone();
+                    let pc_uuid_for_obs = pc_uuid;
+
+                    // Send observation updates for visible NPCs
+                    send_observation_updates(state, pc_uuid_for_obs, &npcs).await;
+
                     let scene_change = match state
                         .app
                         .use_cases
@@ -553,7 +558,7 @@ pub(super) async fn handle_exit_to_location(
                                 crate::use_cases::staging::StagingError::Validation(_) => ErrorCode::ValidationError,
                                 _ => ErrorCode::InternalError,
                             };
-                            Some(error_response(code, &sanitize_repo_error(&e, "process staging")))
+                             Some(error_response(code, &sanitize_repo_error(&e, "process staging")))
                         }
                     }
                 }
@@ -561,6 +566,11 @@ pub(super) async fn handle_exit_to_location(
                     maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion).await;
 
                     let npcs = result.npcs.clone();
+                    let pc_uuid_for_obs = pc_uuid;
+
+                    // Send observation updates for visible NPCs
+                    send_observation_updates(state, pc_uuid_for_obs, &npcs).await;
+
                     let scene_change = match state
                         .app
                         .use_cases
@@ -852,5 +862,52 @@ async fn resolve_interaction_target(
             (None, Some("environment".to_string()), Some(label.clone()))
         }
         wrldbldr_domain::InteractionTarget::None => (None, None, None),
+    }
+}
+
+/// Send observation updates for NPCs observed during movement.
+async fn send_observation_updates(
+    state: &WsState,
+    pc_id: PlayerCharacterId,
+    npcs: &[wrldbldr_domain::StagedNpc],
+) {
+    // Only send updates for visible NPCs - collect into Vec before iterating twice
+    let visible_npcs: Vec<_> = npcs
+        .iter()
+        .filter(|n| n.is_present() && !n.is_hidden_from_players())
+        .collect();
+
+    if visible_npcs.is_empty() {
+        return;
+    }
+
+    // Query observations for this PC
+    match state
+        .app
+        .use_cases
+        .management
+        .observation
+        .list_summaries(pc_id)
+        .await
+    {
+        Ok(summaries) => {
+            // Send ObservationUpdated for each observed NPC
+            for npc in visible_npcs {
+                if let Some(summary) = summaries.iter().find(|s| s.npc_id == npc.character_id.to_string()) {
+                    let msg = ServerMessage::ObservationUpdated {
+                        pc_id: pc_id.to_string(),
+                        observation: summary.clone(),
+                    };
+                    state.connections.send_to_pc(pc_id, msg).await;
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                error = %e,
+                pc_id = %pc_id,
+                "Failed to query observations for movement update"
+            );
+        }
     }
 }

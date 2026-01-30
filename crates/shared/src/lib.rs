@@ -175,6 +175,8 @@ pub use types::{
     // Monomyth stages
     MonomythStage,
     NarrativeEventSuggestionInfo,
+    // Observation types
+    ObservationSummaryData,
     // Participant roles
     ParticipantRole,
     ProposedToolInfo,

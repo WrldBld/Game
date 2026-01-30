@@ -1066,6 +1066,33 @@ pub enum ServerMessage {
         visual_state: Option<crate::types::ResolvedVisualStateData>,
     },
 
+    // =========================================================================
+    // Observation System (P1)
+    // =========================================================================
+    /// Snapshot of all observations for a PC (sent on PC selection/spectate)
+    ObservationSnapshot {
+        /// PC ID for this snapshot
+        pc_id: String,
+        /// All observations for this PC
+        observations: Vec<crate::types::ObservationSummaryData>,
+    },
+
+    /// Observation was created or updated
+    ObservationUpdated {
+        /// PC who owns this observation
+        pc_id: String,
+        /// The observation that was updated
+        observation: crate::types::ObservationSummaryData,
+    },
+
+    /// Observation was deleted
+    ObservationDeleted {
+        /// PC who lost this observation
+        pc_id: String,
+        /// NPC that was observed
+        npc_id: String,
+    },
+
     /// Unknown message type for forward compatibility
     ///
     /// When deserializing an unknown variant, this variant is used instead of

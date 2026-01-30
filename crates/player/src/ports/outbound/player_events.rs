@@ -71,6 +71,8 @@ pub use wrldbldr_shared::{
     NpcPresenceData,
     // Staging types
     NpcPresentInfo,
+    // Observation types
+    ObservationSummaryData,
     // Challenge/Outcome types
     OutcomeBranchData,
     OutcomeDetailData,
@@ -837,6 +839,24 @@ pub enum PlayerEvent {
     SpectateTargetChanged { pc_id: Uuid, pc_name: String },
 
     // =========================================================================
+    // Observation Events
+    // =========================================================================
+    /// Observation snapshot for a PC (initial observations)
+    ObservationSnapshot {
+        pc_id: String,
+        observations: Vec<ObservationSummaryData>,
+    },
+
+    /// Observation was updated (new or modified observation)
+    ObservationUpdated {
+        pc_id: String,
+        observation: ObservationSummaryData,
+    },
+
+    /// Observation was deleted
+    ObservationDeleted { pc_id: String, npc_id: String },
+
+    // =========================================================================
     // Error Events
     // =========================================================================
     /// Error message from server
@@ -899,6 +919,9 @@ impl PlayerEvent {
             Self::StagingRegenerated { .. } => "StagingRegenerated",
             Self::StagingTimedOut { .. } => "StagingTimedOut",
             Self::VisualStateChanged { .. } => "VisualStateChanged",
+            Self::ObservationSnapshot { .. } => "ObservationSnapshot",
+            Self::ObservationUpdated { .. } => "ObservationUpdated",
+            Self::ObservationDeleted { .. } => "ObservationDeleted",
             Self::LoreDiscovered { .. } => "LoreDiscovered",
             Self::LoreRevoked { .. } => "LoreRevoked",
             Self::LoreUpdated { .. } => "LoreUpdated",

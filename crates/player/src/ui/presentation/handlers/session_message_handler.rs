@@ -1303,6 +1303,45 @@ pub fn handle_server_message(
             game_state.trigger_inventory_refresh();
         }
 
+        // =========================================================================
+        // Observation Updates (P23D)
+        // =========================================================================
+        PlayerEvent::ObservationSnapshot {
+            pc_id,
+            observations,
+        } => {
+            tracing::info!(
+                pc_id = %pc_id,
+                observation_count = observations.len(),
+                "Received observation snapshot for PC"
+            );
+            // Store all observations for this PC
+            game_state.set_observations_snapshot(pc_id, observations);
+        }
+
+        PlayerEvent::ObservationUpdated {
+            pc_id,
+            observation,
+        } => {
+            tracing::info!(
+                pc_id = %pc_id,
+                npc_id = %observation.npc_id,
+                "Observation updated"
+            );
+            // Update or insert the observation for this PC
+            game_state.upsert_observation(pc_id, observation);
+        }
+
+        PlayerEvent::ObservationDeleted { pc_id, npc_id } => {
+            tracing::info!(
+                pc_id = %pc_id,
+                npc_id = %npc_id,
+                "Observation deleted"
+            );
+            // Remove the observation for this PC and NPC
+            game_state.remove_observation(pc_id, npc_id);
+        }
+
         // NPC Disposition messages (P1.4) - Update DM panel state
         PlayerEvent::NpcDispositionChanged {
             npc_id,

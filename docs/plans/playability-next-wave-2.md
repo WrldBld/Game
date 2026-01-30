@@ -103,7 +103,8 @@
   - Updated `docs/architecture/neo4j-schema.md` with Lore node and ABOUT_*/COMMON_LORE edges
   - Updated `docs/systems/lore-system.md` with implementation status
 - [x] P1 Challenge region availability complete (Backend + Frontend)
-- [ ] P1 Observation snapshot + updates complete
+- [x] P1 Observation snapshot + live updates complete (Backend)
+- [ ] P1 Observation snapshot + live updates complete (Frontend - TODO)
 - [ ] P2 Story arc chains complete
 - [ ] Code review + architecture review
 - [ ] Checks/tests clean

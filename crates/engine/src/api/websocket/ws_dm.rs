@@ -276,6 +276,9 @@ pub(super) async fn handle_share_npc_location(
         tracing::error!(error = %err, "Failed to save NPC observation");
     }
 
+    // Clone npc_id before moving into NpcLocationShared message
+    let npc_id_for_lookup = npc_id.clone();
+
     // Send to target PC
     let msg = ServerMessage::NpcLocationShared {
         npc_id,
@@ -285,5 +288,34 @@ pub(super) async fn handle_share_npc_location(
     };
 
     state.connections.send_to_pc(pc_uuid, msg).await;
+
+    // Also send ObservationUpdated for the shared location
+    match state
+        .app
+        .use_cases
+        .management
+        .observation
+        .list_summaries(pc_uuid)
+        .await
+    {
+        Ok(summaries) => {
+            if let Some(summary) = summaries.iter().find(|s| s.npc_id == npc_id_for_lookup) {
+                let obs_msg = ServerMessage::ObservationUpdated {
+                    pc_id: pc_id.clone(),
+                    observation: summary.clone(),
+                };
+                state.connections.send_to_pc(pc_uuid, obs_msg).await;
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                error = %e,
+                pc_id = %pc_uuid,
+                npc_id = %npc_uuid,
+                "Failed to query observation for shared location update"
+            );
+        }
+    }
+
     None
 }

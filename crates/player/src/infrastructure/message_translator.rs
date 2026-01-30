@@ -848,6 +848,28 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             region_id,
             visual_state,
         },
+
+        // =====================================================================
+        // Observation Events
+        // =====================================================================
+        ServerMessage::ObservationSnapshot {
+            pc_id,
+            observations,
+        } => PlayerEvent::ObservationSnapshot {
+            pc_id,
+            observations, // Direct assignment - same type now
+        },
+
+        ServerMessage::ObservationUpdated { pc_id, observation } => {
+            PlayerEvent::ObservationUpdated {
+                pc_id,
+                observation, // Direct assignment - same type now
+            }
+        }
+
+        ServerMessage::ObservationDeleted { pc_id, npc_id } => {
+            PlayerEvent::ObservationDeleted { pc_id, npc_id }
+        }
     }
 }
 

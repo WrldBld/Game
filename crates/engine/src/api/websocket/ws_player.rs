@@ -484,12 +484,37 @@ pub(super) async fn handle_observation_request(
                 )
                 .await
             {
-                Ok(observation) => Ok(ResponseResult::success(serde_json::json!({
-                    "npc_id": observation.npc_id().to_string(),
-                    "location_id": observation.location_id().to_string(),
-                    "region_id": observation.region_id().to_string(),
-                    "observation_type": format!("{:?}", observation.observation_type()),
-                }))),
+                Ok(observation) => {
+                    // Broadcast ObservationUpdated to the PC
+                    match state
+                        .app
+                        .use_cases
+                        .management
+                        .observation
+                        .list_summaries(pc_id_typed)
+                        .await
+                    {
+                        Ok(summaries) => {
+                            if let Some(summary) = summaries.iter().find(|s| s.npc_id == observation.npc_id().to_string()) {
+                                let msg = ServerMessage::ObservationUpdated {
+                                    pc_id: pc_id.clone(),
+                                    observation: summary.clone(),
+                                };
+                                state.connections.send_to_pc(pc_id_typed, msg).await;
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(error = %e, "Failed to query observation for broadcast");
+                        }
+                    }
+
+                    Ok(ResponseResult::success(serde_json::json!({
+                        "npc_id": observation.npc_id().to_string(),
+                        "location_id": observation.location_id().to_string(),
+                        "region_id": observation.region_id().to_string(),
+                        "observation_type": format!("{:?}", observation.observation_type()),
+                    })))
+                }
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -523,7 +548,16 @@ pub(super) async fn handle_observation_request(
                 .delete(pc_id_typed, npc_id_typed)
                 .await
             {
-                Ok(()) => Ok(ResponseResult::success_empty()),
+                Ok(()) => {
+                    // Broadcast ObservationDeleted to the PC
+                    let msg = ServerMessage::ObservationDeleted {
+                        pc_id: pc_id.clone(),
+                        npc_id: npc_id.clone(),
+                    };
+                    state.connections.send_to_pc(pc_id_typed, msg).await;
+
+                    Ok(ResponseResult::success_empty())
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "delete observation"),

@@ -176,6 +176,14 @@ Server-side routing lives in `crates/engine/src/api/websocket/mod.rs`. Connectio
 | `LocationEvent` | `region_id`, `description` | Location narration |
 | `NpcLocationShared` | `npc_id`, `npc_name`, `region_name`, `notes?` | DM shared info |
 
+### Observation System (P1)
+
+| Message | Fields | Purpose |
+|---------|--------|---------|
+| `ObservationSnapshot` | `pc_id`, `observations` | Full observation list after PC selection/spectate |
+| `ObservationUpdated` | `pc_id`, `observation` | Observation created or updated |
+| `ObservationDeleted` | `pc_id`, `npc_id` | Observation deleted |
+
 ### Staging System
 
 | Message | Fields | Purpose |

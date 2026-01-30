@@ -367,6 +367,15 @@ async fn handle_message(
 
         ClientMessage::LeaveWorld => ws_session::handle_leave_world(state, connection_id).await,
 
+        // Player selection and spectation
+        ClientMessage::SelectPlayerCharacter { pc_id } => {
+            ws_session::handle_select_player_character(state, connection_id, &pc_id).await
+        }
+
+        ClientMessage::SetSpectateTarget { pc_id } => {
+            ws_session::handle_set_spectate_target(state, connection_id, pc_id).await
+        }
+
         // Movement
         ClientMessage::MoveToRegion { pc_id, region_id } => {
             ws_movement::handle_move_to_region(state, connection_id, pc_id, region_id).await
