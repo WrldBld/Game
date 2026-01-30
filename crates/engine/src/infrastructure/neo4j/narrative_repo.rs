@@ -75,6 +75,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         let tags_json =
             serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
+        let selected_outcome = event
+            .selected_outcome()
+            .map(|s| s.to_string());
+
+        let trigger_status_json = serde_json::to_string(&event.trigger_status())
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+
         let q = query(
             "MERGE (e:NarrativeEvent {id: $id})
             ON CREATE SET
@@ -90,6 +97,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 e.default_outcome = $default_outcome,
                 e.activation = $activation,
                 e.trigger_status_json = $trigger_status_json,
+                e.selected_outcome = $selected_outcome,
                 e.repeatability = $repeatability,
                 e.trigger_count = $trigger_count,
                 e.delay_turns = $delay_turns,
@@ -110,6 +118,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 e.default_outcome = $default_outcome,
                 e.activation = $activation,
                 e.trigger_status_json = $trigger_status_json,
+                e.selected_outcome = $selected_outcome,
                 e.repeatability = $repeatability,
                 e.trigger_count = $trigger_count,
                 e.delay_turns = $delay_turns,
@@ -145,7 +154,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .unwrap_or_default(),
         )
         .param("activation", format!("{:?}", event.activation()))
-        .param("trigger_status_json", format!("{:?}", event.trigger_status()))
+        .param("trigger_status_json", trigger_status_json)
+        .param("selected_outcome", selected_outcome.unwrap_or_default())
         .param("repeatability", format!("{:?}", event.repeatability()))
         .param("trigger_count", event.trigger_count() as i64)
         .param("delay_turns", event.delay_turns() as i64)
@@ -476,16 +486,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         // Get active, untriggered narrative events that are:
         // 1. In the specified world
         // 2. Active (not yet triggered or repeatable)
-        // 3. Either not in a chain, or not yet completed in their chain
-        // 4. Either tied to this region (via TIED_TO_REGION edge) OR region-agnostic
+        // 3. Either tied to this region (via TIED_TO_REGION edge) OR region-agnostic
+        // 4. Either not in a chain, or not yet completed in their chain
         let q = query(
             "MATCH (w:World {id: $world_id})-[:HAS_NARRATIVE_EVENT]->(e:NarrativeEvent)
             WHERE e.activation = 'Active'
               AND e.trigger_status_json CONTAINS 'Never'
             OPTIONAL MATCH (e)-[:TIED_TO_REGION]->(r:Region {id: $region_id})
             OPTIONAL MATCH (e)<-[:CONTAINS_EVENT]-(c:EventChain)
-            WITH e, r, c
-            WHERE r IS NOT NULL OR c IS NULL
+            WHERE (r IS NOT NULL OR NOT (e)-[:TIED_TO_REGION]->(:Region))
               AND (c IS NULL OR NOT c.completed_events CONTAINS toString(e.id))
             RETURN DISTINCT e
             ORDER BY e.priority DESC
@@ -541,12 +550,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             let id_str: String = row
                 .get("event_id")
                 .map_err(|e| RepoError::database("query", e))?;
-            let outcome: String = row
+            let outcome: Option<String> = row
                 .get("outcome")
                 .map_err(|e| RepoError::database("query", e))?;
 
-            if let Ok(id) = id_str.parse::<uuid::Uuid>() {
-                outcomes.insert(NarrativeEventId::from(id), outcome);
+            // Only include non-null outcomes
+            if let Some(outcome_value) = outcome {
+                if let Ok(id) = id_str.parse::<uuid::Uuid>() {
+                    outcomes.insert(NarrativeEventId::from(id), outcome_value);
+                }
             }
         }
 
@@ -1631,9 +1643,10 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         &self,
         event_id: NarrativeEventId,
     ) -> Result<Vec<EventChain>, RepoError> {
-        // Get all event chains that contain this event
+        // Get all active event chains that contain this event
         let q = query(
             "MATCH (e:NarrativeEvent {id: $event_id})<-[:CONTAINS_EVENT]-(c:EventChain)
+            WHERE c.activation = 'Active'
             RETURN c",
         )
         .param("event_id", event_id.to_string());

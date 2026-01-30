@@ -338,7 +338,7 @@ impl NarrativeEventOps {
             }
         }
 
-        if advanced_count > 0 {
+        if advanced_count == 0 {
             tracing::debug!(
                 event_id = %event_id,
                 "Event not found in any active chains or already completed"

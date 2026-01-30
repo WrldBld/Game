@@ -41,7 +41,7 @@ mod chain_ops_world_ownership {
         )
     }
 
-    fn create_chain_ops(world_id: WorldId) -> EventChainOps {
+    fn create_chain_ops(world_id: WorldId) -> (EventChainOps, Arc<MockNarrativeRepo>) {
         let clock = Arc::new(FixedClockWrapper(Utc::now())) as Arc<dyn ClockPort>;
         let narrative_repo = Arc::new(MockNarrativeRepo::new());
         let narrative_ops = NarrativeOps::new(
@@ -57,24 +57,24 @@ mod chain_ops_world_ownership {
             clock,
         );
 
-        EventChainOps::new(Arc::new(narrative_ops))
+        let chain_ops = EventChainOps::new(Arc::new(narrative_ops));
+        (chain_ops, narrative_repo)
     }
 
-    #[test]
-    fn add_event_validates_world_ownership() {
+    #[tokio::test]
+    async fn add_event_validates_world_ownership() {
         let world1 = WorldId::new();
         let world2 = WorldId::new();
 
-        let chain_ops = create_chain_ops(world1);
+        let (chain_ops, mut mock_repo) = create_chain_ops(world1);
         let chain = create_test_chain(world1);
         let chain_id = chain.id();
 
         // Setup: Save chain with world1
-        let mut mock_repo = MockNarrativeRepo::new();
         mock_repo
             .expect_get_chain()
             .times(1)
-            .returning(move |_| Some(chain.clone()));
+            .returning(move |_| Ok(Some(chain.clone())));
 
         mock_repo.expect_save_chain().times(1).returning(|_| Ok(()));
 
@@ -85,21 +85,21 @@ mod chain_ops_world_ownership {
         mock_repo
             .expect_get_event()
             .times(1)
-            .returning(move |_| Some(event_world2.clone()));
+            .returning(move |_| Ok(Some(event_world2.clone())));
 
         // Execute: Try to add event from world2 to chain in world1
-        let result = chain_ops.add_event(chain_id, event_id, None);
+        let result = chain_ops.add_event(chain_id, event_id, None).await;
 
         // Assert: Should fail with WorldMismatch
         assert!(matches!(result, Err(EventChainError::WorldMismatch)));
     }
 
-    #[test]
-    fn remove_event_validates_world_ownership() {
+    #[tokio::test]
+    async fn remove_event_validates_world_ownership() {
         let world1 = WorldId::new();
         let world2 = WorldId::new();
 
-        let chain_ops = create_chain_ops(world1);
+        let (chain_ops, mut mock_repo) = create_chain_ops(world1);
         let mut chain = create_test_chain(world1);
         let chain_id = chain.id();
         let event_world1 = create_test_event(world1);
@@ -108,11 +108,10 @@ mod chain_ops_world_ownership {
         chain.add_event(event_world1.id(), Utc::now());
 
         // Setup: Save chain with world1
-        let mut mock_repo = MockNarrativeRepo::new();
         mock_repo
             .expect_get_chain()
             .times(1)
-            .returning(move |_| Some(chain.clone()));
+            .returning(move |_| Ok(Some(chain.clone())));
 
         mock_repo.expect_save_chain().times(1).returning(|_| Ok(()));
 
@@ -123,20 +122,20 @@ mod chain_ops_world_ownership {
         mock_repo
             .expect_get_event()
             .times(1)
-            .returning(move |_| Some(event_world2.clone()));
+            .returning(move |_| Ok(Some(event_world2.clone())));
 
         // Execute: Try to remove event from world2 from chain in world1
-        let result = chain_ops.remove_event(chain_id, event_id);
+        let result = chain_ops.remove_event(chain_id, event_id).await;
 
         // Assert: Should fail with WorldMismatch
         assert!(matches!(result, Err(EventChainError::WorldMismatch)));
     }
 
-    #[test]
-    fn complete_event_validates_event_exists() {
+    #[tokio::test]
+    async fn complete_event_validates_event_exists() {
         let world1 = WorldId::new();
 
-        let chain_ops = create_chain_ops(world1);
+        let (chain_ops, mut mock_repo) = create_chain_ops(world1);
         let mut chain = create_test_chain(world1);
         let chain_id = chain.id();
         let event_world1 = create_test_event(world1);
@@ -145,11 +144,10 @@ mod chain_ops_world_ownership {
         chain.add_event(event_world1.id(), Utc::now());
 
         // Setup: Save chain with world1
-        let mut mock_repo = MockNarrativeRepo::new();
         mock_repo
             .expect_get_chain()
             .times(1)
-            .returning(move |_| Some(chain.clone()));
+            .returning(move |_| Ok(Some(chain.clone())));
 
         mock_repo.expect_save_chain().times(1).returning(|_| Ok(()));
 
@@ -159,20 +157,20 @@ mod chain_ops_world_ownership {
         mock_repo
             .expect_get_event()
             .times(1)
-            .returning(move |_| None);
+            .returning(move |_| Ok(None));
 
         // Execute: Try to complete nonexistent event
-        let result = chain_ops.complete_event(chain_id, nonexistent_id);
+        let result = chain_ops.complete_event(chain_id, nonexistent_id).await;
 
         // Assert: Should fail with EventNotFound
         assert!(matches!(result, Err(EventChainError::EventNotFound(_))));
     }
 
-    #[test]
-    fn complete_event_validates_event_in_chain() {
+    #[tokio::test]
+    async fn complete_event_validates_event_in_chain() {
         let world1 = WorldId::new();
 
-        let chain_ops = create_chain_ops(world1);
+        let (chain_ops, mut mock_repo) = create_chain_ops(world1);
         let mut chain = create_test_chain(world1);
         let chain_id = chain.id();
         let event_world1 = create_test_event(world1);
@@ -181,11 +179,10 @@ mod chain_ops_world_ownership {
         // DON'T add event to chain - chain is empty
 
         // Setup: Save chain with world1
-        let mut mock_repo = MockNarrativeRepo::new();
         mock_repo
             .expect_get_chain()
             .times(1)
-            .returning(move |_| Some(chain.clone()));
+            .returning(move |_| Ok(Some(chain.clone())));
 
         mock_repo.expect_save_chain().times(0); // Should not save
 
@@ -193,21 +190,21 @@ mod chain_ops_world_ownership {
         mock_repo
             .expect_get_event()
             .times(1)
-            .returning(move |_| Some(event_world1.clone()));
+            .returning(move |_| Ok(Some(event_world1.clone())));
 
         // Execute: Try to complete event that's not in the chain
-        let result = chain_ops.complete_event(chain_id, event_id);
+        let result = chain_ops.complete_event(chain_id, event_id).await;
 
         // Assert: Should fail with EventNotInChain
         assert!(matches!(result, Err(EventChainError::EventNotInChain)));
     }
 
-    #[test]
-    fn complete_event_validates_world_ownership() {
+    #[tokio::test]
+    async fn complete_event_validates_world_ownership() {
         let world1 = WorldId::new();
         let world2 = WorldId::new();
 
-        let chain_ops = create_chain_ops(world1);
+        let (chain_ops, mut mock_repo) = create_chain_ops(world1);
         let mut chain = create_test_chain(world1);
         let chain_id = chain.id();
         let event_world1 = create_test_event(world1);
@@ -217,11 +214,10 @@ mod chain_ops_world_ownership {
         chain.add_event(event_id, Utc::now());
 
         // Setup: Save chain with world1
-        let mut mock_repo = MockNarrativeRepo::new();
         mock_repo
             .expect_get_chain()
             .times(1)
-            .returning(move |_| Some(chain.clone()));
+            .returning(move |_| Ok(Some(chain.clone())));
 
         mock_repo.expect_save_chain().times(0); // Should not save
 
@@ -231,20 +227,20 @@ mod chain_ops_world_ownership {
         mock_repo
             .expect_get_event()
             .times(1)
-            .returning(move |_| Some(event_world2.clone()));
+            .returning(move |_| Ok(Some(event_world2.clone())));
 
         // Execute: Try to complete event from world2 in chain in world1
-        let result = chain_ops.complete_event(chain_id, event_id);
+        let result = chain_ops.complete_event(chain_id, event_id).await;
 
         // Assert: Should fail with WorldMismatch
         assert!(matches!(result, Err(EventChainError::WorldMismatch)));
     }
 
-    #[test]
-    fn complete_event_succeeds_when_valid() {
+    #[tokio::test]
+    async fn complete_event_succeeds_when_valid() {
         let world1 = WorldId::new();
 
-        let chain_ops = create_chain_ops(world1);
+        let (chain_ops, mut mock_repo) = create_chain_ops(world1);
         let mut chain = create_test_chain(world1);
         let chain_id = chain.id();
         let event_world1 = create_test_event(world1);
@@ -255,11 +251,10 @@ mod chain_ops_world_ownership {
 
         let chain_clone_for_save = chain.clone();
         // Setup: Save chain with world1
-        let mut mock_repo = MockNarrativeRepo::new();
         mock_repo
             .expect_get_chain()
             .times(1)
-            .returning(move |_| Some(chain_clone_for_save.clone()));
+            .returning(move |_| Ok(Some(chain_clone_for_save.clone())));
 
         mock_repo.expect_save_chain().times(1).returning(|_| Ok(()));
 
@@ -267,10 +262,10 @@ mod chain_ops_world_ownership {
         mock_repo
             .expect_get_event()
             .times(1)
-            .returning(move |_| Some(event_world1.clone()));
+            .returning(move |_| Ok(Some(event_world1.clone())));
 
         // Execute: Complete event
-        let result = chain_ops.complete_event(chain_id, event_id);
+        let result = chain_ops.complete_event(chain_id, event_id).await;
 
         // Assert: Should succeed
         assert!(result.is_ok());
