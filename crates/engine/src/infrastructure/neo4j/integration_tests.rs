@@ -197,3 +197,179 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
     assert_eq!(r2_reasoning, "r2");
     assert_eq!(r2_mood, "happy");
 }
+
+// =============================================================================
+// Phase 1 Narrative Event Tests
+// =============================================================================
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn set_event_active_updates_activation_in_neo4j() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let world_id = WorldId::new();
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jNarrativeRepo::new(test_graph, clock);
+
+    // Create an active event
+    let event = NarrativeEvent::new(
+        world_id,
+        NarrativeEventName::new("Test Event").unwrap(),
+        now,
+    );
+    repo.save_event(&event).await.expect("save event");
+
+    // Deactivate the event
+    repo.set_event_active(event.id(), false)
+        .await
+        .expect("deactivate event");
+
+    // Reload and verify it's inactive
+    let loaded = repo.get_event(event.id()).await.expect("load event");
+    let loaded = loaded.expect("event should exist");
+    assert!(!loaded.is_active());
+    assert_eq!(loaded.activation(), wrldbldr_domain::EventActivation::Inactive);
+
+    // Reactivate the event
+    repo.set_event_active(event.id(), true)
+        .await
+        .expect("activate event");
+
+    // Reload and verify it's active
+    let loaded = repo.get_event(event.id()).await.expect("load event");
+    let loaded = loaded.expect("event should exist");
+    assert!(loaded.is_active());
+    assert_eq!(loaded.activation(), wrldbldr_domain::EventActivation::Active);
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn get_completed_events_returns_events_from_all_chains() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let world_id = WorldId::new();
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jNarrativeRepo::new(test_graph, clock);
+
+    // Create two event chains
+    let chain1_id = wrldbldr_domain::EventChainId::new();
+    let chain2_id = wrldbldr_domain::EventChainId::new();
+
+    let mut chain1 = wrldbldr_domain::EventChain::new(
+        world_id,
+        wrldbldr_domain::EventChainName::new("Chain 1").unwrap(),
+        now,
+    ).expect("create chain");
+    chain1.add_event(wrldbldr_domain::NarrativeEventId::new(), now);
+    chain1.add_event(wrldbldr_domain::NarrativeEventId::new(), now);
+    repo.save_chain(&chain1).await.expect("save chain 1");
+
+    let mut chain2 = wrldbldr_domain::EventChain::new(
+        world_id,
+        wrldbldr_domain::EventChainName::new("Chain 2").unwrap(),
+        now,
+    ).expect("create chain");
+    chain2.add_event(wrldbldr_domain::NarrativeEventId::new(), now);
+    repo.save_chain(&chain2).await.expect("save chain 2");
+
+    // Mark events as completed in chain 1
+    let mut chain1_reloaded = repo.get_chain(chain1_id).await.expect("load chain")
+        .expect("chain should exist");
+    let event1 = *chain1_reloaded.events().get(0).expect("event exists");
+    let event2 = *chain1_reloaded.events().get(1).expect("event exists");
+    chain1_reloaded.complete_event(event1, now);
+    chain1_reloaded.complete_event(event2, now);
+    repo.save_chain(&chain1_reloaded).await.expect("save chain with completed events");
+
+    // Get completed events
+    let completed = repo.get_completed_events(world_id).await.expect("get completed events");
+
+    // Should return all 3 events (2 from chain1, 1 from chain2 marked completed)
+    // Note: get_completed_events returns events from chain.completed_events, not chain.events
+    assert_eq!(completed.len(), 2);
+    assert!(completed.contains(&event1));
+    assert!(completed.contains(&event2));
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn get_chains_for_event_returns_containing_chains() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let world_id = WorldId::new();
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jNarrativeRepo::new(test_graph, clock);
+
+    // Create event
+    let event_id = wrldbldr_domain::NarrativeEventId::new();
+
+    // Create two chains containing the same event
+    let chain1_id = wrldbldr_domain::EventChainId::new();
+    let mut chain1 = wrldbldr_domain::EventChain::new(
+        world_id,
+        wrldbldr_domain::EventChainName::new("Chain 1").unwrap(),
+        now,
+    ).expect("create chain");
+    chain1.add_event(event_id, now);
+    repo.save_chain(&chain1).await.expect("save chain 1");
+
+    let chain2_id = wrldbldr_domain::EventChainId::new();
+    let mut chain2 = wrldbldr_domain::EventChain::new(
+        world_id,
+        wrldbldr_domain::EventChainName::new("Chain 2").unwrap(),
+        now,
+    ).expect("create chain");
+    chain2.add_event(event_id, now);
+    repo.save_chain(&chain2).await.expect("save chain 2");
+
+    // Get chains for the event
+    let chains = repo.get_chains_for_event(event_id).await.expect("get chains for event");
+
+    // Should return both chains
+    assert_eq!(chains.len(), 2);
+    let chain_ids: Vec<_> = chains.iter().map(|c| c.id()).collect();
+    assert!(chain_ids.contains(&chain1_id));
+    assert!(chain_ids.contains(&chain2_id));
+}

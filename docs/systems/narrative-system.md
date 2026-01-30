@@ -199,6 +199,163 @@ This system provides the scaffolding for emergent storytelling:
 
 ---
 
+## UI Design: DM Story Arc Enhancements (Event Chains)
+
+### User Story
+**US-NAR-013**: As a DM, I can assess, edit, and validate story arcs quickly so that narrative pacing and gameplay consequences stay coherent during play.
+
+### User Flow
+1. Initial state: DM opens Story Arc panel with chain list and quick status cues.
+2. User action: DM selects a chain → opens editor and visualizer.
+3. System response: Loads chain graph, computes readiness, blocked dependencies, and effects summary.
+4. Final state: DM validates or updates the chain, then publishes or pauses it.
+
+### Mockups
+
+#### State 1: Event Chain List + Quick Status
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Story Arcs (Event Chains)                                      [+ Create]  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  [🔍 Search chains...        ]  [Status: All ▼]  [Act: Any ▼]  [★ Favorites] │
+│  Sort: [Progress ▼]  View: [Compact ▼]  [Validate Selected]                  │
+│                                                                             │
+│  ─── Active & At Risk ────────────────────────────────────────────────────  │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ★ The Baron's Downfall           3/8  37%      Next: "Baron's Threat"│   │
+│  │    Ready: 2  Blocked: 1  Pending: 1   Risk: High  Act II             │   │
+│  │    Triggers: Enter Tavern, Talk to Bartender                          │   │
+│  │    Effects: +Rep, Unlock Location                                     │   │
+│  │    [Open] [Pause] [Preview] [⋯]                                       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ─── Stable ──────────────────────────────────────────────────────────────  │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ Market Day Festival              6/6  100%     Completed  Day 3 AM   │   │
+│  │    Ready: 0  Blocked: 0  Pending: 0   Risk: Low   Act I              │   │
+│  │    [Open] [Archive]                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+**Context**: DM needs a high-signal overview to choose where to intervene.
+**Interactions**:
+- [Open] → opens Editor + Visualizer split view.
+- [Validate Selected] → runs readiness/consistency scan and reports issues.
+- [Preview] → opens read-only runtime projection (what’s next, likely outcomes).
+
+#### State 2: Event Chain Editor (Metadata + Event Roster)
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Chain Editor: The Baron's Downfall                           [Save] [X]    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Name: [The Baron's Downfall                ]   Act: [Act II ▼]             │
+│  Tags: [political] [revenge] [court]  [+ Add]  Color: [#FF5733]             │
+│  Status: (●) Active  ( ) Paused  ( ) Archived  Auto-advance: [✓]            │
+│                                                                             │
+│  ─── Event Roster ────────────────────────────────────────────────────────  │
+│  ┌────┬─────────────────────────┬──────────────┬────────────┬───────────┐   │
+│  │ #  │ Event                    │ Triggers     │ Outcomes   │ Status    │   │
+│  ├────┼─────────────────────────┼──────────────┼────────────┼───────────┤   │
+│  │ 1  │ Baron's Arrival          │ 2 ready      │ 2 branches │ Complete  │   │
+│  │ 2  │ Baron's Threat           │ 1 blocked    │ 1 branch   │ Current   │   │
+│  │ 3  │ Baron's Plot             │ 0 ready      │ 1 branch   │ Pending   │   │
+│  └────┴─────────────────────────┴──────────────┴────────────┴───────────┘   │
+│  [Add Event] [Auto-Link] [Reorder] [Validate] [Preview Effects]             │
+│                                                                             │
+│  ─── Validation ──────────────────────────────────────────────────────────  │
+│  ⚠ Baron's Threat: "Talk to Marcus" trigger missing NPC link               │
+│  ⚠ Baron's Plot: Outcome references missing location                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+**Context**: DM manages sequencing, status, and content consistency.
+**Interactions**:
+- [Add Event] → opens event picker and inserts into roster.
+- [Auto-Link] → suggests chain edges based on outcomes and triggers.
+- [Validate] → runs consistency checks and surfaces actionable warnings.
+
+#### State 3: Event Chain Visualizer + Inspector
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Visualizer: The Baron's Downfall         [Fit] [Zoom +] [Zoom -] [Layout▼] │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ START                                                               │   │
+│  │   ┌──────────────────┐                                               │   │
+│  │   │ Baron's Arrival  │  ✅ Completed  Triggers: 2/2 ready            │   │
+│  │   └─────────┬────────┘                                               │   │
+│  │             │                                                        │   │
+│  │   ┌─────────▼─────────┐      ┌───────────────┐                        │   │
+│  │   │ Baron's Threat    │      │ Baron's Plot  │                        │   │
+│  │   │ 📍 Current        │      │ 🔒 Blocked    │                        │   │
+│  │   │ Triggers: 1/2     │      │ Missing NPC   │                        │   │
+│  │   └─────────┬─────────┘      └───────────────┘                        │   │
+│  │             │                                                        │   │
+│  │        [Success]                                                     │   │
+│  │             ▼                                                        │   │
+│  │   ┌──────────────────┐                                               │   │
+│  │   │ Baron Defeated   │  Pending  Effects: +Rep, Unlock Location      │   │
+│  │   └──────────────────┘                                               │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ─── Inspector ───────────────────────────────────────────────────────────  │
+│  Event: Baron's Threat                                                     │
+│  Triggers: Talk to Marcus (missing link), Enter Tavern (ready)             │
+│  Outcomes: Success → Baron Defeated                                        │
+│  Effects: ModifyRelationship +0.3, UnlockLocation: Courtyard               │
+│  [Open Event] [Fix Link] [Simulate Outcome]                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+**Context**: DM sees narrative structure, blockers, and consequences.
+**Interactions**:
+- Click node → loads Inspector with triggers, effects, and links.
+- [Fix Link] → jumps to missing entity picker (NPC/location).
+- [Simulate Outcome] → preview effect list and expected world impact.
+
+#### State 4: Loading / Error
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Loading chain data...                                                     │
+│  [spinner]  Fetching triggers, outcomes, and dependencies                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ⚠ Unable to load chain                                                   │
+│  Reason: missing narrative event data                                      │
+│  [Retry] [Open Logs]                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+**Context**: Network or data integrity issues.
+**Interactions**:
+- [Retry] → refetches chain data.
+- [Open Logs] → shows error details for debugging.
+
+### Component Breakdown
+| Component | Purpose | Existing? |
+|-----------|---------|-----------|
+| EventChainList | Overview list with status and progress | Yes (enhance) |
+| EventChainCard | Per-chain summary with quick actions | Yes (enhance) |
+| ChainStatusSummary | Ready/Blocked/Pending counters | New |
+| ChainRiskBadge | Highlights pacing or dependency risk | New |
+| EventChainEditor | Chain metadata and roster manager | Yes (enhance) |
+| EventRosterTable | Tabular roster with status + reorder | New |
+| ValidationBanner | Displays readiness/errors in context | New |
+| EventChainVisualizer | Graph view with state badges | Yes (enhance) |
+| EventInspectorPanel | Details for selected node | New |
+| EffectSummaryChip | Quick effect visibility per node | New |
+| DependencyLinker | Quick fix for missing NPC/location | New |
+
+### Accessibility Considerations
+- Keyboard navigation across list rows, toolbar buttons, and graph nodes.
+- High-contrast status chips; non-color cues (icons + labels) for Ready/Blocked.
+- Inspector actions reachable via tab order and shortcut hints (e.g., `E` open event).
+
+### Animations
+- Graph layout transition: smooth reflow when auto-linking or reordering.
+- Node highlight pulse on selection and when a blocked dependency resolves.
+- Progress bar easing on completion updates.
+
+---
+
 ## Data Model
 
 ### Neo4j Nodes

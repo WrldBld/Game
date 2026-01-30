@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
 use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
@@ -61,11 +62,12 @@ impl NarrativeDecisionFlow {
             });
         }
 
-        let event = match self.narrative.get_event(event_id).await? {
+        let event_data = match self.narrative.get_event(event_id).await? {
             Some(event) => event,
             None => return Err(NarrativeDecisionError::EventNotFound(event_id)),
         };
 
+        let outcomes = event_data.outcomes().to_vec();
         let outcome_name = selected_outcome
             .or_else(|| {
                 approval_data
@@ -73,11 +75,26 @@ impl NarrativeDecisionFlow {
                     .as_ref()
                     .and_then(|s| s.suggested_outcome.clone())
             })
-            .or_else(|| event.default_outcome().map(|s| s.to_string()))
-            .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
+            .or_else(|| event_data.default_outcome().map(|s| s.to_string()))
+            .or_else(|| outcomes.first().map(|o| o.name.clone()))
             .unwrap_or_default();
 
-        let outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
+        let outcome = outcomes.iter().find(|o| o.name == outcome_name);
+
+        // Trigger event
+        let now = Utc::now();
+        let mut event = event_data;
+        event.trigger(Some(outcome_name.clone()), now);
+        self.narrative.save_event(&event).await?;
+
+        // Advance chains containing this event
+        if let Err(e) = self.advance_chains_for_event(event_id, now).await {
+            tracing::warn!(
+                event_id = %event_id,
+                error = %e,
+                "Failed to advance event chains, continuing with trigger"
+            );
+        }
 
         if let Some(outcome) = outcome {
             if !outcome.effects.is_empty() {
@@ -114,6 +131,47 @@ impl NarrativeDecisionFlow {
                 scene_direction: event.scene_direction().to_string(),
             }),
         })
+    }
+
+    /// Advance all event chains containing this event.
+    async fn advance_chains_for_event(
+        &self,
+        event_id: NarrativeEventId,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), NarrativeDecisionError> {
+        let chains = self
+            .narrative
+            .port()
+            .get_chains_for_event(event_id)
+            .await
+            .map_err(NarrativeDecisionError::Repo)?;
+
+        let mut advanced_count = 0;
+        for mut chain in chains {
+            // Check if event is in this chain and not already completed
+            if chain.contains_event(&event_id) && !chain.is_event_completed(&event_id) {
+                chain.complete_event(event_id, now);
+                self.narrative.save_chain(&chain).await?;
+                advanced_count += 1;
+
+                tracing::info!(
+                    chain_id = %chain.id(),
+                    event_id = %event_id,
+                    completed_count = chain.completed_events().len(),
+                    total_events = chain.events().len(),
+                    "Advanced event chain via approval"
+                );
+            }
+        }
+
+        if advanced_count > 0 {
+            tracing::debug!(
+                event_id = %event_id,
+                "Event not found in any active chains or already completed"
+            );
+        }
+
+        Ok(())
     }
 }
 

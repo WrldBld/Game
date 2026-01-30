@@ -7,6 +7,9 @@
 mod challenge_llm_tests;
 
 #[cfg(test)]
+mod chain_advancement_tests;
+
+#[cfg(test)]
 mod llm_tool_tests;
 
 #[cfg(test)]

@@ -469,20 +469,30 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     async fn get_triggers_for_region(
         &self,
         world_id: WorldId,
-        _region_id: RegionId,
+        region_id: RegionId,
     ) -> Result<Vec<NarrativeEvent>, RepoError> {
         const FALLBACK_LIMIT: i64 = 500;
 
-        // Get all active, untriggered narrative events in the world
+        // Get active, untriggered narrative events that are:
+        // 1. In the specified world
+        // 2. Active (not yet triggered or repeatable)
+        // 3. Either not in a chain, or not yet completed in their chain
+        // 4. Either tied to this region (via TIED_TO_REGION edge) OR region-agnostic
         let q = query(
             "MATCH (w:World {id: $world_id})-[:HAS_NARRATIVE_EVENT]->(e:NarrativeEvent)
             WHERE e.activation = 'Active'
               AND e.trigger_status_json CONTAINS 'Never'
-            RETURN e
+            OPTIONAL MATCH (e)-[:TIED_TO_REGION]->(r:Region {id: $region_id})
+            OPTIONAL MATCH (e)<-[:CONTAINS_EVENT]-(c:EventChain)
+            WITH e, r, c
+            WHERE r IS NOT NULL OR c IS NULL
+              AND (c IS NULL OR NOT c.completed_events CONTAINS toString(e.id))
+            RETURN DISTINCT e
             ORDER BY e.priority DESC
             LIMIT $limit",
         )
         .param("world_id", world_id.to_string())
+        .param("region_id", region_id.to_string())
         .param("limit", FALLBACK_LIMIT);
 
         let mut result = self
@@ -1550,23 +1560,101 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
     async fn set_event_active(
         &self,
-        _id: NarrativeEventId,
-        _active: bool,
+        id: NarrativeEventId,
+        active: bool,
     ) -> Result<(), RepoError> {
-        // Sets NarrativeEvent activation status
-        // This would update the activation field in Neo4j
-        // For now, this is a no-op pending proper implementation
-        Ok(())
+        // Update activation status for a NarrativeEvent
+        let activation = if active { "Active" } else { "Inactive" };
+        let q = query(
+            "MATCH (e:NarrativeEvent {id: $id})
+            SET e.activation = $activation, e.updated_at = datetime()
+            RETURN e.id AS event_id",
+        )
+        .param("id", id.to_string())
+        .param("activation", activation);
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("set_event_active", e))?;
+
+        // Verify the event was updated
+        match result.next().await.map_err(|e| RepoError::database("set_event_active", e))? {
+            Some(_) => {
+                tracing::debug!(event_id = %id, active, "Set narrative event activation");
+                Ok(())
+            }
+            None => Err(RepoError::not_found("NarrativeEvent", "not found")),
+        }
     }
 
     async fn get_completed_events(
         &self,
-        _world_id: WorldId,
+        world_id: WorldId,
     ) -> Result<Vec<NarrativeEventId>, RepoError> {
-        // Get all completed event IDs from all event chains in a world
+        // Get all completed event IDs from all active event chains in a world
         // Used for trigger context building
-        // For now, return empty as EventChain->completed_events tracking is pending
-        Ok(Vec::new())
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:HAS_EVENT_CHAIN]->(c:EventChain)
+            WHERE c.activation <> 'Archived'
+            UNWIND c.completed_events AS event_id
+            WITH DISTINCT event_id
+            RETURN event_id",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("get_completed_events", e))?;
+
+        let mut completed_ids = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("get_completed_events", e))?
+        {
+            let id_str: String = row
+                .get("event_id")
+                .map_err(|e| RepoError::database("get_completed_events", e))?;
+            if let Ok(uuid) = Uuid::parse_str(&id_str) {
+                completed_ids.push(NarrativeEventId::from(uuid));
+            }
+        }
+
+        Ok(completed_ids)
+    }
+
+    async fn get_chains_for_event(
+        &self,
+        event_id: NarrativeEventId,
+    ) -> Result<Vec<EventChain>, RepoError> {
+        // Get all event chains that contain this event
+        let q = query(
+            "MATCH (e:NarrativeEvent {id: $event_id})<-[:CONTAINS_EVENT]-(c:EventChain)
+            RETURN c",
+        )
+        .param("event_id", event_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("get_chains_for_event", e))?;
+
+        let mut chains = Vec::new();
+        let now = self.clock.now();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("get_chains_for_event", e))?
+        {
+            chains.push(row_to_event_chain(row, now)?);
+        }
+
+        Ok(chains)
     }
 }
 
@@ -1801,7 +1889,7 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
 
     // Build event with explicit trigger state
     let mut event = match trigger_status_val {
-        wrldbldr_domain::TriggerStatus::Triggered { at, .. } => {
+        wrldbldr_domain::TriggerStatus::Triggered { at, selected_outcome } => {
             NarrativeEvent::new(world_id, name, created_at)
                 .with_id(id)
                 .with_description(description)
@@ -1817,7 +1905,7 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
                 .with_delay_turns(delay_turns)
                 .with_priority(priority)
                 .with_favorite_status(favorite)
-                .with_triggered(at, None, trigger_count)
+                .with_triggered(at, selected_outcome, trigger_count)
                 .with_updated_at(updated_at)
         }
         wrldbldr_domain::TriggerStatus::Never => {

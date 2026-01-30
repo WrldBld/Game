@@ -261,6 +261,15 @@ impl NarrativeEventOps {
         let maybe_outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
         self.narrative.save_event(&event).await?;
 
+        // Advance chains containing this event
+        if let Err(e) = self.advance_chains_for_event(event_id, now).await {
+            tracing::warn!(
+                event_id = %event_id,
+                error = %e,
+                "Failed to advance event chains, continuing with trigger"
+            );
+        }
+
         let mut effects_summary = None;
         let effects_present = maybe_outcome
             .as_ref()
@@ -296,6 +305,47 @@ impl NarrativeEventOps {
             effects_summary,
             effects_present,
         })
+    }
+
+    /// Advance all event chains containing this event.
+    async fn advance_chains_for_event(
+        &self,
+        event_id: NarrativeEventId,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), NarrativeEventError> {
+        let chains = self
+            .narrative
+            .port()
+            .get_chains_for_event(event_id)
+            .await
+            .map_err(NarrativeEventError::Repo)?;
+
+        let mut advanced_count = 0;
+        for mut chain in chains {
+            // Check if event is in this chain and not already completed
+            if chain.contains_event(&event_id) && !chain.is_event_completed(&event_id) {
+                chain.complete_event(event_id, now);
+                self.narrative.save_chain(&chain).await?;
+                advanced_count += 1;
+
+                tracing::info!(
+                    chain_id = %chain.id(),
+                    event_id = %event_id,
+                    completed_count = chain.completed_events().len(),
+                    total_events = chain.events().len(),
+                    "Advanced event chain"
+                );
+            }
+        }
+
+        if advanced_count > 0 {
+            tracing::debug!(
+                event_id = %event_id,
+                "Event not found in any active chains or already completed"
+            );
+        }
+
+        Ok(())
     }
 
     pub async fn reset(

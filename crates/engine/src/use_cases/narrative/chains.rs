@@ -253,6 +253,18 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
+
+        // Validate event existence and world ownership
+        let event = self
+            .narrative
+            .get_event(event_id)
+            .await?
+            .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
+
+        if event.world_id() != chain.world_id() {
+            return Err(EventChainError::WorldMismatch);
+        }
+
         let now = self.narrative.now();
         if let Some(pos) = position {
             chain.insert_event(pos, event_id, now);
@@ -273,6 +285,18 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
+
+        // Validate event existence and world ownership
+        let event = self
+            .narrative
+            .get_event(event_id)
+            .await?
+            .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
+
+        if event.world_id() != chain.world_id() {
+            return Err(EventChainError::WorldMismatch);
+        }
+
         let now = self.narrative.now();
         chain.remove_event(&event_id, now);
         self.narrative.save_chain(&chain).await?;
@@ -289,6 +313,24 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
+
+        // Validate event existence
+        let event = self
+            .narrative
+            .get_event(event_id)
+            .await?
+            .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
+
+        // Validate event belongs to the same world as the chain
+        if event.world_id() != chain.world_id() {
+            return Err(EventChainError::WorldMismatch);
+        }
+
+        // Validate event is actually in this chain
+        if !chain.contains_event(&event_id) {
+            return Err(EventChainError::EventNotInChain);
+        }
+
         let now = self.narrative.now();
         chain.complete_event(event_id, now);
         self.narrative.save_chain(&chain).await?;
@@ -327,6 +369,12 @@ impl EventChainOps {
 pub enum EventChainError {
     #[error("Event chain not found")]
     NotFound,
+    #[error("Event not found: {0}")]
+    EventNotFound(NarrativeEventId),
+    #[error("Event does not belong to this chain")]
+    EventNotInChain,
+    #[error("Event does not belong to the requested world")]
+    WorldMismatch,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
     #[error("Domain error: {0}")]

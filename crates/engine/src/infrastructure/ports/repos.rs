@@ -632,6 +632,13 @@ pub trait NarrativeRepo: Send + Sync {
         world_id: WorldId,
     ) -> Result<std::collections::HashMap<NarrativeEventId, String>, RepoError>;
 
+    /// Get all event chains that contain a specific event.
+    /// Used for chain advancement when an event is triggered.
+    async fn get_chains_for_event(
+        &self,
+        event_id: NarrativeEventId,
+    ) -> Result<Vec<EventChain>, RepoError>;
+
     // =========================================================================
     // Conversation Management (for DM monitoring)
     // =========================================================================
