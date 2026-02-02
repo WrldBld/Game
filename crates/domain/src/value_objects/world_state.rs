@@ -140,11 +140,13 @@ mod tests {
     #[test]
     fn test_conversation_entry_constructors() {
         let now = fixed_time();
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
 
-        let player = ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into(), now);
+        let player = ConversationEntry::player(pc_id, "Hero".into(), "Hello!".into(), now);
         assert!(matches!(player.speaker, Speaker::Player { .. }));
 
-        let npc = ConversationEntry::npc("npc1".into(), "Merchant".into(), "Welcome!".into(), now);
+        let npc = ConversationEntry::npc(npc_id, "Merchant".into(), "Welcome!".into(), now);
         assert!(matches!(npc.speaker, Speaker::Npc { .. }));
 
         let system = ConversationEntry::system("Game saved.".into(), now);
@@ -156,14 +158,17 @@ mod tests {
 
     #[test]
     fn test_speaker_variants() {
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
+
         let player = Speaker::Player {
-            pc_id: "pc1".into(),
+            pc_id,
             pc_name: "Hero".into(),
         };
         assert!(matches!(player, Speaker::Player { .. }));
 
         let npc = Speaker::Npc {
-            npc_id: "npc1".into(),
+            npc_id,
             npc_name: "Merchant".into(),
         };
         assert!(matches!(npc, Speaker::Npc { .. }));

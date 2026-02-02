@@ -274,8 +274,8 @@ Node labels and properties in this document are intended to reflect the live per
     current_position: 0,
     completed_events: ["uuid"],
     act_id: "" | "uuid",
-    tags_json: "[...]",       // JSON
-    color: "#FF5733",
+    tags_json: "[...]",
+    color: "" | "#3B82F6",  // Display color (hex or named), persisted
     is_favorite: false,
     created_at: datetime(),
     updated_at: datetime()

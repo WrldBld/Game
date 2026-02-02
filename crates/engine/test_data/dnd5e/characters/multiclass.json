@@ -172,8 +172,7 @@
   "starting_location_id": "00000000-0000-0000-0002-000000000001",
   "sprite_asset": null,
   "portrait_asset": null,
-  "is_alive": true,
-  "is_active": true,
+  "state": "Active",
   "created_at": "2024-01-01T00:00:00Z",
   "last_active_at": "2024-01-01T12:00:00Z"
 }

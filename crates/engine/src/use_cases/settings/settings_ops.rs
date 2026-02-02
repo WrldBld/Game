@@ -103,7 +103,23 @@ impl SettingsOps {
     pub fn load_settings_from_env(base_settings: AppSettings) -> AppSettings {
         let mut settings = base_settings;
         Self::apply_env_list_limits(&mut settings);
+        Self::apply_env_llm_model(&mut settings);
         settings
+    }
+
+    /// Apply LLM model environment variable to settings.
+    ///
+    /// Supported environment variable:
+    /// - WRLDBLDR_LLM_MODEL_DEFAULT: Default LLM model to use (e.g., "llama3.2", "gpt-4")
+    pub fn apply_env_llm_model(settings: &mut AppSettings) {
+        if let Ok(model) = std::env::var("WRLDBLDR_LLM_MODEL_DEFAULT") {
+            if !model.trim().is_empty() {
+                let updated = std::mem::take(settings)
+                    .with_llm_model_env_default(Some(model.trim().to_string()));
+                *settings = updated;
+                tracing::info!(model = %model.trim(), "Applied WRLDBLDR_LLM_MODEL_DEFAULT environment variable");
+            }
+        }
     }
 
     /// Apply list limit environment variable overrides to settings.

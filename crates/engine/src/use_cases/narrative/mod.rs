@@ -19,11 +19,15 @@ pub mod chains;
 pub mod decision;
 pub mod events;
 pub mod execute_effects;
+pub mod types;
 
-pub use chains::{CreateEventChainInput, EventChainError, EventChainOps, UpdateEventChainInput};
+pub use chains::{EventChainError, EventChainOps};
 pub use decision::NarrativeDecisionFlow;
 pub use events::{NarrativeEventError, NarrativeEventOps};
 pub use execute_effects::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
+// Re-export types for public API (used by API handlers)
+#[allow(unused_imports)]
+pub use types::{ChainStatusSummary, CreateEventChainInput, EventChainSummary, UpdateEventChainInput};
 
 use std::sync::Arc;
 

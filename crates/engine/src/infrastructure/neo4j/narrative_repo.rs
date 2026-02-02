@@ -19,6 +19,7 @@ use crate::infrastructure::ports::{
     ActiveConversationRecord, ClockPort, ConversationDetails, ConversationLocationContext,
     ConversationParticipantDetail, ConversationSceneContext, ConversationSpeaker,
     ConversationTurnRecord, DialogueTurnDetail, NarrativeRepo, ParticipantType, RepoError,
+    StoryEventWithEdges,
 };
 
 pub struct Neo4jNarrativeRepo {
@@ -265,8 +266,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 c.completed_events = $completed_events,
                 c.act_id = $act_id,
                 c.tags_json = $tags_json,
-                c.color = $color,
                 c.favorite = $favorite,
+                c.color = $color,
                 c.created_at = $created_at,
                 c.updated_at = $updated_at
             ON MATCH SET
@@ -278,8 +279,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 c.completed_events = $completed_events,
                 c.act_id = $act_id,
                 c.tags_json = $tags_json,
-                c.color = $color,
                 c.favorite = $favorite,
+                c.color = $color,
                 c.updated_at = $updated_at
             WITH c
             MATCH (w:World {id: $world_id})
@@ -298,11 +299,8 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             chain.act_id().map(|a| a.to_string()).unwrap_or_default(),
         )
         .param("tags_json", tags_json)
-        .param(
-            "color",
-            chain.color().map(|s| s.to_string()).unwrap_or_default(),
-        )
         .param("favorite", format!("{:?}", chain.favorite()))
+        .param("color", chain.color().unwrap_or(""))
         .param("created_at", chain.created_at().to_rfc3339())
         .param("updated_at", chain.updated_at().to_rfc3339());
 
@@ -467,6 +465,106 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_story_event(row, self.clock.now())?);
+        }
+
+        Ok(events)
+    }
+
+    async fn get_story_event_with_edges(
+        &self,
+        id: StoryEventId,
+    ) -> Result<Option<StoryEventWithEdges>, RepoError> {
+        // Query the story event with all its edge relationships
+        let q = query(
+            "MATCH (e:StoryEvent {id: $id})
+             OPTIONAL MATCH (e)-[:OCCURRED_IN_SCENE]->(s:Scene)
+             OPTIONAL MATCH (e)-[:OCCURRED_AT]->(l:Location)
+             OPTIONAL MATCH (c:Character)-[:INVOLVES]->(e)
+             OPTIONAL MATCH (pc:PlayerCharacter)-[:INVOLVES]->(e)
+             OPTIONAL MATCH (e)-[:TRIGGERED_BY_NARRATIVE]->(n:NarrativeEvent)
+             RETURN e,
+                    s.id AS scene_id,
+                    l.id AS location_id,
+                    collect(DISTINCT c.id) AS npc_ids,
+                    collect(DISTINCT pc.id) AS pc_ids,
+                    n.id AS triggered_by",
+        )
+        .param("id", id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            // Extract edges first (borrows from row), then convert event (consumes row)
+            let edges = extract_story_event_edges(&row)?;
+            let event = row_to_story_event(row, self.clock.now())?;
+            Ok(Some(StoryEventWithEdges {
+                event,
+                scene_id: edges.scene_id,
+                location_id: edges.location_id,
+                involved_characters: edges.involved_characters,
+                triggered_by: edges.triggered_by,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn list_story_events_with_edges(
+        &self,
+        world_id: WorldId,
+        limit: usize,
+    ) -> Result<Vec<StoryEventWithEdges>, RepoError> {
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
+             WHERE e.visibility = 'Visible'
+             OPTIONAL MATCH (e)-[:OCCURRED_IN_SCENE]->(s:Scene)
+             OPTIONAL MATCH (e)-[:OCCURRED_AT]->(l:Location)
+             OPTIONAL MATCH (c:Character)-[:INVOLVES]->(e)
+             OPTIONAL MATCH (pc:PlayerCharacter)-[:INVOLVES]->(e)
+             OPTIONAL MATCH (e)-[:TRIGGERED_BY_NARRATIVE]->(n:NarrativeEvent)
+             RETURN e,
+                    s.id AS scene_id,
+                    l.id AS location_id,
+                    collect(DISTINCT c.id) AS npc_ids,
+                    collect(DISTINCT pc.id) AS pc_ids,
+                    n.id AS triggered_by
+             ORDER BY e.timestamp DESC
+             LIMIT $limit",
+        )
+        .param("world_id", world_id.to_string())
+        .param("limit", limit as i64);
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut events = Vec::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            // Extract edges first (borrows from row), then convert event (consumes row)
+            let edges = extract_story_event_edges(&row)?;
+            let event = row_to_story_event(row, self.clock.now())?;
+            events.push(StoryEventWithEdges {
+                event,
+                scene_id: edges.scene_id,
+                location_id: edges.location_id,
+                involved_characters: edges.involved_characters,
+                triggered_by: edges.triggered_by,
+            });
         }
 
         Ok(events)
@@ -2018,7 +2116,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
     let act_id: Option<ActId> =
         parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
     let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
-    let color: Option<String> = node.get_optional_string("color");
+    let color: Option<String> = node.get_optional_string("color").filter(|s| !s.is_empty());
     let favorite = parse_chain_favorite(&node)?;
     let created_at: DateTime<Utc> = node.get_datetime_or("created_at", fallback);
     let updated_at: DateTime<Utc> = node.get_datetime_or("updated_at", fallback);
@@ -2063,8 +2161,8 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         completed_events,
         act_id,
         tags,
-        color,
         favorite,
+        color,
         created_at,
         updated_at,
     ))
@@ -2123,6 +2221,75 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
         visibility,
         tags,
     ))
+}
+
+/// Helper struct for extracting story event edge data from a query row.
+struct StoryEventEdges {
+    scene_id: Option<SceneId>,
+    location_id: Option<LocationId>,
+    involved_characters: Vec<CharacterId>,
+    triggered_by: Option<NarrativeEventId>,
+}
+
+/// Extract edge data from a story event query row.
+///
+/// Expects the row to contain:
+/// - `scene_id`: Optional scene ID string
+/// - `location_id`: Optional location ID string
+/// - `npc_ids`: List of NPC character ID strings
+/// - `pc_ids`: List of player character ID strings
+/// - `triggered_by`: Optional narrative event ID string
+fn extract_story_event_edges(row: &Row) -> Result<StoryEventEdges, RepoError> {
+    // Extract scene_id
+    let scene_id: Option<String> = row.get("scene_id").ok().flatten();
+    let scene_id = scene_id
+        .filter(|s| !s.is_empty())
+        .and_then(|s| Uuid::parse_str(&s).ok())
+        .map(SceneId::from);
+
+    // Extract location_id
+    let location_id: Option<String> = row.get("location_id").ok().flatten();
+    let location_id = location_id
+        .filter(|s| !s.is_empty())
+        .and_then(|s| Uuid::parse_str(&s).ok())
+        .map(LocationId::from);
+
+    // Extract involved characters (NPCs + PCs)
+    let mut involved_characters = Vec::new();
+
+    // NPC IDs
+    let npc_ids: Vec<String> = row.get("npc_ids").unwrap_or_default();
+    for id_str in npc_ids {
+        if !id_str.is_empty() {
+            if let Ok(uuid) = Uuid::parse_str(&id_str) {
+                involved_characters.push(CharacterId::from(uuid));
+            }
+        }
+    }
+
+    // PC IDs (also CharacterId in the domain model)
+    let pc_ids: Vec<String> = row.get("pc_ids").unwrap_or_default();
+    for id_str in pc_ids {
+        if !id_str.is_empty() {
+            if let Ok(uuid) = Uuid::parse_str(&id_str) {
+                involved_characters.push(CharacterId::from(uuid));
+            }
+        }
+    }
+
+    // Extract triggered_by (narrative event ID)
+    let triggered_by: Option<String> = row.get("triggered_by").ok().flatten();
+    let triggered_by = triggered_by
+        .filter(|s| !s.is_empty())
+        .and_then(|s| Uuid::parse_str(&s).ok())
+        .map(NarrativeEventId::from);
+
+    Ok(StoryEventEdges {
+        scene_id,
+        location_id,
+        involved_characters,
+        triggered_by,
+    })
 }
 
 // =============================================================================
@@ -2261,6 +2428,12 @@ enum StoredNarrativeTriggerType {
         creature_id: String,
         creature_name: String,
     },
+    TimeOfDay {
+        period: String,
+    },
+    GameDay {
+        day: u32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2324,6 +2497,12 @@ enum StoredEventEffect {
         title: String,
         content: String,
         persist_to_journal: bool,
+    },
+    RevealLore {
+        lore_id: String,
+        lore_title: String,
+        chunk_ids: Option<Vec<String>>,
+        reveal_to_pc: Option<String>,
     },
     SetFlag {
         flag_name: String,
@@ -2767,6 +2946,12 @@ impl From<&NarrativeTriggerType> for StoredNarrativeTriggerType {
                 creature_id: creature_id.clone(),
                 creature_name: creature_name.clone(),
             },
+            NarrativeTriggerType::TimeOfDay { period } => StoredNarrativeTriggerType::TimeOfDay {
+                period: period.to_string(),
+            },
+            NarrativeTriggerType::GameDay { day } => StoredNarrativeTriggerType::GameDay {
+                day: *day,
+            },
         }
     }
 }
@@ -2869,6 +3054,19 @@ impl From<&EventEffect> for StoredEventEffect {
                 title: title.clone(),
                 content: content.clone(),
                 persist_to_journal: *persist_to_journal,
+            },
+            EventEffect::RevealLore {
+                lore_id,
+                lore_title,
+                chunk_ids,
+                reveal_to_pc,
+            } => StoredEventEffect::RevealLore {
+                lore_id: lore_id.to_string(),
+                lore_title: lore_title.clone(),
+                chunk_ids: chunk_ids.as_ref().map(|ids| {
+                    ids.iter().map(|id| id.to_string()).collect()
+                }),
+                reveal_to_pc: reveal_to_pc.as_ref().map(|id| id.to_string()),
             },
             EventEffect::SetFlag { flag_name, value } => StoredEventEffect::SetFlag {
                 flag_name: flag_name.clone(),
@@ -3488,6 +3686,17 @@ impl TryFrom<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 creature_id,
                 creature_name,
             },
+            StoredNarrativeTriggerType::TimeOfDay { period } => {
+                let tod = match period.to_lowercase().as_str() {
+                    "morning" => wrldbldr_domain::game_time::TimeOfDay::Morning,
+                    "afternoon" => wrldbldr_domain::game_time::TimeOfDay::Afternoon,
+                    "evening" => wrldbldr_domain::game_time::TimeOfDay::Evening,
+                    "night" => wrldbldr_domain::game_time::TimeOfDay::Night,
+                    _ => wrldbldr_domain::game_time::TimeOfDay::Morning,
+                };
+                NarrativeTriggerType::TimeOfDay { period: tod }
+            }
+            StoredNarrativeTriggerType::GameDay { day } => NarrativeTriggerType::GameDay { day },
         })
     }
 }
@@ -3590,6 +3799,21 @@ impl TryFrom<StoredEventEffect> for EventEffect {
                 title,
                 content,
                 persist_to_journal,
+            },
+            StoredEventEffect::RevealLore {
+                lore_id,
+                lore_title,
+                chunk_ids,
+                reveal_to_pc,
+            } => EventEffect::RevealLore {
+                lore_id: LoreId::from(parse_uuid(&lore_id, "lore_id")?),
+                lore_title,
+                chunk_ids: chunk_ids.map(|ids| {
+                    ids.iter()
+                        .filter_map(|id| Uuid::parse_str(id).ok().map(LoreChunkId::from))
+                        .collect()
+                }),
+                reveal_to_pc: reveal_to_pc.and_then(|id| Uuid::parse_str(&id).ok().map(PlayerCharacterId::from)),
             },
             StoredEventEffect::SetFlag { flag_name, value } => {
                 EventEffect::SetFlag { flag_name, value }

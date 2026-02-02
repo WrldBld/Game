@@ -22,8 +22,8 @@ async fn test_list_active_events() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -55,7 +55,7 @@ async fn test_trigger_narrative_event() {
     let event_id = event.id();
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Event creation should succeed");
@@ -65,7 +65,7 @@ async fn test_trigger_narrative_event() {
     let trigger_result = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .set_event_active(event_id, false)
         .await;
 
@@ -99,7 +99,7 @@ async fn test_repeatable_events() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&repeatable_event)
         .await
         .expect("Repeatable event creation should succeed");
@@ -118,7 +118,7 @@ async fn test_repeatable_events() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&non_repeatable_event)
         .await
         .expect("Non-repeatable event creation should succeed");
@@ -127,8 +127,8 @@ async fn test_repeatable_events() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -169,7 +169,7 @@ async fn test_event_priority() {
 
         ctx.app
             .repositories
-            .narrative
+            .narrative_repo
             .save_event(&event)
             .await
             .expect("Event creation should succeed");
@@ -179,8 +179,8 @@ async fn test_event_priority() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -214,8 +214,8 @@ async fn test_event_in_context() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -247,7 +247,7 @@ async fn test_favorite_events() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Favorite event creation should succeed");
@@ -257,8 +257,8 @@ async fn test_favorite_events() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 

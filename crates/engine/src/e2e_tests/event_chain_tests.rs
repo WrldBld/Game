@@ -100,7 +100,7 @@ async fn test_first_event_triggers_on_location_entry() {
     // Save the event via narrative repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Failed to save narrative event");
@@ -215,10 +215,21 @@ async fn test_subsequent_event_unlocks_after_completion() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a)
         .await
         .expect("Failed to save Event A");
+
+    // Create EventChain with Event A marked as completed
+    // This is required for trigger evaluation to recognize Event A as completed
+    super::create_event_chain(
+        &ctx,
+        "Test Chain - Event A Completed",
+        vec![event_a_id],
+        vec![event_a_id], // Event A is already completed
+    )
+    .await
+    .expect("Failed to create event chain");
 
     // Create Event B (second in chain) - triggers only after Event A completes
     let event_b_id = wrldbldr_domain::NarrativeEventId::new();
@@ -259,7 +270,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_b)
         .await
         .expect("Failed to save Event B");
@@ -386,7 +397,7 @@ async fn test_event_condition_checks_player_flags() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Failed to save narrative event");
@@ -554,7 +565,7 @@ async fn test_event_condition_checks_inventory() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Failed to save narrative event");
@@ -740,7 +751,7 @@ async fn test_event_condition_checks_stats() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_low_cha)
         .await
         .expect("Failed to save low CHA event");
@@ -797,7 +808,7 @@ async fn test_event_condition_checks_stats() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_high_cha)
         .await
         .expect("Failed to save high CHA event");
@@ -935,7 +946,7 @@ async fn test_chain_completes_in_order() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a)
         .await
         .expect("Failed to save Event A");
@@ -989,7 +1000,7 @@ async fn test_chain_completes_in_order() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_b)
         .await
         .expect("Failed to save Event B");
@@ -1043,7 +1054,7 @@ async fn test_chain_completes_in_order() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_c)
         .await
         .expect("Failed to save Event C");
@@ -1060,6 +1071,17 @@ async fn test_chain_completes_in_order() {
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for Event C");
+
+    // Create EventChain to track completions
+    // Initially no events are completed
+    let chain_id = super::create_event_chain(
+        &ctx,
+        "Test Chain A-B-C",
+        vec![event_a_id, event_b_id, event_c_id],
+        vec![], // No events completed yet
+    )
+    .await
+    .expect("Failed to create event chain");
 
     // Step 1: Enter location - only Event A should trigger
     let result1 = ctx
@@ -1099,10 +1121,11 @@ async fn test_chain_completes_in_order() {
     );
 
     // Step 2: Mark Event A as completed and re-enter
+    // Mark Event A as triggered (for backward compatibility)
     let mut event_a_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_a_id)
         .await
         .expect("Should get Event A")
@@ -1110,10 +1133,16 @@ async fn test_chain_completes_in_order() {
     event_a_updated.trigger(Some("default".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a_updated)
         .await
         .expect("Failed to update Event A");
+
+    // Also mark Event A as completed in the EventChain
+    // This is required for trigger evaluation to recognize Event A as completed
+    super::complete_event_in_chain(&ctx, chain_id, event_a_id)
+        .await
+        .expect("Failed to complete Event A in chain");
 
     // Move back and re-enter to trigger Event B
     ctx.app
@@ -1154,10 +1183,11 @@ async fn test_chain_completes_in_order() {
     );
 
     // Step 3: Mark Event B as completed and re-enter
+    // Mark Event B as triggered (for backward compatibility)
     let mut event_b_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_b_id)
         .await
         .expect("Should get Event B")
@@ -1165,10 +1195,16 @@ async fn test_chain_completes_in_order() {
     event_b_updated.trigger(Some("default".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_b_updated)
         .await
         .expect("Failed to update Event B");
+
+    // Also mark Event B as completed in the EventChain
+    // This is required for trigger evaluation to recognize Event B as completed
+    super::complete_event_in_chain(&ctx, chain_id, event_b_id)
+        .await
+        .expect("Failed to complete Event B in chain");
 
     // Move back and re-enter to trigger Event C
     ctx.app
@@ -1276,7 +1312,7 @@ async fn test_chain_completion_triggers_final_effects() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a)
         .await
         .expect("Failed to save Event A");
@@ -1332,7 +1368,7 @@ async fn test_chain_completion_triggers_final_effects() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_final)
         .await
         .expect("Failed to save Final Event");
@@ -1349,6 +1385,17 @@ async fn test_chain_completion_triggers_final_effects() {
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for Final Event");
+
+    // Create EventChain to track completions
+    // Initially no events are completed
+    let chain_id = super::create_event_chain(
+        &ctx,
+        "Quest Chain - Start to Complete",
+        vec![event_a_id, event_final_id],
+        vec![], // No events completed yet
+    )
+    .await
+    .expect("Failed to create event chain");
 
     // Step 1: Enter location - Event A should trigger
     let result1 = ctx
@@ -1372,7 +1419,7 @@ async fn test_chain_completion_triggers_final_effects() {
     let mut event_a_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_a_id)
         .await
         .expect("Should get Event A")
@@ -1380,10 +1427,16 @@ async fn test_chain_completion_triggers_final_effects() {
     event_a_updated.trigger(Some("default".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a_updated)
         .await
         .expect("Failed to update Event A");
+
+    // Also mark Event A as completed in the EventChain
+    // This is required for trigger evaluation to recognize Event A as completed
+    super::complete_event_in_chain(&ctx, chain_id, event_a_id)
+        .await
+        .expect("Failed to complete Event A in chain");
 
     // Step 2: Re-enter to trigger final event
     ctx.app
@@ -1421,7 +1474,7 @@ async fn test_chain_completion_triggers_final_effects() {
     let mut event_final_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_final_id)
         .await
         .expect("Should get Final Event")
@@ -1429,7 +1482,7 @@ async fn test_chain_completion_triggers_final_effects() {
     event_final_updated.trigger(Some("default".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_final_updated)
         .await
         .expect("Failed to update Final Event");
@@ -1460,7 +1513,7 @@ async fn test_chain_completion_triggers_final_effects() {
     let final_event = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_final_id)
         .await
         .expect("Should get Final Event")
@@ -1549,7 +1602,7 @@ async fn test_partial_chain_persists_across_sessions() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a)
         .await
         .expect("Failed to save Event A");
@@ -1602,7 +1655,7 @@ async fn test_partial_chain_persists_across_sessions() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_b)
         .await
         .expect("Failed to save Event B");
@@ -1655,7 +1708,7 @@ async fn test_partial_chain_persists_across_sessions() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_c)
         .await
         .expect("Failed to save Event C");
@@ -1671,6 +1724,17 @@ async fn test_partial_chain_persists_across_sessions() {
         )
         .await
         .expect("Failed to tie Event C to region");
+
+    // Create EventChain to track completions
+    // Initially no events are completed
+    let chain_id = super::create_event_chain(
+        &ctx,
+        "Persistent Chain A-B-C",
+        vec![event_a_id, event_b_id, event_c_id],
+        vec![], // No events completed yet
+    )
+    .await
+    .expect("Failed to create event chain");
 
     // Step 1: Enter location, Event A triggers
     let result1 = ctx
@@ -1691,10 +1755,11 @@ async fn test_partial_chain_persists_across_sessions() {
     );
 
     // Step 2: Mark Event A as complete (simulating player completing the event)
+    // Mark Event A as triggered (for backward compatibility)
     let mut event_a_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_a_id)
         .await
         .expect("Should get Event A")
@@ -1702,17 +1767,23 @@ async fn test_partial_chain_persists_across_sessions() {
     event_a_updated.trigger(Some("default".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a_updated)
         .await
         .expect("Failed to save Event A completion");
+
+    // Also mark Event A as completed in the EventChain
+    // This is required for trigger evaluation to recognize Event A as completed
+    super::complete_event_in_chain(&ctx, chain_id, event_a_id)
+        .await
+        .expect("Failed to complete Event A in chain");
 
     // Step 3: Simulate "session reload" by re-fetching event from database
     // This verifies persistence - the event should still be marked as triggered
     let event_a_reloaded = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_a_id)
         .await
         .expect("Should get Event A")
@@ -1765,10 +1836,11 @@ async fn test_partial_chain_persists_across_sessions() {
     );
 
     // Step 5: Mark Event B as complete
+    // Mark Event B as triggered (for backward compatibility)
     let mut event_b_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_b_id)
         .await
         .expect("Should get Event B")
@@ -1776,16 +1848,22 @@ async fn test_partial_chain_persists_across_sessions() {
     event_b_updated.trigger(Some("default".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_b_updated)
         .await
         .expect("Failed to save Event B completion");
+
+    // Also mark Event B as completed in the EventChain
+    // This is required for trigger evaluation to recognize Event B as completed
+    super::complete_event_in_chain(&ctx, chain_id, event_b_id)
+        .await
+        .expect("Failed to complete Event B in chain");
 
     // Verify Event B persisted
     let event_b_reloaded = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_b_id)
         .await
         .expect("Should get Event B")
@@ -1906,7 +1984,7 @@ async fn test_chain_branch_based_on_outcome() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a)
         .await
         .expect("Failed to save Event A");
@@ -1961,7 +2039,7 @@ async fn test_chain_branch_based_on_outcome() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_b)
         .await
         .expect("Failed to save Event B");
@@ -2014,7 +2092,7 @@ async fn test_chain_branch_based_on_outcome() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_c)
         .await
         .expect("Failed to save Event C");
@@ -2030,6 +2108,17 @@ async fn test_chain_branch_based_on_outcome() {
         )
         .await
         .expect("Failed to tie Event C to region");
+
+    // Create EventChain to track completions
+    // Initially no events are completed
+    let chain_id = super::create_event_chain(
+        &ctx,
+        "Branching Chain - Accept or Refuse",
+        vec![event_a_id, event_b_id, event_c_id],
+        vec![], // No events completed yet
+    )
+    .await
+    .expect("Failed to create event chain");
 
     // Step 1: Enter location - Event A should trigger
     let result1 = ctx
@@ -2050,10 +2139,11 @@ async fn test_chain_branch_based_on_outcome() {
     );
 
     // Step 2: Complete Event A with "accept" outcome
+    // Mark Event A as triggered (for backward compatibility)
     let mut event_a_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_a_id)
         .await
         .expect("Should get Event A")
@@ -2061,10 +2151,16 @@ async fn test_chain_branch_based_on_outcome() {
     event_a_updated.trigger(Some("accept".to_string()), now); // Accept outcome!
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a_updated)
         .await
         .expect("Failed to save Event A with accept outcome");
+
+    // Also mark Event A as completed in the EventChain
+    // This is required for trigger evaluation to recognize Event A as completed
+    super::complete_event_in_chain(&ctx, chain_id, event_a_id)
+        .await
+        .expect("Failed to complete Event A in chain");
 
     // Step 3: Re-enter - Event B should trigger (accept path), Event C should NOT
     ctx.app
@@ -2181,7 +2277,7 @@ async fn test_alternate_branch_path() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a)
         .await
         .expect("Failed to save Event A");
@@ -2234,7 +2330,7 @@ async fn test_alternate_branch_path() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_b)
         .await
         .expect("Failed to save Event B");
@@ -2287,7 +2383,7 @@ async fn test_alternate_branch_path() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_c)
         .await
         .expect("Failed to save Event C");
@@ -2303,6 +2399,17 @@ async fn test_alternate_branch_path() {
         )
         .await
         .expect("Failed to tie Event C to region");
+
+    // Create EventChain to track completions
+    // Initially no events are completed
+    let chain_id = super::create_event_chain(
+        &ctx,
+        "Alt Branch Chain - Accept or Refuse",
+        vec![event_a_id, event_b_id, event_c_id],
+        vec![], // No events completed yet
+    )
+    .await
+    .expect("Failed to create event chain");
 
     // Step 1: Enter location - Event A triggers
     let result1 = ctx
@@ -2323,10 +2430,11 @@ async fn test_alternate_branch_path() {
     );
 
     // Step 2: Complete Event A with "refuse" outcome (alternate path!)
+    // Mark Event A as triggered (for backward compatibility)
     let mut event_a_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_a_id)
         .await
         .expect("Should get Event A")
@@ -2334,10 +2442,16 @@ async fn test_alternate_branch_path() {
     event_a_updated.trigger(Some("refuse".to_string()), now); // Refuse outcome!
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_a_updated)
         .await
         .expect("Failed to save Event A with refuse outcome");
+
+    // Also mark Event A as completed in the EventChain
+    // This is required for trigger evaluation to recognize Event A as completed
+    super::complete_event_in_chain(&ctx, chain_id, event_a_id)
+        .await
+        .expect("Failed to complete Event A in chain");
 
     // Step 3: Re-enter - Event C should trigger (refuse path), Event B should NOT
     ctx.app
@@ -2459,7 +2573,7 @@ async fn test_repeatable_chain_can_restart() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Failed to save event");
@@ -2498,7 +2612,7 @@ async fn test_repeatable_chain_can_restart() {
     let mut event_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -2506,7 +2620,7 @@ async fn test_repeatable_chain_can_restart() {
     event_updated.trigger(Some("completed".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_updated)
         .await
         .expect("Failed to complete event");
@@ -2515,7 +2629,7 @@ async fn test_repeatable_chain_can_restart() {
     let event_after_first = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -2555,7 +2669,7 @@ async fn test_repeatable_chain_can_restart() {
     let mut event_reset = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -2563,7 +2677,7 @@ async fn test_repeatable_chain_can_restart() {
     event_reset.reset(chrono::Utc::now()); // Reset the event!
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_reset)
         .await
         .expect("Failed to reset event");
@@ -2572,7 +2686,7 @@ async fn test_repeatable_chain_can_restart() {
     let event_after_reset = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -2617,7 +2731,7 @@ async fn test_repeatable_chain_can_restart() {
     let final_event = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -2701,7 +2815,7 @@ async fn test_one_time_chain_cannot_repeat() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Failed to save event");
@@ -2740,7 +2854,7 @@ async fn test_one_time_chain_cannot_repeat() {
     let mut event_updated = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -2748,7 +2862,7 @@ async fn test_one_time_chain_cannot_repeat() {
     event_updated.trigger(Some("completed".to_string()), now);
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event_updated)
         .await
         .expect("Failed to complete event");
@@ -2757,7 +2871,7 @@ async fn test_one_time_chain_cannot_repeat() {
     let event_after = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -2827,7 +2941,7 @@ async fn test_one_time_chain_cannot_repeat() {
     let final_event = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")

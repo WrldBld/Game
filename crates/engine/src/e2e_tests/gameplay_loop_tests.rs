@@ -414,22 +414,23 @@ async fn test_narrative_events_exist() {
         .await
         .expect("Failed to setup E2E context");
 
-    // Query narrative events
+    // Query narrative events (scoped to test world to avoid conflicts with other test data)
     let mut result = ctx
         .graph()
         .execute(query(
-            "MATCH (e:NarrativeEvent)
-                 RETURN e.name as name, e.is_active as active, e.priority as priority
+            "MATCH (e:NarrativeEvent {world_id: $world_id})
+                 RETURN e.name as name, e.activation as activation, e.priority as priority
                  ORDER BY e.priority DESC",
-        ))
+        )
+        .param("world_id", ctx.world.world_id.to_string()))
         .await
         .expect("NarrativeEvent query failed");
 
     let mut events = Vec::new();
     while let Some(row) = result.next().await.expect("Row read error") {
         let name: String = row.get("name").expect("name column");
-        let active: bool = row.get("active").expect("active column");
-        events.push((name, active));
+        let activation: String = row.get("activation").expect("activation column");
+        events.push((name, activation == "Active"));
     }
 
     assert!(

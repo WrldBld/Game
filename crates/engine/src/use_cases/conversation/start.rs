@@ -248,7 +248,7 @@ mod tests {
     };
 
     use crate::infrastructure::ports::{
-        ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
+        ClockPort, MockCharacterRepo, MockNarrativeRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
         MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
     use wrldbldr_domain::QueueItemId;
@@ -453,7 +453,7 @@ mod tests {
         let mut narrative_repo = MockNarrativeRepo::new();
         narrative_repo
             .expect_create_conversation()
-            .returning(|_, _, _, _, _, _, _, _| Ok(wrldbldr_domain::ConversationId::new()));
+            .returning(|_, _, _, _, _, _, _| Ok(wrldbldr_domain::ConversationId::new()));
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
         let queue_id = QueueItemId::new();
@@ -567,13 +567,25 @@ mod tests {
         let queue_id = QueueItemId::new();
         let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
 
+        // Mock scene repo - list_for_region is called to get scene context
+        let mut scene_repo = MockSceneRepo::new();
+        scene_repo
+            .expect_list_for_region()
+            .returning(|_| Ok(vec![]));
+
+        // Mock narrative repo - create_conversation is called
+        let mut narrative_repo = MockNarrativeRepo::new();
+        narrative_repo
+            .expect_create_conversation()
+            .returning(|_, _, _, _, _, _, _| Ok(wrldbldr_domain::ConversationId::new()));
         let use_case = super::StartConversation::new(
             Arc::new(character_repo),
             Arc::new(pc_repo),
             Arc::new(staging_repo),
-            Arc::new(MockSceneRepo::new()),
+            Arc::new(scene_repo),
             Arc::new(world_repo),
             queue_port.clone(),
+            Arc::new(narrative_repo),
             clock,
         );
 

@@ -569,3 +569,42 @@ pub struct WorkflowConfigExportDto {
 
 // NOTE: workflow_config_to_response_dto and workflow_config_to_full_response_dto functions
 // were moved to engine-adapters (workflow_conversions) as part of hexagonal architecture refactoring.
+
+// =============================================================================
+// LLM Model Discovery DTOs
+// =============================================================================
+
+/// Information about an available LLM model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmModelInfoDto {
+    /// Model identifier (e.g., "llama3.2", "gpt-4")
+    pub id: String,
+    /// Provider/owner of the model (e.g., "meta", "openai")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+}
+
+/// Response DTO for listing available LLM models.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmModelsListResponseDto {
+    /// Available models
+    pub models: Vec<LlmModelInfoDto>,
+    /// Currently resolved model (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved: Option<String>,
+    /// Source of the resolved model (for UI display)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_source: Option<String>,
+}
+
+/// Response DTO for resolved LLM model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmModelResolvedDto {
+    /// The resolved model ID
+    pub model_id: String,
+    /// Where this model came from
+    pub source: String,
+    /// Optional warning if fallback was used
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
+}

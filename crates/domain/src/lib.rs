@@ -29,7 +29,6 @@ pub use entities::{
     BatchStatus,
     CastingTime,
     CastingTimeUnit,
-    ChainStatus,
     ChainedEvent,
     Challenge,
     ChallengeEventOutcome,
@@ -57,9 +56,6 @@ pub use entities::{
     DmMarkerType,
     DurationUnit,
     EntityType,
-    EventChain,
-    EventChainActivation,
-    EventChainFavorite,
     EventChainMembership,
     EventEffect,
     EventOutcome,
@@ -162,6 +158,9 @@ pub use aggregates::Character;
 pub use aggregates::narrative_event::{
     EventActivation, EventRepeatability, FavoriteStatus, TriggerStatus,
 };
+
+// Re-export EventChain and related types from aggregates
+pub use aggregates::event_chain::{EventChain, EventChainActivation, EventChainFavorite};
 
 // Re-export Location from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::Location with public fields

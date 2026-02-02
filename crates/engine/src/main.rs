@@ -45,6 +45,7 @@ use infrastructure::{
     resilient_llm::{ResilientLlmClient, RetryConfig},
     settings::SqliteSettingsRepo,
 };
+use prompt_templates::PromptDefaultsStore;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -103,14 +104,36 @@ async fn main() -> anyhow::Result<()> {
         retry_config.max_retries,
         retry_config.base_delay_ms
     );
-    let llm = Arc::new(ResilientLlmClient::new(ollama_client, retry_config));
+    let llm = Arc::new(ResilientLlmClient::new(ollama_client.clone(), retry_config));
+    let llm_models: Arc<dyn infrastructure::ports::LlmModelsPort> = ollama_client.clone();
     let image_gen = Arc::new(ComfyUIClient::new(&comfyui_url));
 
     // Create queue
     let queue_db = std::env::var("QUEUE_DB").unwrap_or_else(|_| "queues.db".into());
     let queue = Arc::new(SqliteQueue::new(&queue_db, clock.clone()).await?);
     let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db, clock.clone()).await?);
-    let prompt_templates_repo = Arc::new(SqlitePromptTemplateRepo::new(&queue_db, clock.clone()).await?);
+
+    // Create prompt defaults store (loads from ./prompts directory)
+    let prompts_dir = std::env::var("WRLDBLDR_PROMPTS_DIR").unwrap_or_else(|_| "./prompts".into());
+    let defaults_store = PromptDefaultsStore::new(&prompts_dir);
+
+    // Preload all known templates at startup for faster first requests
+    let known_keys: Vec<_> = prompt_templates::all_keys();
+    let preload_errors = defaults_store.preload(&known_keys).await;
+    if !preload_errors.is_empty() {
+        for (key, err) in &preload_errors {
+            tracing::warn!(key = key, error = %err, "Failed to preload prompt template");
+        }
+    }
+    tracing::info!(
+        prompts_dir = %prompts_dir,
+        template_count = known_keys.len(),
+        "Prompt defaults store initialized"
+    );
+
+    let prompt_templates_repo = Arc::new(
+        SqlitePromptTemplateRepo::new(&queue_db, clock.clone(), defaults_store).await?
+    );
 
     // Configure content service
     let content_config = use_cases::content::ContentServiceConfig {
@@ -127,6 +150,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Arc::new(App::new(
         repos,
         llm,
+        llm_models,
         image_gen,
         queue,
         settings_repo,

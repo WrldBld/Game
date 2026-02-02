@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{ClockPort, PromptTemplateRepo, RepoError};
-use crate::prompt_templates::{get_default, key_to_env_var};
+use crate::infrastructure::ports::{ClockPort, PromptTemplateRepo, RepoError, ResolvedPromptTemplate};
+use crate::prompt_templates::{key_to_env_var, is_known_key, PromptDefaultsStore};
 use wrldbldr_domain::WorldId;
 
 /// SQLite implementation for prompt template storage.
@@ -15,10 +15,18 @@ use wrldbldr_domain::WorldId;
 pub struct SqlitePromptTemplateRepo {
     pool: SqlitePool,
     clock: Arc<dyn ClockPort>,
+    defaults_store: PromptDefaultsStore,
 }
 
 impl SqlitePromptTemplateRepo {
-    pub async fn new(db_path: &str, clock: Arc<dyn ClockPort>) -> Result<Self, RepoError> {
+    /// Create a new prompt template repository.
+    ///
+    /// The `defaults_store` is used to load default prompt templates from files.
+    pub async fn new(
+        db_path: &str,
+        clock: Arc<dyn ClockPort>,
+        defaults_store: PromptDefaultsStore,
+    ) -> Result<Self, RepoError> {
         let pool = SqlitePool::connect(&format!("sqlite:{}?mode=rwc", db_path))
             .await
             .map_err(|e| RepoError::database("prompt_templates", e))?;
@@ -53,7 +61,16 @@ impl SqlitePromptTemplateRepo {
         .await
         .map_err(|e| RepoError::database("prompt_templates", e))?;
 
-        Ok(Self { pool, clock })
+        Ok(Self {
+            pool,
+            clock,
+            defaults_store,
+        })
+    }
+
+    /// Get a reference to the defaults store.
+    pub fn defaults_store(&self) -> &PromptDefaultsStore {
+        &self.defaults_store
     }
 }
 
@@ -191,16 +208,15 @@ impl PromptTemplateRepo for SqlitePromptTemplateRepo {
         key: &str,
     ) -> Result<Option<String>, RepoError> {
         // Check if this is a recognized template key
-        let default_value = match get_default(key) {
-            Some(d) => d,
-            None => return Ok(None), // Unknown key
-        };
+        if !is_known_key(key) {
+            return Ok(None); // Unknown key
+        }
 
         // Resolution priority:
         // 1. World-specific override (if world_id provided)
         // 2. Global override
         // 3. Environment variable
-        // 4. Default value
+        // 4. Default value (from file-backed store)
 
         if let Some(world_id) = world_id {
             if let Some(override_value) = self.get_world_override(world_id, key).await? {
@@ -220,7 +236,99 @@ impl PromptTemplateRepo for SqlitePromptTemplateRepo {
             }
         }
 
-        // Return default value
-        Ok(Some(default_value.to_string()))
+        // Return default value from file-backed store
+        match self.defaults_store.get(key).await {
+            Ok(Some(value)) => Ok(Some(value)),
+            Ok(None) => {
+                // File not found - this is a configuration error
+                tracing::error!(
+                    key = key,
+                    path = %self.defaults_store.path_for_key(key).display(),
+                    "Default prompt file not found for known key"
+                );
+                Ok(None)
+            }
+            Err(e) => {
+                // Error reading file
+                tracing::error!(
+                    key = key,
+                    error = %e,
+                    "Failed to read default prompt file"
+                );
+                Err(RepoError::Config(format!(
+                    "Failed to read default prompt for '{}': {}",
+                    key, e
+                )))
+            }
+        }
+    }
+
+    async fn resolve_template_with_metadata(
+        &self,
+        world_id: Option<WorldId>,
+        key: &str,
+    ) -> Result<Option<ResolvedPromptTemplate>, RepoError> {
+        // Check if this is a recognized template key
+        if !is_known_key(key) {
+            return Ok(None); // Unknown key
+        }
+
+        // First, get the default template metadata (includes temperature from front matter)
+        let default_template = self.defaults_store.get_with_metadata(key).await.ok().flatten();
+
+        // Resolution priority for template text:
+        // 1. World-specific override (if world_id provided)
+        // 2. Global override
+        // 3. Environment variable
+        // 4. Default value (from file-backed store)
+        //
+        // Temperature precedence:
+        // 1. Template front matter temperature (if using default template)
+        // 2. None (when using override - caller should use AppSettings temperature)
+
+        // Check for overrides
+        if let Some(world_id) = world_id {
+            if let Some(override_value) = self.get_world_override(world_id, key).await? {
+                // Override text with default temperature (if default exists)
+                return Ok(Some(ResolvedPromptTemplate {
+                    text: override_value,
+                    temperature: default_template.as_ref().and_then(|t| t.temperature),
+                }));
+            }
+        }
+
+        if let Some(override_value) = self.get_global_override(key).await? {
+            // Override text with default temperature (if default exists)
+            return Ok(Some(ResolvedPromptTemplate {
+                text: override_value,
+                temperature: default_template.as_ref().and_then(|t| t.temperature),
+            }));
+        }
+
+        // Check environment variable
+        let env_var = key_to_env_var(key);
+        if let Ok(env_value) = std::env::var(&env_var) {
+            if !env_value.trim().is_empty() {
+                // Env var text with default temperature (if default exists)
+                return Ok(Some(ResolvedPromptTemplate {
+                    text: env_value,
+                    temperature: default_template.as_ref().and_then(|t| t.temperature),
+                }));
+            }
+        }
+
+        // Return default template with its metadata (including front matter temperature)
+        match default_template {
+            Some(template) => Ok(Some(template)),
+            None => {
+                // File not found - this is a configuration error
+                tracing::error!(
+                    key = key,
+                    path = %self.defaults_store.path_for_key(key).display(),
+                    "Default prompt file not found for known key"
+                );
+                Ok(None)
+            }
+        }
     }
 }

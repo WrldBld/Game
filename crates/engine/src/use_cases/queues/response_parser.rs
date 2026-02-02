@@ -155,10 +155,19 @@ pub fn strip_special_tokens(raw: &str) -> String {
     SPECIAL_TOKENS_RE.replace_all(raw, "").to_string()
 }
 
+// Regex for plain headings fallback (when LLM outputs "reasoning" or "dialogue" without XML tags)
+static PLAIN_REASONING_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?im)^\s*reasoning\s*[:\-]?\s*\n(.*?)\n\s*dialogue\s*[:\-]?").expect("valid regex")
+});
+static PLAIN_DIALOGUE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?im)^\s*dialogue\s*[:\-]?\s*\n(.*?)(?:\n\s*(?:topics|suggested_beats|challenge|event)\s*[:\-]|\z)").expect("valid regex")
+});
+
 /// Parse an LLM response into its structured components.
 ///
 /// If the response contains explicit `<dialogue>` tags, those are used.
-/// Otherwise, the entire response (minus other tags) is treated as dialogue.
+/// Otherwise, attempts to parse plain "reasoning"/"dialogue" headings as fallback.
+/// If neither format is detected, the entire response (minus other tags) is treated as dialogue.
 pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
     // First, strip any model-specific special tokens that may have leaked through
     let cleaned = strip_special_tokens(raw);
@@ -166,13 +175,19 @@ pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
 
     let mut result = ParsedLlmResponse::default();
 
-    // Extract reasoning
+    // Extract reasoning - prefer XML tags, fallback to plain headings
     if let Some(caps) = REASONING_RE.captures(raw) {
+        result.reasoning = caps[1].trim().to_string();
+    } else if let Some(caps) = PLAIN_REASONING_RE.captures(raw) {
+        // Fallback: parse plain "reasoning" heading
         result.reasoning = caps[1].trim().to_string();
     }
 
-    // Extract dialogue - if no explicit tag, use the cleaned response
+    // Extract dialogue - prefer XML tags, fallback to plain headings, then strip_all_tags
     if let Some(caps) = DIALOGUE_RE.captures(raw) {
+        result.dialogue = caps[1].trim().to_string();
+    } else if let Some(caps) = PLAIN_DIALOGUE_RE.captures(raw) {
+        // Fallback: parse plain "dialogue" heading
         result.dialogue = caps[1].trim().to_string();
     } else {
         // No explicit dialogue tag - strip all other tags and use what remains
@@ -310,6 +325,89 @@ pub fn get_triggered_event_names(raw: &str) -> Vec<String> {
         .into_iter()
         .filter(|e| e.should_trigger)
         .map(|e| e.name)
+        .collect()
+}
+
+/// Validate that a quote is a substring of the player dialogue.
+///
+/// Returns true if the quote is "none" (case-insensitive) or if the quote
+/// is found as a substring within the player dialogue.
+pub fn is_valid_quote(quote: &str, player_dialogue: &str) -> bool {
+    if quote.eq_ignore_ascii_case("none") {
+        return true;
+    }
+    let quote_lower = quote.to_lowercase();
+    let player_lower = player_dialogue.to_lowercase();
+    player_lower.contains(&quote_lower)
+}
+
+/// Filter triggered challenges to only those with valid quotes.
+///
+/// If a challenge is marked as triggered but its quote is not a substring
+/// of the player dialogue, it is demoted to not triggered.
+pub fn filter_valid_challenge_triggers(
+    challenges: Vec<AnalyzedChallenge>,
+    player_dialogue: &str,
+) -> Vec<AnalyzedChallenge> {
+    challenges
+        .into_iter()
+        .map(|mut c| {
+            if c.should_trigger {
+                if let Some(ref quote) = c.quote {
+                    if !is_valid_quote(quote, player_dialogue) {
+                        tracing::debug!(
+                            challenge = %c.name,
+                            quote = %quote,
+                            "Demoting challenge trigger to NO: quote not found in player dialogue"
+                        );
+                        c.should_trigger = false;
+                    }
+                } else {
+                    // No quote provided but trigger is YES - demote to NO
+                    tracing::debug!(
+                        challenge = %c.name,
+                        "Demoting challenge trigger to NO: no quote provided"
+                    );
+                    c.should_trigger = false;
+                }
+            }
+            c
+        })
+        .collect()
+}
+
+/// Filter triggered events to only those with valid quotes.
+///
+/// If an event is marked as triggered but its quote is not a substring
+/// of the player dialogue, it is demoted to not triggered.
+pub fn filter_valid_event_triggers(
+    events: Vec<AnalyzedEvent>,
+    player_dialogue: &str,
+) -> Vec<AnalyzedEvent> {
+    events
+        .into_iter()
+        .map(|mut e| {
+            if e.should_trigger {
+                if let Some(ref quote) = e.quote {
+                    if !is_valid_quote(quote, player_dialogue) {
+                        tracing::debug!(
+                            event = %e.name,
+                            quote = %quote,
+                            "Demoting event trigger to NO: quote not found in player dialogue"
+                        );
+                        e.should_trigger = false;
+                    }
+                } else {
+                    // No quote provided but trigger is YES - demote to NO
+                    tracing::debug!(
+                        event = %e.name,
+                        "Demoting event trigger to NO: no quote provided"
+                    );
+                    e.should_trigger = false;
+                }
+            }
+            e
+        })
         .collect()
 }
 
@@ -563,7 +661,7 @@ Thinking about this.
 </dialogue>
 
 <tool name="give_item">
-{"item_name": "Healing Potion", "description": "A red potion that restores health"}
+{"tool": "GiveItem", "item_name": "Healing Potion", "description": "A red potion that restores health"}
 </tool>
 "#;
 
@@ -574,7 +672,12 @@ Thinking about this.
 
         let tool = &parsed.proposed_tools[0];
         assert_eq!(tool.name, "give_item");
-        assert_eq!(tool.arguments["item_name"], "Healing Potion");
+        match &tool.arguments {
+            crate::game_tools::ToolArgs::GiveItem { item_name, .. } => {
+                assert_eq!(item_name, "Healing Potion");
+            }
+            _ => panic!("Expected GiveItem tool args"),
+        }
         assert!(tool.description.contains("Healing Potion"));
     }
 
@@ -586,11 +689,11 @@ Thinking about this.
 </dialogue>
 
 <tool name="change_relationship">
-{"change": "improve", "amount": "moderate", "reason": "helped with quest"}
+{"tool": "ChangeRelationship", "change": "improve", "amount": "moderate", "reason": "helped with quest"}
 </tool>
 
 <tool name="reveal_info">
-{"info_type": "quest", "content": "The temple is hidden in the mountains", "importance": "major"}
+{"tool": "RevealInfo", "info_type": "quest", "content": "The temple is hidden in the mountains", "importance": "major"}
 </tool>
 "#;
 
@@ -630,7 +733,7 @@ The player deserves a reward.
 Here's a gift for you, brave adventurer!
 
 <tool name="give_item">
-{"item_name": "Gold Coins", "description": "100 shiny gold coins"}
+{"tool": "GiveItem", "item_name": "Gold Coins", "description": "100 shiny gold coins"}
 </tool>
 "#;
 

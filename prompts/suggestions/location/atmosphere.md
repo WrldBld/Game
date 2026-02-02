@@ -1,0 +1,1 @@
+Generate 4 different atmosphere/mood options for {entity_name}. Location type: {entity_type}. Description: {additional_context}. Each should be a short phrase (2-5 words) capturing the feel. Examples: 'Tense and watchful', 'Cozy but cluttered', 'Eerily silent'. Return each atmosphere on its own line.

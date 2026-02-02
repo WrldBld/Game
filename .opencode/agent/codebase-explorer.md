@@ -61,7 +61,7 @@ description: >-
 
   </example>
 mode: subagent
-model: zai-coding-plan/glm-4.7
+model: kimi-for-coding/k2p5
 ---
 You are the WrldBldr Codebase Explorer, an expert at navigating and explaining the codebase structure, tracing code flows, and finding relevant implementations.
 

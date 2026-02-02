@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{ChatMessage, LlmError, LlmPort, LlmRequest};
+use crate::infrastructure::ports::{ChatMessage, LlmError, LlmPort, LlmRequest, PromptTemplateRepo};
 
 // Type alias for old name to maintain compatibility
 type LlmService = dyn LlmPort;
@@ -101,7 +101,7 @@ impl EvaluationContext {
     }
 
     /// Format the context as a string for the LLM prompt.
-    fn format_for_prompt(&self) -> String {
+    pub fn format_for_prompt(&self) -> String {
         let mut parts = Vec::new();
 
         if let Some(ref time) = self.time_of_day {
@@ -156,20 +156,34 @@ impl EvaluationContext {
 /// natural language conditions against the current game state.
 pub struct CustomConditionEvaluator {
     llm: Arc<LlmService>,
+    prompt_templates: Arc<dyn PromptTemplateRepo>,
     /// Minimum confidence threshold to consider condition met (default: 0.7)
     confidence_threshold: f32,
+    /// Temperature for LLM evaluation (default: 0.1)
+    temperature: f32,
 }
 
 impl CustomConditionEvaluator {
-    pub fn new(llm: Arc<LlmService>) -> Self {
+    pub fn new(llm: Arc<LlmService>, prompt_templates: Arc<dyn PromptTemplateRepo>) -> Self {
         Self {
             llm,
+            prompt_templates,
             confidence_threshold: 0.7,
+            temperature: 0.1,
         }
     }
 
     pub fn with_confidence_threshold(mut self, threshold: f32) -> Self {
         self.confidence_threshold = threshold.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Set the temperature for LLM evaluation.
+    ///
+    /// Lower values (e.g., 0.1) produce more deterministic evaluations,
+    /// which is desirable for condition checking.
+    pub fn with_temperature(mut self, temperature: f32) -> Self {
+        self.temperature = temperature.clamp(0.0, 2.0);
         self
     }
 
@@ -187,12 +201,12 @@ impl CustomConditionEvaluator {
         condition_description: &str,
         context: &EvaluationContext,
     ) -> Result<ConditionEvaluationResult, LlmError> {
-        let system_prompt = self.build_system_prompt();
+        let system_prompt = self.build_system_prompt().await;
         let user_message = self.build_user_message(condition_description, context);
 
         let request = LlmRequest::new(vec![ChatMessage::user(user_message)])
             .with_system_prompt(system_prompt)
-            .with_temperature(0.1); // Low temperature for more deterministic evaluation
+            .with_temperature(self.temperature);
 
         tracing::debug!(
             condition = %condition_description,
@@ -221,9 +235,20 @@ impl CustomConditionEvaluator {
         result.result && result.confidence >= self.confidence_threshold
     }
 
-    fn build_system_prompt(&self) -> String {
-        format!(
-            r#"You are a game master assistant evaluating whether a condition is currently met in a tabletop RPG game.
+    async fn build_system_prompt(&self) -> String {
+        // Load base template from repository
+        let base_template = self
+            .prompt_templates
+            .resolve_template(None, crate::prompt_templates::keys::SYSTEM_CUSTOM_CONDITION_EVALUATOR)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| {
+                // Fallback if template not found
+                tracing::warn!(
+                    "Custom condition evaluator template not found, using fallback"
+                );
+                r#"You are a game master assistant evaluating whether a condition is currently met in a tabletop RPG game.
 
 Your task is to analyze a condition description and the current game state, then determine if the condition is TRUE or FALSE.
 
@@ -235,20 +260,22 @@ IMPORTANT RULES:
    - 0.7-0.9: Confident based on strong implications
    - 0.5-0.7: Somewhat confident but some ambiguity
    - Below 0.5: Uncertain or insufficient information
-4. The condition must meet a confidence threshold of {} to be considered met
+4. The condition must meet a confidence threshold of {confidence_threshold} to be considered met
 
 You MUST respond in EXACTLY this JSON format:
 ```json
-{{
+{
   "result": true or false,
   "confidence": 0.0 to 1.0,
   "reasoning": "Your explanation here"
-}}
+}
 ```
 
-Do not include any text outside the JSON block."#,
-            self.confidence_threshold
-        )
+Do not include any text outside the JSON block."#.to_string()
+            });
+
+        // Replace placeholder with actual threshold
+        base_template.replace("{confidence_threshold}", &format!("{:.1}", self.confidence_threshold))
     }
 
     fn build_user_message(
@@ -386,9 +413,83 @@ mod tests {
         }
     }
 
+    /// Mock prompt template repo for testing
+    struct MockPromptTemplateRepo;
+
+    #[async_trait]
+    impl PromptTemplateRepo for MockPromptTemplateRepo {
+        async fn get_global_override(&self, _key: &str,
+        ) -> Result<Option<String>, crate::infrastructure::ports::RepoError> {
+            Ok(None)
+        }
+
+        async fn get_world_override(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+        ) -> Result<Option<String>, crate::infrastructure::ports::RepoError> {
+            Ok(None)
+        }
+
+        async fn set_global_override(&self, _key: &str, _value: &str) -> Result<(), crate::infrastructure::ports::RepoError> {
+            Ok(())
+        }
+
+        async fn set_world_override(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+            _value: &str,
+        ) -> Result<(), crate::infrastructure::ports::RepoError> {
+            Ok(())
+        }
+
+        async fn delete_global_override(&self, _key: &str) -> Result<(), crate::infrastructure::ports::RepoError> {
+            Ok(())
+        }
+
+        async fn delete_world_override(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+        ) -> Result<(), crate::infrastructure::ports::RepoError> {
+            Ok(())
+        }
+
+        async fn list_global_overrides(&self) -> Result<Vec<(String, String)>, crate::infrastructure::ports::RepoError> {
+            Ok(vec![])
+        }
+
+        async fn list_world_overrides(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+        ) -> Result<Vec<(String, String)>, crate::infrastructure::ports::RepoError> {
+            Ok(vec![])
+        }
+
+        async fn resolve_template(
+            &self,
+            _world_id: Option<wrldbldr_domain::WorldId>,
+            _key: &str,
+        ) -> Result<Option<String>, crate::infrastructure::ports::RepoError> {
+            // Return None to test fallback
+            Ok(None)
+        }
+
+        async fn resolve_template_with_metadata(
+            &self,
+            _world_id: Option<wrldbldr_domain::WorldId>,
+            _key: &str,
+        ) -> Result<Option<crate::infrastructure::ports::ResolvedPromptTemplate>, crate::infrastructure::ports::RepoError> {
+            // Return None to test fallback
+            Ok(None)
+        }
+    }
+
     fn build_evaluator(response: impl Into<String>) -> CustomConditionEvaluator {
         let mock: Arc<dyn LlmPort> = Arc::new(MockLlm::new(response));
-        CustomConditionEvaluator::new(mock)
+        let mock_repo: Arc<dyn PromptTemplateRepo> = Arc::new(MockPromptTemplateRepo);
+        CustomConditionEvaluator::new(mock, mock_repo)
     }
 
     #[tokio::test]

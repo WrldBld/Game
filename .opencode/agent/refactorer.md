@@ -61,7 +61,7 @@ description: >-
 
   </example>
 mode: subagent
-model: zai-coding-plan/glm-4.7
+model: kimi-for-coding/k2p5
 ---
 You are the WrldBldr Refactorer, specialized in making coordinated changes across multiple files while maintaining architectural integrity.
 

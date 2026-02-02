@@ -332,6 +332,77 @@ pub fn AppSettingsPanel() -> Element {
                         }
                     }
 
+                    // LLM Temperature Settings
+                    SettingsSection {
+                        title: "LLM Temperature",
+                        description: "Temperature controls randomness in LLM responses (0.0 = deterministic, 2.0 = very creative)",
+
+                        FloatField {
+                            label: "NPC Response Temperature",
+                            description: "Temperature for NPC dialogue generation",
+                            value: settings.read().llm_temperature_npc_response,
+                            min: 0.0,
+                            max: 2.0,
+                            step: 0.1,
+                            onchange: move |val: f32| {
+                                settings.with_mut(|s| s.llm_temperature_npc_response = val);
+                                success_message.set(None);
+                            }
+                        }
+
+                        FloatField {
+                            label: "Suggestion Temperature",
+                            description: "Temperature for generic content suggestions",
+                            value: settings.read().llm_temperature_suggestion,
+                            min: 0.0,
+                            max: 2.0,
+                            step: 0.1,
+                            onchange: move |val: f32| {
+                                settings.with_mut(|s| s.llm_temperature_suggestion = val);
+                                success_message.set(None);
+                            }
+                        }
+
+                        FloatField {
+                            label: "Outcome Suggestion Temperature",
+                            description: "Temperature for challenge outcome suggestions",
+                            value: settings.read().llm_temperature_outcome_suggestion,
+                            min: 0.0,
+                            max: 2.0,
+                            step: 0.1,
+                            onchange: move |val: f32| {
+                                settings.with_mut(|s| s.llm_temperature_outcome_suggestion = val);
+                                success_message.set(None);
+                            }
+                        }
+
+                        FloatField {
+                            label: "Staging Temperature",
+                            description: "Temperature for NPC staging suggestions",
+                            value: settings.read().llm_temperature_staging,
+                            min: 0.0,
+                            max: 2.0,
+                            step: 0.1,
+                            onchange: move |val: f32| {
+                                settings.with_mut(|s| s.llm_temperature_staging = val);
+                                success_message.set(None);
+                            }
+                        }
+
+                        FloatField {
+                            label: "Custom Condition Temperature",
+                            description: "Temperature for custom condition evaluation (lower for more deterministic results)",
+                            value: settings.read().llm_temperature_custom_condition,
+                            min: 0.0,
+                            max: 2.0,
+                            step: 0.1,
+                            onchange: move |val: f32| {
+                                settings.with_mut(|s| s.llm_temperature_custom_condition = val);
+                                success_message.set(None);
+                            }
+                        }
+                    }
+
                     // LLM Context Budget Settings
                     SettingsSection {
                         title: "LLM Context Budget",
@@ -605,6 +676,66 @@ fn BoundedNumberField(props: BoundedNumberFieldProps) -> Element {
                     max: "{max_str}",
                     oninput: move |evt| {
                         if let Ok(val) = evt.value().parse::<usize>() {
+                            // Clamp value to bounds
+                            let clamped = val.clamp(props.min, props.max);
+                            props.onchange.call(clamped);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Float input field component (for f32 values like temperature)
+#[derive(Props, Clone, PartialEq)]
+struct FloatFieldProps {
+    label: &'static str,
+    description: &'static str,
+    value: f32,
+    min: f32,
+    max: f32,
+    step: f32,
+    onchange: EventHandler<f32>,
+}
+
+#[component]
+fn FloatField(props: FloatFieldProps) -> Element {
+    let value_str = format!("{:.2}", props.value);
+    let min_str = format!("{}", props.min);
+    let max_str = format!("{}", props.max);
+    let step_str = format!("{}", props.step);
+
+    rsx! {
+        div {
+            class: "float-field",
+
+            label {
+                class: "block",
+
+                div {
+                    class: "flex justify-between items-baseline mb-1",
+
+                    span {
+                        class: "text-gray-300 text-sm font-medium",
+                        "{props.label}"
+                    }
+
+                    span {
+                        class: "text-gray-500 text-xs",
+                        "{props.description} ({props.min}-{props.max})"
+                    }
+                }
+
+                input {
+                    r#type: "number",
+                    class: "w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    value: "{value_str}",
+                    min: "{min_str}",
+                    max: "{max_str}",
+                    step: "{step_str}",
+                    oninput: move |evt| {
+                        if let Ok(val) = evt.value().parse::<f32>() {
                             // Clamp value to bounds
                             let clamped = val.clamp(props.min, props.max);
                             props.onchange.call(clamped);

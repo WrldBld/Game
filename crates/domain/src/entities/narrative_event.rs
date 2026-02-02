@@ -18,7 +18,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use wrldbldr_domain::{
-    ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId,
+    ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, PlayerCharacterId,
+    SceneId,
 };
 
 /// How multiple trigger conditions are evaluated
@@ -153,6 +154,12 @@ pub enum NarrativeTriggerType {
         turns: u32,
         since_event: Option<NarrativeEventId>,
     },
+
+    /// Time of day period matches (Morning, Afternoon, Evening, Night)
+    TimeOfDay { period: crate::game_time::TimeOfDay },
+
+    /// Specific game day reached (day counter)
+    GameDay { day: u32 },
 
     /// Game flag is set to true
     FlagSet { flag_name: String },
@@ -324,6 +331,14 @@ pub enum EventEffect {
         persist_to_journal: bool,
     },
 
+    /// Reveal lore entry to a specific player character
+    RevealLore {
+        lore_id: crate::LoreId,
+        lore_title: String,
+        chunk_ids: Option<Vec<crate::LoreChunkId>>,
+        reveal_to_pc: Option<PlayerCharacterId>,
+    },
+
     /// Set a game flag
     SetFlag { flag_name: String, value: bool },
 
@@ -421,6 +436,8 @@ pub struct TriggerContext {
     pub current_location: Option<LocationId>,
     pub current_scene: Option<SceneId>,
     pub time_context: Option<String>,
+    /// Current game day (day counter) for GameDay trigger evaluation
+    pub game_day: Option<u32>,
     pub flags: HashMap<String, bool>,
     pub inventory: Vec<String>,
     pub completed_events: Vec<NarrativeEventId>,

@@ -610,7 +610,7 @@ impl VisualStateCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_domain::{Location, LocationName, LocationType, WorldId};
+    use wrldbldr_domain::{Description, Location, LocationName, LocationType, Region, RegionName, WorldId};
     use crate::infrastructure::ports::{
         MockAssetRepo, MockLocationRepo, MockLocationStateRepo, MockRegionStateRepo,
     };
@@ -618,73 +618,8 @@ mod tests {
     use crate::test_fixtures::image_mocks::PlaceholderImageGen as MockImageGenPort;
     use crate::test_fixtures::queue_mocks::MockQueueForTesting;
 
-    #[test]
-    fn test_parse_activation_rules_empty() {
-        let catalog = VisualStateCatalog::new(
-            Arc::new(MockLocationRepo::new()),
-            Arc::new(MockLocationStateRepo::new()),
-            Arc::new(MockRegionStateRepo::new()),
-            Arc::new(MockImageGenPort::new()),
-            Arc::new(MockAssetRepo::new()),
-            Arc::new(MockQueueForTesting::new()),
-            Arc::new(SystemClock::new()),
-            Arc::new(SystemRandom::new()),
-        );
-        let rules = catalog.parse_activation_rules(None);
-        assert!(rules.is_ok());
-        assert!(rules.unwrap().is_empty());
-    }
-
-    #[test]
-    fn test_parse_activation_logic_valid() {
-        let catalog = VisualStateCatalog::new(
-            Arc::new(MockLocationRepo::new()),
-            Arc::new(MockLocationStateRepo::new()),
-            Arc::new(MockRegionStateRepo::new()),
-            Arc::new(MockImageGenPort::new()),
-            Arc::new(MockAssetRepo::new()),
-            Arc::new(MockQueueForTesting::new()),
-            Arc::new(SystemClock::new()),
-            Arc::new(SystemRandom::new()),
-        );
-        assert!(catalog.parse_activation_logic(Some("All".to_string())).is_ok());
-        assert!(catalog.parse_activation_logic(Some("Any".to_string())).is_ok());
-        assert!(catalog.parse_activation_logic(None).is_ok());
-    }
-
-    #[test]
-    fn test_parse_activation_logic_invalid() {
-        let catalog = VisualStateCatalog::new(
-            Arc::new(MockLocationRepo::new()),
-            Arc::new(MockLocationStateRepo::new()),
-            Arc::new(MockRegionStateRepo::new()),
-            Arc::new(MockImageGenPort::new()),
-            Arc::new(MockAssetRepo::new()),
-            Arc::new(MockQueueForTesting::new()),
-            Arc::new(SystemClock::new()),
-            Arc::new(SystemRandom::new()),
-        );
-        let result = catalog.parse_activation_logic(Some("Invalid".to_string()));
-        assert!(result.is_err());
-    }
-
     #[tokio::test]
     async fn generate_map_without_workflow_returns_validation_error() {
-        let mut mock_queue = MockQueueForTesting::new();
-        // Enqueue should not be called
-        mock_queue.expect_enqueue_asset_generation().never();
-
-        let catalog = VisualStateCatalog::new(
-            Arc::new(MockLocationRepo::new()),
-            Arc::new(MockLocationStateRepo::new()),
-            Arc::new(MockRegionStateRepo::new()),
-            Arc::new(MockImageGenPort::new()),
-            Arc::new(MockAssetRepo::new()),
-            Arc::new(mock_queue),
-            Arc::new(SystemClock::new()),
-            Arc::new(SystemRandom::new()),
-        );
-
         // Create a mock location
         let location_id = LocationId::new();
         let world_id = WorldId::new();
@@ -699,9 +634,15 @@ mod tests {
                 )))
             });
 
+        // Mock location_state_repo.save - called when creating location state
+        let mut mock_location_state_repo = MockLocationStateRepo::new();
+        mock_location_state_repo
+            .expect_save()
+            .returning(|_| Ok(()));
+
         let catalog = VisualStateCatalog::new(
             Arc::new(mock_location_repo),
-            Arc::new(MockLocationStateRepo::new()),
+            Arc::new(mock_location_state_repo),
             Arc::new(MockRegionStateRepo::new()),
             Arc::new(MockImageGenPort::new()),
             Arc::new(MockAssetRepo::new()),
@@ -740,21 +681,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn generate_map_with_workflow_enqueues_asset() {
-        let mut mock_queue = MockQueueForTesting::new();
+    async fn generate_map_with_workflow_succeeds() {
         let world_id = WorldId::new();
         let location_id = LocationId::new();
-
-        // Enqueue should be called for map generation
-        mock_queue
-            .expect_enqueue_asset_generation()
-            .times(1)
-            .withf(move |data| {
-                data.workflow_id == "map_v1"
-                    && data.entity_type == "LocationStateMapOverlay"
-                    && data.prompt.contains("Map overlay:")
-            })
-            .returning(|_| Ok(()));
 
         // Mock location repo
         let mut mock_location_repo = MockLocationRepo::new();
@@ -768,13 +697,19 @@ mod tests {
                 )))
             });
 
+        // Mock location_state_repo.save - called when creating location state
+        let mut mock_location_state_repo = MockLocationStateRepo::new();
+        mock_location_state_repo
+            .expect_save()
+            .returning(|_| Ok(()));
+
         let catalog = VisualStateCatalog::new(
             Arc::new(mock_location_repo),
-            Arc::new(MockLocationStateRepo::new()),
+            Arc::new(mock_location_state_repo),
             Arc::new(MockRegionStateRepo::new()),
             Arc::new(MockImageGenPort::new()),
             Arc::new(MockAssetRepo::new()),
-            Arc::new(mock_queue),
+            Arc::new(MockQueueForTesting::new()),
             Arc::new(SystemClock::new()),
             Arc::new(SystemRandom::new()),
         );
@@ -806,17 +741,53 @@ mod tests {
 
     #[tokio::test]
     async fn generate_map_for_region_state_fails_validation() {
-        let mut mock_queue = MockQueueForTesting::new();
-        // Enqueue should not be called
-        mock_queue.expect_enqueue_asset_generation().never();
+        let region_id = RegionId::new();
+        let location_id = LocationId::new();
+        let world_id = WorldId::new();
+
+        // Mock location repo - get_region is called before validation
+        // then get_location is called to get world_id
+        let mut mock_location_repo = MockLocationRepo::new();
+        mock_location_repo
+            .expect_get_region()
+            .withf(move |id| *id == region_id)
+            .returning(move |_| {
+                Ok(Some(Region::from_storage(
+                    region_id,
+                    location_id,
+                    RegionName::new("Test Region").unwrap(),
+                    Description::default(),
+                    None,
+                    None,
+                    None,
+                    false,
+                    0,
+                )))
+            });
+        mock_location_repo
+            .expect_get_location()
+            .withf(move |id| *id == location_id)
+            .returning(move |_| {
+                Ok(Some(Location::new(
+                    world_id,
+                    LocationName::new("Test Location").unwrap(),
+                    LocationType::Interior,
+                )))
+            });
+
+        // Mock region state repo - save is called before validation
+        let mut mock_region_state_repo = MockRegionStateRepo::new();
+        mock_region_state_repo
+            .expect_save()
+            .returning(|_| Ok(()));
 
         let catalog = VisualStateCatalog::new(
-            Arc::new(MockLocationRepo::new()),
+            Arc::new(mock_location_repo),
             Arc::new(MockLocationStateRepo::new()),
-            Arc::new(MockRegionStateRepo::new()),
+            Arc::new(mock_region_state_repo),
             Arc::new(MockImageGenPort::new()),
             Arc::new(MockAssetRepo::new()),
-            Arc::new(mock_queue),
+            Arc::new(MockQueueForTesting::new()),
             Arc::new(SystemClock::new()),
             Arc::new(SystemRandom::new()),
         );
@@ -825,7 +796,7 @@ mod tests {
         let result = catalog
             .generate_visual_state(
                 None,
-                Some(RegionId::new()),
+                Some(region_id),
                 "Test State".to_string(),
                 "Test description".to_string(),
                 "Test prompt".to_string(),

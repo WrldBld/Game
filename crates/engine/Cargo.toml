@@ -30,6 +30,7 @@ reqwest = { workspace = true }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 
 # SQLite (for queues)
 sqlx = { workspace = true }
@@ -51,6 +52,9 @@ dotenvy = { workspace = true }
 
 # Concurrent collections
 dashmap = { workspace = true }
+
+# Runtime config swapping (live LLM model selection)
+arc-swap = "1.7"
 
 # Random
 rand = { workspace = true }

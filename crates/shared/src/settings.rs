@@ -2,6 +2,55 @@
 
 use serde::{Deserialize, Serialize};
 
+// =============================================================================
+// LLM Model Preference (Shared Contract)
+// =============================================================================
+
+/// DM preference for LLM model selection.
+///
+/// This is a stable contract type used by both Engine and Player UI.
+/// Stored in settings and used for model resolution fallback logic.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum LlmModelPreference {
+    /// Automatically select the best available model using fallback logic
+    Auto,
+    /// Use a specific model ID
+    Specific { model_id: String },
+}
+
+impl LlmModelPreference {
+    /// Create a new Specific preference with the given model ID.
+    pub fn specific(model_id: impl Into<String>) -> Self {
+        Self::Specific {
+            model_id: model_id.into(),
+        }
+    }
+
+    /// Returns true if this is the Auto variant.
+    pub fn is_auto(&self) -> bool {
+        matches!(self, Self::Auto)
+    }
+
+    /// Returns the model ID if this is a Specific preference.
+    pub fn model_id(&self) -> Option<&str> {
+        match self {
+            Self::Specific { model_id } => Some(model_id),
+            Self::Auto => None,
+        }
+    }
+}
+
+impl Default for LlmModelPreference {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+// =============================================================================
+// Settings Field Metadata
+// =============================================================================
+
 /// Settings field metadata for dynamic UI rendering.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsFieldMetadata {
@@ -281,6 +330,85 @@ pub fn settings_metadata() -> Vec<SettingsFieldMetadata> {
             }),
             min_value: None,
             max_value: None,
+            category: "LLM".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "llm_base_url".into(),
+            display_name: "LLM Base URL".into(),
+            description: "Base URL for the LLM provider (e.g., http://localhost:11434 for Ollama)".into(),
+            field_type: "string".into(),
+            default_value: serde_json::json!("http://localhost:11434"),
+            min_value: None,
+            max_value: None,
+            category: "LLM".into(),
+            requires_restart: true,
+        },
+        SettingsFieldMetadata {
+            key: "llm_model_preference".into(),
+            display_name: "LLM Model Preference".into(),
+            description: "Preferred LLM model. Use 'Auto' to automatically select from available models, or specify a model ID.".into(),
+            field_type: "object".into(),
+            default_value: serde_json::json!({
+                "type": "Auto"
+            }),
+            min_value: None,
+            max_value: None,
+            category: "LLM".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "llm_temperature_npc_response".into(),
+            display_name: "LLM Temperature (NPC Response)".into(),
+            description: "Temperature for NPC response generation. Lower values produce more consistent responses, higher values more creative.".into(),
+            field_type: "float".into(),
+            default_value: serde_json::json!(0.7),
+            min_value: Some(serde_json::json!(0.0)),
+            max_value: Some(serde_json::json!(2.0)),
+            category: "LLM".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "llm_temperature_suggestion".into(),
+            display_name: "LLM Temperature (Suggestions)".into(),
+            description: "Temperature for generic content suggestions.".into(),
+            field_type: "float".into(),
+            default_value: serde_json::json!(0.8),
+            min_value: Some(serde_json::json!(0.0)),
+            max_value: Some(serde_json::json!(2.0)),
+            category: "LLM".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "llm_temperature_outcome_suggestion".into(),
+            display_name: "LLM Temperature (Outcome Suggestions)".into(),
+            description: "Temperature for challenge outcome suggestions.".into(),
+            field_type: "float".into(),
+            default_value: serde_json::json!(0.8),
+            min_value: Some(serde_json::json!(0.0)),
+            max_value: Some(serde_json::json!(2.0)),
+            category: "LLM".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "llm_temperature_staging".into(),
+            display_name: "LLM Temperature (Staging)".into(),
+            description: "Temperature for NPC staging suggestions.".into(),
+            field_type: "float".into(),
+            default_value: serde_json::json!(0.7),
+            min_value: Some(serde_json::json!(0.0)),
+            max_value: Some(serde_json::json!(2.0)),
+            category: "LLM".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "llm_temperature_custom_condition".into(),
+            display_name: "LLM Temperature (Custom Conditions)".into(),
+            description: "Temperature for custom condition evaluation. Lower values produce more deterministic evaluations.".into(),
+            field_type: "float".into(),
+            default_value: serde_json::json!(0.1),
+            min_value: Some(serde_json::json!(0.0)),
+            max_value: Some(serde_json::json!(2.0)),
             category: "LLM".into(),
             requires_restart: false,
         },

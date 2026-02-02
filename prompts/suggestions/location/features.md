@@ -1,0 +1,1 @@
+Generate 5 notable features or points of interest for {entity_name}. Location type: {entity_type}. Atmosphere: {hints}. Each should be a single sentence describing something players might interact with or notice. Return each feature on its own line.

@@ -23,7 +23,11 @@ pub(super) async fn handle_event_chain_request(
                 .list(world_id_typed)
                 .await
             {
-                Ok(chains) => Ok(ResponseResult::success(json!(chains))),
+                Ok(chains) => {
+                    // Convert typed DTOs to protocol representation
+                    let protocol_chains: Vec<_> = chains.iter().map(|c| c.to_protocol()).collect();
+                    Ok(ResponseResult::success(json!(protocol_chains)))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "list event chains"),
@@ -40,7 +44,10 @@ pub(super) async fn handle_event_chain_request(
                 .get(chain_id_typed)
                 .await
             {
-                Ok(Some(chain)) => Ok(ResponseResult::success(json!(chain))),
+                Ok(Some(chain)) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(json!(chain.to_protocol())))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Chain not found",
@@ -72,7 +79,10 @@ pub(super) async fn handle_event_chain_request(
                 .create(world_id_typed, input, act_id, events)
                 .await
             {
-                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
+                Ok(chain) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(json!(chain.to_protocol())))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "create event chain"),
@@ -100,7 +110,10 @@ pub(super) async fn handle_event_chain_request(
                 .update(chain_id_typed, input, act_id, events)
                 .await
             {
-                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
+                Ok(chain) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(json!(chain.to_protocol())))
+                }
                 Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
                 ),
@@ -187,7 +200,10 @@ pub(super) async fn handle_event_chain_request(
                 .add_event(chain_id_typed, event_id_typed, position)
                 .await
             {
-                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
+                Ok(chain) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(json!(chain.to_protocol())))
+                }
                 Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
                 ),
@@ -252,7 +268,10 @@ pub(super) async fn handle_event_chain_request(
                 .reset(chain_id_typed)
                 .await
             {
-                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
+                Ok(chain) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(json!(chain.to_protocol())))
+                }
                 Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
                 ),
@@ -272,7 +291,11 @@ pub(super) async fn handle_event_chain_request(
                 .status(chain_id_typed)
                 .await
             {
-                Ok(status) => Ok(ResponseResult::success(json!(status))),
+                Ok(status) => {
+                    // Convert typed DTO to protocol representation
+                    let protocol = status.to_protocol();
+                    Ok(ResponseResult::success(json!(protocol)))
+                }
                 Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
                 ),

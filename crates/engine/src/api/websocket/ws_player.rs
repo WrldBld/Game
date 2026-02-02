@@ -600,66 +600,182 @@ fn relationship_type_to_string(relationship_type: &wrldbldr_domain::Relationship
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_domain::{PlayerCharacterId, UserId};
-    use crate::api::websocket::test_support::{TestAppBuilder, TestConnectionInfo};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use wrldbldr_domain::{PlayerCharacterId, UserId, WorldId};
+    use crate::api::websocket::test_support::*;
+    use crate::api::websocket::{WsState, PendingStagingStoreImpl, TimeSuggestionStore, GenerationStateStoreImpl};
+    use crate::api::connections::ConnectionManager;
+    use wrldbldr_shared::{ClientMessage, RequestPayload, ServerMessage};
+    use crate::api::websocket::ProtoWorldRole;
 
     #[tokio::test]
     async fn list_observations_unauthorized_for_different_pc() {
-        let mut builder = TestAppBuilder::new();
+        let now = chrono::Utc::now();
+        let world_id = WorldId::new();
         let pc_id = PlayerCharacterId::new();
         let other_pc_id = PlayerCharacterId::new();
         let user_id = UserId::new("user1").unwrap();
 
-        // Create PC for user
-        builder
-            .add_pc(pc_id, "TestPC", user_id.clone())
-            .await;
+        // Setup world repo
+        let mut world_repo = MockWorldRepo::new();
+        let world = crate::test_fixtures::world_seeder::create_test_world(world_id, now);
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world.clone())));
 
-        // Connect as user
-        let (addr, mut client) = builder
-            .connect_user(user_id, None, pc_id)
-            .await;
+        let mut repos = TestAppRepos::new(world_repo);
+        // JoinWorld with pc_id triggers player_character_repo.get() to load the PC
+        let pc_for_get = crate::test_fixtures::world_seeder::create_test_pc(pc_id, world_id, now);
+        repos.player_character_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+        let app = build_test_app(repos, now);
+        let connections = Arc::new(ConnectionManager::new());
 
-        // Try to list observations for different PC
-        let request = crate::api::websocket::ClientMessage::ObservationRequest(
-            wrldbldr_shared::ObservationRequest::ListObservations {
-                pc_id: other_pc_id.to_string(),
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+        let mut ws = ws_connect(addr).await;
+
+        // Join world as player with pc_id
+        ws_send_client(
+            &mut ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Player,
+                user_id: user_id.to_string(),
+                pc_id: Some(*pc_id.as_uuid()),
+                spectate_pc_id: None,
             },
-        );
-        let response = client.send_request(request).await;
+        ).await;
 
-        // Should get Unauthorized error
-        assert!(response.is_error());
-        let error = response.get_error().unwrap();
-        assert_eq!(error.code, "Unauthorized");
+        let _ = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        }).await;
+
+        // Try to list observations for different PC using RequestPayload
+        let request_id = uuid::Uuid::new_v4().to_string();
+        ws_send_client(
+            &mut ws,
+            &ClientMessage::Request {
+                request_id: request_id.clone(),
+                payload: RequestPayload::Observation(
+                    wrldbldr_shared::ObservationRequest::ListObservations {
+                        pc_id: other_pc_id.to_string(),
+                    }
+                ),
+            },
+        ).await;
+
+        // Expect error response
+        let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+            if let ServerMessage::Response { request_id: rid, .. } = m {
+                rid == &request_id
+            } else {
+                false
+            }
+        }).await;
+
+        if let ServerMessage::Response { result, .. } = response {
+            assert!(!result.is_success(), "Should get Unauthorized error");
+        } else {
+            panic!("Expected Response message");
+        }
+
+        server.abort();
     }
 
     #[tokio::test]
     async fn list_observations_allows_dm_access() {
-        let mut builder = TestAppBuilder::new();
+        let now = chrono::Utc::now();
+        let world_id = WorldId::new();
         let pc_id = PlayerCharacterId::new();
-        let user_id = UserId::new("dm_user").unwrap();
         let dm_user_id = UserId::new("dm").unwrap();
 
-        // Create PC for user
-        builder
-            .add_pc(pc_id, "TestPC", user_id.clone())
-            .await;
+        // Setup world repo
+        let mut world_repo = MockWorldRepo::new();
+        let world = crate::test_fixtures::world_seeder::create_test_world(world_id, now);
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world.clone())));
 
-        // Connect as DM
-        let (addr, mut client) = builder
-            .connect_user(dm_user_id, None, None)
-            .await;
+        let mut repos = TestAppRepos::new(world_repo);
+        // DM listing observations calls observation_repo.get_observations()
+        repos.observation_repo
+            .expect_get_observations()
+            .returning(|_| Ok(vec![]));
+        let app = build_test_app(repos, now);
+        let connections = Arc::new(ConnectionManager::new());
 
-        // DM can list observations for any PC
-        let request = crate::api::websocket::ClientMessage::ObservationRequest(
-            wrldbldr_shared::ObservationRequest::ListObservations {
-                pc_id: pc_id.to_string(),
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: Arc::new(TimeSuggestionStore::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+        let mut ws = ws_connect(addr).await;
+
+        // Join world as DM
+        ws_send_client(
+            &mut ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                user_id: dm_user_id.to_string(),
+                pc_id: None,
+                spectate_pc_id: None,
             },
-        );
-        let response = client.send_request(request).await;
+        ).await;
 
-        // Should succeed
-        assert!(response.is_success());
+        let _ = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        }).await;
+
+        // DM can list observations for any PC using RequestPayload
+        let request_id = uuid::Uuid::new_v4().to_string();
+        ws_send_client(
+            &mut ws,
+            &ClientMessage::Request {
+                request_id: request_id.clone(),
+                payload: RequestPayload::Observation(
+                    wrldbldr_shared::ObservationRequest::ListObservations {
+                        pc_id: pc_id.to_string(),
+                    }
+                ),
+            },
+        ).await;
+
+        // Expect success response (or NotFound if PC doesn't exist, but not Unauthorized)
+        let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
+            if let ServerMessage::Response { request_id: rid, .. } = m {
+                rid == &request_id
+            } else {
+                false
+            }
+        }).await;
+
+        if let ServerMessage::Response { result, .. } = response {
+            // DM should not get Unauthorized - they can access any PC
+            // They might get NotFound if PC doesn't exist, but that's ok
+            let is_unauthorized = match &result {
+                wrldbldr_shared::ResponseResult::Error { code, .. } => *code == wrldbldr_shared::ErrorCode::Unauthorized,
+                _ => false,
+            };
+            assert!(!is_unauthorized, "DM should not get Unauthorized error");
+        } else {
+            panic!("Expected Response message");
+        }
+
+        server.abort();
     }
 }

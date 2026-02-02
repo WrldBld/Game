@@ -33,6 +33,8 @@ pub struct LlmRequest {
     pub max_tokens: Option<u32>,
     /// Optional images for multimodal models
     pub images: Vec<ImageData>,
+    /// Optional model override (uses client's default if None)
+    pub model: Option<String>,
 }
 
 impl LlmRequest {
@@ -43,6 +45,7 @@ impl LlmRequest {
             temperature: None,
             max_tokens: None,
             images: Vec::new(),
+            model: None,
         }
     }
 
@@ -58,6 +61,11 @@ impl LlmRequest {
 
     pub fn with_max_tokens(mut self, max_tokens: Option<u32>) -> Self {
         self.max_tokens = max_tokens;
+        self
+    }
+
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 }
@@ -143,6 +151,46 @@ pub struct TokenUsage {
 #[async_trait]
 pub trait LlmPort: Send + Sync {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError>;
+}
+
+// =============================================================================
+// LLM Model Discovery Types
+// =============================================================================
+
+/// Descriptor for an available LLM model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LlmModelDescriptor {
+    /// Model identifier (e.g., "llama3.2", "gpt-4")
+    pub id: String,
+    /// Provider/owner of the model (e.g., "meta", "openai")
+    pub owned_by: Option<String>,
+    /// Optional capabilities or metadata
+    pub object: Option<String>,
+}
+
+/// Port for LLM model discovery and validation.
+///
+/// This is separate from `LlmPort` because it queries the provider's
+/// available models rather than generating content.
+#[async_trait]
+pub trait LlmModelsPort: Send + Sync {
+    /// List all available models from the provider.
+    async fn list_models(&self) -> Result<Vec<LlmModelDescriptor>, LlmError>;
+
+    /// Validate that a specific model ID is available.
+    ///
+    /// Default implementation queries list_models and checks for presence.
+    async fn validate_model(&self, model_id: &str) -> Result<(), LlmError> {
+        let models = self.list_models().await?;
+        if models.iter().any(|m| m.id == model_id) {
+            Ok(())
+        } else {
+            Err(LlmError::InvalidResponse(format!(
+                "Model '{}' not found in available models",
+                model_id
+            )))
+        }
+    }
 }
 
 // =============================================================================

@@ -167,6 +167,38 @@ pub struct AppSettings {
     #[serde(default)]
     pub context_budget: ContextBudgetConfig,
 
+    /// LLM provider base URL (e.g., "http://localhost:11434" for Ollama)
+    #[serde(default = "default_llm_base_url")]
+    pub llm_base_url: String,
+
+    /// DM preference for LLM model selection
+    #[serde(default)]
+    pub llm_model_preference: wrldbldr_shared::settings::LlmModelPreference,
+
+    /// Environment variable override for default LLM model
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_model_env_default: Option<String>,
+
+    /// Temperature for NPC response generation (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_npc_response")]
+    pub llm_temperature_npc_response: f32,
+
+    /// Temperature for generic content suggestions (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_suggestion")]
+    pub llm_temperature_suggestion: f32,
+
+    /// Temperature for outcome suggestions (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_outcome_suggestion")]
+    pub llm_temperature_outcome_suggestion: f32,
+
+    /// Temperature for staging suggestions (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_staging")]
+    pub llm_temperature_staging: f32,
+
+    /// Temperature for custom condition evaluation (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_custom_condition")]
+    pub llm_temperature_custom_condition: f32,
+
     // ============================================================================
     // Asset Generation
     // ============================================================================
@@ -212,6 +244,24 @@ fn default_staging_timeout_seconds() -> u32 {
 fn default_auto_approve_on_timeout() -> bool {
     true
 }
+fn default_llm_base_url() -> String {
+    "http://localhost:11434".to_string()
+}
+fn default_llm_temperature_npc_response() -> f32 {
+    0.7
+}
+fn default_llm_temperature_suggestion() -> f32 {
+    0.8
+}
+fn default_llm_temperature_outcome_suggestion() -> f32 {
+    0.8
+}
+fn default_llm_temperature_staging() -> f32 {
+    0.7
+}
+fn default_llm_temperature_custom_condition() -> f32 {
+    0.1
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -236,6 +286,14 @@ impl Default for AppSettings {
             outcome_branch_max: 4,
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
+            llm_base_url: default_llm_base_url(),
+            llm_model_preference: wrldbldr_shared::settings::LlmModelPreference::default(),
+            llm_model_env_default: None,
+            llm_temperature_npc_response: default_llm_temperature_npc_response(),
+            llm_temperature_suggestion: default_llm_temperature_suggestion(),
+            llm_temperature_outcome_suggestion: default_llm_temperature_outcome_suggestion(),
+            llm_temperature_staging: default_llm_temperature_staging(),
+            llm_temperature_custom_condition: default_llm_temperature_custom_condition(),
             style_reference_asset_id: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
             list_default_page_size_override: None,

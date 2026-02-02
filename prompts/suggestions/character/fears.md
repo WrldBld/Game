@@ -1,0 +1,1 @@
+Generate 4 different fears for {entity_name}. Archetype: {hints}. Wants: {additional_context}. Each fear should be a single sentence. Consider fears that create interesting dramatic tension. Return each fear on its own line.

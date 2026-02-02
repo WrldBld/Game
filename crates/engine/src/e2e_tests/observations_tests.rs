@@ -27,7 +27,7 @@ async fn test_create_observation() {
 
     // Create an observation using the management use case
     // ObservationType variants are: Direct, HeardAbout, Deduced
-    let observation_result = ctx
+    let observation = ctx
         .app
         .use_cases
         .management
@@ -40,16 +40,10 @@ async fn test_create_observation() {
             Some(common_room),
             Some("The tavern keeper seems nervous today".to_string()),
         )
-        .await;
+        .await
+        .expect("Observation creation should succeed");
 
-    match observation_result {
-        Ok(obs) => {
-            println!("Created observation for NPC: {}", obs.npc_id());
-        }
-        Err(e) => {
-            println!("Observation creation failed: {:?}", e);
-        }
-    }
+    println!("Created observation for NPC: {}", observation.npc_id());
 }
 
 /// Test listing observations for a PC.
@@ -77,7 +71,7 @@ async fn test_list_pc_observations() {
     // Create observations for different NPCs using management use case
     let npcs = [mira_id, grom_id];
     for (i, npc_id) in npcs.iter().enumerate() {
-        let _ = ctx
+        ctx
             .app
             .use_cases
             .management
@@ -90,7 +84,8 @@ async fn test_list_pc_observations() {
                 Some(common_room),
                 Some(format!("Observation number {}", i + 1)),
             )
-            .await;
+            .await
+            .expect("Observation creation should succeed");
     }
 
     // List observations using the entity method
@@ -134,7 +129,7 @@ async fn test_observations_in_context() {
     .expect("Player creation should succeed");
 
     // Create an observation using Deduced type (for discovered information)
-    let _ = ctx
+    ctx
         .app
         .use_cases
         .management
@@ -147,7 +142,8 @@ async fn test_observations_in_context() {
             Some(common_room),
             Some("The old map shows a hidden passage".to_string()),
         )
-        .await;
+        .await
+        .expect("Observation creation should succeed");
 
     // Get observations for context
     let observations = ctx
@@ -202,7 +198,7 @@ async fn test_observation_types() {
     // Create observations using the management use case with type strings
     let type_strings = ["Direct", "HeardAbout", "Deduced"];
     for (i, type_str) in type_strings.iter().enumerate() {
-        let result = ctx
+        let obs = ctx
             .app
             .use_cases
             .management
@@ -215,16 +211,10 @@ async fn test_observation_types() {
                 Some(common_room),
                 Some(format!("Observation type test {}", i)),
             )
-            .await;
+            .await
+            .expect("Observation creation should succeed");
 
-        match result {
-            Ok(obs) => {
-                println!("Created {} observation for NPC: {}", type_str, obs.npc_id());
-            }
-            Err(e) => {
-                println!("Failed to create {} observation: {:?}", type_str, e);
-            }
-        }
+        println!("Created {} observation for NPC: {}", type_str, obs.npc_id());
     }
 }
 
@@ -273,7 +263,7 @@ async fn test_observation_count_trigger() {
     // Save the event using the repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Event creation should succeed");
@@ -282,8 +272,8 @@ async fn test_observation_count_trigger() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 

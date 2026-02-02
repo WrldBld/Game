@@ -888,6 +888,14 @@ Note: There is no repository wrapper layer. Use cases inject port traits directl
 
 ---
 
+## Reporting
+
+- All agent-generated reports must be written to `reports/`.
+- Use descriptive filenames with a 5-digit random suffix to avoid collisions (example: `reports/narrative_audit_48291.md`).
+- When delegating to sub-agents, explicitly instruct them to write their report to `reports/`.
+
+---
+
 ## Testing
 
 ### Unit Tests

@@ -988,6 +988,7 @@ mod tests {
             "Test State",
             Utc::now(),
         )
+        .expect("valid location state")
         .with_backdrop(AssetPath::new("/assets/test.png").unwrap())
         .with_priority(100);
 

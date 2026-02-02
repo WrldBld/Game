@@ -225,6 +225,10 @@ pub use dto::{
     ImportWorkflowsResponseDto,
     InputDefaultDto,
     InputTypeDto,
+    // LLM Model Discovery DTOs
+    LlmModelInfoDto,
+    LlmModelResolvedDto,
+    LlmModelsListResponseDto,
     // NPC Disposition
     NpcDispositionStateDto,
     PromptMappingDto,

@@ -7,12 +7,14 @@ use std::sync::Arc;
 
 use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
+    llm_runtime::{LlmRuntime, LlmRuntimeHolder},
     neo4j::Neo4jRepositories,
     ports::{
         ActRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, FlagRepo, GoalRepo,
-        ImageGenPort, InteractionRepo, ItemRepo, LlmPort, LocationRepo, LocationStateRepo,
-        LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo,
-        QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
+        ImageGenPort, InteractionRepo, ItemRepo, LlmModelsPort, LlmPort, LocationRepo,
+        LocationStateRepo, LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo,
+        PromptTemplateRepo, QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo,
+        StagingRepo, WorldRepo,
     },
 };
 use crate::use_cases;
@@ -30,6 +32,9 @@ pub struct App {
     pub queue: Arc<dyn QueuePort>,
     pub llm: Arc<dyn LlmPort>,
     pub content: Arc<ContentService>,
+    /// Live LLM runtime holder for dynamic configuration updates.
+    /// Use `llm_runtime()` to get the current runtime.
+    pub(crate) llm_runtime_holder: LlmRuntimeHolder,
 }
 
 /// Container for all repository modules.
@@ -96,11 +101,40 @@ impl App {
     pub fn new(
         repos: Neo4jRepositories,
         llm: Arc<dyn LlmPort>,
+        llm_models: Arc<dyn LlmModelsPort>,
         image_gen: Arc<dyn ImageGenPort>,
         queue: Arc<dyn QueuePort>,
         settings_repo: Arc<dyn SettingsRepo>,
         prompt_templates_repo: Arc<dyn PromptTemplateRepo>,
         content_config: ContentServiceConfig,
+    ) -> Self {
+        Self::with_llm_runtime(
+            repos,
+            llm,
+            llm_models,
+            image_gen,
+            queue,
+            settings_repo,
+            prompt_templates_repo,
+            content_config,
+            None,
+        )
+    }
+
+    /// Create a new App with a pre-configured LLM runtime.
+    ///
+    /// This constructor allows injecting a specific LLM runtime for testing
+    /// or for live configuration scenarios.
+    pub fn with_llm_runtime(
+        repos: Neo4jRepositories,
+        llm: Arc<dyn LlmPort>,
+        llm_models: Arc<dyn LlmModelsPort>,
+        image_gen: Arc<dyn ImageGenPort>,
+        queue: Arc<dyn QueuePort>,
+        settings_repo: Arc<dyn SettingsRepo>,
+        prompt_templates_repo: Arc<dyn PromptTemplateRepo>,
+        content_config: ContentServiceConfig,
+        llm_runtime: Option<LlmRuntime>,
     ) -> Self {
         // Create infrastructure services
         let clock_port: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
@@ -251,11 +285,18 @@ impl App {
             use_cases::actantial::ActantialContextOps::new(repos.character.clone()),
         );
 
-        let ai = use_cases::AiUseCases::new(Arc::new(use_cases::ai::SuggestionOps::new(
-            queue_port.clone(),
-            repos.world.clone(),
-            repos.character.clone(),
-        )));
+        let ai = use_cases::AiUseCases::new(
+            Arc::new(use_cases::ai::SuggestionOps::new(
+                queue_port.clone(),
+                repos.world.clone(),
+                repos.character.clone(),
+                settings_repo.clone(),
+            )),
+            Arc::new(use_cases::ai::ResolveLlmModel::new(
+                llm_models.clone(),
+                settings_repo.clone(),
+            )),
+        );
 
         let resolve_outcome = Arc::new(use_cases::challenge::ResolveOutcome::new(
             repos.challenge.clone(),
@@ -267,6 +308,7 @@ impl App {
         let outcome_decision = Arc::new(use_cases::challenge::OutcomeDecision::new(
             queue_port.clone(),
             resolve_outcome.clone(),
+            settings_repo.clone(),
         ));
 
         let challenge_uc = use_cases::ChallengeUseCases::new(
@@ -360,16 +402,19 @@ impl App {
             repos.world.clone(),
             repos.location.clone(),
             narrative.clone(),
+            settings_repo.clone(),
         );
 
         let queues = use_cases::QueueUseCases::new(
             Arc::new(use_cases::queues::ProcessPlayerAction::new(
                 queue_ctx.clone(),
+                prompt_templates_repo.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
                 queue_ctx,
                 llm_port.clone(),
                 prompt_templates_repo.clone(),
+                ai.resolve_model.clone(),
             )),
         );
 
@@ -384,14 +429,17 @@ impl App {
             repos.flag.clone(),
             repos.world.clone(),
             clock_port.clone(),
+            repos.lore.clone(),
         ));
         let narrative_events = Arc::new(use_cases::narrative::NarrativeEventOps::new(
             narrative.clone(),
             execute_effects.clone(),
             clock_port.clone(),
         ));
-        let narrative_chains =
-            Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
+        let narrative_chains = Arc::new(use_cases::narrative::EventChainOps::new(
+            repos.narrative.clone(),
+            clock_port.clone(),
+        ));
         let narrative_decision = Arc::new(use_cases::narrative::NarrativeDecisionFlow::new(
             approve_suggestion.clone(),
             queue_port.clone(),
@@ -472,11 +520,14 @@ impl App {
                 settings_repo.clone(),
                 llm.clone(),
                 clock_port.clone(),
+                prompt_templates_repo.clone(),
             )),
             Arc::new(use_cases::staging::RegenerateStagingSuggestions::new(
                 repos.location.clone(),
                 repos.character.clone(),
                 llm.clone(),
+                settings_repo.clone(),
+                prompt_templates_repo.clone(),
             )),
             Arc::new(use_cases::staging::ApproveStagingRequest::new(
                 repos.staging.clone(),
@@ -530,7 +581,10 @@ impl App {
         );
 
         let story_events_uc = use_cases::StoryEventUseCases::new(Arc::new(
-            use_cases::story_events::StoryEventOps::new(narrative.clone()),
+            use_cases::story_events::StoryEventOps::new(
+                repos.narrative.clone(),
+                clock_port.clone(),
+            ),
         ));
 
         let lore_uc = use_cases::LoreUseCases::new(Arc::new(use_cases::lore::LoreOps::new(
@@ -543,7 +597,10 @@ impl App {
         ));
 
         // Create custom condition evaluator for LLM-based condition/trigger evaluation
-        let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(llm_port.clone()));
+        let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(
+            llm_port.clone(),
+            prompt_templates_repo.clone(),
+        ));
 
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldManagement::new(repos.world.clone(), clock_port.clone()),
@@ -632,12 +689,101 @@ impl App {
             content.register_dnd5e_provider(path);
         }
 
+        // Create the LLM runtime holder
+        let llm_runtime_holder = if let Some(runtime) = llm_runtime {
+            LlmRuntimeHolder::new(runtime)
+        } else {
+            // Create a default runtime from the injected ports
+            // Extract base_url and model from the inner client if possible
+            let base_url = "http://localhost:11434".to_string();
+            let model = "mlx-community/gpt-oss-20b-MXFP4-Q8".to_string();
+            let runtime = LlmRuntime::new(
+                llm.clone(),
+                llm_models.clone(),
+                base_url,
+                model,
+            );
+            LlmRuntimeHolder::new(runtime)
+        };
+
         Self {
             repositories: repositories_container,
             use_cases,
             queue,
             llm,
             content,
+            llm_runtime_holder,
         }
+    }
+
+    /// Get the current LLM runtime.
+    ///
+    /// This returns a snapshot of the runtime configuration at the time of call.
+    /// The snapshot includes the current base_url, model, and ports.
+    pub fn llm_runtime(&self) -> Arc<LlmRuntime> {
+        self.llm_runtime_holder.current()
+    }
+
+    /// Refresh the LLM runtime from current settings.
+    ///
+    /// This is called after settings updates to apply new base_url/model.
+    /// The new runtime is built from the current settings and atomically swapped.
+    pub async fn refresh_llm_runtime(&self) {
+        // Get current settings
+        let settings = match self.use_cases.settings.get_global().await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to load settings for LLM runtime refresh");
+                return;
+            }
+        };
+
+        let base_url = settings.llm_base_url().to_string();
+
+        // Resolve the model using the settings flow
+        let resolve_input = crate::use_cases::ai::ResolveModelInput {
+            world_id: None,
+            env_default_override: settings.llm_model_env_default().map(String::from),
+        };
+
+        let resolved_model = match self.use_cases.ai.resolve_model.execute(resolve_input).await {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to resolve LLM model for runtime refresh");
+                // Fall back to current model
+                crate::use_cases::ai::ResolvedModel {
+                    model_id: self.llm_runtime_holder.model(),
+                    source: crate::use_cases::ai::ModelSource::EnvDefault,
+                    warning: Some(format!("Model resolution failed: {}", e)),
+                }
+            }
+        };
+
+        tracing::info!(
+            base_url = %base_url,
+            model = %resolved_model.model_id,
+            source = %resolved_model.source,
+            "Refreshing LLM runtime"
+        );
+
+        // Build new OpenAI-compatible client
+        let client = Arc::new(crate::infrastructure::openai_compatible::OpenAICompatibleClient::new(
+            &base_url,
+            &resolved_model.model_id,
+        ));
+
+        // Create resilient wrapper
+        let retry_config = crate::infrastructure::resilient_llm::RetryConfig::default();
+        let llm: Arc<dyn LlmPort> = Arc::new(crate::infrastructure::resilient_llm::ResilientLlmClient::new(
+            client.clone(),
+            retry_config,
+        ));
+        let models: Arc<dyn LlmModelsPort> = client;
+
+        // Create and swap the new runtime
+        let new_runtime = LlmRuntime::new(llm, models, base_url, resolved_model.model_id);
+        self.llm_runtime_holder.swap(new_runtime);
+
+        tracing::info!("LLM runtime refreshed successfully");
     }
 }

@@ -733,6 +733,60 @@ pub fn load_thornhaven() -> TestWorld {
 }
 
 // =============================================================================
+// Test Helper Functions
+// =============================================================================
+
+use wrldbldr_domain::{
+    Character, CharacterName, Description, PlayerCharacter, PlayerCharacterId, Region, RegionName,
+    UserId, World, WorldName,
+};
+
+/// Create a test world for testing.
+pub fn create_test_world(world_id: WorldId, now: chrono::DateTime<chrono::Utc>) -> World {
+    let world_name = WorldName::new("Test World").unwrap();
+    World::new(world_name, now)
+        .with_description(Description::new("A test world").unwrap())
+        .with_id(world_id)
+}
+
+/// Create a test NPC for testing.
+pub fn create_test_npc(
+    npc_id: CharacterId,
+    world_id: WorldId,
+    _now: chrono::DateTime<chrono::Utc>,
+) -> Character {
+    let name = CharacterName::new("Test NPC").unwrap();
+    Character::new(world_id, name, CampbellArchetype::Hero).with_id(npc_id)
+}
+
+/// Create a test PC for testing.
+pub fn create_test_pc(
+    pc_id: PlayerCharacterId,
+    world_id: WorldId,
+    now: chrono::DateTime<chrono::Utc>,
+) -> PlayerCharacter {
+    let name = CharacterName::new("Test PC").unwrap();
+    let user_id = UserId::new("test-user").unwrap();
+    let location_id = LocationId::new();
+    PlayerCharacter::new(user_id, world_id, name, location_id, now).with_id(pc_id)
+}
+
+/// Create a test region for testing.
+pub fn create_test_region(location_id: LocationId) -> Region {
+    Region::from_storage(
+        RegionId::new(),
+        location_id,
+        RegionName::new("Test Region").unwrap(),
+        Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    )
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 

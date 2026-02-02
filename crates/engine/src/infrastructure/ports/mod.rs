@@ -54,8 +54,8 @@ pub use types::{
 // =============================================================================
 pub use external::{
     ChatMessage, FinishReason, ImageGenPort, ImageRequest, ImageResult,
-    LlmPort, LlmRequest, LlmResponse, MessageRole, QueueItem, QueueItemData,
-    QueueItemStatus, QueuePort, TokenUsage,
+    LlmModelDescriptor, LlmModelsPort, LlmPort, LlmRequest, LlmResponse, MessageRole,
+    QueueItem, QueueItemData, QueueItemStatus, QueuePort, TokenUsage,
 };
 
 // =============================================================================

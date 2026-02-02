@@ -385,8 +385,8 @@ impl Character {
         };
         let _ = max_hp; // Silence unused variable warning
 
-        // Apply damage
-        let new_hp = current_hp.saturating_sub(amount);
+        // Apply damage, clamping to 0 to prevent negative HP
+        let new_hp = (current_hp.saturating_sub(amount)).max(0);
         self.stats = std::mem::take(&mut self.stats)
             .with_current_hp(Some(new_hp))
             .expect("Damage logic ensures new_hp is non-negative and <= max_hp");

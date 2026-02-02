@@ -758,6 +758,20 @@ pub enum StoryEventTypeData {
         source: String,
         quantity: u32,
     },
+    ItemTransferred {
+        item_name: String,
+        from_character: Option<String>,
+        to_character: String,
+        quantity: u32,
+        reason: Option<String>,
+    },
+    ItemUsed {
+        item_name: String,
+        character_id: String,
+        target: Option<String>,
+        effect: String,
+        consumed: bool,
+    },
     RelationshipChanged {
         from_character: String,
         to_character: String,
@@ -781,6 +795,14 @@ pub enum StoryEventTypeData {
         importance: String,
         persist_to_journal: bool,
     },
+    NpcAction {
+        npc_id: String,
+        npc_name: String,
+        action_type: String,
+        description: String,
+        dm_approved: bool,
+        dm_modified: bool,
+    },
     DmMarker {
         title: String,
         note: String,
@@ -792,6 +814,18 @@ pub enum StoryEventTypeData {
         narrative_event_name: String,
         outcome_branch: Option<String>,
         effects_applied: Vec<String>,
+    },
+    StatModified {
+        character_id: String,
+        stat_name: String,
+        previous_value: i32,
+        new_value: i32,
+        reason: String,
+    },
+    FlagChanged {
+        flag_name: String,
+        new_value: bool,
+        reason: String,
     },
     SessionStarted {
         session_number: u32,

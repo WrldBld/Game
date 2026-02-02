@@ -247,7 +247,7 @@ async fn test_lore_discovered_trigger() {
     // Save using the repository (this creates proper schema with HAS_NARRATIVE_EVENT)
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -256,8 +256,8 @@ async fn test_lore_discovered_trigger() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 

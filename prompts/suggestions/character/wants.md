@@ -1,0 +1,1 @@
+Generate 4 different character motivations/wants for {entity_name}. Archetype: {hints}. Description: {additional_context}. Each want should be a single sentence describing what the character desires. Return each want on its own line.

@@ -17,7 +17,8 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use crate::infrastructure::ports::{
-    FinishReason, LlmError, LlmPort, LlmRequest, LlmResponse, MessageRole, TokenUsage,
+    FinishReason, LlmError, LlmModelDescriptor, LlmModelsPort, LlmPort, LlmRequest, LlmResponse,
+    MessageRole, TokenUsage,
 };
 
 /// Client for OpenAI-compatible API servers
@@ -87,11 +88,25 @@ impl Default for OpenAICompatibleClient {
     }
 }
 
+impl OpenAICompatibleClient {
+    /// Get the base URL.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    /// Get the model.
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+}
+
 #[async_trait]
 impl LlmPort for OpenAICompatibleClient {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
+        // Use request model if provided, otherwise fall back to client's default
+        let model = request.model.clone().unwrap_or_else(|| self.model.clone());
         let api_request = OpenAIChatRequest {
-            model: self.model.clone(),
+            model,
             messages: build_messages(&request),
             temperature: request.temperature,
             max_tokens: request.max_tokens,
@@ -119,6 +134,46 @@ impl LlmPort for OpenAICompatibleClient {
             .map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
 
         convert_response(api_response)
+    }
+}
+
+#[async_trait]
+impl LlmModelsPort for OpenAICompatibleClient {
+    async fn list_models(&self) -> Result<Vec<LlmModelDescriptor>, LlmError> {
+        let response = self
+            .client
+            .get(format!("{}/v1/models", self.base_url))
+            .send()
+            .await
+            .map_err(|e| LlmError::RequestFailed(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .map_err(|e| LlmError::RequestFailed(e.to_string()))?;
+            return Err(LlmError::RequestFailed(format!(
+                "Failed to list models: {}",
+                error_text
+            )));
+        }
+
+        let models_response: OpenAIModelsResponse = response
+            .json()
+            .await
+            .map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
+
+        let descriptors = models_response
+            .data
+            .into_iter()
+            .map(|model| LlmModelDescriptor {
+                id: model.id,
+                owned_by: model.owned_by,
+                object: model.object,
+            })
+            .collect();
+
+        Ok(descriptors)
     }
 }
 
@@ -211,4 +266,22 @@ struct OpenAIUsage {
     prompt_tokens: u32,
     completion_tokens: u32,
     total_tokens: u32,
+}
+
+// =============================================================================
+// OpenAI Models API types
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+struct OpenAIModelsResponse {
+    data: Vec<OpenAIModel>,
+    object: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIModel {
+    id: String,
+    object: Option<String>,
+    #[serde(default)]
+    owned_by: Option<String>,
 }

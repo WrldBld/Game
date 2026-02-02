@@ -29,6 +29,6 @@ pub mod e2e_tests;
 
 pub use app::App;
 pub use prompt_templates::{
-    all_keys as prompt_template_keys, defaults as prompt_defaults, prompt_template_metadata,
-    PromptTemplateCategory, PromptTemplateMetadata,
+    all_keys as prompt_template_keys, prompt_template_metadata,
+    PromptTemplateCategory, PromptTemplateMetadata, PromptDefaultsStore,
 };

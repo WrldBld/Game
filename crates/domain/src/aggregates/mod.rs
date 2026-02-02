@@ -19,6 +19,7 @@
 //! | Domain Events | Return enums from mutations |
 
 pub mod character;
+pub mod event_chain;
 pub mod location;
 pub mod narrative_event;
 pub mod player_character;
@@ -26,6 +27,7 @@ pub mod scene;
 pub mod world;
 
 pub use character::{Character, StatBlock, StatModifier, StatValue};
+pub use event_chain::{EventChain, EventChainActivation, EventChainFavorite};
 pub use location::Location;
 pub use narrative_event::NarrativeEvent;
 pub use player_character::{PlayerCharacter, PlayerCharacterStateChange};

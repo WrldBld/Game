@@ -207,18 +207,21 @@ async fn test_npc_triggers_perception_check_via_tool() {
 #[tokio::test]
 #[ignore = "requires neo4j testcontainer and VCR cassettes with tool calls"]
 async fn test_tool_call_outcome_affects_dialogue() {
-    // Scenario: Challenge result influences NPC's response.
-    // Expected: Success/failure leads to different dialogue.
+    // Scenario: Challenge result influences NPC's response using LLM-generated outcome.
+    // Expected: Success/failure leads to different dialogue that is LLM-generated.
     //
     // Setup:
     // 1. Create E2E context with VCR LLM
-    // 2. NPC triggers perception check
-    // 3. Player rolls (success case)
-    // 4. Continue conversation
+    // 2. Player rolls against a challenge (success case)
+    // 3. DM requests LLM-generated outcome suggestions (ChallengeOutcomeDecision::Suggest)
+    // 4. LLM generates alternative outcome descriptions
+    // 5. DM selects one suggestion and approves
+    // 6. Approved LLM-generated outcome is returned to player
     //
     // Assertions:
-    // - After successful roll, NPC dialogue references what player noticed
-    // - Context includes challenge outcome for LLM
+    // - After successful roll, LLM generates outcome suggestions
+    // - Selected LLM-generated outcome dialogue is returned to player
+    // - Outcome dialogue reflects success with explicit success wording
 
     const TEST_NAME: &str = "test_tool_call_outcome_affects_dialogue";
     let event_log = create_shared_log(TEST_NAME);
@@ -273,37 +276,112 @@ async fn test_tool_call_outcome_affects_dialogue() {
             "Should have approval queue ID"
         );
 
-        // Approve the challenge outcome
+        let approval_queue_id = roll_result.approval_queue_id.expect("Should have approval queue ID");
+
+        // Step 1: Request LLM-generated outcome suggestions using ChallengeOutcomeDecision::Suggest
+        let suggest_result = ctx
+            .app
+            .use_cases
+            .challenge
+            .outcome_decision
+            .execute(
+                ctx.world.world_id,
+                approval_queue_id,
+                wrldbldr_domain::ChallengeOutcomeDecision::suggest(Some(
+                    "Generate a vivid, dramatic outcome description that clearly shows the persuasion succeeded. \
+                    The NPC should open up about their past and offer something valuable to the player. \
+                    Include explicit success wording like 'succeeded', 'convinced', or 'persuaded'.".to_string()
+                )),
+            )
+            .await
+            .expect("Failed to request outcome suggestions");
+
+        // Verify that the suggestion request was queued
+        assert!(
+            matches!(suggest_result, crate::use_cases::challenge::OutcomeDecisionResult::Queued),
+            "Outcome suggestion should be queued for LLM processing"
+        );
+
+        // Step 2: Process the LLM request queue to generate outcome suggestions
+        let llm_result = ctx
+            .app
+            .use_cases
+            .queues
+            .process_llm_request
+            .execute(|_| {})  // No-op callback for broadcast events during processing
+            .await
+            .expect("Failed to process LLM request");
+
+        assert!(llm_result.is_some(), "Should have processed an LLM request for outcome suggestions");
+
+        let llm_processed = llm_result.unwrap();
+        tracing::info!(
+            approval_id = %llm_processed.approval_id,
+            broadcast_events = llm_processed.broadcast_events.len(),
+            "LLM outcome suggestions generated"
+        );
+
+        // Verify that OutcomeSuggestionReady event was broadcast
+        let has_suggestion_event = llm_processed.broadcast_events.iter().any(|e| {
+            matches!(e, crate::use_cases::queues::BroadcastEvent::OutcomeSuggestionReady { .. })
+        });
+        assert!(has_suggestion_event, "Should have OutcomeSuggestionReady broadcast event");
+
+        // Extract suggestions from the broadcast event
+        let suggestions = llm_processed.broadcast_events.iter().find_map(|e| {
+            if let crate::use_cases::queues::BroadcastEvent::OutcomeSuggestionReady { suggestions, .. } = e {
+                Some(suggestions.clone())
+            } else {
+                None
+            }
+        }).expect("Should have suggestions in broadcast event");
+
+        assert!(!suggestions.is_empty(), "Should have at least one LLM-generated outcome suggestion");
+        tracing::info!(
+            suggestion_count = suggestions.len(),
+            first_suggestion = %suggestions[0],
+            "LLM-generated outcome suggestions"
+        );
+
+        // Step 3: Select the first LLM-generated suggestion and approve with it
+        let selected_outcome = suggestions[0].clone();
         let approval_result = ctx
             .app
             .use_cases
             .approval
             .decision_flow
             .execute(
-                roll_result
-                    .approval_queue_id
-                    .expect("Should have approval queue ID").into(),
-                DmApprovalDecision::Accept,
+                approval_queue_id.into(),
+                DmApprovalDecision::AcceptWithModification {
+                    modified_dialogue: selected_outcome.clone(),
+                    approved_tools: vec![], // No tools for this test
+                    rejected_tools: vec![],
+                    item_recipients: std::collections::HashMap::new(),
+                },
             )
             .await
-            .expect("Failed to approve outcome");
+            .expect("Failed to approve outcome with LLM-generated dialogue");
 
-        // Verify the outcome was processed and has dialogue
+        // Verify the outcome was processed and has the LLM-generated dialogue
         assert!(
             approval_result.final_dialogue.is_some(),
-            "Should have outcome dialogue describing success"
+            "Should have outcome dialogue from LLM-generated suggestion"
         );
 
         let dialogue = approval_result.final_dialogue.unwrap();
         tracing::info!(
             outcome_dialogue = %dialogue,
-            "Challenge outcome dialogue"
+            "Challenge outcome dialogue (LLM-generated)"
         );
 
-        // The dialogue should exist (actual content depends on seeded challenge data)
+        // The dialogue should exist and match the selected suggestion
         assert!(!dialogue.is_empty(), "Outcome dialogue should not be empty");
+        assert_eq!(
+            dialogue, selected_outcome,
+            "Final dialogue should match the selected LLM-generated suggestion"
+        );
 
-        // SEMANTIC ASSERTIONS: Validate the outcome dialogue reflects success
+        // SEMANTIC ASSERTIONS: Validate the LLM-generated outcome dialogue reflects success
         let semantic = SemanticAssert::new(vcr.clone());
 
         // A successful challenge should result in positive outcome dialogue
@@ -321,6 +399,15 @@ async fn test_tool_call_outcome_affects_dialogue() {
                 &dialogue,
                 "Is this response coherent, well-formed dialogue that makes sense in a fantasy RPG context?",
                 "Challenge outcome dialogue should be coherent and contextually appropriate",
+            )
+            .await?;
+
+        // Validate explicit success wording as per requirements
+        semantic
+            .assert_custom(
+                &dialogue,
+                "Does this response contain explicit success wording such as 'succeeded', 'convinced', 'persuaded', 'successful', or similar terms indicating the persuasion worked?",
+                "LLM-generated outcome should include explicit success wording as requested in the prompt",
             )
             .await?;
 
@@ -612,7 +699,7 @@ async fn test_npc_gives_item_via_tool() {
             tracing::info!(
                 tool_name = %tool.name,
                 tool_description = %tool.description,
-                tool_arguments = %tool.arguments,
+                tool_arguments = ?tool.arguments,
                 "Found give_item tool"
             );
         }
@@ -674,18 +761,12 @@ async fn test_npc_gives_item_via_tool() {
         // If give_item tools were approved, manually simulate the item transfer
         // (The full effect execution happens in the approval flow)
         for tool in give_item_tools {
-            if let Some(item_name) = tool.arguments.get("item_name").and_then(|v| v.as_str()) {
-                let description = tool
-                    .arguments
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
+            if let crate::game_tools::ToolArgs::GiveItem { item_name, description } = &tool.arguments {
                 ctx.app
                     .use_cases
                     .inventory
                     .give_item
-                    .execute(pc_id, item_name.to_string(), description)
+                    .execute(pc_id, item_name.clone(), Some(description.clone()))
                     .await
                     .expect("Failed to give item");
             }
@@ -859,18 +940,12 @@ async fn test_tool_effect_persists_after_conversation() {
 
             // Simulate item transfer for give_item tools
             for tool in &give_item_tools {
-                if let Some(item_name) = tool.arguments.get("item_name").and_then(|v| v.as_str()) {
-                    let description = tool
-                        .arguments
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-
+                if let crate::game_tools::ToolArgs::GiveItem { item_name, description } = &tool.arguments {
                     ctx.app
                         .use_cases
                         .inventory
                         .give_item
-                        .execute(pc_id, item_name.to_string(), description)
+                        .execute(pc_id, item_name.clone(), Some(description.clone()))
                         .await
                         .expect("Failed to give item");
                 }
@@ -1083,7 +1158,7 @@ async fn test_dm_sees_proposed_tools() {
                 tool_id = %tool.id,
                 tool_name = %tool.name,
                 tool_description = %tool.description,
-                tool_arguments = %tool.arguments,
+                tool_arguments = ?tool.arguments,
                 "Proposed tool"
             );
 
@@ -1094,10 +1169,11 @@ async fn test_dm_sees_proposed_tools() {
                 !tool.description.is_empty(),
                 "Tool should have a human-readable description"
             );
-            // Arguments can be an empty object but should be valid JSON
+            // Arguments are now typed ToolArgs, not JSON Value
+            // Just verify the tool name matches the expected tool type
             assert!(
-                tool.arguments.is_object(),
-                "Tool arguments should be a JSON object"
+                !tool.name.is_empty(),
+                "Tool should have a name indicating its type"
             );
         }
 
@@ -1416,7 +1492,7 @@ async fn test_dm_can_modify_tool_parameters() {
             tracing::info!(
                 tool_id = %tool.id,
                 tool_name = %tool.name,
-                tool_arguments = %tool.arguments,
+                tool_arguments = ?tool.arguments,
                 "Original tool parameters"
             );
         }
@@ -1639,7 +1715,7 @@ async fn test_multiple_tools_in_single_response() {
                 tool_id = %tool.id,
                 tool_name = %tool.name,
                 tool_description = %tool.description,
-                tool_arguments = %tool.arguments,
+                tool_arguments = ?tool.arguments,
                 "Proposed tool"
             );
 
@@ -1729,18 +1805,12 @@ async fn test_multiple_tools_in_single_response() {
             .collect();
 
         for tool in &give_item_tools {
-            if let Some(item_name) = tool.arguments.get("item_name").and_then(|v| v.as_str()) {
-                let description = tool
-                    .arguments
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
+            if let crate::game_tools::ToolArgs::GiveItem { item_name, description } = &tool.arguments {
                 ctx.app
                     .use_cases
                     .inventory
                     .give_item
-                    .execute(pc_id, item_name.to_string(), description)
+                    .execute(pc_id, item_name.clone(), Some(description.clone()))
                     .await
                     .expect("Failed to give item");
             }

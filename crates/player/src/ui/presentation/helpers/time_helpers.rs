@@ -9,7 +9,7 @@ use wrldbldr_shared::types::TimeSuggestionDecision;
 ///
 /// # Examples
 /// ```
-/// use wrldbldr_player::ui::time_helpers::hours_to_seconds;
+/// use wrldbldr_player::ui::presentation::helpers::time_helpers::hours_to_seconds;
 ///
 /// assert_eq!(hours_to_seconds(1), 3600);
 /// assert_eq!(hours_to_seconds(4), 14400);
@@ -33,7 +33,7 @@ pub fn hours_to_seconds(hours: u32) -> u32 {
 ///
 /// # Examples
 /// ```
-/// use wrldbldr_player::ui::time_helpers::determine_time_decision;
+/// use wrldbldr_player::ui::presentation::helpers::time_helpers::determine_time_decision;
 ///
 /// // Same seconds = approve
 /// assert_eq!(determine_time_decision(600, 600), "approve");
@@ -57,7 +57,7 @@ pub fn determine_time_decision(suggested_seconds: u32, modified_seconds: u32) ->
 ///
 /// # Examples
 /// ```
-/// use wrldbldr_player::ui::time_helpers::build_time_suggestion_decision;
+/// use wrldbldr_player::ui::presentation::helpers::time_helpers::build_time_suggestion_decision;
 /// use wrldbldr_shared::types::TimeSuggestionDecision;
 ///
 /// let decision = build_time_suggestion_decision("approve", None);
@@ -94,7 +94,7 @@ pub fn build_time_suggestion_decision(
 ///
 /// # Examples
 /// ```
-/// use wrldbldr_player::ui::time_helpers::format_advance_reason;
+/// use wrldbldr_player::ui::presentation::helpers::time_helpers::format_advance_reason;
 ///
 /// assert_eq!(format_advance_reason(3600, None), "Time advanced by 1 hour");
 /// assert_eq!(format_advance_reason(7200, None), "Time advanced by 2 hours");
@@ -139,7 +139,7 @@ pub fn format_advance_reason(seconds: u32, custom_reason: Option<String>) -> Str
 ///
 /// # Examples
 /// ```
-/// use wrldbldr_player::ui::time_helpers::validate_seconds_range;
+/// use wrldbldr_player::ui::presentation::helpers::time_helpers::validate_seconds_range;
 ///
 /// assert!(validate_seconds_range(0));
 /// assert!(validate_seconds_range(3600));

@@ -1,9 +1,10 @@
 use super::*;
 
-use wrldbldr_domain::{value_objects::RuleSystemConfig, Character, CharacterId, World, WorldId};
+use wrldbldr_domain::{value_objects::RuleSystemConfig, Character, CharacterId, WorldId};
 use wrldbldr_shared::{
-    ClientMessage, ErrorCode, ProtoWorldRole, RequestPayload, ResponseResult, ServerMessage,
+    ClientMessage, RequestPayload, ServerMessage,
 };
+use crate::api::websocket::ProtoWorldRole;
 use wrldbldr_domain::types::{ChangeType, EntityType};
 
 /// Create a D&D 5e world for testing.
@@ -22,12 +23,11 @@ fn create_dnd5e_world(
 fn create_test_character(
     character_id: CharacterId,
     world_id: WorldId,
-    now: chrono::DateTime<chrono::Utc>,
+    _now: chrono::DateTime<chrono::Utc>,
 ) -> Character {
     let name = wrldbldr_domain::CharacterName::new("Test Character").unwrap();
     Character::new(world_id, name, wrldbldr_domain::CampbellArchetype::Hero)
         .with_id(character_id)
-        .with_created_at(now)
 }
 
 #[tokio::test]
@@ -49,14 +49,15 @@ async fn character_create_emits_entity_changed_broadcast() {
     let character = create_test_character(character_id, world_id, now);
 
     character_repo
-        .expect_create()
-        .returning(move |_, _, _, _, _, _| Ok(character.clone()));
+        .expect_save()
+        .returning(move |_| Ok(()));
 
     character_repo
         .expect_list_in_world()
         .returning(|_, _, _| Ok(Vec::new()));
 
-    let repos = TestAppRepos::new(world_repo);
+    let mut repos = TestAppRepos::new(world_repo);
+    repos.character_repo = character_repo;
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -109,30 +110,15 @@ async fn character_create_emits_entity_changed_broadcast() {
     )
     .await;
 
-    // Expect response
-    let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response {
-            request_id: rid, ..
-        } = m
-        {
-            rid == &request_id
-        } else {
-            false
-        }
-    })
-    .await;
+    // Expect response and EntityChanged broadcast (order not guaranteed)
+    let (response, entity_changed) =
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
 
     if let ServerMessage::Response { result, .. } = response {
         assert!(result.is_success(), "Character creation should succeed");
     } else {
         panic!("Expected Response message");
     }
-
-    // Expect EntityChanged broadcast
-    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::EntityChanged { .. })
-    })
-    .await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);
@@ -167,14 +153,15 @@ async fn character_update_emits_entity_changed_broadcast() {
         .returning(move |_| Ok(Some(character.clone())));
 
     character_repo
-        .expect_update()
-        .returning(move |_, _, _, _, _, _, _, _| Ok(character.clone()));
+        .expect_save()
+        .returning(move |_| Ok(()));
 
     character_repo
         .expect_list_in_world()
         .returning(|_, _, _| Ok(Vec::new()));
 
-    let repos = TestAppRepos::new(world_repo);
+    let mut repos = TestAppRepos::new(world_repo);
+    repos.character_repo = character_repo;
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -228,24 +215,9 @@ async fn character_update_emits_entity_changed_broadcast() {
     )
     .await;
 
-    // Expect response
-    let _response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response {
-            request_id: rid, ..
-        } = m
-        {
-            rid == &request_id
-        } else {
-            false
-        }
-    })
-    .await;
-
-    // Expect EntityChanged broadcast
-    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::EntityChanged { .. })
-    })
-    .await;
+    // Expect response and EntityChanged broadcast (order not guaranteed)
+    let (_response, entity_changed) =
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);
@@ -287,7 +259,8 @@ async fn character_delete_emits_entity_changed_broadcast() {
         .expect_list_in_world()
         .returning(|_, _, _| Ok(Vec::new()));
 
-    let repos = TestAppRepos::new(world_repo);
+    let mut repos = TestAppRepos::new(world_repo);
+    repos.character_repo = character_repo;
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -333,24 +306,9 @@ async fn character_delete_emits_entity_changed_broadcast() {
     )
     .await;
 
-    // Expect response
-    let _response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response {
-            request_id: rid, ..
-        } = m
-        {
-            rid == &request_id
-        } else {
-            false
-        }
-    })
-    .await;
-
-    // Expect EntityChanged broadcast
-    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::EntityChanged { .. })
-    })
-    .await;
+    // Expect response and EntityChanged broadcast (order not guaranteed)
+    let (_response, entity_changed) =
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);
@@ -385,14 +343,15 @@ async fn character_change_archetype_emits_entity_changed_broadcast() {
         .returning(move |_| Ok(Some(character.clone())));
 
     character_repo
-        .expect_change_archetype()
-        .returning(|_, _, _| Ok(()));
+        .expect_save()
+        .returning(|_| Ok(()));
 
     character_repo
         .expect_list_in_world()
         .returning(|_, _, _| Ok(Vec::new()));
 
-    let repos = TestAppRepos::new(world_repo);
+    let mut repos = TestAppRepos::new(world_repo);
+    repos.character_repo = character_repo;
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -442,24 +401,9 @@ async fn character_change_archetype_emits_entity_changed_broadcast() {
     )
     .await;
 
-    // Expect response
-    let _response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response {
-            request_id: rid, ..
-        } = m
-        {
-            rid == &request_id
-        } else {
-            false
-        }
-    })
-    .await;
-
-    // Expect EntityChanged broadcast
-    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::EntityChanged { .. })
-    })
-    .await;
+    // Expect response and EntityChanged broadcast (order not guaranteed)
+    let (_response, entity_changed) =
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);

@@ -48,6 +48,16 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
 
     let mut repos = TestAppRepos::new(world_repo);
 
+    // Settings repo expectations for temperature lookup in RegenerateStagingSuggestions
+    repos
+        .settings_repo
+        .expect_get_for_world()
+        .returning(move |_| Ok(None));
+    repos
+        .settings_repo
+        .expect_get_global()
+        .returning(|| Ok(None));
+
     let region_for_get = region.clone();
     repos
         .location_repo
@@ -86,8 +96,9 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     let llm = Arc::new(FixedLlm {
         content: r#"[{"name":"Alice","reason":"She is here"}]"#.to_string(),
     });
+    let llm_models: Arc<dyn crate::infrastructure::ports::LlmModelsPort> = Arc::new(NoopLlm);
 
-    let app = build_test_app_with_ports(repos, now, Arc::new(NoopQueue), llm);
+    let app = build_test_app_with_ports(repos, now, Arc::new(NoopQueue), llm, llm_models);
     let connections = Arc::new(ConnectionManager::new());
 
     let ws_state = Arc::new(WsState {

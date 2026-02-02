@@ -1017,6 +1017,24 @@ fn default_staging_timeout_seconds() -> u64 {
 fn default_auto_approve_on_timeout() -> bool {
     true
 }
+fn default_llm_base_url() -> String {
+    "http://localhost:11434".to_string()
+}
+fn default_llm_temperature_npc_response() -> f32 {
+    0.7
+}
+fn default_llm_temperature_suggestion() -> f32 {
+    0.8
+}
+fn default_llm_temperature_outcome_suggestion() -> f32 {
+    0.8
+}
+fn default_llm_temperature_staging() -> f32 {
+    0.7
+}
+fn default_llm_temperature_custom_condition() -> f32 {
+    0.1
+}
 
 /// All configurable application settings
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1124,6 +1142,39 @@ pub struct AppSettings {
     #[serde(default)]
     context_budget: ContextBudgetConfig,
 
+    /// LLM provider base URL (e.g., "http://localhost:11434" for Ollama)
+    #[serde(default = "default_llm_base_url")]
+    llm_base_url: String,
+
+    /// DM preference for LLM model selection
+    #[serde(default)]
+    llm_model_preference: wrldbldr_shared::settings::LlmModelPreference,
+
+    /// Environment variable override for default LLM model
+    /// Set from WRLDBLDR_LLM_MODEL_DEFAULT env var
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    llm_model_env_default: Option<String>,
+
+    /// Temperature for NPC response generation (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_npc_response")]
+    llm_temperature_npc_response: f32,
+
+    /// Temperature for generic content suggestions (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_suggestion")]
+    llm_temperature_suggestion: f32,
+
+    /// Temperature for outcome suggestions (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_outcome_suggestion")]
+    llm_temperature_outcome_suggestion: f32,
+
+    /// Temperature for staging suggestions (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_staging")]
+    llm_temperature_staging: f32,
+
+    /// Temperature for custom condition evaluation (0.0 - 2.0)
+    #[serde(default = "default_llm_temperature_custom_condition")]
+    llm_temperature_custom_condition: f32,
+
     // ============================================================================
     // Asset Generation
     // ============================================================================
@@ -1166,6 +1217,14 @@ impl Default for AppSettings {
             outcome_branch_max: 4,
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
+            llm_base_url: default_llm_base_url(),
+            llm_model_preference: wrldbldr_shared::settings::LlmModelPreference::default(),
+            llm_model_env_default: None,
+            llm_temperature_npc_response: default_llm_temperature_npc_response(),
+            llm_temperature_suggestion: default_llm_temperature_suggestion(),
+            llm_temperature_outcome_suggestion: default_llm_temperature_outcome_suggestion(),
+            llm_temperature_staging: default_llm_temperature_staging(),
+            llm_temperature_custom_condition: default_llm_temperature_custom_condition(),
             style_reference_asset_id: None,
             map_workflow_name: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
@@ -1310,6 +1369,46 @@ impl AppSettings {
     /// Token budget configuration for LLM context building
     pub fn context_budget(&self) -> &ContextBudgetConfig {
         &self.context_budget
+    }
+
+    /// LLM provider base URL
+    pub fn llm_base_url(&self) -> &str {
+        &self.llm_base_url
+    }
+
+    /// DM preference for LLM model selection
+    pub fn llm_model_preference(&self) -> &wrldbldr_shared::settings::LlmModelPreference {
+        &self.llm_model_preference
+    }
+
+    /// Environment variable default for LLM model (if set)
+    pub fn llm_model_env_default(&self) -> Option<&str> {
+        self.llm_model_env_default.as_deref()
+    }
+
+    /// Temperature for NPC response generation (clamped to 0.0 - 2.0)
+    pub fn llm_temperature_npc_response(&self) -> f32 {
+        self.llm_temperature_npc_response.clamp(0.0, 2.0)
+    }
+
+    /// Temperature for generic content suggestions (clamped to 0.0 - 2.0)
+    pub fn llm_temperature_suggestion(&self) -> f32 {
+        self.llm_temperature_suggestion.clamp(0.0, 2.0)
+    }
+
+    /// Temperature for outcome suggestions (clamped to 0.0 - 2.0)
+    pub fn llm_temperature_outcome_suggestion(&self) -> f32 {
+        self.llm_temperature_outcome_suggestion.clamp(0.0, 2.0)
+    }
+
+    /// Temperature for staging suggestions (clamped to 0.0 - 2.0)
+    pub fn llm_temperature_staging(&self) -> f32 {
+        self.llm_temperature_staging.clamp(0.0, 2.0)
+    }
+
+    /// Temperature for custom condition evaluation (clamped to 0.0 - 2.0)
+    pub fn llm_temperature_custom_condition(&self) -> f32 {
+        self.llm_temperature_custom_condition.clamp(0.0, 2.0)
     }
 
     /// Default style reference asset ID for image generation
@@ -1580,6 +1679,73 @@ impl AppSettings {
     pub fn with_list_max_page_size_override(mut self, size: Option<u32>) -> Self {
         self.list_max_page_size_override = size;
         self
+    }
+
+    /// Set LLM base URL
+    pub fn with_llm_base_url(self, llm_base_url: impl Into<String>) -> Self {
+        Self {
+            llm_base_url: llm_base_url.into(),
+            ..self
+        }
+    }
+
+    /// Set LLM model preference
+    pub fn with_llm_model_preference(
+        self,
+        llm_model_preference: wrldbldr_shared::settings::LlmModelPreference,
+    ) -> Self {
+        Self {
+            llm_model_preference,
+            ..self
+        }
+    }
+
+    /// Set LLM model environment default
+    pub fn with_llm_model_env_default(self, llm_model_env_default: Option<String>) -> Self {
+        Self {
+            llm_model_env_default,
+            ..self
+        }
+    }
+
+    /// Set LLM temperature for NPC response generation
+    pub fn with_llm_temperature_npc_response(self, temperature: f32) -> Self {
+        Self {
+            llm_temperature_npc_response: temperature,
+            ..self
+        }
+    }
+
+    /// Set LLM temperature for generic content suggestions
+    pub fn with_llm_temperature_suggestion(self, temperature: f32) -> Self {
+        Self {
+            llm_temperature_suggestion: temperature,
+            ..self
+        }
+    }
+
+    /// Set LLM temperature for outcome suggestions
+    pub fn with_llm_temperature_outcome_suggestion(self, temperature: f32) -> Self {
+        Self {
+            llm_temperature_outcome_suggestion: temperature,
+            ..self
+        }
+    }
+
+    /// Set LLM temperature for staging suggestions
+    pub fn with_llm_temperature_staging(self, temperature: f32) -> Self {
+        Self {
+            llm_temperature_staging: temperature,
+            ..self
+        }
+    }
+
+    /// Set LLM temperature for custom condition evaluation
+    pub fn with_llm_temperature_custom_condition(self, temperature: f32) -> Self {
+        Self {
+            llm_temperature_custom_condition: temperature,
+            ..self
+        }
     }
 }
 

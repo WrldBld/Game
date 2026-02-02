@@ -593,8 +593,8 @@ mod tests {
     };
 
     use crate::infrastructure::ports::{
-        ClockPort, MockCharacterRepo, MockLocationRepo, MockObservationRepo, MockStagingRepo,
-        NpcRegionRelationType, NpcRegionRelationship, NpcWithRegionInfo, RepoError,
+        ClockPort, MockCharacterRepo, MockLocationRepo, MockObservationRepo, MockPlayerCharacterRepo, MockStagingRepo,
+        MockWorldRepo, NpcRegionRelationType, NpcRegionRelationship, NpcWithRegionInfo, RepoError,
     };
 
     // =========================================================================
@@ -814,7 +814,7 @@ mod tests {
                 .await
                 .unwrap_err();
 
-            assert!(matches!(err, NpcError::NotFound));
+            assert!(matches!(err, NpcError::NotFound { .. }));
         }
 
         #[tokio::test]
@@ -1064,24 +1064,79 @@ mod tests {
 
         #[tokio::test]
         async fn when_reveal_false_returns_unknown_figure() {
+            use wrldbldr_domain::UserId;
+
             let npc_id = CharacterId::new();
             let pc_id = PlayerCharacterId::new();
             let location_id = LocationId::new();
             let region_id = RegionId::new();
+            let world_id = WorldId::new();
 
-            let character_repo = Arc::new(MockCharacterRepo::new());
-            let location_repo = Arc::new(MockLocationRepo::new());
-            let observation_repo = Arc::new(MockObservationRepo::new());
-            let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
-            let world_repo = Arc::new(MockWorldRepo::new());
-            let clock = Arc::new(build_clock(fixed_time()));
+            // Setup mocks for the reveal=false path which needs PC and World
+            let mut player_character_repo = MockPlayerCharacterRepo::new();
+            let pc = wrldbldr_domain::PlayerCharacter::new(
+                UserId::new("test-user").unwrap(),
+                world_id,
+                CharacterName::new("Test PC").unwrap(),
+                location_id,
+                fixed_time(),
+            );
+            player_character_repo
+                .expect_get()
+                .withf(move |id| *id == pc_id)
+                .returning(move |_| Ok(Some(pc.clone())));
+
+            let mut world_repo = MockWorldRepo::new();
+            let world = wrldbldr_domain::World::new(
+                wrldbldr_domain::value_objects::WorldName::new("Test World").unwrap(),
+                fixed_time(),
+            )
+            .with_id(world_id);
+            world_repo
+                .expect_get()
+                .withf(move |id| *id == world_id)
+                .returning(move |_| Ok(Some(world.clone())));
+
+            let mut location_repo = MockLocationRepo::new();
+            let region = Region::from_storage(
+                region_id,
+                location_id,
+                RegionName::new("Test Region").unwrap(),
+                wrldbldr_domain::value_objects::Description::default(),
+                None,
+                None,
+                None,
+                false,
+                0,
+            );
+            location_repo
+                .expect_get_region()
+                .withf(move |id| *id == region_id)
+                .returning(move |_| Ok(Some(region.clone())));
+
+            // character_repo.get is called at the start of build_event
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_get()
+                .withf(move |id| *id == npc_id)
+                .returning(|_| Ok(None)); // NPC not found, returns "Unknown NPC"
+            let character_repo = Arc::new(character_repo);
+
+            // When reveal=false, the code now creates an unrevealed direct observation
+            let mut observation_repo = MockObservationRepo::new();
+            observation_repo
+                .expect_save_observation()
+                .returning(|_| Ok(()));
+            let observation_repo = Arc::new(observation_repo);
+
+            let clock = build_clock(fixed_time());
 
             let use_case = NpcApproachEvents::new(
                 character_repo,
-                location_repo,
+                Arc::new(location_repo),
                 observation_repo,
-                player_character_repo,
-                world_repo,
+                Arc::new(player_character_repo),
+                Arc::new(world_repo),
                 clock,
             );
 
@@ -1093,7 +1148,8 @@ mod tests {
             assert_eq!(result.npc_name, "Unknown Figure");
             assert!(result.npc_sprite.is_none());
             assert!(result.lookup_error.is_none());
-            assert!(result.observation_error.is_some());
+            // When reveal=false, observation is saved successfully (no error)
+            assert!(result.observation_error.is_none());
         }
 
         #[tokio::test]
@@ -1116,7 +1172,7 @@ mod tests {
             let observation_repo = Arc::new(MockObservationRepo::new());
             let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
             let world_repo = Arc::new(MockWorldRepo::new());
-            let clock = Arc::new(build_clock(fixed_time()));
+            let clock = build_clock(fixed_time());
 
             let use_case = NpcApproachEvents::new(
                 character_repo_arc,
@@ -1155,7 +1211,7 @@ mod tests {
             let observation_repo = Arc::new(MockObservationRepo::new());
             let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
             let world_repo = Arc::new(MockWorldRepo::new());
-            let clock = Arc::new(build_clock(fixed_time()));
+            let clock = build_clock(fixed_time());
 
             let use_case = NpcApproachEvents::new(
                 character_repo_arc,
@@ -1177,7 +1233,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn when_reveal_true_and_repo_fails_returns_error_info() {
+        async fn when_reveal_true_and_repo_fails_returns_error() {
             let npc_id = CharacterId::new();
             let pc_id = PlayerCharacterId::new();
             let location_id = LocationId::new();
@@ -1194,7 +1250,7 @@ mod tests {
             let observation_repo = Arc::new(MockObservationRepo::new());
             let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
             let world_repo = Arc::new(MockWorldRepo::new());
-            let clock = Arc::new(build_clock(fixed_time()));
+            let clock = build_clock(fixed_time());
 
             let use_case = NpcApproachEvents::new(
                 character_repo_arc,
@@ -1205,13 +1261,12 @@ mod tests {
                 clock,
             );
 
+            // The use case now returns an error on repo failure (fail-fast behavior)
             let result = use_case
                 .build_event(npc_id, true, pc_id, location_id, region_id)
-                .await
-                .expect("build_event should succeed even on repo error");
+                .await;
 
-            assert_eq!(result.npc_name, "Unknown NPC");
-            assert!(result.lookup_error.is_some());
+            assert!(result.is_err());
         }
     }
 
@@ -1276,7 +1331,7 @@ mod tests {
                 .returning(move |_| Ok(Some(pc_clone.clone())));
 
             let mut world_repo = MockWorldRepo::new();
-            let world = World::new(world_id, WorldName::new("Test World").unwrap());
+            let world = World::new(WorldName::new("Test World").unwrap(), now).with_id(world_id);
             let world_clone = world.clone();
             world_repo
                 .expect_get()
@@ -1326,10 +1381,29 @@ mod tests {
             let world_id = WorldId::new();
 
             let mut character_repo = MockCharacterRepo::new();
-            character_repo.expect_get().returning(|_| Ok(None)); // NPC not found, returns "Unknown"
+            let npc = create_test_character(npc_id, "SharingNPC");
+            character_repo
+                .expect_get()
+                .withf(move |id| *id == npc_id)
+                .returning(move |_| Ok(Some(npc.clone())));
 
             let mut location_repo = MockLocationRepo::new();
-            location_repo.expect_get_region().returning(|_| Ok(None)); // Region not found, returns "Unknown"
+            // Region exists and belongs to location
+            let region = Region::from_storage(
+                region_id,
+                location_id,
+                RegionName::new("SharedRegion").unwrap(),
+                wrldbldr_domain::value_objects::Description::default(),
+                None,
+                None,
+                None,
+                false,
+                0,
+            );
+            location_repo
+                .expect_get_region()
+                .withf(move |id| *id == region_id)
+                .returning(move |_| Ok(Some(region.clone())));
 
             let mut player_character_repo = MockPlayerCharacterRepo::new();
             let user_id = UserId::new("test-user").unwrap();
@@ -1347,7 +1421,7 @@ mod tests {
                 .returning(move |_| Ok(Some(pc_clone.clone())));
 
             let mut world_repo = MockWorldRepo::new();
-            let world = World::new(world_id, WorldName::new("Test World").unwrap());
+            let world = World::new(WorldName::new("Test World").unwrap(), now).with_id(world_id);
             let world_clone = world.clone();
             world_repo
                 .expect_get()
@@ -1373,8 +1447,8 @@ mod tests {
                 .await
                 .expect("share_location should succeed even if observation fails");
 
-            assert_eq!(result.npc_name, "Unknown");
-            assert_eq!(result.region_name, "Unknown");
+            assert_eq!(result.npc_name, "SharingNPC");
+            assert_eq!(result.region_name, "SharedRegion");
             assert!(result.observation_error.is_some());
         }
 
@@ -1431,7 +1505,7 @@ mod tests {
                 .returning(move |_| Ok(Some(pc_clone.clone())));
 
             let mut world_repo = MockWorldRepo::new();
-            let world = World::new(world_id, WorldName::new("Test World").unwrap());
+            let world = World::new(WorldName::new("Test World").unwrap(), now).with_id(world_id);
             let world_clone = world.clone();
             world_repo
                 .expect_get()

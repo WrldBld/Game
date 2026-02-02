@@ -87,6 +87,7 @@ impl SemanticAssert {
             temperature: Some(0.0), // Deterministic
             max_tokens: Some(512),  // Allow room for model's internal reasoning tokens
             images: Vec::new(),
+            model: None, // Use default model
         };
 
         let response = self.llm.generate(request).await?;

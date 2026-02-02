@@ -101,7 +101,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
 
     ws_state
         .pending_time_suggestions
-        .insert(suggestion_id, suggestion)
+        .insert(suggestion_id.into(), suggestion)
         .await;
 
     // DM approves the suggestion (no direct response; only broadcast).

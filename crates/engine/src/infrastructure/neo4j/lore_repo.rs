@@ -1090,7 +1090,7 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::database("link_lore_about", e))?;
 
-        let has_result = result.next().await.is_ok();
+        let has_result = matches!(result.next().await, Ok(Some(_)));
         if !has_result {
             return Err(RepoError::not_found(target_label, target_id));
         }
@@ -1260,7 +1260,7 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::database("mark_common_lore", e))?;
 
-        if location_result.next().await.is_err() {
+        if !matches!(location_result.next().await, Ok(Some(_))) {
             return Err(RepoError::not_found("Location", location_id.to_string()));
         }
 
@@ -1410,20 +1410,47 @@ mod tests {
     use super::*;
     use crate::infrastructure::clock::FixedClock;
     use std::sync::Arc;
+    use tokio::sync::Mutex;
     use wrldbldr_domain::{LoreCategory, LocationId, RegionId, ItemId, WorldId, CharacterId};
+
+    // Global mutex to serialize Neo4j integration tests and prevent
+    // concurrent DB cleanup races (each test wipes the database).
+    static TEST_MUTEX: Mutex<()> = Mutex::const_new(());
 
     fn create_test_lore(world_id: WorldId) -> Lore {
         Lore::new(world_id, "Test Lore", LoreCategory::Common, chrono::Utc::now())
     }
 
+    async fn create_test_world(graph: &Neo4jGraph, world_id: WorldId) {
+        let q = query("CREATE (w:World {id: $id}) RETURN w.id AS id")
+            .param("id", world_id.to_string());
+        graph.run(q).await.expect("Failed to create test world");
+    }
+
+    async fn create_test_character(graph: &Neo4jGraph, character_id: CharacterId) {
+        let q = query("CREATE (c:Character {id: $id}) RETURN c.id AS id")
+            .param("id", character_id.to_string());
+        graph.run(q).await.expect("Failed to create test character");
+    }
+
+    async fn create_test_location(graph: &Neo4jGraph, location_id: LocationId) {
+        let q = query("CREATE (l:Location {id: $id}) RETURN l.id AS id")
+            .param("id", location_id.to_string());
+        graph.run(q).await.expect("Failed to create test location");
+    }
+
     #[tokio::test]
     async fn link_lore_about_character() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let character_id = CharacterId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_character(&graph, character_id).await;
 
         // Save lore
         repo.save(&lore).await.unwrap();
@@ -1447,12 +1474,16 @@ mod tests {
 
     #[tokio::test]
     async fn link_lore_about_location() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let location_id = LocationId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_location(&graph, location_id).await;
 
         // Save lore
         repo.save(&lore).await.unwrap();
@@ -1476,12 +1507,16 @@ mod tests {
 
     #[tokio::test]
     async fn unlink_lore_about() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let character_id = CharacterId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_character(&graph, character_id).await;
 
         // Save lore and link
         repo.save(&lore).await.unwrap();
@@ -1504,12 +1539,16 @@ mod tests {
 
     #[tokio::test]
     async fn mark_common_lore() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let location_id = LocationId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_location(&graph, location_id).await;
 
         // Save lore
         repo.save(&lore).await.unwrap();
@@ -1526,8 +1565,8 @@ mod tests {
 
     #[tokio::test]
     async fn mark_common_lore_with_chunks() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let mut lore = create_test_lore(world_id);
@@ -1536,6 +1575,10 @@ mod tests {
             wrldbldr_domain::LoreChunk::new("Chunk 2").with_order(1),
         ]);
         let location_id = LocationId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_location(&graph, location_id).await;
 
         // Save lore with chunks
         repo.save(&lore).await.unwrap();
@@ -1558,12 +1601,16 @@ mod tests {
 
     #[tokio::test]
     async fn unmark_common_lore() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let location_id = LocationId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_location(&graph, location_id).await;
 
         // Save lore and mark as common
         repo.save(&lore).await.unwrap();
@@ -1583,8 +1630,8 @@ mod tests {
 
     #[tokio::test]
     async fn get_location_common_lore_empty() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let location_id = LocationId::new();
 
@@ -1593,18 +1640,42 @@ mod tests {
         assert_eq!(common_lore.len(), 0);
     }
 
-    async fn setup_test_graph() -> (Neo4jGraph, crate::infrastructure::clock::FixedClock) {
+    async fn setup_test_graph() -> (Neo4jGraph, crate::infrastructure::clock::FixedClock, tokio::sync::MutexGuard<'static, ()>) {
         use crate::infrastructure::neo4j::Neo4jGraph;
-        let graph = Neo4jGraph::new("bolt://localhost:7687", None)
-            .await
-            .expect("Failed to create test graph");
+        use crate::e2e_tests::SharedNeo4jHarness;
+        use neo4rs::ConfigBuilder;
+
+        // Acquire global lock to serialize tests against shared Neo4j instance
+        let _guard = TEST_MUTEX.lock().await;
+
+        // If NEO4J_TEST_URI is set, use it directly (override mode)
+        // Otherwise, use the shared harness (default)
+        let inner_graph = if let Ok(uri) = std::env::var("NEO4J_TEST_URI") {
+            let config = ConfigBuilder::new()
+                .uri(uri.as_str())
+                .user("neo4j")
+                .password("password")
+                .build()
+                .expect("Failed to build config");
+            neo4rs::Graph::connect(config).await.expect("Failed to connect")
+        } else {
+            let harness = SharedNeo4jHarness::shared()
+                .await
+                .expect("Failed to get shared Neo4j harness");
+            harness
+                .create_graph()
+                .await
+                .expect("Failed to create graph from harness")
+        };
+
+        let graph = Neo4jGraph::new(inner_graph);
         let clock = crate::infrastructure::clock::FixedClock(chrono::Utc::now());
 
         // Clean up test data
         let cleanup_q = query("MATCH (n) DETACH DELETE n");
-        graph.run(cleanup_q).await.ok();
+        let _ = graph.run(cleanup_q).await;
 
-        (graph, clock)
+        (graph, clock, _guard)
     }
 
     // ==========================================================================
@@ -1613,13 +1684,17 @@ mod tests {
 
     #[tokio::test]
     async fn get_lore_about_targets_filters_about_relationships_only() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let character_id = CharacterId::new();
         let item_id = ItemId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_character(&graph, character_id).await;
 
         repo.save(&lore).await.unwrap();
 
@@ -1653,13 +1728,15 @@ mod tests {
 
     #[tokio::test]
     async fn link_lore_about_fails_when_target_missing() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let location_id = LocationId::new();
 
+        // Create prerequisite World before saving lore
+        create_test_world(&graph, world_id).await;
         repo.save(&lore).await.unwrap();
 
         // Try to link to non-existent location - should fail with NotFound
@@ -1679,8 +1756,8 @@ mod tests {
 
     #[tokio::test]
     async fn mark_common_lore_fails_when_location_missing() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
@@ -1702,21 +1779,29 @@ mod tests {
 
     #[tokio::test]
     async fn mark_common_lore_fails_when_chunk_ids_invalid() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
-        let lore = create_test_lore(world_id);
+        let location_id = LocationId::new();
+        let mut lore = create_test_lore(world_id);
+        lore = lore.with_chunks(vec![
+            wrldbldr_domain::LoreChunk::new("Chunk 1").with_order(0),
+        ]);
 
         // Lore with only one chunk
         let chunk_id = lore.chunks()[0].id;
         let other_chunk_id = LoreChunkId::new(); // Not part of this lore
 
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_location(&graph, location_id).await;
+
         repo.save(&lore).await.unwrap();
 
         // Try to mark with invalid chunk ID - should fail with ConstraintViolation
         let result = repo.mark_common_lore(
-            LocationId::new(),
+            location_id,
             lore.id(),
             Some(vec![other_chunk_id]),
         ).await;
@@ -1732,12 +1817,16 @@ mod tests {
 
     #[tokio::test]
     async fn mark_common_lore_normalizes_empty_list_to_none() {
-        let (graph, clock) = setup_test_graph().await;
-        let repo = Neo4jLoreRepo::new(graph, Arc::new(clock));
+        let (graph, clock, _guard) = setup_test_graph().await;
+        let repo = Neo4jLoreRepo::new(graph.clone(), Arc::new(clock));
 
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let location_id = LocationId::new();
+
+        // Create prerequisite nodes
+        create_test_world(&graph, world_id).await;
+        create_test_location(&graph, location_id).await;
 
         repo.save(&lore).await.unwrap();
 

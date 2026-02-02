@@ -127,6 +127,7 @@ mod tests {
     use super::*;
     use crate::infrastructure::ports::{MockNarrativeRepo, ParticipantType};
     use chrono::Utc;
+    use wrldbldr_domain::PlayerCharacterId;
 
     #[tokio::test]
     async fn when_conversation_not_found_then_returns_error() {
@@ -242,10 +243,11 @@ mod tests {
                 }))
             });
 
+        let reason_for_closure = reason.clone();
         narrative_repo
             .expect_end_conversation_by_id()
             .withf(move |id, w, eb, r| {
-                *id == conversation_id && *w == world_id && *eb == Some(ended_by) && *r == Some(reason.clone())
+                *id == conversation_id && *w == world_id && *eb == Some(ended_by) && *r == Some(reason_for_closure.clone())
             })
             .returning(|_, _, _, _| Ok(true));
 

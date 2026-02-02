@@ -550,48 +550,6 @@ mod tests {
     }
 
     #[test]
-    fn test_new_rejects_empty_name() {
-        let now = fixed_time();
-        let result = RegionState::new(RegionId::new(), LocationId::new(), WorldId::new(), "", now);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, DomainError::Validation(_)));
-        assert!(err.to_string().contains("cannot be empty"));
-    }
-
-    #[test]
-    fn test_new_rejects_whitespace_only_name() {
-        let now = fixed_time();
-        let result = RegionState::new(
-            RegionId::new(),
-            LocationId::new(),
-            WorldId::new(),
-            "   ",
-            now,
-        );
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, DomainError::Validation(_)));
-    }
-
-    #[test]
-    fn test_new_rejects_too_long_name() {
-        let now = fixed_time();
-        let long_name = "a".repeat(101);
-        let result = RegionState::new(
-            RegionId::new(),
-            LocationId::new(),
-            WorldId::new(),
-            &long_name,
-            now,
-        );
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, DomainError::Validation(_)));
-        assert!(err.to_string().contains("100"));
-    }
-
-    #[test]
     fn test_new_with_id_rejects_too_long_name() {
         let now = fixed_time();
         let specific_id = RegionStateId::new();

@@ -87,6 +87,9 @@ pub fn routes() -> Router<Arc<App>> {
             "/api/rule-systems/{system_type}/presets/{variant}",
             get(get_rule_system_preset),
         )
+        // LLM Model Discovery
+        .route("/api/llm/models", get(list_llm_models))
+        .route("/api/llm/models/resolve", get(resolve_llm_model))
         // Prompt template management
         .route("/api/prompt-templates", get(list_templates))
         .route("/api/prompt-templates/global", get(list_global_overrides))
@@ -186,6 +189,10 @@ async fn update_settings(
         .update_global(settings)
         .await
         .map_err(map_settings_error)?;
+
+    // Trigger LLM runtime refresh to apply new base_url/model settings
+    app.refresh_llm_runtime().await;
+
     Ok(Json(updated))
 }
 
@@ -196,6 +203,10 @@ async fn reset_settings(State(app): State<Arc<App>>) -> Result<Json<AppSettings>
         .reset_global()
         .await
         .map_err(map_settings_error)?;
+
+    // Trigger LLM runtime refresh to apply reset settings
+    app.refresh_llm_runtime().await;
+
     Ok(Json(settings))
 }
 
@@ -338,16 +349,95 @@ struct ImportWorldResponse {
 }
 
 // =============================================================================
+// LLM Model Discovery
+// =============================================================================
+
+async fn list_llm_models(
+    State(app): State<Arc<App>>,
+) -> Result<Json<wrldbldr_shared::dto::LlmModelsListResponseDto>, ApiError> {
+    let models = app
+        .use_cases
+        .ai
+        .resolve_model
+        .list_available_models()
+        .await
+        .map_err(map_model_resolution_error)?;
+
+    let model_dtos: Vec<wrldbldr_shared::dto::LlmModelInfoDto> = models
+        .into_iter()
+        .map(|m| wrldbldr_shared::dto::LlmModelInfoDto {
+            id: m.id,
+            provider: m.owned_by,
+        })
+        .collect();
+
+    Ok(Json(wrldbldr_shared::dto::LlmModelsListResponseDto {
+        models: model_dtos,
+        resolved: None,
+        resolved_source: None,
+    }))
+}
+
+#[derive(serde::Deserialize)]
+struct ResolveModelQuery {
+    world_id: Option<Uuid>,
+}
+
+async fn resolve_llm_model(
+    State(app): State<Arc<App>>,
+    Query(query): Query<ResolveModelQuery>,
+) -> Result<Json<wrldbldr_shared::dto::LlmModelResolvedDto>, ApiError> {
+    let input = crate::use_cases::ai::ResolveModelInput {
+        world_id: query.world_id.map(wrldbldr_domain::WorldId::from_uuid),
+        env_default_override: None,
+    };
+
+    let resolved = app
+        .use_cases
+        .ai
+        .resolve_model
+        .execute(input)
+        .await
+        .map_err(map_model_resolution_error)?;
+
+    Ok(Json(wrldbldr_shared::dto::LlmModelResolvedDto {
+        model_id: resolved.model_id,
+        source: resolved.source.to_string(),
+        warning: resolved.warning,
+    }))
+}
+
+fn map_model_resolution_error(e: crate::use_cases::ai::ModelResolutionError) -> ApiError {
+    match e {
+        crate::use_cases::ai::ModelResolutionError::DiscoveryFailed(msg) => {
+            tracing::error!(error = %msg, "LLM model discovery failed");
+            ApiError::Internal("Failed to discover LLM models".to_string())
+        }
+        crate::use_cases::ai::ModelResolutionError::NoModelsAvailable => {
+            ApiError::Internal("No LLM models available from provider".to_string())
+        }
+        e => {
+            tracing::error!(error = %e, "Model resolution failed");
+            ApiError::Internal(e.to_string())
+        }
+    }
+}
+
+// =============================================================================
 // Prompt Template Management
 // =============================================================================
 
 async fn list_templates(
     State(app): State<Arc<App>>,
 ) -> Result<Json<Vec<TemplateInfo>>, ApiError> {
-    let templates = app
+    let metadata = app
         .use_cases
         .prompt_templates
         .all_template_metadata()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to load template metadata: {}", e)))?;
+
+    let templates: Vec<TemplateInfo> = metadata
         .into_iter()
         .map(|m| TemplateInfo {
             key: m.key,
@@ -464,12 +554,22 @@ async fn resolve_template(
         .map_err(map_prompt_template_error)?
         .ok_or(ApiError::NotFound)?;
 
-    // Get metadata for default value
+    // Get metadata for the template (label, description, etc.)
     let metadata = app
         .use_cases
         .prompt_templates
         .get_template_metadata(&key)
         .ok_or(ApiError::NotFound)?;
+
+    // Get the default value (without any overrides) by resolving with no world
+    // This returns the default from: env var > file-backed default
+    let default_value = app
+        .use_cases
+        .prompt_templates
+        .resolve_template(None, &key)
+        .await
+        .map_err(map_prompt_template_error)?
+        .unwrap_or_default();
 
     // Check if this is a world override by comparing with global value
     let is_override = if let Some(wid) = world_id {
@@ -494,7 +594,7 @@ async fn resolve_template(
         key,
         value,
         is_override,
-        default_value: metadata.default_value,
+        default_value,
     }))
 }
 
@@ -605,6 +705,11 @@ mod prompt_template_tests {
     #[tokio::test]
     async fn resolve_template_returns_value() {
         let mut prompt_repo = MockPromptTemplateRepo::new();
+        // The handler calls resolve_template multiple times:
+        // 1. For the resolved value (with world_id)
+        // 2. For the default value (with None)
+        // 3. For is_override comparison (twice)
+        // Allow any number of calls and return the same value
         prompt_repo
             .expect_resolve_template()
             .returning(|_, _| Ok(Some("resolved value".to_string())));
@@ -884,7 +989,7 @@ mod tests {
             characters: Vec::new(),
             items: Vec::new(),
             narrative_events: Vec::new(),
-            format_version: 1,
+            format_version: 2,
         };
 
         let response = router

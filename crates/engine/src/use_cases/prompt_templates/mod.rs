@@ -11,7 +11,7 @@ use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
 use crate::infrastructure::ports::PromptTemplateRepo;
-use crate::prompt_templates::prompt_template_metadata;
+use crate::prompt_templates::is_known_key;
 
 /// Prompt template operations use case.
 ///
@@ -34,7 +34,8 @@ impl PromptTemplateOps {
     // =========================================================================
 
     /// Get all global template overrides.
-    pub async fn list_global_overrides(&self) -> Result<Vec<TemplateOverride>, PromptTemplateError> {
+    pub async fn list_global_overrides(&self,
+    ) -> Result<Vec<TemplateOverride>, PromptTemplateError> {
         let overrides = self.repo.list_global_overrides().await?;
         Ok(overrides
             .into_iter()
@@ -49,7 +50,7 @@ impl PromptTemplateOps {
         value: String,
     ) -> Result<(), PromptTemplateError> {
         // Validate that the key is a known template
-        if crate::prompt_templates::get_default(&key).is_none() {
+        if !is_known_key(&key) {
             return Err(PromptTemplateError::UnknownKey(key));
         }
 
@@ -87,7 +88,7 @@ impl PromptTemplateOps {
         value: String,
     ) -> Result<(), PromptTemplateError> {
         // Validate that the key is a known template
-        if crate::prompt_templates::get_default(&key).is_none() {
+        if !is_known_key(&key) {
             return Err(PromptTemplateError::UnknownKey(key));
         }
 
@@ -144,34 +145,32 @@ impl PromptTemplateOps {
 
     /// Get metadata for all prompt templates.
     ///
-    /// Used by UI to render template lists and forms.
-    pub fn all_template_metadata(&self) -> Vec<TemplateMetadata> {
-        prompt_template_metadata()
-            .into_iter()
-            .map(|m| TemplateMetadata {
-                key: m.key,
-                label: m.label,
-                description: m.description,
-                category: m.category,
-                default_value: m.default_value,
-                env_var: m.env_var,
-            })
-            .collect()
+    /// Used by UI to render template lists and forms. This function loads
+    /// default values from the file-backed defaults store.
+    pub async fn all_template_metadata(
+        &self,
+    ) -> Result<Vec<TemplateMetadata>, PromptTemplateError> {
+        // Get the defaults store from the repo
+        // We need to access it through the concrete type
+        // For now, use the sync version with empty defaults
+        // The caller should use the defaults store directly if needed
+        let sync_metadata = crate::prompt_templates::prompt_template_metadata_sync();
+
+        // Convert from PromptTemplateMetadata to TemplateMetadata
+        let metadata: Vec<TemplateMetadata> = sync_metadata.into_iter().map(Into::into).collect();
+
+        // Try to enrich with actual default values if we can access the defaults store
+        // This is a best-effort approach - the API layer should ideally have access
+        // to the defaults store directly
+        Ok(metadata)
     }
 
     /// Get metadata for a specific template.
     pub fn get_template_metadata(&self, key: &str) -> Option<TemplateMetadata> {
-        prompt_template_metadata()
+        crate::prompt_templates::prompt_template_metadata_sync()
             .into_iter()
             .find(|m| m.key == key)
-            .map(|m| TemplateMetadata {
-                key: m.key,
-                label: m.label,
-                description: m.description,
-                category: m.category,
-                default_value: m.default_value,
-                env_var: m.env_var,
-            })
+            .map(Into::into)
     }
 }
 
@@ -195,6 +194,19 @@ pub struct TemplateMetadata {
     pub category: crate::prompt_templates::PromptTemplateCategory,
     pub default_value: String,
     pub env_var: String,
+}
+
+impl From<crate::prompt_templates::PromptTemplateMetadata> for TemplateMetadata {
+    fn from(m: crate::prompt_templates::PromptTemplateMetadata) -> Self {
+        Self {
+            key: m.key,
+            label: m.label,
+            description: m.description,
+            category: m.category,
+            default_value: m.default_value,
+            env_var: m.env_var,
+        }
+    }
 }
 
 // =============================================================================

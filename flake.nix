@@ -24,7 +24,126 @@
           "rust-analyzer"
           "rust-src"
         ];
+
+        # KoboldCpp package for macOS Apple Silicon with Metal support
+        # Pinned to v1.107.1 - latest stable release as of 2026-02-02
+        # This revision includes Vulkan improvements, Flux2 support, and SDXS image generation
+        koboldcpp = pkgs.stdenv.mkDerivation rec {
+          pname = "koboldcpp";
+          version = "1.107.1";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "LostRuins";
+            repo = "koboldcpp";
+            rev = "v${version}";
+            sha256 = "sha256-dmFwWPD+S4nQ8p3DFnzplQ0lN8EGCi4VhENiDYIadxw=";
+          };
+
+          nativeBuildInputs = with pkgs; [
+            makeWrapper
+          ] ++ lib.optionals isDarwin [
+            # Metal framework is provided by macOS system SDK
+          ];
+
+          buildInputs = with pkgs; [
+            python3
+          ] ++ lib.optionals isDarwin [
+            # No additional build inputs needed for Metal - uses system frameworks
+          ];
+
+          # Build flags for Apple Silicon with Metal GPU acceleration
+          # LLAMA_METAL=1 enables Metal GPU support (Apple Silicon)
+          # LLAMA_PORTABLE=1 makes the build sharable across different devices
+          makeFlags = lib.optionals isDarwin [
+            "LLAMA_METAL=1"
+            "LLAMA_PORTABLE=1"
+          ];
+
+          enableParallelBuilding = true;
+
+          installPhase = ''
+            runHook preInstall
+
+            mkdir -p $out/bin
+            mkdir -p $out/lib
+            mkdir -p $out/share/koboldcpp
+
+            # Copy the main Python script
+            cp koboldcpp.py $out/bin/koboldcpp
+            chmod +x $out/bin/koboldcpp
+
+            # Copy built libraries
+            cp *.so $out/lib/ 2>/dev/null || true
+            cp *.dylib $out/lib/ 2>/dev/null || true
+
+            # Copy supporting files
+            cp -r klite.embd $out/share/koboldcpp/ 2>/dev/null || true
+            cp -r rwkv_vocab $out/share/koboldcpp/ 2>/dev/null || true
+            cp -r rwkv_stvenv $out/share/koboldcpp/ 2>/dev/null || true
+
+            # Copy Metal shader source files required for runtime compilation
+            mkdir -p $out/share/koboldcpp/ggml-metal
+            cp ggml/src/ggml-metal/ggml-metal.metal $out/share/koboldcpp/ggml-metal/ 2>/dev/null || true
+            cp ggml/src/ggml-metal/ggml-metal-impl.h $out/share/koboldcpp/ggml-metal/ 2>/dev/null || true
+            cp ggml/include/ggml-metal.h $out/share/koboldcpp/ggml-metal/ 2>/dev/null || true
+
+            # Copy ggml-common.h which is included by ggml-metal-merged.metal
+            cp ggml/src/ggml-common.h $out/share/koboldcpp/ggml-metal/ 2>/dev/null || true
+
+            # Some versions of KoboldCpp expect ggml-metal-merged.metal with inlined headers
+            # Generate it if upstream doesn't provide one
+            if [[ -f "ggml/src/ggml-metal/ggml-metal-merged.metal" ]]; then
+                cp ggml/src/ggml-metal/ggml-metal-merged.metal $out/share/koboldcpp/ggml-metal/ 2>/dev/null || true
+            else
+                OUT_DIR="$out" python3 - <<'PY'
+import os
+import pathlib
+
+root = pathlib.Path(".")
+metal_path = root / "ggml/src/ggml-metal/ggml-metal.metal"
+common_path = root / "ggml/src/ggml-common.h"
+impl_path = root / "ggml/src/ggml-metal/ggml-metal-impl.h"
+
+metal = metal_path.read_text()
+common = common_path.read_text()
+impl = impl_path.read_text()
+
+block = '#if defined(GGML_METAL_EMBED_LIBRARY)\n__embed_ggml-common.h__\n#else\n#include "ggml-common.h"\n#endif'
+if block in metal:
+    metal = metal.replace(block, common)
+
+metal = metal.replace('#include "ggml-metal-impl.h"', impl)
+
+out_dir = pathlib.Path(os.environ["OUT_DIR"]) / "share/koboldcpp/ggml-metal"
+out_dir.mkdir(parents=True, exist_ok=True)
+out_path = out_dir / "ggml-metal-merged.metal"
+out_path.write_text(metal)
+PY
+            fi
+
+            # Wrap the binary to find libraries and Metal shaders
+            wrapProgram $out/bin/koboldcpp \
+              --prefix PYTHONPATH : "$out/share/koboldcpp" \
+              --prefix LD_LIBRARY_PATH : "$out/lib" \
+              --prefix DYLD_LIBRARY_PATH : "$out/lib" \
+              --set GGML_METAL_PATH_RESOURCES "$out/share/koboldcpp/ggml-metal"
+
+            runHook postInstall
+          '';
+
+          meta = with lib; {
+            description = "Easy-to-use AI text-generation software for GGML and GGUF models";
+            homepage = "https://github.com/LostRuins/koboldcpp";
+            license = licenses.agpl3Only;
+            platforms = platforms.darwin;
+            mainProgram = "koboldcpp";
+          };
+        };
       in {
+        packages = lib.optionalAttrs isDarwin {
+          inherit koboldcpp;
+        };
+
         devShells.default = pkgs.mkShell {
           name = "wrldbldr-dev";
 
@@ -70,6 +189,8 @@
           # Note: Apple frameworks are automatically provided by the system SDK
           ++ lib.optionals isDarwin [
             pkgs.libiconv
+            koboldcpp
+            pkgs.screen
           ]
           # Linux-specific dependencies
           ++ lib.optionals isLinux (with pkgs; [
@@ -152,6 +273,12 @@
             echo "LLM Serving (macOS Apple Silicon):"
             echo "  ./scripts/serve-llm.sh              - Serve local LLM with OpenAI-compatible API"
             echo "  ./scripts/serve-llm.sh --help       - Show LLM server options"
+            echo ""
+            echo "KoboldCpp (via Nix):"
+            echo "  koboldcpp --help                    - Show KoboldCpp options"
+            echo "  koboldcpp --model model.gguf        - Run KoboldCpp with a model"
+            echo "  ./scripts/koboldcpp-screen.sh       - Start KoboldCpp in screen session"
+            echo "  task koboldcpp:screen               - Start KoboldCpp in background"
             echo ""
           '';
         };

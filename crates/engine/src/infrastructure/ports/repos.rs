@@ -405,6 +405,14 @@ pub trait ChallengeRepo: Send + Sync {
     async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>, RepoError>;
     async fn list_pending_for_world(&self, world_id: WorldId) -> Result<Vec<Challenge>, RepoError>;
     async fn mark_resolved(&self, id: ChallengeId) -> Result<(), RepoError>;
+    /// Record challenge resolution with success status for trigger context.
+    /// Stores the outcome (success/failure) so ChallengeCompleted triggers can check it.
+    async fn record_resolution(
+        &self,
+        id: ChallengeId,
+        pc_id: PlayerCharacterId,
+        success: bool,
+    ) -> Result<(), RepoError>;
     /// Enable or disable a challenge (for EnableChallenge/DisableChallenge triggers)
     async fn set_enabled(&self, id: ChallengeId, enabled: bool) -> Result<(), RepoError>;
     /// Get all resolved (inactive) challenge IDs in a world.
@@ -413,6 +421,13 @@ pub trait ChallengeRepo: Send + Sync {
         &self,
         world_id: WorldId,
     ) -> Result<Vec<ChallengeId>, RepoError>;
+    /// Get challenge success status for a specific PC.
+    /// Returns true if the challenge was completed successfully by this PC.
+    async fn get_challenge_success(
+        &self,
+        challenge_id: ChallengeId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Option<bool>, RepoError>;
     /// Set the skill required for a challenge via REQUIRES_SKILL edge.
     async fn set_required_skill(&self, challenge_id: ChallengeId, skill_id: SkillId) -> Result<(), RepoError>;
     /// Get the skill ID required for a challenge via REQUIRES_SKILL edge.
@@ -490,6 +505,24 @@ pub struct ChallengeAvailability {
     pub time_restriction: Option<String>,
 }
 
+/// Story event with its edge relationships populated.
+///
+/// This struct includes the story event node plus related entities
+/// accessed via graph edges (scene, location, involved characters, triggering event).
+#[derive(Debug, Clone)]
+pub struct StoryEventWithEdges {
+    /// The story event itself
+    pub event: StoryEvent,
+    /// Scene ID from OCCURRED_IN_SCENE edge (optional)
+    pub scene_id: Option<SceneId>,
+    /// Location ID from OCCURRED_AT edge (optional)
+    pub location_id: Option<LocationId>,
+    /// Character IDs from INVOLVES edges
+    pub involved_characters: Vec<CharacterId>,
+    /// Triggering narrative event ID from TRIGGERED_BY_NARRATIVE edge (optional)
+    pub triggered_by: Option<NarrativeEventId>,
+}
+
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait NarrativeRepo: Send + Sync {
@@ -517,6 +550,19 @@ pub trait NarrativeRepo: Send + Sync {
         world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<StoryEvent>, RepoError>;
+
+    // Story events with edge data (scene_id, location_id, involved_characters, triggered_by)
+    /// Get a story event with its edge relationships populated.
+    async fn get_story_event_with_edges(
+        &self,
+        id: StoryEventId,
+    ) -> Result<Option<StoryEventWithEdges>, RepoError>;
+    /// List story events with their edge relationships populated.
+    async fn list_story_events_with_edges(
+        &self,
+        world_id: WorldId,
+        limit: usize,
+    ) -> Result<Vec<StoryEventWithEdges>, RepoError>;
 
     // Dialogue history
     /// Get dialogue exchanges between a PC and NPC (reverse chronological order).
@@ -1112,6 +1158,11 @@ pub trait FlagRepo: Send + Sync {
 // Prompt Template Storage
 // =============================================================================
 
+/// Resolved prompt template with metadata from front matter.
+///
+/// This is a re-export from the prompt_templates module for use in port traits.
+pub use crate::prompt_templates::ResolvedPromptTemplate;
+
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait PromptTemplateRepo: Send + Sync {
@@ -1165,4 +1216,24 @@ pub trait PromptTemplateRepo: Send + Sync {
         world_id: Option<WorldId>,
         key: &str,
     ) -> Result<Option<String>, RepoError>;
+
+    /// Resolve a template with metadata (text + temperature from front matter).
+    ///
+    /// Resolution priority for template text:
+    /// 1. World-specific override (uses default template's temperature)
+    /// 2. Global override (uses default template's temperature)
+    /// 3. Environment variable (uses default template's temperature)
+    /// 4. Default value from file (includes temperature from front matter)
+    ///
+    /// Temperature precedence (when template text is resolved):
+    /// 1. Template front matter temperature (if present)
+    /// 2. AppSettings temperature for the use case (fallback)
+    /// 3. None (use LLM provider default)
+    ///
+    /// Returns None if the key is not a recognized template.
+    async fn resolve_template_with_metadata(
+        &self,
+        world_id: Option<WorldId>,
+        key: &str,
+    ) -> Result<Option<ResolvedPromptTemplate>, RepoError>;
 }

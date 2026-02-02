@@ -85,12 +85,18 @@ pub async fn generate_rule_based_suggestions(
     suggestions
 }
 
+/// Generate LLM-based staging suggestions.
+///
+/// The `system_prompt` parameter should be loaded from the template repository
+/// using the key `system.staging_suggestions_system`.
 pub async fn generate_llm_based_suggestions(
     npcs_with_relationships: &[NpcWithRegionInfo],
     llm: &dyn LlmPort,
     region_name: &str,
     location_name: &str,
     guidance: Option<&str>,
+    temperature: f32,
+    system_prompt: &str,
 ) -> Vec<StagedNpc> {
     let candidates: Vec<_> = npcs_with_relationships
         .iter()
@@ -121,9 +127,15 @@ pub async fn generate_llm_based_suggestions(
         .map(|g| format!("\n\nDM's guidance: {}", g))
         .unwrap_or_default();
 
-    let system_prompt = "You are a helpful TTRPG assistant helping decide which NPCs should be present in a scene. \
-        Respond with a JSON array of objects, each with 'name' (exact name from the list) and 'reason' (brief explanation). \
-        Select 1-4 NPCs that would logically be present. Only include NPCs from the provided list.";
+    // Use provided system prompt (loaded from template repository)
+    // Falls back to a default if empty
+    let system_prompt = if system_prompt.is_empty() {
+        "You are a helpful TTRPG assistant helping decide which NPCs should be present in a scene. \
+         Respond with a JSON array of objects, each with 'name' (exact name from the list) and 'reason' (brief explanation). \
+         Select 1-4 NPCs that would logically be present. Only include NPCs from the provided list."
+    } else {
+        system_prompt
+    };
 
     let user_prompt = format!(
         "Region: {} (in {})\n\nAvailable NPCs:\n{}{}\n\nWhich NPCs should be present? Respond with JSON only.",
@@ -132,7 +144,7 @@ pub async fn generate_llm_based_suggestions(
 
     let request = LlmRequest::new(vec![ChatMessage::user(&user_prompt)])
         .with_system_prompt(system_prompt)
-        .with_temperature(0.7);
+        .with_temperature(temperature);
 
     let response = match llm.generate(request).await {
         Ok(resp) => resp,

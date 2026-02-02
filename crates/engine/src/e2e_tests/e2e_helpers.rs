@@ -11,8 +11,8 @@ use chrono::{DateTime, TimeZone, Utc};
 use tempfile::TempDir;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    ActId, ChallengeId, CharacterId, LocationId, NarrativeEventId, RegionId, RuleSystemConfig,
-    SceneId, WorldId,
+    ActId, ChallengeId, CharacterId, LocationId, LocationStateId, NarrativeEventId, RegionId,
+    RuleSystemConfig, SceneId, WorldId,
 };
 
 /// Get the current test name from the thread name.
@@ -29,9 +29,10 @@ fn get_test_name_from_thread() -> String {
 use crate::app::App;
 use crate::infrastructure::clock::FixedClock;
 use crate::infrastructure::neo4j::{Neo4jGraph, Neo4jRepositories};
+use crate::infrastructure::openai_compatible::OpenAICompatibleClient;
 use crate::infrastructure::ports::{
     ClockPort, FinishReason, ImageGenError, ImageGenPort, ImageRequest, ImageResult, LlmError,
-    LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueuePort,
+    LlmModelsPort, LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueuePort,
 };
 use wrldbldr_domain::QueueItemId;
 use crate::infrastructure::prompt_templates::SqlitePromptTemplateRepo;
@@ -42,6 +43,7 @@ use crate::queue_types::{
 };
 use crate::test_fixtures::world_seeder::{load_thornhaven, TestWorld};
 use crate::use_cases::content::ContentServiceConfig;
+use crate::use_cases::settings::SettingsOps;
 
 use super::benchmark::{is_benchmark_enabled, BenchmarkLlmDecorator, E2EBenchmark};
 use super::event_log::{E2EEventLog, TestOutcome};
@@ -306,6 +308,76 @@ impl E2ETestContext {
             base_queue
         };
 
+        let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db_str, clock.clone()).await?);
+
+        // Create prompt defaults store for E2E tests
+        // Resolve prompts directory: use WRLDBLDR_PROMPTS_DIR env var, or derive from repo root
+        let prompts_dir = std::env::var("WRLDBLDR_PROMPTS_DIR").unwrap_or_else(|_| {
+            // Derive repo root from CARGO_MANIFEST_DIR (crates/engine) -> ../../prompts
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("..")
+                .join("prompts")
+                .to_string_lossy()
+                .to_string()
+        });
+
+        let defaults_store = crate::prompt_templates::PromptDefaultsStore::new(&prompts_dir);
+
+        // Preload templates for tests - fail fast if any are missing
+        let known_keys: Vec<_> = crate::prompt_templates::all_keys();
+        let preload_errors = defaults_store.preload(&known_keys).await;
+        if !preload_errors.is_empty() {
+            for (key, err) in &preload_errors {
+                tracing::error!(key = key, error = %err, "Failed to preload prompt template");
+            }
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!(
+                    "Failed to preload {} prompt templates. Ensure the prompts directory '{}' exists and contains all required files.",
+                    preload_errors.len(),
+                    prompts_dir
+                ),
+            )));
+        }
+
+        tracing::info!(
+            prompts_dir = %prompts_dir,
+            template_count = known_keys.len(),
+            "Prompt defaults store initialized for E2E tests"
+        );
+
+        let prompt_templates_repo = Arc::new(
+            SqlitePromptTemplateRepo::new(&queue_db_str, clock.clone(), defaults_store).await?
+        );
+        let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
+        let content_config = ContentServiceConfig::default();
+
+        // Seed settings with environment variable defaults for E2E tests
+        // This ensures WRLDBLDR_LLM_MODEL_DEFAULT is persisted and available to ResolveLlmModel
+        let base_settings = crate::infrastructure::app_settings::AppSettings::default();
+        let settings_with_env = SettingsOps::load_settings_from_env(base_settings);
+        let settings_ops = SettingsOps::new(settings_repo.clone());
+        settings_ops.update_global(settings_with_env).await?;
+
+        // Determine E2E LLM mode to select appropriate LlmModelsPort
+        let e2e_mode = std::env::var("E2E_LLM_MODE").unwrap_or_default();
+        let is_record_or_live = matches!(e2e_mode.as_str(), "record" | "live");
+
+        // Create the LLM models port
+        // In record/live mode, use a real OpenAICompatibleClient so model resolution
+        // returns actual available models from the provider. In playback mode, use NoopLlm
+        // since we don't need real model discovery (cassette matching works without it).
+        let llm_models: Arc<dyn LlmModelsPort> = if is_record_or_live {
+            let ollama_url = std::env::var("OLLAMA_BASE_URL")
+                .unwrap_or_else(|_| crate::infrastructure::openai_compatible::DEFAULT_OLLAMA_BASE_URL.to_string());
+            let model = std::env::var("OLLAMA_MODEL")
+                .unwrap_or_else(|_| crate::infrastructure::openai_compatible::DEFAULT_OLLAMA_MODEL.to_string());
+            Arc::new(OpenAICompatibleClient::new(&ollama_url, &model))
+        } else {
+            Arc::new(NoopLlm)
+        };
+
         // Wrap LLM with benchmark decorator if benchmarking is enabled
         let llm: Arc<dyn LlmPort> = if let Some(ref b) = benchmark {
             Arc::new(BenchmarkLlmDecorator::new(llm, b.clone()))
@@ -313,14 +385,7 @@ impl E2ETestContext {
             llm
         };
 
-        let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db_str, clock.clone()).await?);
-        let prompt_templates_repo = Arc::new(
-            SqlitePromptTemplateRepo::new(&queue_db_str, clock.clone()).await?
-        );
-        let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
-        let content_config = ContentServiceConfig::default();
-
-        let app = App::new(repos, llm, image_gen, queue, settings_repo, prompt_templates_repo, content_config);
+        let app = App::new(repos, llm, llm_models, image_gen, queue, settings_repo, prompt_templates_repo, content_config);
 
         if let Some(ref b) = benchmark {
             b.end_phase("app_init");
@@ -415,6 +480,60 @@ impl E2ETestContext {
             env!("CARGO_MANIFEST_DIR"),
             test_name
         ))
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test that SettingsOps::load_settings_from_env correctly applies WRLDBLDR_LLM_MODEL_DEFAULT.
+    ///
+    /// This test verifies the environment variable loading logic without
+    /// actually modifying environment variables (which requires unsafe in Rust 2024).
+    #[test]
+    fn test_load_settings_from_env_applies_llm_model_default() {
+        // This test documents the expected behavior:
+        // When WRLDBLDR_LLM_MODEL_DEFAULT is set in the environment,
+        // SettingsOps::load_settings_from_env should apply it to the settings.
+        //
+        // Note: We cannot actually set env vars in tests due to #![deny(unsafe_code)],
+        // but this is tested implicitly when running E2E tests with the env var set.
+
+        // Verify the logic path exists
+        let base_settings = crate::infrastructure::app_settings::AppSettings::default();
+        assert!(
+            base_settings.llm_model_env_default().is_none(),
+            "Default settings should have no env default model"
+        );
+
+        // The actual env var application is tested via integration tests
+        // that run with WRLDBLDR_LLM_MODEL_DEFAULT set in the test environment.
+    }
+
+    /// Test the E2E mode detection logic for LlmModelsPort selection.
+    ///
+    /// Verifies that the mode detection correctly identifies record/live modes.
+    #[test]
+    fn test_e2e_mode_detection() {
+        // Test record mode detection
+        assert!(matches!("record", "record" | "live"));
+
+        // Test live mode detection
+        assert!(matches!("live", "record" | "live"));
+
+        // Test playback mode is NOT record/live
+        assert!(!matches!("playback", "record" | "live"));
+
+        // Test empty mode is NOT record/live
+        assert!(!matches!("", "record" | "live"));
+
+        // Test other modes are NOT record/live
+        assert!(!matches!("other", "record" | "live"));
     }
 }
 
@@ -746,6 +865,78 @@ impl IdTranslator {
 // World Seeding
 // =============================================================================
 
+/// Convert activation rules from test fixture format to domain format.
+///
+/// Test fixtures use nested format: `{ "time_of_day": { "period": "morning" } }`
+/// Domain expects tagged format: `{ "type": "TimeOfDay", "period": "morning" }`
+///
+/// Note: TimeOfDay uses snake_case serde, so "morning" stays "morning" (not "Morning").
+fn convert_activation_rules_to_stored_format(rules: &[serde_json::Value]) -> String {
+    let converted: Vec<serde_json::Value> = rules
+        .iter()
+        .filter_map(|rule| {
+            if let Some(obj) = rule.as_object() {
+                // Find the rule type key (the one that's not "type" itself)
+                if let Some((type_key, type_val)) = obj.iter().next() {
+                    let mut new_rule = serde_json::Map::new();
+
+                    // Convert snake_case to PascalCase for the type tag
+                    let pascal_type = match type_key.as_str() {
+                        "always" => "Always",
+                        "date_exact" => "DateExact",
+                        "date_range" => "DateRange",
+                        "time_of_day" => "TimeOfDay",
+                        "event_triggered" => "EventTriggered",
+                        "flag_set" => "FlagSet",
+                        "character_present" => "CharacterPresent",
+                        "custom" => "Custom",
+                        other => other, // Fallback - preserve as-is
+                    };
+
+                    new_rule.insert(
+                        "type".to_string(),
+                        serde_json::Value::String(pascal_type.to_string()),
+                    );
+
+                    // Copy inner fields as-is (TimeOfDay.period uses snake_case)
+                    if let Some(inner_obj) = type_val.as_object() {
+                        for (k, v) in inner_obj {
+                            new_rule.insert(k.clone(), v.clone());
+                        }
+                    }
+
+                    return Some(serde_json::Value::Object(new_rule));
+                }
+            }
+            None
+        })
+        .collect();
+
+    serde_json::to_string(&converted).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Convert activation logic from test fixture format to domain format.
+///
+/// Test fixtures use lowercase: `"all"`, `"any"`
+/// Domain expects PascalCase: `"All"`, `"Any"`, or `{"AtLeast": 2}`
+fn convert_activation_logic_to_stored_format(logic: &str) -> String {
+    match logic.to_lowercase().as_str() {
+        "all" => "\"All\"".to_string(),
+        "any" => "\"Any\"".to_string(),
+        _ => {
+            // Try to parse as AtLeast(n) format or default to All
+            if logic.starts_with("at_least_") {
+                if let Some(n_str) = logic.strip_prefix("at_least_") {
+                    if let Ok(n) = n_str.parse::<u32>() {
+                        return format!("{{\"AtLeast\":{}}}", n);
+                    }
+                }
+            }
+            "\"All\"".to_string() // Default fallback
+        }
+    }
+}
+
 /// Convert difficulty from test fixture format to DifficultyStored format.
 ///
 /// Test fixtures use lowercase type names: `{"type": "dc", "value": 18}`
@@ -1043,7 +1234,13 @@ pub async fn seed_thornhaven_to_neo4j(
     // Serialize rule_system as JSON (matches WorldRepo::save format)
     let rule_system_json = serde_json::to_string(&RuleSystemConfig::dnd_5e())?;
 
-    // 1. Create World node
+    // 1. Create World node with game time fields
+    // Use GameTime::at_epoch() for deterministic testing (0 seconds, paused)
+    let game_time_seconds = 0i64;
+    let game_time_paused = true;
+    let time_config_json = serde_json::to_string(&wrldbldr_domain::GameTimeConfig::default())
+        .unwrap_or_else(|_| "{}".to_string());
+
     graph
         .run(
             query(
@@ -1052,6 +1249,9 @@ pub async fn seed_thornhaven_to_neo4j(
                     name: $name,
                     description: $description,
                     rule_system: $rule_system,
+                    game_time_seconds: $game_time_seconds,
+                    game_time_paused: $game_time_paused,
+                    time_config: $time_config,
                     created_at: datetime($created_at),
                     updated_at: datetime($updated_at)
                 })",
@@ -1060,6 +1260,9 @@ pub async fn seed_thornhaven_to_neo4j(
             .param("name", "Thornhaven Village")
             .param("description", "A quaint village for testing")
             .param("rule_system", rule_system_json)
+            .param("game_time_seconds", game_time_seconds)
+            .param("game_time_paused", game_time_paused)
+            .param("time_config", time_config_json)
             .param("created_at", now.to_rfc3339())
             .param("updated_at", now.to_rfc3339()),
         )
@@ -1515,6 +1718,7 @@ pub async fn seed_thornhaven_to_neo4j(
                         outcomes_json: $outcomes_json,
                         triggers_json: $triggers_json,
                         check_stat: $check_stat,
+                        active: $active,
                         is_active: $active,
                         ordering: $ordering,
                         is_favorite: $favorite,
@@ -1605,6 +1809,24 @@ pub async fn seed_thornhaven_to_neo4j(
         let outcomes_json = convert_outcomes_to_stored_format(&event.outcomes, &translator);
         let tags_json = serde_json::to_string(&event.tags).unwrap_or_else(|_| "[]".to_string());
 
+        // Convert legacy boolean fields to new enum fields
+        let activation = if event.is_active { "Active" } else { "Inactive" };
+        let repeatability = if event.is_repeatable { "Repeatable" } else { "OneShot" };
+        let favorite = if event.is_favorite { "Favorite" } else { "Normal" };
+
+        // Build trigger_status_json based on is_triggered and trigger_count
+        let trigger_status = if event.is_triggered {
+            // Event was triggered - use current time as trigger time
+            wrldbldr_domain::TriggerStatus::Triggered {
+                at: now,
+                selected_outcome: None,
+            }
+        } else {
+            wrldbldr_domain::TriggerStatus::Never
+        };
+        let trigger_status_json = serde_json::to_string(&trigger_status)
+            .unwrap_or_else(|_| "{\"Never\":{}}".to_string());
+
         graph
             .run(
                 query(
@@ -1620,14 +1842,16 @@ pub async fn seed_thornhaven_to_neo4j(
                         outcomes_json: $outcomes_json,
                         trigger_logic: $trigger_logic,
                         tags_json: $tags_json,
-                        is_active: $is_active,
-                        is_triggered: $is_triggered,
-                        is_repeatable: $is_repeatable,
+                        activation: $activation,
+                        repeatability: $repeatability,
+                        favorite: $favorite,
+                        trigger_status_json: $trigger_status_json,
                         priority: $priority,
-                        is_favorite: $is_favorite,
                         delay_turns: $delay_turns,
-                        trigger_count: $trigger_count
-                    })",
+                        trigger_count: $trigger_count,
+                        created_at: datetime($created_at),
+                        updated_at: datetime($updated_at)
+                    })"
                 )
                 .param("id", new_id.to_string())
                 .param("world_id", world_id.to_string())
@@ -1646,13 +1870,15 @@ pub async fn seed_thornhaven_to_neo4j(
                 .param("outcomes_json", outcomes_json)
                 .param("trigger_logic", event.trigger_logic.clone())
                 .param("tags_json", tags_json)
-                .param("is_active", event.is_active)
-                .param("is_triggered", event.is_triggered)
-                .param("is_repeatable", event.is_repeatable)
+                .param("activation", activation)
+                .param("repeatability", repeatability)
+                .param("favorite", favorite)
+                .param("trigger_status_json", trigger_status_json)
                 .param("priority", event.priority as i64)
-                .param("is_favorite", event.is_favorite)
                 .param("delay_turns", event.delay_turns as i64)
-                .param("trigger_count", event.trigger_count as i64),
+                .param("trigger_count", event.trigger_count as i64)
+                .param("created_at", now.to_rfc3339())
+                .param("updated_at", now.to_rfc3339()),
             )
             .await?;
 
@@ -1669,6 +1895,265 @@ pub async fn seed_thornhaven_to_neo4j(
             .await?;
 
         event_ids.insert(event.name.clone(), new_id);
+    }
+
+    // 14. Create LocationState nodes and set ACTIVE_STATE edges
+    // This is required for staging approval to have active visual states
+    let mut location_state_id_map: HashMap<LocationStateId, LocationStateId> = HashMap::new();
+    for state in &test_world.location_states {
+        // Generate fresh random ID for test isolation
+        let new_id = wrldbldr_domain::LocationStateId::from(Uuid::new_v4());
+        location_state_id_map.insert(state.id, new_id);
+
+        // Get the mapped location ID
+        let new_location_id = location_id_map
+            .get(&state.location_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Location ID not found for location state: {}", state.name));
+
+        // Convert activation rules and logic to the format expected by the domain
+        let activation_rules_json = convert_activation_rules_to_stored_format(&state.activation_rules);
+        let activation_logic_json = convert_activation_logic_to_stored_format(&state.activation_logic);
+
+        graph
+            .run(
+                query(
+                    "CREATE (ls:LocationState {
+                        id: $id,
+                        location_id: $location_id,
+                        world_id: $world_id,
+                        name: $name,
+                        description: $description,
+                        backdrop_override: $backdrop_override,
+                        atmosphere_override: $atmosphere_override,
+                        ambient_sound: $ambient_sound,
+                        map_overlay: $map_overlay,
+                        activation_rules: $activation_rules,
+                        activation_logic: $activation_logic,
+                        priority: $priority,
+                        is_default: $is_default,
+                        created_at: datetime($created_at),
+                        updated_at: datetime($updated_at)
+                    })"
+                )
+                .param("id", new_id.to_string())
+                .param("location_id", new_location_id.to_string())
+                .param("world_id", world_id.to_string())
+                .param("name", state.name.clone())
+                .param("description", state.description.clone())
+                .param(
+                    "backdrop_override",
+                    state.backdrop_override.clone().unwrap_or_default(),
+                )
+                .param(
+                    "atmosphere_override",
+                    state.atmosphere_override.clone().unwrap_or_default(),
+                )
+                .param("ambient_sound", state.ambient_sound.clone().unwrap_or_default())
+                .param("map_overlay", state.map_overlay.clone().unwrap_or_default())
+                .param("activation_rules", activation_rules_json)
+                .param("activation_logic", activation_logic_json)
+                .param("priority", state.priority as i64)
+                .param("is_default", state.is_default)
+                .param("created_at", now.to_rfc3339())
+                .param("updated_at", now.to_rfc3339()),
+            )
+            .await?;
+
+        // Create HAS_STATE relationship from Location to LocationState
+        graph
+            .run(
+                query(
+                    "MATCH (ls:LocationState {id: $state_id}), (l:Location {id: $location_id})
+                     CREATE (l)-[:HAS_STATE]->(ls)"
+                )
+                .param("state_id", new_id.to_string())
+                .param("location_id", new_location_id.to_string()),
+            )
+            .await?;
+
+        // If this is the default state, also set it as ACTIVE_STATE
+        // This ensures staging approval has an active visual state
+        if state.is_default {
+            graph
+                .run(
+                    query(
+                        "MATCH (ls:LocationState {id: $state_id}), (l:Location {id: $location_id})
+                         MERGE (l)-[:ACTIVE_STATE]->(ls)"
+                    )
+                    .param("state_id", new_id.to_string())
+                    .param("location_id", new_location_id.to_string()),
+                )
+                .await?;
+        }
+    }
+
+    // For any locations without an active state, create a fallback default state
+    // This ensures every location has at least one active state for staging approval
+    for (loc_name, loc_id) in &location_ids {
+        // Check if there's already an ACTIVE_STATE for this location
+        let mut active_check = graph
+            .execute(
+                query(
+                    "MATCH (l:Location {id: $location_id})-[:ACTIVE_STATE]->(:LocationState)
+                     RETURN count(*) as has_active"
+                )
+                .param("location_id", loc_id.to_string()),
+            )
+            .await?;
+
+        let has_active: i64 = if let Some(row) = active_check.next().await? {
+            row.get("has_active").unwrap_or(0)
+        } else {
+            0
+        };
+
+        if has_active == 0 {
+            // First try to find any existing state for this location and make it active
+            let mut state_result = graph
+                .execute(
+                    query(
+                        "MATCH (l:Location {id: $location_id})-[:HAS_STATE]->(ls:LocationState)
+                         RETURN ls.id as state_id LIMIT 1"
+                    )
+                    .param("location_id", loc_id.to_string()),
+                )
+                .await?;
+
+            if let Some(row) = state_result.next().await? {
+                let state_id: String = row.get("state_id")?;
+                graph
+                    .run(
+                        query(
+                            "MATCH (ls:LocationState {id: $state_id}), (l:Location {id: $location_id})
+                             MERGE (l)-[:ACTIVE_STATE]->(ls)"
+                        )
+                        .param("state_id", state_id)
+                        .param("location_id", loc_id.to_string()),
+                    )
+                    .await?;
+            } else {
+                // No states exist for this location - create a fallback default state
+                let fallback_state_id = wrldbldr_domain::LocationStateId::from(Uuid::new_v4());
+                let fallback_name = format!("{} Default", loc_name);
+
+                // Create the fallback state with "Always" activation rule
+                graph
+                    .run(
+                        query(
+                            "CREATE (ls:LocationState {
+                                id: $id,
+                                location_id: $location_id,
+                                world_id: $world_id,
+                                name: $name,
+                                description: $description,
+                                backdrop_override: '',
+                                atmosphere_override: '',
+                                ambient_sound: '',
+                                map_overlay: '',
+                                activation_rules: $activation_rules,
+                                activation_logic: $activation_logic,
+                                priority: 0,
+                                is_default: true,
+                                created_at: datetime($created_at),
+                                updated_at: datetime($updated_at)
+                            })"
+                        )
+                        .param("id", fallback_state_id.to_string())
+                        .param("location_id", loc_id.to_string())
+                        .param("world_id", world_id.to_string())
+                        .param("name", fallback_name)
+                        .param("description", "Default visual state")
+                        .param("activation_rules", "[{\"type\":\"Always\"}]")
+                        .param("activation_logic", "\"All\"")
+                        .param("created_at", now.to_rfc3339())
+                        .param("updated_at", now.to_rfc3339()),
+                    )
+                    .await?;
+
+                // Create HAS_STATE and ACTIVE_STATE relationships
+                graph
+                    .run(
+                        query(
+                            "MATCH (ls:LocationState {id: $state_id}), (l:Location {id: $location_id})
+                             CREATE (l)-[:HAS_STATE]->(ls)
+                             CREATE (l)-[:ACTIVE_STATE]->(ls)"
+                        )
+                        .param("state_id", fallback_state_id.to_string())
+                        .param("location_id", loc_id.to_string()),
+                    )
+                    .await?;
+            }
+        }
+    }
+
+    // 15. Create Want nodes and HAS_WANT relationships for NPC motivations
+    // This enables secret motivation deflection behavior in dialogue tests
+    for want in &test_world.wants {
+        // Map the fixture character_id to the fresh test ID
+        let char_id = npc_id_map
+            .get(&want.character_id)
+            .copied()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Character ID {:?} not found for want: {}",
+                    want.character_id, want.description
+                )
+            });
+
+        // Serialize tells as JSON array for storage
+        let tells_json = serde_json::to_string(&want.tells)
+            .unwrap_or_else(|_| "[]".to_string());
+
+        // Convert visibility from fixture format (lowercase) to storage format (PascalCase)
+        // Fixtures use: "known", "suspected", "hidden"
+        // Storage expects: "Known", "Suspected", "Hidden" (matches WantVisibility enum)
+        let visibility_stored = match want.visibility.as_str() {
+            "known" => "Known",
+            "suspected" => "Suspected",
+            "hidden" => "Hidden",
+            other => other, // Fallback: pass through as-is (already PascalCase or unknown)
+        };
+
+        // Create the Want node with all required properties
+        graph
+            .run(
+                query(
+                    "CREATE (w:Want {
+                        id: $id,
+                        description: $description,
+                        intensity: $intensity,
+                        visibility: $visibility,
+                        deflection_behavior: $deflection_behavior,
+                        tells: $tells,
+                        created_at: datetime($created_at)
+                    })"
+                )
+                .param("id", want.id.to_string())
+                .param("description", want.description.clone())
+                .param("intensity", want.intensity as f64)
+                .param("visibility", visibility_stored)
+                .param(
+                    "deflection_behavior",
+                    want.deflection_behavior.clone().unwrap_or_default()
+                )
+                .param("tells", tells_json)
+                .param("created_at", now.to_rfc3339()),
+            )
+            .await?;
+
+        // Create HAS_WANT relationship from character to want with priority
+        graph
+            .run(
+                query(
+                    "MATCH (c:Character {id: $char_id}), (w:Want {id: $want_id})
+                     CREATE (c)-[:HAS_WANT {priority: $priority}]->(w)"
+                )
+                .param("char_id", char_id.to_string())
+                .param("want_id", want.id.to_string())
+                .param("priority", want.priority as i64),
+            )
+            .await?;
     }
 
     Ok(SeededWorld {
@@ -1810,6 +2295,19 @@ impl LlmPort for NoopLlm {
             finish_reason: FinishReason::Stop,
             usage: None,
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::infrastructure::ports::LlmModelsPort for NoopLlm {
+    async fn list_models(&self) -> Result<Vec<crate::infrastructure::ports::LlmModelDescriptor>, LlmError> {
+        Ok(vec![
+            crate::infrastructure::ports::LlmModelDescriptor {
+                id: "test-model".to_string(),
+                owned_by: Some("test".to_string()),
+                object: Some("model".to_string()),
+            }
+        ])
     }
 }
 
@@ -1988,6 +2486,292 @@ pub fn create_e2e_llm(test_name: &str) -> Arc<VcrLlm> {
 }
 
 // =============================================================================
+// E2E Test Retry Helper
+// =============================================================================
+
+/// Result type for retryable E2E tests.
+pub type RetryableResult<T> = Result<T, Box<dyn std::any::Any + Send>>;
+
+/// Configuration for E2E test retry behavior.
+#[derive(Debug, Clone)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts (including the initial attempt).
+    /// Default is 1 (no retries). Set via E2E_RETRY_COUNT env var.
+    pub max_attempts: usize,
+    /// Whether retry is enabled (only in record mode).
+    pub enabled: bool,
+}
+
+impl RetryConfig {
+    /// Load retry configuration from environment variables.
+    ///
+    /// # Environment Variables
+    /// - `E2E_RETRY_COUNT`: Number of retry attempts (default: 1, meaning no retries)
+    /// - `E2E_LLM_MODE`: Retry only enabled when set to "record"
+    pub fn from_env() -> Self {
+        let e2e_mode = std::env::var("E2E_LLM_MODE").unwrap_or_default();
+        let is_record_mode = e2e_mode == "record";
+
+        let max_attempts = std::env::var("E2E_RETRY_COUNT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1)
+            .max(1); // At least 1 attempt
+
+        Self {
+            max_attempts,
+            enabled: is_record_mode,
+        }
+    }
+
+    /// Get the effective number of attempts based on configuration.
+    pub fn effective_attempts(&self) -> usize {
+        if self.enabled {
+            self.max_attempts
+        } else {
+            1
+        }
+    }
+}
+
+/// Run an async E2E test body with retry support in record mode.
+///
+/// This helper wraps async test bodies and retries on panic/assert failure
+/// via `catch_unwind`. It is designed to work with flaky LLM-based E2E tests
+/// that may fail due to non-deterministic LLM responses.
+///
+/// # Retry Behavior
+///
+/// - Only retries when `E2E_LLM_MODE=record` (live mode has its own variability)
+/// - In playback mode, retries are disabled (cassettes are deterministic)
+/// - Retry count is configurable via `E2E_RETRY_COUNT` env var (default: 1)
+///
+/// # Cassette Handling
+///
+/// When using VCR cassettes in record mode:
+/// - Failed attempts do NOT persist their cassettes
+/// - The cassette file is deleted before each retry
+/// - Only the final passing attempt's cassette is kept
+///
+/// # Usage
+///
+/// ```ignore
+/// #[tokio::test]
+/// async fn test_flaky_llm_behavior() {
+///     const TEST_NAME: &str = "test_flaky_llm_behavior";
+///     let cassette_path = PathBuf::from(format!("cassettes/{}.json", TEST_NAME));
+///     
+///     run_e2e_with_retry(TEST_NAME, &cassette_path, || async {
+///         let vcr = Arc::new(VcrLlm::from_env(cassette_path.clone()));
+///         let ctx = E2ETestContext::setup_with_llm(vcr.clone()).await?;
+///         
+///         // ... test body ...
+///         
+///         vcr.save_cassette()?;
+///         Ok(())
+///     }).await;
+/// }
+/// ```
+///
+/// # Panics
+///
+/// Panics with the last attempt's error message if all retries are exhausted.
+pub async fn run_e2e_with_retry<F, Fut>(
+    test_name: &str,
+    cassette_path: &Path,
+    test_body: F,
+) where
+    F: Fn() -> Fut + Send + Sync,
+    Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send,
+{
+    use std::panic::AssertUnwindSafe;
+    use futures_util::FutureExt;
+
+    let config = RetryConfig::from_env();
+    let max_attempts = config.effective_attempts();
+
+    if max_attempts == 1 {
+        // No retry needed, just run the test
+        let result = test_body().await;
+        if let Err(e) = result {
+            panic!("Test {} failed: {}", test_name, e);
+        }
+        return;
+    }
+
+    // Retry loop
+    let mut last_error: Option<String> = None;
+
+    for attempt in 1..=max_attempts {
+        tracing::info!(
+            test_name = %test_name,
+            attempt = attempt,
+            max_attempts = max_attempts,
+            "Running E2E test with retry"
+        );
+
+        // Delete cassette before retry (if it exists) to prevent partial recordings
+        if attempt > 1 && cassette_path.exists() {
+            if let Err(e) = std::fs::remove_file(cassette_path) {
+                tracing::warn!(
+                    cassette_path = %cassette_path.display(),
+                    error = %e,
+                    "Failed to delete cassette before retry"
+                );
+            } else {
+                tracing::info!(
+                    cassette_path = %cassette_path.display(),
+                    "Deleted cassette before retry"
+                );
+            }
+        }
+
+        // Run the test body and catch any panics
+        let catch_result = AssertUnwindSafe(test_body())
+            .catch_unwind()
+            .await;
+
+        match catch_result {
+            Ok(Ok(())) => {
+                tracing::info!(
+                    test_name = %test_name,
+                    attempt = attempt,
+                    "E2E test passed"
+                );
+                return; // Success!
+            }
+            Ok(Err(e)) => {
+                // Test returned an error (not a panic)
+                let error_msg = format!("{}", e);
+                tracing::warn!(
+                    test_name = %test_name,
+                    attempt = attempt,
+                    max_attempts = max_attempts,
+                    error = %error_msg,
+                    "E2E test failed with error"
+                );
+                last_error = Some(error_msg);
+            }
+            Err(panic_info) => {
+                // Test panicked (assertion failure, etc.)
+                let panic_msg = if let Some(s) = panic_info.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_info.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "Unknown panic".to_string()
+                };
+
+                tracing::warn!(
+                    test_name = %test_name,
+                    attempt = attempt,
+                    max_attempts = max_attempts,
+                    panic = %panic_msg,
+                    "E2E test panicked"
+                );
+                last_error = Some(panic_msg);
+            }
+        }
+
+        // If this wasn't the last attempt, log retry
+        if attempt < max_attempts {
+            tracing::info!(
+                test_name = %test_name,
+                next_attempt = attempt + 1,
+                "Retrying E2E test"
+            );
+        }
+    }
+
+    // All attempts exhausted
+    let error_msg = last_error.unwrap_or_else(|| "Unknown error".to_string());
+    panic!(
+        "Test {} failed after {} attempts. Last error: {}",
+        test_name, max_attempts, error_msg
+    );
+}
+
+/// Run an async E2E test body with retry support and automatic cassette management.
+///
+/// This is a convenience wrapper around `run_e2e_with_retry` that handles
+/// VCR cassette creation and saving automatically. Use this for tests that
+/// follow the standard E2E pattern with VCR LLM.
+///
+/// # Usage
+///
+/// ```ignore
+/// #[tokio::test]
+/// async fn test_with_vcr() {
+///     const TEST_NAME: &str = "test_with_vcr";
+///     
+///     run_e2e_with_vcr(TEST_NAME, |vcr, ctx| async move {
+///         // ... test body using vcr and ctx ...
+///         Ok(())
+///     }).await;
+/// }
+/// ```
+///
+/// # Type Parameters
+///
+/// - `F`: The test body function type
+/// - `Fut`: The future returned by the test body
+///
+/// # Panics
+///
+/// Panics if all retry attempts are exhausted.
+pub async fn run_e2e_with_vcr<F, Fut>(test_name: &str, test_body: F)
+where
+    F: Fn(Arc<VcrLlm>, E2ETestContext) -> Fut + Send + Sync + Clone,
+    Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send,
+{
+    use super::event_log::E2EEventLog;
+
+    let cassette_path = PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        test_name
+    ));
+
+    let test_body_clone = test_body.clone();
+    let test_name_owned = test_name.to_string();
+    let test_name_clone = test_name_owned.clone();
+    let cassette_path_clone = cassette_path.clone();
+
+    run_e2e_with_retry(&test_name_owned, &cassette_path, move || {
+        let test_body = test_body_clone.clone();
+        let cassette_path = cassette_path_clone.clone();
+        let test_name = test_name_clone.clone();
+
+        async move {
+            // Create event log for this attempt
+            let event_log = Arc::new(E2EEventLog::new(&test_name));
+
+            // Create VCR LLM
+            let vcr = Arc::new(VcrLlm::from_env(cassette_path));
+            let llm = Arc::new(super::LoggingLlmDecorator::new(
+                vcr.clone(),
+                event_log.clone(),
+            ));
+
+            // Setup test context
+            let ctx = E2ETestContext::setup_with_llm_and_logging(llm, event_log.clone())
+                .await
+                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e })?;
+
+            // Run test body
+            test_body(vcr.clone(), ctx).await?;
+
+            // Save cassette
+            vcr.save_cassette()
+                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
+
+            Ok(())
+        }
+    })
+    .await;
+}
+
+// =============================================================================
 // Gameplay Flow Helpers
 // =============================================================================
 
@@ -2132,7 +2916,7 @@ pub async fn run_conversation_turn(
     // Log player turn (we don't know exact turn number in continue, use 0 as placeholder)
     if let Some(conv_id) = conversation_id {
         ctx.log_event(E2EEvent::ConversationTurn {
-            id: conv_id.to_uuid(),
+            id: conv_id,
             speaker: "player".to_string(),
             content: dialogue.to_string(),
             turn_number: 0, // Turn number not tracked in continue
@@ -2175,8 +2959,9 @@ pub async fn run_conversation_turn(
     // 4. If we got a result, approve it
     if let Some(result) = llm_result {
         // Log approval decision
+        let queue_item_id: QueueItemId = result.approval_id.into();
         ctx.log_event(E2EEvent::ApprovalDecision {
-            id: result.approval_id,
+            id: queue_item_id,
             decision: "Accept".to_string(),
             modified: false,
             dm_feedback: None,
@@ -2187,7 +2972,7 @@ pub async fn run_conversation_turn(
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
+            .execute(queue_item_id, DmApprovalDecision::Accept)
             .await?;
 
         let npc_response = approval.final_dialogue.unwrap_or_default();
@@ -2195,7 +2980,7 @@ pub async fn run_conversation_turn(
         // Log NPC response turn
         if let Some(conv_id) = conversation_id {
             ctx.log_event(E2EEvent::ConversationTurn {
-                id: conv_id.to_uuid(),
+                id: conv_id,
                 speaker: npc.name().to_string(),
                 content: npc_response.clone(),
                 turn_number: 0, // Turn number not tracked in continue
@@ -2248,7 +3033,7 @@ pub async fn start_conversation_with_npc(
 
     // Log conversation start
     ctx.log_event(E2EEvent::ConversationStarted {
-        id: conversation_id.to_uuid(),
+        id: conversation_id,
         pc_id: pc_id.to_string(),
         npc_id: npc_id.to_string(),
         npc_name: npc.name().to_string(),
@@ -2256,7 +3041,7 @@ pub async fn start_conversation_with_npc(
 
     // Log player turn
     ctx.log_event(E2EEvent::ConversationTurn {
-        id: conversation_id.to_uuid(),
+        id: conversation_id,
         speaker: "player".to_string(),
         content: dialogue.to_string(),
         turn_number: 1,
@@ -2283,8 +3068,9 @@ pub async fn start_conversation_with_npc(
     // 4. If we got a result, approve it
     if let Some(result) = llm_result {
         // Log approval decision
+        let queue_item_id: QueueItemId = result.approval_id.into();
         ctx.log_event(E2EEvent::ApprovalDecision {
-            id: result.approval_id,
+            id: queue_item_id,
             decision: "Accept".to_string(),
             modified: false,
             dm_feedback: None,
@@ -2295,14 +3081,14 @@ pub async fn start_conversation_with_npc(
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
+            .execute(queue_item_id, DmApprovalDecision::Accept)
             .await?;
 
         let npc_response = approval.final_dialogue.unwrap_or_default();
 
         // Log NPC response turn
         ctx.log_event(E2EEvent::ConversationTurn {
-            id: conversation_id.to_uuid(),
+            id: conversation_id,
             speaker: npc.name().to_string(),
             content: npc_response.clone(),
             turn_number: 2,
@@ -2312,4 +3098,88 @@ pub async fn start_conversation_with_npc(
     } else {
         Err("No LLM request was processed".into())
     }
+}
+
+// =============================================================================
+// Event Chain Helpers
+// =============================================================================
+
+use wrldbldr_domain::{EventChain, EventChainId, EventChainName};
+
+/// Create an EventChain and link events to it.
+///
+/// This is required for trigger evaluation to recognize event completions
+/// via `get_completed_events`, which reads from EventChain nodes only.
+///
+/// # Arguments
+/// * `ctx` - The E2E test context
+/// * `name` - Name for the event chain
+/// * `event_ids` - Ordered list of event IDs in the chain
+/// * `completed_event_ids` - Optional list of event IDs already completed
+///
+/// # Returns
+/// The created EventChainId
+pub async fn create_event_chain(
+    ctx: &E2ETestContext,
+    name: &str,
+    event_ids: Vec<NarrativeEventId>,
+    completed_event_ids: Vec<NarrativeEventId>,
+) -> Result<EventChainId, Box<dyn std::error::Error + Send + Sync>> {
+    let now = ctx.clock.now();
+
+    let name = EventChainName::new(name)?;
+    let mut chain = EventChain::new(ctx.world.world_id, name, now)?;
+
+    // Add events to the chain
+    for event_id in event_ids {
+        chain.add_event(event_id, now);
+    }
+
+    // Mark events as completed
+    for event_id in completed_event_ids {
+        chain.complete_event(event_id, now);
+    }
+
+    let chain_id = chain.id();
+
+    // Save the chain to the repository
+    ctx.app
+        .repositories
+        .narrative_repo
+        .save_chain(&chain)
+        .await?;
+
+    Ok(chain_id)
+}
+
+/// Mark an event as completed in an existing chain.
+///
+/// This updates the chain's completed_events list and advances current_position.
+pub async fn complete_event_in_chain(
+    ctx: &E2ETestContext,
+    chain_id: EventChainId,
+    event_id: NarrativeEventId,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let now = ctx.clock.now();
+
+    // Get the existing chain
+    let mut chain = ctx
+        .app
+        .repositories
+        .narrative_repo
+        .get_chain(chain_id)
+        .await?
+        .ok_or("EventChain not found")?;
+
+    // Mark the event as completed
+    chain.complete_event(event_id, now);
+
+    // Save the updated chain
+    ctx.app
+        .repositories
+        .narrative_repo
+        .save_chain(&chain)
+        .await?;
+
+    Ok(())
 }

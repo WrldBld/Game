@@ -352,7 +352,10 @@ mod tests {
 
         // Default should be reset to first available
         assert_ne!(config.default_expression(), "neutral");
-        assert!(config.expressions().contains(config.default_expression()));
+        assert!(config
+            .expressions()
+            .iter()
+            .any(|e| e == config.default_expression()));
     }
 
     #[test]

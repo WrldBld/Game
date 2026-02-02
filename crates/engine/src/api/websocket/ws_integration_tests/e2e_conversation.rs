@@ -59,9 +59,10 @@ async fn test_e2e_join_world_and_get_template() {
 
     // Use real Ollama client
     let llm: Arc<dyn LlmPort> = Arc::new(OpenAICompatibleClient::from_env());
+    let llm_models: Arc<dyn crate::infrastructure::ports::LlmModelsPort> = Arc::new(OpenAICompatibleClient::from_env());
     let queue = Arc::new(NoopQueue);
 
-    let app = build_test_app_with_ports(repos, now, queue, llm);
+    let app = build_test_app_with_ports(repos, now, queue, llm, llm_models);
     let connections = Arc::new(ConnectionManager::new());
 
     let ws_state = Arc::new(WsState {

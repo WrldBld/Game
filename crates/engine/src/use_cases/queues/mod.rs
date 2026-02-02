@@ -29,17 +29,16 @@ use crate::llm_context::{
     TriggerHints,
 };
 use crate::prompt_templates::{
-    defaults::{
+    keys::{
         DIALOGUE_CHALLENGE_SUGGESTION_FORMAT, DIALOGUE_NARRATIVE_EVENT_FORMAT,
         DIALOGUE_RESPONSE_FORMAT,
     },
-    get_default,
 };
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
 use crate::infrastructure::ports::{
     ChallengeRepo, CharacterRepo, LlmPort, LocationRepo, NarrativeRepo, PlayerCharacterRepo,
-    PromptTemplateRepo, QueuePort, RepoError, SceneRepo, StagingRepo, WorldRepo,
+    PromptTemplateRepo, QueuePort, RepoError, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
 };
 
 /// Events that need to be broadcast to clients after queue processing.
@@ -90,6 +89,9 @@ pub struct QueueProcessingContext {
 
     // Services used by queue processors
     pub narrative_ops: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
+
+    // Settings for temperature resolution
+    pub settings: Arc<dyn SettingsRepo>,
 }
 
 impl QueueProcessingContext {
@@ -104,6 +106,7 @@ impl QueueProcessingContext {
         world: Arc<dyn WorldRepo>,
         location: Arc<dyn LocationRepo>,
         narrative_ops: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
+        settings: Arc<dyn SettingsRepo>,
     ) -> Self {
         Self {
             queue,
@@ -116,6 +119,7 @@ impl QueueProcessingContext {
             world,
             location,
             narrative_ops,
+            settings,
         }
     }
 
@@ -166,12 +170,20 @@ impl QueueProcessingContext {
             .collect()
     }
 
-    /// Helper to fetch active narrative events for a world
+    /// Helper to fetch active narrative events for a world.
+    ///
+    /// When `player_dialogue` is provided, events are sorted by relevance
+    /// (keyword overlap score) in descending order. Events with no keyword
+    /// matches retain their original relative order.
     pub async fn fetch_active_narrative_events(
         &self,
         world_id: WorldId,
+        player_dialogue: Option<&str>,
     ) -> Vec<ActiveNarrativeEventContext> {
-        self.narrative_ops
+        let dialogue_lower = player_dialogue.map(|d| d.to_lowercase());
+
+        let mut events_with_scores: Vec<(ActiveNarrativeEventContext, usize, Vec<String>)> = self
+            .narrative_ops
             .list_events(world_id)
             .await
             .unwrap_or_else(|e| {
@@ -182,6 +194,7 @@ impl QueueProcessingContext {
             .filter(|e| e.is_active() && (!e.is_triggered() || e.is_repeatable()))
             .map(|e| {
                 let mut trigger_hints = TriggerHints::default();
+                let mut all_keywords: Vec<String> = vec![];
 
                 for tc in e.trigger_conditions() {
                     match &tc.trigger_type {
@@ -189,33 +202,51 @@ impl QueueProcessingContext {
                             keywords, ..
                         } => {
                             trigger_hints.pc_mentions.extend(keywords.clone());
+                            all_keywords.extend(keywords.clone());
                         }
                         wrldbldr_domain::NarrativeTriggerType::NpcAction {
                             action_keywords,
                             ..
                         } => {
-                            trigger_hints
-                                .custom
-                                .push(format!("NPC action: {}", action_keywords.join(", ")));
+                            let hint = format!("NPC action: {}", action_keywords.join(", "));
+                            trigger_hints.custom.push(hint);
+                            all_keywords.extend(action_keywords.clone());
                         }
                         wrldbldr_domain::NarrativeTriggerType::Custom { description, .. } => {
                             trigger_hints.custom.push(description.clone());
                         }
                         wrldbldr_domain::NarrativeTriggerType::HasItem { item_name, .. } => {
-                            trigger_hints
-                                .custom
-                                .push(format!("PC has item: {}", item_name));
+                            let hint = format!("PC has item: {}", item_name);
+                            trigger_hints.custom.push(hint);
                         }
                         wrldbldr_domain::NarrativeTriggerType::FlagSet { flag_name } => {
-                            trigger_hints
-                                .custom
-                                .push(format!("flag set: {}", flag_name));
+                            let hint = format!("flag set: {}", flag_name);
+                            trigger_hints.custom.push(hint);
                         }
                         _ => {}
                     }
                 }
 
-                ActiveNarrativeEventContext {
+                // Compute relevance score: count of keywords present in player dialogue
+                let (score, matched_keywords) = dialogue_lower.as_ref().map_or(
+                    (0, vec![]),
+                    |dialogue| {
+                        let mut score = 0usize;
+                        let mut matched = vec![];
+                        for kw in &all_keywords {
+                            let kw_lower = kw.to_lowercase();
+                            if dialogue.contains(&kw_lower) {
+                                score += 1;
+                                if !matched.contains(kw) {
+                                    matched.push(kw.clone());
+                                }
+                            }
+                        }
+                        (score, matched)
+                    },
+                );
+
+                let ctx = ActiveNarrativeEventContext {
                     id: e.id().to_string(),
                     name: e.name().to_string(),
                     description: e.description().to_string(),
@@ -223,7 +254,25 @@ impl QueueProcessingContext {
                     trigger_hints,
                     featured_npc_names: vec![],
                     priority: e.priority(),
+                };
+
+                (ctx, score, matched_keywords)
+            })
+            .collect();
+
+        // Sort by relevance score descending (stable sort preserves original order for ties)
+        events_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Store matched keywords in custom hints for display
+        events_with_scores
+            .into_iter()
+            .map(|(mut ctx, _, matched)| {
+                if !matched.is_empty() {
+                    ctx.trigger_hints
+                        .custom
+                        .push(format!("[MATCHED_KEYWORDS: {}]", matched.join(", ")));
                 }
+                ctx
             })
             .collect()
     }
@@ -262,11 +311,12 @@ pub struct PlayerActionProcessed {
 #[allow(dead_code)]
 pub struct ProcessPlayerAction {
     ctx: QueueProcessingContext,
+    prompt_templates: Arc<dyn PromptTemplateRepo>,
 }
 
 impl ProcessPlayerAction {
-    pub fn new(ctx: QueueProcessingContext) -> Self {
-        Self { ctx }
+    pub fn new(ctx: QueueProcessingContext, prompt_templates: Arc<dyn PromptTemplateRepo>) -> Self {
+        Self { ctx, prompt_templates }
     }
 
     /// Process the next player action in the queue.
@@ -298,6 +348,20 @@ impl ProcessPlayerAction {
             self.build_fallback_prompt(&action_data)
         });
 
+        // Resolve template temperature from front matter (if available)
+        let template_temp = self
+            .prompt_templates
+            .resolve_template_with_metadata(Some(action_data.world_id), DIALOGUE_RESPONSE_FORMAT)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|t| t.temperature);
+
+        // Resolve temperature with precedence: template -> settings -> default
+        let temperature = self
+            .resolve_temperature_npc_response(action_data.world_id, template_temp)
+            .await;
+
         let llm_request = LlmRequestData {
             request_type: LlmRequestType::NpcResponse {
                 action_item_id: item.id,
@@ -308,6 +372,7 @@ impl ProcessPlayerAction {
             suggestion_context: None,
             callback_id: item.id.to_string(),
             conversation_id: action_data.conversation_id.map(|id| wrldbldr_domain::ConversationId::from(id)),
+            temperature: Some(temperature),
         };
 
         // Enqueue the LLM request
@@ -598,9 +663,11 @@ impl ProcessPlayerAction {
             .await;
 
         // Fetch active narrative events for this world
+        // Pass player dialogue for relevance scoring and keyword matching
+        let player_dialogue = action_data.dialogue.as_deref();
         let active_narrative_events: Vec<ActiveNarrativeEventContext> = self
             .ctx
-            .fetch_active_narrative_events(action_data.world_id)
+            .fetch_active_narrative_events(action_data.world_id, player_dialogue)
             .await;
 
         Ok(GamePromptRequest {
@@ -680,6 +747,42 @@ impl ProcessPlayerAction {
             game_time: None,
         }
     }
+
+    /// Resolve temperature for NPC response generation.
+    ///
+    /// Temperature precedence:
+    /// 1. Template front matter temperature (if provided)
+    /// 2. AppSettings per-world temperature
+    /// 3. AppSettings global temperature
+    /// 4. Default (0.7)
+    ///
+    /// # Arguments
+    /// * `world_id` - The world ID for settings lookup
+    /// * `template_temperature` - Optional temperature from template front matter
+    async fn resolve_temperature_npc_response(
+        &self,
+        world_id: WorldId,
+        template_temperature: Option<f32>,
+    ) -> f32 {
+        // Priority 1: Template front matter temperature
+        if let Some(temp) = template_temperature {
+            tracing::debug!(temperature = temp, "Using template front matter temperature");
+            return temp;
+        }
+
+        // Priority 2: AppSettings per-world temperature
+        if let Ok(Some(settings)) = self.ctx.settings.get_for_world(world_id).await {
+            return settings.llm_temperature_npc_response();
+        }
+
+        // Priority 3: AppSettings global temperature
+        if let Ok(Some(settings)) = self.ctx.settings.get_global().await {
+            return settings.llm_temperature_npc_response();
+        }
+
+        // Priority 4: Default
+        0.7
+    }
 }
 
 /// Result of processing an LLM request.
@@ -702,6 +805,7 @@ pub struct ProcessLlmRequest {
     ctx: QueueProcessingContext,
     llm: Arc<dyn LlmPort>,
     prompt_templates: Arc<dyn PromptTemplateRepo>,
+    resolve_model: Arc<crate::use_cases::ai::ResolveLlmModel>,
 }
 
 impl ProcessLlmRequest {
@@ -709,11 +813,13 @@ impl ProcessLlmRequest {
         ctx: QueueProcessingContext,
         llm: Arc<dyn LlmPort>,
         prompt_templates: Arc<dyn PromptTemplateRepo>,
+        resolve_model: Arc<crate::use_cases::ai::ResolveLlmModel>,
     ) -> Self {
         Self {
             ctx,
             llm,
             prompt_templates,
+            resolve_model,
         }
     }
 
@@ -755,11 +861,24 @@ impl ProcessLlmRequest {
                 current_description,
                 guidance,
             } => {
-                // Build prompt for outcome suggestions
-                let system_prompt = "You are a creative TTRPG game master assistant. \
-                    Generate 3 alternative narrative descriptions for a challenge outcome. \
-                    Each suggestion should be evocative and fit the fantasy setting. \
-                    Return each suggestion on a separate line, numbered 1-3.";
+                // Load system prompt from template repository with metadata (includes temperature)
+                let template_result = self
+                    .prompt_templates
+                    .resolve_template_with_metadata(Some(*world_id), crate::prompt_templates::keys::SYSTEM_OUTCOME_SUGGESTIONS)
+                    .await
+                    .ok()
+                    .flatten();
+
+                let system_prompt = template_result
+                    .as_ref()
+                    .map(|t| t.text.clone())
+                    .unwrap_or_else(|| {
+                        // Fallback if template not found
+                        "You are a creative TTRPG game master assistant. \
+                         Generate 3 alternative narrative descriptions for a challenge outcome. \
+                         Each suggestion should be evocative and fit the fantasy setting. \
+                         Return each suggestion on a separate line, numbered 1-3.".to_string()
+                    });
 
                 let user_message = format!(
                     "Challenge: {}\nCurrent outcome description: \"{}\"\n{}Generate 3 alternative descriptions.",
@@ -768,11 +887,41 @@ impl ProcessLlmRequest {
                     guidance.as_ref().map(|g| format!("DM guidance: {}\n", g)).unwrap_or_default()
                 );
 
+                // Resolve the model for this request
+                let resolve_input = crate::use_cases::ai::ResolveModelInput {
+                    world_id: Some(*world_id),
+                    env_default_override: None,
+                };
+                let resolved_model = match self.resolve_model.execute(resolve_input).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to resolve model, using default");
+                        crate::use_cases::ai::ResolvedModel {
+                            model_id: "mlx-community/gpt-oss-20b-MXFP4-Q8".to_string(),
+                            source: crate::use_cases::ai::ModelSource::EnvDefault,
+                            warning: Some(format!("Model resolution failed: {}", e)),
+                        }
+                    }
+                };
+
+                // Use persisted temperature, prefer template temperature over settings
+                let temperature = match request_data.temperature {
+                    Some(t) => t,
+                    None => {
+                        // Prefer template front matter temperature, fallback to settings
+                        match template_result.as_ref().and_then(|t| t.temperature) {
+                            Some(template_temp) => template_temp,
+                            None => self.resolve_temperature_outcome_suggestion(*world_id).await,
+                        }
+                    }
+                };
+
                 let llm_request = crate::infrastructure::ports::LlmRequest::new(vec![
                     crate::infrastructure::ports::ChatMessage::user(&user_message),
                 ])
                 .with_system_prompt(system_prompt.to_string())
-                .with_temperature(0.8);
+                .with_temperature(temperature)
+                .with_model(resolved_model.model_id);
 
                 let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
                     tracing::error!(
@@ -848,13 +997,46 @@ impl ProcessLlmRequest {
 
                 let prompt = build_suggestion_prompt(field_type, &context);
 
+                // Resolve the model for this request
+                let resolve_input = crate::use_cases::ai::ResolveModelInput {
+                    world_id: Some(world_id),
+                    env_default_override: None,
+                };
+                let resolved_model = match self.resolve_model.execute(resolve_input).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to resolve model, using default");
+                        crate::use_cases::ai::ResolvedModel {
+                            model_id: "mlx-community/gpt-oss-20b-MXFP4-Q8".to_string(),
+                            source: crate::use_cases::ai::ModelSource::EnvDefault,
+                            warning: Some(format!("Model resolution failed: {}", e)),
+                        }
+                    }
+                };
+
+                // Use persisted temperature or resolve from settings
+                let temperature = match request_data.temperature {
+                    Some(t) => t,
+                    None => self.resolve_temperature_suggestion(world_id).await,
+                };
+
+                // Load system prompt from template repository
+                let system_prompt = self
+                    .prompt_templates
+                    .resolve_template(Some(world_id), crate::prompt_templates::keys::SYSTEM_GENERIC_SUGGESTION)
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| {
+                        "You are a helpful worldbuilding assistant. Return only suggestions, one per line.".to_string()
+                    });
+
                 let llm_request = crate::infrastructure::ports::LlmRequest::new(vec![
                     crate::infrastructure::ports::ChatMessage::user(&prompt),
                 ])
-                .with_system_prompt(
-                    "You are a helpful worldbuilding assistant. Return only suggestions, one per line.".to_string(),
-                )
-                .with_temperature(0.8);
+                .with_system_prompt(system_prompt)
+                .with_temperature(temperature)
+                .with_model(resolved_model.model_id);
 
                 let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
                     tracing::error!(
@@ -952,7 +1134,7 @@ impl ProcessLlmRequest {
                             })
                             .collect();
                         format!(
-                            "\n\nACTIVE CHALLENGES:\nYou MUST analyze each challenge below and determine if the player's action triggers it.\nFor each challenge, check if the player's words match any keywords in `pc_mentions` or if their action matches `interacts_with`.\n\n{}\n\nYou MUST include a <challenge_analysis> section in your response evaluating EACH challenge.",
+                            "\n\nACTIVE CHALLENGES:\nYou MUST analyze each challenge below and determine if the player's action triggers it.\nFor each challenge, check if the player's words match any keywords in `pc_mentions` or if their action matches `interacts_with`.\n\n{}\n\nYou MUST include a <challenge> block for each challenge listed above.",
                             challenge_list.join("\n")
                         )
                     };
@@ -987,51 +1169,96 @@ impl ProcessLlmRequest {
                     let challenge_format_key = DIALOGUE_CHALLENGE_SUGGESTION_FORMAT.trim();
                     let event_format_key = DIALOGUE_NARRATIVE_EVENT_FORMAT.trim();
 
+                    // Resolve prompt templates via repository
+                    // The repository handles fallback to file-backed defaults automatically
                     let response_format = match self
                         .prompt_templates
                         .resolve_template(Some(world_id), response_format_key)
-                        .await?
+                        .await
+                        .map_err(|e| QueueError::Repo(e))?
                     {
                         Some(v) => v,
                         None => {
-                            // Fallback to default if unknown key
-                            get_default(response_format_key)
-                                .map(|s| s.to_string())
-                                .unwrap_or_else(|| DIALOGUE_RESPONSE_FORMAT.to_string())
+                            return Err(QueueError::ParseError(
+                                format!("Template '{}' not found", response_format_key)
+                            ));
                         }
                     };
 
                     let challenge_suggestion_format = match self
                         .prompt_templates
                         .resolve_template(Some(world_id), challenge_format_key)
-                        .await?
+                        .await
+                        .map_err(|e| QueueError::Repo(e))?
                     {
                         Some(v) => v,
                         None => {
-                            get_default(challenge_format_key)
-                                .map(|s| s.to_string())
-                                .unwrap_or_else(|| DIALOGUE_CHALLENGE_SUGGESTION_FORMAT.to_string())
+                            return Err(QueueError::ParseError(
+                                format!("Template '{}' not found", challenge_format_key)
+                            ));
                         }
                     };
 
                     let narrative_event_format = match self
                         .prompt_templates
                         .resolve_template(Some(world_id), event_format_key)
-                        .await?
+                        .await
+                        .map_err(|e| QueueError::Repo(e))?
                     {
                         Some(v) => v,
                         None => {
-                            get_default(event_format_key)
-                                .map(|s| s.to_string())
-                                .unwrap_or_else(|| DIALOGUE_NARRATIVE_EVENT_FORMAT.to_string())
+                            return Err(QueueError::ParseError(
+                                format!("Template '{}' not found", event_format_key)
+                            ));
                         }
+                    };
+
+                    // Build NO PIVOT rule block when events or challenges are present
+                    let no_pivot_rule = if prompt.active_challenges.is_empty()
+                        && prompt.active_narrative_events.is_empty()
+                    {
+                        String::new()
+                    } else {
+                        "\n\nNO PIVOT RULE:\n\
+                        Do NOT use event or challenge descriptions as dialogue topics unless:\n\
+                        - The player's message contains a matching keyword from the trigger hints, OR\n\
+                        - You explicitly mark the trigger as YES in the response block."
+                            .to_string()
+                    };
+
+                    // Build SECRET MOTIVATIONS block if the NPC has secret motivations
+                    let secret_motivations_context = build_secret_motivations_context(&prompt.responding_character);
+
+                    // Build occupational context hint based on location name
+                    let occupational_hint = if prompt.scene_context.location_name.to_lowercase().contains("inn") 
+                        || prompt.scene_context.location_name.to_lowercase().contains("tavern")
+                        || prompt.scene_context.location_name.to_lowercase().contains("pub") {
+                        "\n\nOCCUPATIONAL CONTEXT:\n\
+                        You work at this establishment. Your dialogue should reflect your role - mention guests, travelers, rooms, ale, meals, or the business. Use hospitality language, not generic phrases."
+                    } else if prompt.scene_context.location_name.to_lowercase().contains("shop") 
+                        || prompt.scene_context.location_name.to_lowercase().contains("store")
+                        || prompt.scene_context.location_name.to_lowercase().contains("market") {
+                        "\n\nOCCUPATIONAL CONTEXT:\n\
+                        You work at this establishment. Your dialogue should reflect your role as a merchant - mention wares, prices, stock, or business matters."
+                    } else if prompt.scene_context.location_name.to_lowercase().contains("temple")
+                        || prompt.scene_context.location_name.to_lowercase().contains("shrine")
+                        || prompt.scene_context.location_name.to_lowercase().contains("church") {
+                        "\n\nOCCUPATIONAL CONTEXT:\n\
+                        You serve at this holy place. Your dialogue should reflect your religious role - reference your deity, spiritual duties, or temple matters."
+                    } else if prompt.scene_context.location_name.to_lowercase().contains("guard")
+                        || prompt.scene_context.location_name.to_lowercase().contains("barracks")
+                        || prompt.scene_context.location_name.to_lowercase().contains("watch") {
+                        "\n\nOCCUPATIONAL CONTEXT:\n\
+                        You serve as a guard. Your dialogue should reflect your duty - be watchful, reference safety, orders, or your post."
+                    } else {
+                        ""
                     };
 
                     let system_prompt = format!(
                         "You are roleplaying as an NPC in a fantasy TTRPG. {}\n\n\
                         Scene: {} at {}\n\
                         Present characters: {}\n\n\
-                        Stay true to the NPC's personality and motivations.{}{}\n\n\
+                        Stay true to the NPC's personality and motivations.{}{}{}{}{}\n\n\
                         {}\n\n\
                         {}\n\n\
                         {}",
@@ -1041,6 +1268,9 @@ impl ProcessLlmRequest {
                         prompt.scene_context.present_characters.join(", "),
                         challenges_context,
                         events_context,
+                        no_pivot_rule,
+                        secret_motivations_context,
+                        occupational_hint,
                         response_format,
                         challenge_suggestion_format,
                         narrative_event_format
@@ -1088,13 +1318,26 @@ impl ProcessLlmRequest {
                         &current_message,
                     ));
 
+                    // Use persisted temperature or resolve from settings
+                    let temperature = match request_data.temperature {
+                        Some(t) => t,
+                        None => self.resolve_temperature_npc_response(world_id).await,
+                    };
+
                     crate::infrastructure::ports::LlmRequest::new(messages)
                         .with_system_prompt(system_prompt)
-                        .with_temperature(0.7)
+                        .with_temperature(temperature)
                         .with_max_tokens(Some(2048)) // Allow room for model's internal reasoning + structured output
                 } else {
                     // Fallback if no prompt was provided
                     tracing::warn!("LLM request has no prompt data, using fallback");
+
+                    // Use persisted temperature or resolve from settings
+                    let temperature = match request_data.temperature {
+                        Some(t) => t,
+                        None => self.resolve_temperature_npc_response(world_id).await,
+                    };
+
                     crate::infrastructure::ports::LlmRequest::new(vec![
                         crate::infrastructure::ports::ChatMessage::user(
                             "Generate a brief, in-character NPC response to the player's action.",
@@ -1103,6 +1346,7 @@ impl ProcessLlmRequest {
                     .with_system_prompt(
                         "You are an NPC in a fantasy TTRPG. Respond briefly and in character.",
                     )
+                    .with_temperature(temperature)
                     .with_max_tokens(Some(512)) // Simpler fallback response
                 };
 
@@ -1113,6 +1357,26 @@ impl ProcessLlmRequest {
                     .map(|p| p.responding_character.name.as_str())
                     .unwrap_or("unknown");
                 let world_id_for_log = request_data.world_id;
+
+                // Resolve the model for this request
+                let resolve_input = crate::use_cases::ai::ResolveModelInput {
+                    world_id: Some(world_id_for_log),
+                    env_default_override: None,
+                };
+                let resolved_model = match self.resolve_model.execute(resolve_input).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to resolve model, using default");
+                        crate::use_cases::ai::ResolvedModel {
+                            model_id: "mlx-community/gpt-oss-20b-MXFP4-Q8".to_string(),
+                            source: crate::use_cases::ai::ModelSource::EnvDefault,
+                            warning: Some(format!("Model resolution failed: {}", e)),
+                        }
+                    }
+                };
+
+                // Add model to the request
+                let llm_request = llm_request.with_model(resolved_model.model_id);
 
                 let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
                     tracing::error!(
@@ -1133,7 +1397,32 @@ impl ProcessLlmRequest {
                 );
 
                 // Parse structured content from LLM response
-                let parsed = response_parser::parse_llm_response(&llm_response.content);
+                let mut parsed = response_parser::parse_llm_response(&llm_response.content);
+
+                // Check if player is probing secret motivations and enforce deflection behavior
+                if let Some(ref prompt) = request_data.prompt {
+                    if let Some(ref dialogue) = prompt.player_action.dialogue {
+                        if is_probing_secret_motivations(dialogue) {
+                            if let Some(ref motivations) = prompt.responding_character.motivations {
+                                if !motivations.secret.is_empty() {
+                                    // Player is probing and NPC has secrets - enforce deflection
+                                    let deflection = select_deflection_behavior(motivations, dialogue);
+                                    if !deflection.is_empty() {
+                                        tracing::info!(
+                                            npc_name = %prompt.responding_character.name,
+                                            player_dialogue = %dialogue,
+                                            deflection_behavior = %deflection,
+                                            "Enforcing deflection behavior for secret motivation probe"
+                                        );
+                                        parsed.dialogue = deflection;
+                                        // Clear any tools that might reveal secrets
+                                        parsed.proposed_tools.clear();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Log parsed output for debugging
                 tracing::debug!(
@@ -1238,6 +1527,7 @@ impl ProcessLlmRequest {
                     player_dialogue,
                     scene_id,
                     location_id,
+                    region_id: None,
                     game_time,
                     topics: parsed.topics,
                     conversation_id: request_data.conversation_id.map(|id| wrldbldr_domain::ConversationId::from(id)),
@@ -1455,6 +1745,149 @@ impl ProcessLlmRequest {
             outcomes: None,
         })
     }
+
+    /// Resolve temperature for NPC response generation.
+    ///
+    /// Falls back through: per-world setting -> global setting -> default.
+    async fn resolve_temperature_npc_response(&self, world_id: WorldId) -> f32 {
+        // Try per-world setting first
+        if let Ok(Some(settings)) = self.ctx.settings.get_for_world(world_id).await {
+            return settings.llm_temperature_npc_response();
+        }
+
+        // Fall back to global setting
+        if let Ok(Some(settings)) = self.ctx.settings.get_global().await {
+            return settings.llm_temperature_npc_response();
+        }
+
+        // Final fallback to default
+        0.7
+    }
+
+    /// Resolve temperature for generic content suggestions.
+    ///
+    /// Falls back through: per-world setting -> global setting -> default.
+    async fn resolve_temperature_suggestion(&self, world_id: WorldId) -> f32 {
+        // Try per-world setting first
+        if let Ok(Some(settings)) = self.ctx.settings.get_for_world(world_id).await {
+            return settings.llm_temperature_suggestion();
+        }
+
+        // Fall back to global setting
+        if let Ok(Some(settings)) = self.ctx.settings.get_global().await {
+            return settings.llm_temperature_suggestion();
+        }
+
+        // Final fallback to default
+        0.8
+    }
+
+    /// Resolve temperature for outcome suggestions.
+    ///
+    /// Falls back through: per-world setting -> global setting -> default.
+    async fn resolve_temperature_outcome_suggestion(&self, world_id: WorldId) -> f32 {
+        // Try per-world setting first
+        if let Ok(Some(settings)) = self.ctx.settings.get_for_world(world_id).await {
+            return settings.llm_temperature_outcome_suggestion();
+        }
+
+        // Fall back to global setting
+        if let Ok(Some(settings)) = self.ctx.settings.get_global().await {
+            return settings.llm_temperature_outcome_suggestion();
+        }
+
+        // Final fallback to default
+        0.8
+    }
+}
+
+/// Build the SECRET MOTIVATIONS context block for the NPC system prompt.
+///
+/// This block instructs the LLM how to behave when players probe secret motivations,
+/// including the exact deflection behavior to use and behavioral tells to avoid revealing.
+fn build_secret_motivations_context(character: &CharacterContext) -> String {
+    let Some(motivations) = &character.motivations else {
+        return String::new();
+    };
+
+    if motivations.secret.is_empty() {
+        return String::new();
+    }
+
+    let secrets: Vec<String> = motivations
+        .secret
+        .iter()
+        .map(|s| {
+            let tells = if s.tells.is_empty() {
+                String::new()
+            } else {
+                format!("\n  Behavioral tells to AVOID displaying: {}", s.tells.join("; "))
+            };
+            format!(
+                "- Secret: {}\n  Deflection behavior (USE VERBATIM if probed): \"{}\"{}",
+                s.description, s.deflection_behavior, tells
+            )
+        })
+        .collect();
+
+    format!(
+        "\n\nSECRET MOTIVATIONS (CRITICAL - DO NOT REVEAL):\n\
+        The following motivations are hidden from players.\n\n\
+        DEFLECTION RULES (MUST FOLLOW - THIS IS MANDATORY):\n\
+        - PROBING QUESTIONS include: asking what you're hiding, if you have secrets, why you're acting strange, \"what's wrong\", or direct accusations\n\
+        - When probed, your ENTIRE dialogue response MUST be the deflection behavior verbatim - NOTHING else\n\
+        - Do NOT add narration, do NOT explain yourself, do NOT answer the question first then deflect\n\
+        - NEVER say 'I'm not hiding anything', 'I don't know what you mean', or deny having secrets\n\
+        - NEVER acknowledge that you are hiding something\n\
+        - Simply redirect to a different topic using the deflection behavior verbatim\n\
+        - Do NOT reveal any secret details\n\n{}",
+        secrets.join("\n")
+    )
+}
+
+/// Check if the player's dialogue is probing secret motivations.
+///
+/// This detects direct questions about hiding things, secrets, or suspicious behavior.
+fn is_probing_secret_motivations(player_dialogue: &str) -> bool {
+    let lower = player_dialogue.to_lowercase();
+    let probe_patterns = [
+        "what are you hiding",
+        "what're you hiding",
+        "what do you hide",
+        "are you hiding",
+        "you seem troubled",
+        "you seem worried",
+        "you seem nervous",
+        "what's wrong",
+        "whats wrong",
+        "what is wrong",
+        "do you have secrets",
+        "what secrets",
+        "are you keeping secrets",
+        "what aren't you telling",
+        "what are you not telling",
+        "why are you acting",
+        "why do you seem",
+        "what's bothering you",
+        "whats bothering you",
+    ];
+    probe_patterns.iter().any(|pattern| lower.contains(pattern))
+}
+
+/// Select the appropriate deflection behavior based on the player's probe.
+///
+/// Returns the deflection behavior from the first secret motivation, or empty string if none.
+fn select_deflection_behavior(
+    motivations: &MotivationsContext,
+    _player_dialogue: &str,
+) -> String {
+    // For now, use the first secret's deflection behavior
+    // In the future, could match against specific secrets based on probe content
+    motivations
+        .secret
+        .first()
+        .map(|s| s.deflection_behavior.clone())
+        .unwrap_or_default()
 }
 
 fn build_suggestion_prompt(

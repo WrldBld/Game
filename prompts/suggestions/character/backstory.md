@@ -1,0 +1,1 @@
+Generate 2 different backstory options for {entity_name}. Archetype: {hints}. Wants: {additional_context}. Fears: {world_setting}. Each backstory should be 3-4 sentences covering origin, key events, and how they became who they are. Return each backstory separated by a blank line.

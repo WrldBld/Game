@@ -20,7 +20,10 @@ pub(super) async fn handle_story_event_request(
             };
 
             match state.app.use_cases.story_events.ops.get(event_uuid).await {
-                Ok(Some(event)) => Ok(ResponseResult::success(event)),
+                Ok(Some(event)) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(event.to_protocol()))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Story event not found",
@@ -52,7 +55,10 @@ pub(super) async fn handle_story_event_request(
                 .update(event_uuid, data.summary, data.tags)
                 .await
             {
-                Ok(event) => Ok(ResponseResult::success(event)),
+                Ok(event) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(event.to_protocol()))
+                }
                 Err(crate::use_cases::story_events::StoryEventError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Story event not found"),
                 ),
@@ -84,7 +90,11 @@ pub(super) async fn handle_story_event_request(
                 .list(world_uuid, limit)
                 .await
             {
-                Ok(events) => Ok(ResponseResult::success(events)),
+                Ok(events) => {
+                    // Convert typed DTOs to protocol representation
+                    let protocol_events: Vec<_> = events.iter().map(|e| e.to_protocol()).collect();
+                    Ok(ResponseResult::success(protocol_events))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "listing story events"),
@@ -135,7 +145,10 @@ pub(super) async fn handle_story_event_request(
                 .set_visibility(event_uuid, visible)
                 .await
             {
-                Ok(event) => Ok(ResponseResult::success(event)),
+                Ok(event) => {
+                    // Convert typed DTO to protocol representation
+                    Ok(ResponseResult::success(event.to_protocol()))
+                }
                 Err(crate::use_cases::story_events::StoryEventError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Story event not found"),
                 ),

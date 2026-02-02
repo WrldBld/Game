@@ -439,7 +439,7 @@ pub(super) async fn handle_staging_regenerate(
         .use_cases
         .staging
         .regenerate
-        .execute(region_id, guidance_opt)
+        .execute(region_id, conn_info.world_id.unwrap(), guidance_opt)
         .await
     {
         Ok(npcs) => npcs,

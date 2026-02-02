@@ -23,7 +23,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
     let queue = RecordingApprovalQueue::default();
     let queue_port: Arc<dyn QueuePort> = Arc::new(queue.clone());
 
-    let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm));
+    let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm), Arc::new(NoopLlm));
     let connections = Arc::new(ConnectionManager::new());
 
     let ws_state = Arc::new(WsState {
@@ -85,10 +85,10 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
     let proposed_dialogue = "Hello there".to_string();
 
     queue.insert_approval(
-        approval_id,
+        wrldbldr_domain::QueueItemId::from_uuid(approval_id),
         crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: Uuid::new_v4(),
+            source_action_id: wrldbldr_domain::QueueItemId::from_uuid(Uuid::new_v4()),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: None,
@@ -104,6 +104,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
             player_dialogue: None,
             scene_id: None,
             location_id: None,
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: None,
@@ -151,8 +152,8 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
         other => panic!("expected DialogueResponse, got: {:?}", other),
     }
 
-    assert!(queue.completed_contains(approval_id));
-    assert!(!queue.failed_contains(approval_id));
+    assert!(queue.completed_contains(wrldbldr_domain::QueueItemId::from_uuid(approval_id)));
+    assert!(!queue.failed_contains(wrldbldr_domain::QueueItemId::from_uuid(approval_id)));
 
     server.abort();
 }
@@ -178,7 +179,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
 
     let queue = RecordingApprovalQueue::default();
     let queue_port: Arc<dyn QueuePort> = Arc::new(queue.clone());
-    let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm));
+    let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm), Arc::new(NoopLlm));
     let connections = Arc::new(ConnectionManager::new());
 
     let ws_state = Arc::new(WsState {
@@ -238,10 +239,10 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
     let approval_id = Uuid::new_v4();
     let npc_id = CharacterId::new();
     queue.insert_approval(
-        approval_id,
+        wrldbldr_domain::QueueItemId::from_uuid(approval_id),
         crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: Uuid::new_v4(),
+            source_action_id: wrldbldr_domain::QueueItemId::from_uuid(Uuid::new_v4()),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: None,
@@ -257,6 +258,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
             player_dialogue: None,
             scene_id: None,
             location_id: None,
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: None,
@@ -281,8 +283,8 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
     })
     .await;
 
-    assert!(!queue.completed_contains(approval_id));
-    assert!(queue.failed_contains(approval_id));
+    assert!(!queue.completed_contains(wrldbldr_domain::QueueItemId::from_uuid(approval_id)));
+    assert!(queue.failed_contains(wrldbldr_domain::QueueItemId::from_uuid(approval_id)));
 
     server.abort();
 }
@@ -309,7 +311,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
 
     let queue = RecordingApprovalQueue::default();
     let queue_port: Arc<dyn QueuePort> = Arc::new(queue.clone());
-    let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm));
+    let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm), Arc::new(NoopLlm));
     let connections = Arc::new(ConnectionManager::new());
 
     let ws_state = Arc::new(WsState {
@@ -369,10 +371,10 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
     let approval_id = Uuid::new_v4();
     let npc_id = CharacterId::new();
     queue.insert_approval(
-        approval_id,
+        wrldbldr_domain::QueueItemId::from_uuid(approval_id),
         crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: Uuid::new_v4(),
+            source_action_id: wrldbldr_domain::QueueItemId::from_uuid(Uuid::new_v4()),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: None,
@@ -388,6 +390,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
             player_dialogue: None,
             scene_id: None,
             location_id: None,
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: None,
@@ -438,8 +441,8 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
         other => panic!("expected DialogueResponse, got: {:?}", other),
     }
 
-    assert!(queue.completed_contains(approval_id));
-    assert!(!queue.failed_contains(approval_id));
+    assert!(queue.completed_contains(wrldbldr_domain::QueueItemId::from_uuid(approval_id)));
+    assert!(!queue.failed_contains(wrldbldr_domain::QueueItemId::from_uuid(approval_id)));
 
     server.abort();
 }

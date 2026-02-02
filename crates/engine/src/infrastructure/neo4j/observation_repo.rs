@@ -142,7 +142,7 @@ impl ObservationRepo for Neo4jObservationRepo {
     /// Save an observation (upsert - updates if exists)
     async fn save_observation(&self, observation: &NpcObservation) -> Result<(), RepoError> {
         let q = query(&format!(
-            "MATCH {}, (npc:Character {{id: $npc_id}})
+            "{}, (npc:Character {{id: $npc_id}})
             MERGE (pc)-[r:OBSERVED_NPC]->(npc)
             SET r.location_id = $location_id,
                 r.region_id = $region_id,

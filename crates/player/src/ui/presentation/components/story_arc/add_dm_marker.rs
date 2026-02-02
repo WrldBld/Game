@@ -35,10 +35,12 @@ pub fn AddDmMarkerModal(props: AddDmMarkerModalProps) -> Element {
     let marker_type_options = [
         ("note", "Note", "📝"),
         ("plot_point", "Plot Point", "⭐"),
+        ("character_moment", "Character Moment", "🎭"),
+        ("world_event", "World Event", "🌍"),
+        ("player_decision", "Player Decision", "🎯"),
         ("foreshadowing", "Foreshadowing", "🔮"),
-        ("session_break", "Session Break", "⏸️"),
-        ("chapter_break", "Chapter Break", "📖"),
-        ("recap", "Recap", "📋"),
+        ("callback", "Callback", "📎"),
+        ("custom", "Custom", "📌"),
     ];
 
     let can_save = !title.read().trim().is_empty();

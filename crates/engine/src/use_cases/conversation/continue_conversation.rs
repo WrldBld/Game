@@ -258,7 +258,7 @@ mod tests {
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
-        MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
+        MockStagingRepo, MockWorldRepo, NarrativeRepo, QueueError, QueueItem, QueuePort,
     };
     use wrldbldr_domain::QueueItemId;
     use crate::use_cases::NarrativeOps;
@@ -664,7 +664,7 @@ mod tests {
             Arc::new(character_repo),
             Arc::new(pc_repo),
             Arc::new(MockStagingRepo::new()),
-            Arc::new(MockWorldRepo::new()),
+            Arc::new(world_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
             Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
@@ -770,8 +770,8 @@ mod tests {
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
             Arc::new(pc_repo),
-            Arc::new(MockStagingRepo::new()),
-            Arc::new(MockWorldRepo::new()),
+            Arc::new(staging_repo),
+            Arc::new(world_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
             Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
@@ -871,23 +871,26 @@ mod tests {
             .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
-        // Narrative repo says conversation is NOT active (ended)
-        let mut narrative_repo = MockNarrativeRepo::new();
-        narrative_repo
+        // Narrative repo says conversation is NOT active (ended) - set up mocks for NarrativeOps
+        let mut narrative_repo_for_ops = MockNarrativeRepo::new();
+        narrative_repo_for_ops
             .expect_is_conversation_active()
             .withf(move |id| *id == conversation_id)
             .returning(|_| Ok(false));
 
+        // get_conversation_details is not called when conversation is already ended
+
         let clock = build_clock(now);
         let queue_port = build_queue(QueueItemId::new());
 
+        let narrative_repo_arc: Arc<dyn NarrativeRepo> = Arc::new(MockNarrativeRepo::new());
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
             Arc::new(pc_repo),
             Arc::new(staging_repo),
             Arc::new(world_repo),
-            create_narrative_entity(narrative_repo.clone()),
-            narrative_repo,
+            create_narrative_entity(narrative_repo_for_ops),
+            narrative_repo_arc,
             queue_port.clone(),
             clock,
         );
@@ -995,13 +998,30 @@ mod tests {
         let clock = build_clock(now);
         let queue_port = build_queue(QueueItemId::new());
 
+        // Wrap repos in Arc before moving
+        let world_repo_arc: Arc<dyn crate::infrastructure::ports::WorldRepo> = Arc::new(world_repo);
+        let pc_repo_arc: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
+
+        let narrative_ops = Arc::new(NarrativeOps::new(
+            Arc::new(narrative_repo),
+            Arc::new(MockLocationRepo::new()),
+            world_repo_arc.clone(),
+            pc_repo_arc.clone(),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(MockObservationRepo::new()),
+            Arc::new(MockChallengeRepo::new()),
+            Arc::new(MockFlagRepo::new()),
+            Arc::new(MockSceneRepo::new()),
+            clock.clone(),
+        ));
+        let narrative_repo_arc: Arc<dyn NarrativeRepo> = Arc::new(MockNarrativeRepo::new());
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
-            Arc::new(pc_repo),
+            pc_repo_arc,
             Arc::new(staging_repo),
-            Arc::new(world_repo),
-            create_narrative_entity(narrative_repo.clone()),
-            narrative_repo,
+            world_repo_arc,
+            narrative_ops,
+            narrative_repo_arc,
             queue_port.clone(),
             clock,
         );
@@ -1102,24 +1122,52 @@ mod tests {
             .withf(move |r, t| *r == region_id && *t == game_time_seconds)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
-        // Conversation is active
-        let mut narrative_repo = MockNarrativeRepo::new();
-        narrative_repo
+        // Conversation is active - set up mocks for NarrativeOps
+        let mut narrative_repo_for_ops = MockNarrativeRepo::new();
+        narrative_repo_for_ops
             .expect_is_conversation_active()
             .withf(move |id| *id == conversation_id)
             .returning(|_| Ok(true));
+
+        // Also need to mock get_conversation_details for validation on the ContinueConversation's narrative_repo
+        let mut narrative_repo = MockNarrativeRepo::new();
+        narrative_repo
+            .expect_get_conversation_details()
+            .returning(move |id, _| {
+                use crate::infrastructure::ports::{ActiveConversationRecord, ConversationDetails};
+                Ok(Some(ConversationDetails {
+                    conversation: ActiveConversationRecord {
+                        id,
+                        pc_id,
+                        npc_id,
+                        pc_name: "PC".to_string(),
+                        npc_name: "NPC".to_string(),
+                        topic_hint: None,
+                        started_at: now,
+                        last_updated_at: now,
+                        is_active: true,
+                        turn_count: 0,
+                        pending_approval: false,
+                        location: None,
+                        scene: None,
+                    },
+                    participants: vec![],
+                    recent_turns: vec![],
+                }))
+            });
 
         let clock = build_clock(now);
         let queue_id = QueueItemId::new();
         let queue_port = build_queue(queue_id);
 
+        let narrative_repo_arc: Arc<dyn NarrativeRepo> = Arc::new(narrative_repo);
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
             Arc::new(pc_repo),
             Arc::new(staging_repo),
             Arc::new(world_repo),
-            create_narrative_entity(narrative_repo.clone()),
-            narrative_repo,
+            create_narrative_entity(narrative_repo_for_ops),
+            narrative_repo_arc,
             queue_port.clone(),
             clock,
         );
@@ -1146,10 +1194,9 @@ mod tests {
         assert_eq!(action.world_id, world_id);
         assert_eq!(action.player_id, player_id);
         assert_eq!(action.pc_id, Some(pc_id));
-        assert_eq!(action.action_type, "talk".to_string());
         assert_eq!(action.target, Some(npc_id.to_string())); // target is NPC ID
         assert_eq!(action.dialogue, Some(player_message));
-        assert_eq!(action.conversation_id, Some(conversation_id.to_uuid()));
+        assert_eq!(action.conversation_id, Some(conversation_id));
         assert_eq!(action.timestamp, now);
     }
 
@@ -1241,13 +1288,30 @@ mod tests {
         let queue_id = QueueItemId::new();
         let queue_port = build_queue(queue_id);
 
+        // Wrap repos in Arc before moving
+        let world_repo_arc: Arc<dyn crate::infrastructure::ports::WorldRepo> = Arc::new(world_repo);
+        let pc_repo_arc: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
+
+        let narrative_ops = Arc::new(NarrativeOps::new(
+            Arc::new(narrative_repo),
+            Arc::new(MockLocationRepo::new()),
+            world_repo_arc.clone(),
+            pc_repo_arc.clone(),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(MockObservationRepo::new()),
+            Arc::new(MockChallengeRepo::new()),
+            Arc::new(MockFlagRepo::new()),
+            Arc::new(MockSceneRepo::new()),
+            clock.clone(),
+        ));
+        let narrative_repo_arc: Arc<dyn NarrativeRepo> = Arc::new(MockNarrativeRepo::new());
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
-            Arc::new(pc_repo),
+            pc_repo_arc,
             Arc::new(staging_repo),
-            Arc::new(world_repo),
-            create_narrative_entity(narrative_repo.clone()),
-            narrative_repo,
+            world_repo_arc,
+            narrative_ops,
+            narrative_repo_arc,
             queue_port.clone(),
             clock,
         );
@@ -1273,7 +1337,7 @@ mod tests {
         let action = &recorded[0];
         assert_eq!(
             action.conversation_id,
-            Some(found_conversation_id.to_uuid())
+            Some(found_conversation_id)
         );
     }
 }

@@ -34,6 +34,8 @@ async fn test_approval_flow_includes_conversation_id() {
     let npc_id = CharacterId::new();
     let conversation_id = ConversationId::new();
 
+    use wrldbldr_domain::RegionId;
+
     // Verify conversation_id is part of ApprovalRequestData
     let approval_request_data = ApprovalRequestData {
         world_id,
@@ -53,6 +55,7 @@ async fn test_approval_flow_includes_conversation_id() {
         player_dialogue: Some("Test question".to_string()),
         scene_id: None,
         location_id: None,
+        region_id: Some(RegionId::new()),
         game_time: None,
         topics: vec![],
         conversation_id: Some(conversation_id),

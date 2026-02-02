@@ -57,7 +57,7 @@ async fn test_player_enters_location_trigger() {
     // Save via repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Event save should succeed");
@@ -66,8 +66,8 @@ async fn test_player_enters_location_trigger() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -80,7 +80,7 @@ async fn test_player_enters_location_trigger() {
     let retrieved = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")
@@ -318,7 +318,7 @@ async fn test_repeatable_location_event() {
     // Save via repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("Event save should succeed");
@@ -327,7 +327,7 @@ async fn test_repeatable_location_event() {
     let retrieved = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event_id)
         .await
         .expect("Should get event")

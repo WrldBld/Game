@@ -62,7 +62,7 @@ async fn test_flag_set_trigger_evaluation() {
     // Save using the repository (this creates proper schema with HAS_NARRATIVE_EVENT)
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -92,8 +92,8 @@ async fn test_flag_set_trigger_evaluation() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -143,7 +143,7 @@ async fn test_item_acquired_trigger_type() {
     // Save using the repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -152,8 +152,8 @@ async fn test_item_acquired_trigger_type() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -227,7 +227,7 @@ async fn test_relationship_threshold_trigger_type() {
     // Save using the repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -236,8 +236,8 @@ async fn test_relationship_threshold_trigger_type() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -302,7 +302,7 @@ async fn test_challenge_completed_trigger_type() {
     // Save using the repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -311,8 +311,8 @@ async fn test_challenge_completed_trigger_type() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -384,7 +384,7 @@ async fn test_multiple_triggers_and_logic() {
     // Save using the repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -401,8 +401,8 @@ async fn test_multiple_triggers_and_logic() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -447,20 +447,28 @@ async fn test_event_marked_as_triggered() {
     // Save using the repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
 
     // Mark event as triggered using direct graph update
-    // (In production, this would be done through the proper use case)
+    // Update trigger_status_json to reflect triggered state (current schema)
+    let trigger_status = wrldbldr_domain::TriggerStatus::Triggered {
+        at: now,
+        selected_outcome: None,
+    };
+    let trigger_status_json = serde_json::to_string(&trigger_status)
+        .expect("Should serialize trigger status");
+
     ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $id})
-                   SET e.is_triggered = true"#,
+                   SET e.trigger_status_json = $trigger_status_json"#,
             )
-            .param("id", event.id().to_string()),
+            .param("id", event.id().to_string())
+            .param("trigger_status_json", trigger_status_json),
         )
         .await
         .expect("Marking as triggered should succeed");
@@ -469,7 +477,7 @@ async fn test_event_marked_as_triggered() {
     let fetched_event = ctx
         .app
         .repositories
-        .narrative
+        .narrative_repo
         .get_event(event.id())
         .await
         .expect("Should get event")
@@ -546,7 +554,7 @@ async fn test_player_enters_location_trigger() {
     // Save using the repository
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -568,8 +576,8 @@ async fn test_player_enters_location_trigger() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 

@@ -338,11 +338,14 @@ impl VcrLlm {
     ///   - `live`: Call real Ollama without recording
     /// * `OLLAMA_BASE_URL`: Override the Ollama server URL (default: http://localhost:11434)
     /// * `OLLAMA_MODEL`: Override the model name (default: llama3.2)
+    /// * `WRLDBLDR_LLM_MODEL_DEFAULT`: Preferred over `OLLAMA_MODEL` if set (for consistency with settings)
     pub fn from_env(cassette_path: PathBuf) -> Self {
         let ollama_url = std::env::var("OLLAMA_BASE_URL")
             .unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
-        let model =
-            std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
+        // Prefer WRLDBLDR_LLM_MODEL_DEFAULT over OLLAMA_MODEL for consistency with AppSettings
+        let model = std::env::var("WRLDBLDR_LLM_MODEL_DEFAULT")
+            .or_else(|_| std::env::var("OLLAMA_MODEL"))
+            .unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
 
         let mode_str = std::env::var("E2E_LLM_MODE").unwrap_or_default();
 

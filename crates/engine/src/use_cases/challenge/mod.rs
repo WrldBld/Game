@@ -36,7 +36,7 @@ pub use types::ChallengeSummary;
 
 use crate::infrastructure::ports::{
     ChallengeRepo, ClockPort, ItemRepo, ObservationRepo, PlayerCharacterRepo, QueueError,
-    QueuePort, RandomPort, RepoError, SceneRepo, WorldRepo,
+    QueuePort, RandomPort, RepoError, SceneRepo, SettingsRepo, WorldRepo,
 };
 
 /// Container for challenge use cases.
@@ -467,6 +467,7 @@ impl RollChallenge {
             player_dialogue: None,
             scene_id: None,
             location_id: None,
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: None, // Challenges don't have conversation context
@@ -594,6 +595,12 @@ impl ResolveOutcome {
                 .unwrap_or(&outcomes.failure),
         };
 
+        // Determine if this was a successful outcome
+        let success = matches!(
+            outcome_type,
+            OutcomeType::CriticalSuccess | OutcomeType::Success | OutcomeType::Partial
+        );
+
         // Execute each trigger in the outcome
         for trigger in &outcome.triggers {
             self.execute_trigger(
@@ -613,8 +620,20 @@ impl ResolveOutcome {
             })?;
         }
 
-        // Mark the challenge as resolved
+        // Mark the challenge as resolved and record success status for trigger context
         self.challenge.mark_resolved(challenge_id).await?;
+        if let Err(e) = self
+            .challenge
+            .record_resolution(challenge_id, target_pc_id, success)
+            .await
+        {
+            tracing::warn!(
+                challenge_id = %challenge_id,
+                pc_id = %target_pc_id,
+                error = %e,
+                "Failed to record challenge resolution (non-critical)"
+            );
+        }
 
         Ok(())
     }
@@ -812,11 +831,12 @@ impl ResolveOutcome {
 pub struct OutcomeDecision {
     queue: Arc<dyn QueuePort>,
     resolve: Arc<ResolveOutcome>,
+    settings: Arc<dyn SettingsRepo>,
 }
 
 impl OutcomeDecision {
-    pub fn new(queue: Arc<dyn QueuePort>, resolve: Arc<ResolveOutcome>) -> Self {
-        Self { queue, resolve }
+    pub fn new(queue: Arc<dyn QueuePort>, resolve: Arc<ResolveOutcome>, settings: Arc<dyn SettingsRepo>) -> Self {
+        Self { queue, resolve, settings }
     }
 
     pub async fn execute(
@@ -892,6 +912,9 @@ impl OutcomeDecision {
                 }))
             }
             ChallengeOutcomeDecision::Suggest { guidance } => {
+                // Resolve temperature from settings at enqueue time to avoid drift
+                let temperature = self.resolve_temperature_outcome_suggestion(world_id).await;
+
                 let llm_request = LlmRequestData {
                     request_type: LlmRequestType::OutcomeSuggestion {
                         resolution_id: wrldbldr_domain::ApprovalRequestId::from_uuid(approval_queue_id.to_uuid()),
@@ -909,7 +932,8 @@ impl OutcomeDecision {
                         world_setting: None,
                         hints: guidance.clone(),
                         additional_context: Some(format!(
-                            "Current outcome: {} ({})\nRoll: {} + {} = {}",
+                            "Current outcome: {} ({})
+Roll: {} + {} = {}",
                             outcome_data.outcome_description,
                             outcome_data.outcome_type,
                             outcome_data.roll,
@@ -920,6 +944,7 @@ impl OutcomeDecision {
                         }),
                     callback_id: format!("outcome_suggestion:{}", approval_queue_id),
                     conversation_id: None,
+                    temperature: Some(temperature),
                 };
 
                 self.queue.enqueue_llm_request(&llm_request).await?;
@@ -927,6 +952,24 @@ impl OutcomeDecision {
                 Ok(OutcomeDecisionResult::Queued)
             }
         }
+    }
+
+    /// Resolve temperature for outcome suggestions.
+    ///
+    /// Falls back through: per-world setting -> global setting -> default.
+    async fn resolve_temperature_outcome_suggestion(&self, world_id: WorldId) -> f32 {
+        // Try per-world setting first
+        if let Ok(Some(settings)) = self.settings.get_for_world(world_id).await {
+            return settings.llm_temperature_outcome_suggestion();
+        }
+
+        // Fall back to global setting
+        if let Ok(Some(settings)) = self.settings.get_global().await {
+            return settings.llm_temperature_outcome_suggestion();
+        }
+
+        // Final fallback to default
+        0.8
     }
 }
 
@@ -1115,6 +1158,10 @@ mod tests {
             .expect_mark_resolved()
             .withf(move |id| *id == challenge_id)
             .returning(|_| Ok(()));
+        challenge_repo
+            .expect_record_resolution()
+            .withf(move |cid, pid, success| *cid == challenge_id && *pid == pc_id && *success)
+            .returning(|_, _, _| Ok(()));
 
         // ---------------------------------------------------------------------
         // Observation expectations
@@ -1205,6 +1252,7 @@ mod tests {
             ChallengeName::new("Test Challenge").unwrap(),
             Difficulty::DC(12),
         )
+        .with_id(challenge_id)  // Set the ID to match what the mock expects
         .with_check_stat(Stat::Str)
         .with_description(Description::new("Test description").unwrap());
 
@@ -1239,14 +1287,8 @@ mod tests {
         let pc = pc.clone();
         pc_repo
             .expect_get()
-            .times(2)
+            .times(2)  // Called once in execute, once in validate_challenge_availability
             .returning(move |_| Ok(Some(pc.clone())));
-
-        // Mock get_availability for both challenges
-        challenge_repo
-            .expect_get_availability()
-            .times(2)
-            .returning(move |_| Ok(vec![]));
 
         let mut world_repo = crate::infrastructure::ports::MockWorldRepo::new();
 
@@ -1380,10 +1422,16 @@ mod tests {
         let mut pc_repo = MockPlayerCharacterRepo::new();
         pc_repo
             .expect_get()
-            .times(2)
+            .times(4) // Called twice per execute (once in validate_challenge_availability, once in execute)
             .returning(move |_| Ok(Some(pc.clone())));
 
-        let mut world_repo = crate::infrastructure::ports::MockWorldRepo::new();
+        // Mock get_availability for both challenges
+        challenge_repo
+            .expect_get_availability()
+            .times(2)
+            .returning(move |_| Ok(vec![]));
+
+        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
 
         let trigger_prompt = super::TriggerChallengePrompt::new(
             Arc::new(challenge_repo),
@@ -1424,15 +1472,15 @@ mod tests {
     async fn execute_with_input_combines_modifiers_correctly() {
         let world_id = WorldId::new();
         let pc_id = PlayerCharacterId::new();
-        let challenge_id = ChallengeId::new();
 
-        // Create challenge with check_stat
+        // Create challenge with check_stat - this generates its own ID
         let challenge = DomainChallenge::new(
             world_id,
             ChallengeName::new("Test Challenge").unwrap(),
             Difficulty::DC(10),
         )
         .with_check_stat(Stat::Str);
+        let challenge_id = challenge.id(); // Use the challenge's actual ID
 
         // Create a PC for the test
         let pc = DomainPc::new(
@@ -1450,6 +1498,11 @@ mod tests {
             .expect_get()
             .withf(move |id| *id == challenge_id)
             .returning(move |_| Ok(Some(challenge_for_get.clone())));
+        challenge_repo
+            .expect_get_availability()
+            .withf(move |id| *id == challenge_id)
+            .times(4) // Called 4 times total - 2 per execute_with_input call (once in execute_with_input, once in execute)
+            .returning(|_| Ok(vec![])); // Empty availability = always available
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -1462,7 +1515,7 @@ mod tests {
 
         let random_port = FixedRandom;
         let clock = FixedClock(Utc::now());
-        let mut world_repo = crate::infrastructure::ports::MockWorldRepo::new();
+        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
 
         let roll_challenge = super::RollChallenge::new(
             Arc::new(challenge_repo),

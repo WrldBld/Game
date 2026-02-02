@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{
     ApprovalRequestId, ChallengeId, CharacterId, ConversationId, LocationId, NarrativeEventId,
-    PlayerCharacterId, SceneId, WorldId,
+    PlayerCharacterId, RegionId, SceneId, WorldId,
 };
 
 use crate::game_tools::ToolArgs;
@@ -193,6 +193,9 @@ pub struct LlmRequestData {
     /// Conversation ID for dialogue tracking (flows through to ApprovalRequestData)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<wrldbldr_domain::ConversationId>,
+    /// Temperature for LLM request (persisted at enqueue time to avoid drift)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f32>,
 }
 
 /// Context for LLM suggestion requests.
@@ -339,6 +342,7 @@ pub struct ApprovalRequestData {
     pub player_dialogue: Option<String>,
     pub scene_id: Option<SceneId>,
     pub location_id: Option<LocationId>,
+    pub region_id: Option<RegionId>,
     pub game_time: Option<String>,
     pub topics: Vec<String>,
     pub conversation_id: Option<wrldbldr_domain::ConversationId>,

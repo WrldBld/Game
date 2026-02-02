@@ -942,7 +942,7 @@ async fn test_dm_approval_triggers_player_response() {
         // Verify the NPC information is correct
         assert_eq!(
             approval_result.npc_id,
-            Some(marta_id.to_string()),
+            Some(marta_id),
             "NPC ID should be Marta"
         );
         assert_eq!(
@@ -962,7 +962,7 @@ async fn test_dm_approval_triggers_player_response() {
         let turns = ctx
             .app
             .repositories
-            .narrative
+            .narrative_repo
             .get_conversation_turns(pc_id, marta_id, 10)
             .await
             .expect("Failed to get conversation turns");

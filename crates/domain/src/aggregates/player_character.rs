@@ -959,7 +959,8 @@ mod tests {
         }
 
         #[test]
-        fn with_description_rejects_empty_string() {
+        fn with_description_accepts_empty_string() {
+            // Description VO explicitly allows empty/whitespace strings
             let world_id = WorldId::new();
             let location_id = LocationId::new();
             let name = CharacterName::new("Test").unwrap();
@@ -968,14 +969,15 @@ mod tests {
 
             let result = PlayerCharacter::new(user_id, world_id, name, location_id, now)
                 .with_description("");
-            assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("empty"));
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap().description(), Some(""));
         }
 
         #[test]
-        fn set_description_rejects_invalid() {
+        fn set_description_rejects_too_long() {
+            // Description VO rejects strings exceeding 5000 chars
             let mut pc = create_test_pc();
-            let result = pc.set_description(Some("   ".repeat(1000)));
+            let result = pc.set_description(Some("a".repeat(5001)));
             assert!(result.is_err());
         }
 
@@ -985,7 +987,7 @@ mod tests {
             pc.set_description(Some("Valid")).unwrap();
             assert_eq!(pc.description(), Some("Valid"));
 
-            let result = pc.set_description::<String>(None);
+            let result = pc.set_description(Option::<String>::None);
             assert!(result.is_ok());
             assert_eq!(pc.description(), None);
         }

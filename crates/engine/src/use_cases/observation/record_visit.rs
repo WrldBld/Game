@@ -145,9 +145,9 @@ mod tests {
         clock.expect_now().returning(move || real_time);
 
         observation_repo
-            .expect_has_observed()
-            .with(eq(pc_id), eq(npc_id))
-            .returning(|_, _| Ok(false));
+            .expect_get_observations()
+            .with(eq(pc_id))
+            .returning(|_| Ok(vec![]));
 
         observation_repo
             .expect_save_observation()
@@ -229,12 +229,21 @@ mod tests {
 
         clock.expect_now().returning(move || real_time);
 
+        // Create existing Direct observation
+        let old_obs = NpcObservation::direct(
+            pc_id,
+            npc_id,
+            location_id,
+            region_id,
+            real_time, // Use real_time as the observation time
+            real_time,
+        );
         observation_repo
-            .expect_has_observed()
-            .with(eq(pc_id), eq(npc_id))
-            .returning(|_, _| Ok(true)); // Already observed
+            .expect_get_observations()
+            .with(eq(pc_id))
+            .returning(move |_| Ok(vec![old_obs.clone()]));
 
-        // No save_observation call expected
+        // No save_observation call expected - Direct observation is kept as-is
 
         let use_case = RecordVisit::new(
             Arc::new(observation_repo),

@@ -211,7 +211,7 @@ async fn test_time_reached_trigger() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -220,8 +220,8 @@ async fn test_time_reached_trigger() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 
@@ -274,7 +274,7 @@ async fn test_time_at_location_trigger() {
 
     ctx.app
         .repositories
-        .narrative
+        .narrative_repo
         .save_event(&event)
         .await
         .expect("save event");
@@ -283,8 +283,8 @@ async fn test_time_at_location_trigger() {
     let events = ctx
         .app
         .repositories
-        .narrative
-        .list_events(ctx.world.world_id)
+        .narrative_repo
+        .list_events_for_world(ctx.world.world_id)
         .await
         .expect("Should list events");
 

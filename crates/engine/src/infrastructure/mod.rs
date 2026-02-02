@@ -11,6 +11,7 @@ pub mod content_sources;
 pub mod correlation;
 pub mod error;
 pub mod importers;
+pub mod llm_runtime;
 pub mod neo4j;
 pub mod openai_compatible;
 pub mod ports;

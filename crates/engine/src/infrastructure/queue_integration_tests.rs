@@ -22,7 +22,8 @@ async fn sqlite_queue_dm_approval_persists_across_restart() {
     let world_id = WorldId::new();
     let approval = ApprovalRequestData {
         world_id,
-        source_action_id: Uuid::new_v4(),
+        region_id: None,
+        source_action_id: Uuid::new_v4().into(),
         decision_type: ApprovalDecisionType::NpcResponse,
         urgency: ApprovalUrgency::Normal,
         pc_id: None,

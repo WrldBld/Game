@@ -150,7 +150,25 @@ When resolving a template for a world:
 1. **World DB Override**: Check `world_prompt_templates` table for world-specific value
 2. **Global DB Override**: Check `prompt_templates` table for global value
 3. **Environment Variable**: Check `WRLDBLDR_PROMPT_{KEY}` (e.g., `WRLDBLDR_PROMPT_DIALOGUE_RESPONSE_FORMAT`)
-4. **Default**: Use hard-coded default from `domain/value_objects/prompt_templates.rs`
+4. **Default**: Use file-backed default from `prompts/` directory
+
+### Temperature Precedence
+
+When an LLM request is made using a prompt template, the temperature is resolved with this precedence:
+
+1. **Template Front Matter Temperature**: If the default template file includes YAML front matter with a `temperature` field, that value is used first
+2. **AppSettings Temperature**: If no template temperature is specified, the per-world or global AppSettings temperature for the specific use case is used
+3. **LLM Provider Default**: If neither template nor settings specify a temperature, the LLM provider's default is used
+
+Example template with front matter:
+```markdown
+---
+temperature: 0.4
+---
+Your prompt content here...
+```
+
+**Note**: When a template is overridden via World DB, Global DB, or Environment Variable, the temperature from the default template's front matter is still used (if present). This allows prompt text customization while preserving the recommended temperature for that template type.
 
 ---
 
@@ -276,3 +294,6 @@ Environment variables take precedence over defaults but are overridden by databa
 | Date | Change |
 |------|--------|
 | 2024-12-24 | Initial implementation complete |
+| 2026-02-01 | Added YAML front matter support with per-template temperature |
+| 2026-02-01 | Added temperature precedence: template front matter > AppSettings > provider default |
+| 2026-02-01 | Added stricter dialogue rules for E2E test compliance |

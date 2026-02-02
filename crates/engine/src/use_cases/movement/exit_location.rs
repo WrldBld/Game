@@ -515,6 +515,7 @@ mod tests {
             staging_repo,
             location_state_repo,
             region_state_repo,
+            observation_repo,
             record_visit,
             narrative,
             resolve_scene,
@@ -753,10 +754,10 @@ mod tests {
                 .with_id(target_location_id);
 
         let arrival_region_id = RegionId::new();
-        let other_location_id = LocationId::new();
+        // Region belongs to target_location_id so we can test world not found
         let arrival_region = Region::from_storage(
             arrival_region_id,
-            other_location_id,
+            target_location_id,
             RegionName::new("Arrival").unwrap(),
             Description::default(),
             None,
@@ -802,14 +803,12 @@ mod tests {
         location_repo
             .expect_get_location()
             .withf(move |id| *id == target_location_id)
-            .times(2)
             .returning(move |_| Ok(Some(location_for_get.clone())));
 
         let arrival_region_for_get_1 = arrival_region.clone();
         location_repo
             .expect_get_region()
             .withf(move |id| *id == arrival_region_id)
-            .times(1)
             .returning(move |_| Ok(Some(arrival_region_for_get_1.clone())));
 
         let mut world_repo = MockWorldRepo::new();

@@ -896,6 +896,17 @@ impl NarrativeEvent {
                 // KNOWN LIMITATION: CombatResult trigger is not yet implemented
                 false
             }
+            NarrativeTriggerType::TimeOfDay { period } => context
+                .time_context
+                .as_deref()
+                .map(|current_time: &str| {
+                    current_time.trim().to_lowercase() == period.display_name().to_lowercase()
+                })
+                .unwrap_or(false),
+            NarrativeTriggerType::GameDay { day } => context
+                .game_day
+                .map(|current_day| current_day >= *day)
+                .unwrap_or(false),
             NarrativeTriggerType::Custom {
                 description,
                 llm_evaluation,

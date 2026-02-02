@@ -11,25 +11,36 @@ use wrldbldr_domain::{
     StoryEvent, StoryEventType, StoryEventVisibility, UserId, WorldId, WorldName,
 };
 
+use crate::e2e_tests::SharedNeo4jHarness;
 use crate::infrastructure::neo4j::Neo4jNarrativeRepo;
 use crate::infrastructure::ports::{ClockPort, ConversationSpeaker, RepoError};
 
-// Helper to create a minimal graph for testing
+// Helper to create a graph connection using the shared testcontainer harness.
+// Falls back to NEO4J_TEST_URI environment variable if set (for external Neo4j).
 async fn create_test_graph() -> neo4rs::Graph {
     use neo4rs::ConfigBuilder;
 
-    let uri = std::env::var("NEO4J_TEST_URI")
-        .unwrap_or_else(|_| "bolt://localhost:7687".to_string());
+    // If NEO4J_TEST_URI is set, use it directly (override mode)
+    if let Ok(uri) = std::env::var("NEO4J_TEST_URI") {
+        let config = ConfigBuilder::new()
+            .uri(uri.as_str())
+            .user("neo4j")
+            .password("password")
+            .build()
+            .expect("Failed to build config");
+        return neo4rs::Graph::connect(config)
+            .await
+            .expect("Failed to connect to Neo4j");
+    }
 
-    ConfigBuilder::new()
-        .uri(uri.as_str())
-        .user("neo4j")
-        .pass("password")
-        .max_retries(1)
-        .build()
-        .connect()
+    // Otherwise, use the shared harness (default)
+    let harness = SharedNeo4jHarness::shared()
         .await
-        .expect("Failed to connect to Neo4j")
+        .expect("Failed to get shared Neo4j harness");
+    harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph from harness")
 }
 
 struct TestClock(chrono::DateTime<chrono::Utc>);

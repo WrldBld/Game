@@ -69,7 +69,9 @@ mod tests {
     #[test]
     fn about_target_id_str() {
         let char_id = CharacterId::new();
-        let target = AboutTarget::Character { character_id };
+        let target = AboutTarget::Character {
+            character_id: char_id,
+        };
         assert_eq!(target.id_str(), char_id.to_string());
     }
 }

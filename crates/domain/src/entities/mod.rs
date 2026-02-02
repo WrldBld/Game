@@ -5,7 +5,7 @@ mod character;
 mod character_content;
 mod class_feature;
 mod content_types;
-mod event_chain;
+// mod event_chain; // Moved to aggregates
 mod feat;
 mod gallery_asset;
 mod game_flag;
@@ -42,7 +42,7 @@ pub use character_content::{
 };
 pub use class_feature::{BackgroundFeature, ClassFeature, FeatureUses, RacialTrait};
 pub use content_types::{ContentSource, ContentType, SourceType};
-pub use event_chain::{ChainStatus, EventChain, EventChainActivation, EventChainFavorite};
+// Note: EventChain is now exported from aggregates
 pub use feat::{AbilityUses, Feat, FeatBenefit, Prerequisite, RechargeType, UsesFormula};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 pub use game_flag::{FlagScope, GameFlag};

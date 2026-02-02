@@ -1,92 +1,35 @@
 use std::sync::Arc;
 
-use serde::Serialize;
-
 use wrldbldr_domain::{
     self as domain, ActId, Description, DomainError, EventChain, EventChainId,
     EventChainName, NarrativeEventId, WorldId,
 };
 
-use crate::infrastructure::ports::RepoError;
-use crate::use_cases::narrative_operations::NarrativeOps;
-
-// =============================================================================
-// Domain Result Types
-// =============================================================================
-
-/// Summary of an event chain.
-#[derive(Debug, Clone, Serialize)]
-pub struct EventChainSummary {
-    pub id: String,
-    pub world_id: String,
-    pub name: String,
-    pub description: String,
-    pub events: Vec<String>,
-    pub is_active: bool,
-    pub current_position: u32,
-    pub completed_events: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub act_id: Option<String>,
-    pub tags: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub color: Option<String>,
-    pub is_favorite: bool,
-    pub progress_percent: u32,
-    pub is_complete: bool,
-    pub remaining_events: usize,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-/// Status of an event chain.
-#[derive(Debug, Clone, Serialize)]
-pub struct ChainStatusSummary {
-    pub chain_id: String,
-    pub chain_name: String,
-    pub is_active: bool,
-    pub is_complete: bool,
-    pub total_events: usize,
-    pub completed_events: usize,
-    pub progress_percent: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_event_id: Option<String>,
-}
-
-// =============================================================================
-// Domain Input Types
-// =============================================================================
-
-/// Input for creating an event chain (domain representation).
-#[derive(Debug, Clone, Default)]
-pub struct CreateEventChainInput {
-    pub name: String,
-    pub description: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub color: Option<String>,
-    pub is_active: Option<bool>,
-}
-
-/// Input for updating an event chain (domain representation).
-#[derive(Debug, Clone, Default)]
-pub struct UpdateEventChainInput {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub color: Option<String>,
-    pub is_active: Option<bool>,
-}
+use crate::infrastructure::ports::{ClockPort, NarrativeRepo, RepoError};
+use crate::use_cases::narrative::types::{
+    ChainStatusSummary, CreateEventChainInput, EventChainSummary, UpdateEventChainInput,
+};
 
 pub struct EventChainOps {
-    narrative: Arc<NarrativeOps>,
+    narrative_repo: Arc<dyn NarrativeRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl EventChainOps {
-    pub fn new(narrative: Arc<NarrativeOps>) -> Self {
-        Self { narrative }
+    pub fn new(
+        narrative_repo: Arc<dyn NarrativeRepo>,
+        clock: Arc<dyn ClockPort>,
+    ) -> Self {
+        Self {
+            narrative_repo,
+            clock,
+        }
     }
 
-    pub async fn list(&self, world_id: WorldId) -> Result<Vec<EventChainSummary>, EventChainError> {
-        let chains = self.narrative.list_chains_for_world(world_id).await?;
+    pub async fn list(&self,
+        world_id: WorldId,
+    ) -> Result<Vec<EventChainSummary>, EventChainError> {
+        let chains = self.narrative_repo.list_chains_for_world(world_id).await?;
         Ok(chains.iter().map(event_chain_to_summary).collect())
     }
 
@@ -94,7 +37,7 @@ impl EventChainOps {
         &self,
         chain_id: EventChainId,
     ) -> Result<Option<EventChainSummary>, EventChainError> {
-        let chain = self.narrative.get_chain(chain_id).await?;
+        let chain = self.narrative_repo.get_chain(chain_id).await?;
         Ok(chain.as_ref().map(event_chain_to_summary))
     }
 
@@ -105,12 +48,8 @@ impl EventChainOps {
         act_id: Option<ActId>,
         events: Option<Vec<NarrativeEventId>>,
     ) -> Result<EventChainSummary, EventChainError> {
-        let now = self.narrative.now();
-        let mut chain = EventChain::new(
-            world_id,
-            EventChainName::new(&input.name)?,
-            now,
-        )?;
+        let now = self.clock.now();
+        let mut chain = EventChain::new(world_id, EventChainName::new(&input.name)?, now)?;
 
         if let Some(description) = input.description {
             chain.set_description(Description::new(description)?, now)?;
@@ -141,7 +80,7 @@ impl EventChainOps {
             }
         }
 
-        self.narrative.save_chain(&chain).await?;
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(event_chain_to_summary(&chain))
     }
 
@@ -153,12 +92,12 @@ impl EventChainOps {
         events: Option<Vec<NarrativeEventId>>,
     ) -> Result<EventChainSummary, EventChainError> {
         let mut chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
 
-        let now = self.narrative.now();
+        let now = self.clock.now();
         if let Some(name) = input.name {
             chain.set_name(EventChainName::new(name)?, now)?;
         }
@@ -189,12 +128,12 @@ impl EventChainOps {
             chain.reorder_events(events, now);
         }
 
-        self.narrative.save_chain(&chain).await?;
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(event_chain_to_summary(&chain))
     }
 
     pub async fn delete(&self, chain_id: EventChainId) -> Result<(), EventChainError> {
-        self.narrative.delete_chain(chain_id).await?;
+        self.narrative_repo.delete_chain(chain_id).await?;
         Ok(())
     }
 
@@ -204,19 +143,19 @@ impl EventChainOps {
         active: bool,
     ) -> Result<(), EventChainError> {
         let mut chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
 
-        let now = self.narrative.now();
+        let now = self.clock.now();
         if active {
             chain.activate(now);
         } else {
             chain.deactivate(now);
         }
 
-        self.narrative.save_chain(&chain).await?;
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(())
     }
 
@@ -226,7 +165,7 @@ impl EventChainOps {
         favorite: bool,
     ) -> Result<(), EventChainError> {
         let mut chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
@@ -237,8 +176,8 @@ impl EventChainOps {
             domain::EventChainFavorite::Normal
         };
 
-        chain.set_favorite(favorite_status, self.narrative.now());
-        self.narrative.save_chain(&chain).await?;
+        chain.set_favorite(favorite_status, self.clock.now());
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(())
     }
 
@@ -249,14 +188,14 @@ impl EventChainOps {
         position: Option<usize>,
     ) -> Result<EventChainSummary, EventChainError> {
         let mut chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
 
         // Validate event existence and world ownership
         let event = self
-            .narrative
+            .narrative_repo
             .get_event(event_id)
             .await?
             .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
@@ -265,13 +204,13 @@ impl EventChainOps {
             return Err(EventChainError::WorldMismatch);
         }
 
-        let now = self.narrative.now();
+        let now = self.clock.now();
         if let Some(pos) = position {
             chain.insert_event(pos, event_id, now);
         } else {
             chain.add_event(event_id, now);
         }
-        self.narrative.save_chain(&chain).await?;
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(event_chain_to_summary(&chain))
     }
 
@@ -281,14 +220,14 @@ impl EventChainOps {
         event_id: NarrativeEventId,
     ) -> Result<(), EventChainError> {
         let mut chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
 
         // Validate event existence and world ownership
         let event = self
-            .narrative
+            .narrative_repo
             .get_event(event_id)
             .await?
             .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
@@ -297,9 +236,9 @@ impl EventChainOps {
             return Err(EventChainError::WorldMismatch);
         }
 
-        let now = self.narrative.now();
+        let now = self.clock.now();
         chain.remove_event(&event_id, now);
-        self.narrative.save_chain(&chain).await?;
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(())
     }
 
@@ -309,14 +248,14 @@ impl EventChainOps {
         event_id: NarrativeEventId,
     ) -> Result<(), EventChainError> {
         let mut chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
 
         // Validate event existence
         let event = self
-            .narrative
+            .narrative_repo
             .get_event(event_id)
             .await?
             .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
@@ -331,9 +270,9 @@ impl EventChainOps {
             return Err(EventChainError::EventNotInChain);
         }
 
-        let now = self.narrative.now();
+        let now = self.clock.now();
         chain.complete_event(event_id, now);
-        self.narrative.save_chain(&chain).await?;
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(())
     }
 
@@ -342,12 +281,12 @@ impl EventChainOps {
         chain_id: EventChainId,
     ) -> Result<EventChainSummary, EventChainError> {
         let mut chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        chain.reset(self.narrative.now());
-        self.narrative.save_chain(&chain).await?;
+        chain.reset(self.clock.now());
+        self.narrative_repo.save_chain(&chain).await?;
         Ok(event_chain_to_summary(&chain))
     }
 
@@ -356,12 +295,24 @@ impl EventChainOps {
         chain_id: EventChainId,
     ) -> Result<ChainStatusSummary, EventChainError> {
         let chain = self
-            .narrative
+            .narrative_repo
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        let status: domain::ChainStatus = (&chain).into();
-        Ok(chain_status_to_summary(&status))
+
+        Ok(ChainStatusSummary {
+            chain_id: chain.id(),
+            chain_name: chain.name().to_string(),
+            activation: chain.activation(),
+            is_active: chain.is_active(),
+            is_complete: chain.is_complete(),
+            total_events: chain.events().len(),
+            completed_events: chain.completed_events().len(),
+            progress_percent: (chain.progress() * 100.0) as u32,
+            current_event_id: chain.current_event().copied(),
+            created_at: chain.created_at(),
+            updated_at: chain.updated_at(),
+        })
     }
 }
 
@@ -383,39 +334,22 @@ pub enum EventChainError {
 
 fn event_chain_to_summary(chain: &EventChain) -> EventChainSummary {
     EventChainSummary {
-        id: chain.id().to_string(),
-        world_id: chain.world_id().to_string(),
+        id: chain.id(),
+        world_id: chain.world_id(),
         name: chain.name().to_string(),
         description: chain.description().to_string(),
-        events: chain.events().iter().map(|id| id.to_string()).collect(),
+        events: chain.events().to_vec(),
         is_active: chain.is_active(),
         current_position: chain.current_position(),
-        completed_events: chain
-            .completed_events()
-            .iter()
-            .map(|id| id.to_string())
-            .collect(),
-        act_id: chain.act_id().map(|id| id.to_string()),
+        completed_events: chain.completed_events().to_vec(),
+        act_id: chain.act_id(),
         tags: chain.tags().iter().map(|t| t.to_string()).collect(),
         color: chain.color().map(|s| s.to_string()),
         is_favorite: chain.is_favorite(),
         progress_percent: (chain.progress() * 100.0) as u32,
         is_complete: chain.is_complete(),
         remaining_events: chain.remaining_events(),
-        created_at: chain.created_at().to_rfc3339(),
-        updated_at: chain.updated_at().to_rfc3339(),
-    }
-}
-
-fn chain_status_to_summary(status: &domain::ChainStatus) -> ChainStatusSummary {
-    ChainStatusSummary {
-        chain_id: status.chain_id.to_string(),
-        chain_name: status.chain_name.clone(),
-        is_active: status.is_active,
-        is_complete: status.is_complete,
-        total_events: status.total_events,
-        completed_events: status.completed_events,
-        progress_percent: status.progress_percent,
-        current_event_id: status.current_event_id.map(|id| id.to_string()),
+        created_at: chain.created_at(),
+        updated_at: chain.updated_at(),
     }
 }

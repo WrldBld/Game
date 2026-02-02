@@ -771,20 +771,8 @@ async fn test_npc_archetype_in_context() {
 #[ignore = "requires docker (testcontainers)"]
 async fn test_secret_motivation_deflection() {
     const TEST_NAME: &str = "test_secret_motivation_deflection";
-    let event_log = create_shared_log(TEST_NAME);
 
-    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
-        "{}/src/e2e_tests/cassettes/{}.json",
-        env!("CARGO_MANIFEST_DIR"),
-        TEST_NAME
-    ))));
-    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
-
-    let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
-        .await
-        .expect("Failed to setup E2E context");
-
-    let test_result = async {
+    super::run_e2e_with_vcr(TEST_NAME, |vcr, ctx| async move {
         // Marta has hidden wants that she should deflect questions about
         let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
         let common_room = ctx.world.region("Common Room").expect("Region not found");
@@ -834,18 +822,7 @@ async fn test_secret_motivation_deflection() {
             )
             .await?;
 
-        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-    }
+        Ok(())
+    })
     .await;
-
-    let outcome = if test_result.is_ok() {
-        TestOutcome::Pass
-    } else {
-        TestOutcome::Fail
-    };
-    ctx.finalize_event_log(outcome);
-    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
-        .expect("save log");
-    vcr.save_cassette().expect("Failed to save cassette");
-    test_result.expect("Test failed");
 }

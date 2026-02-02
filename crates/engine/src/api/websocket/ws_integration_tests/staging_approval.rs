@@ -1,4 +1,5 @@
 use super::*;
+use wrldbldr_domain::CampbellArchetype;
 
 #[tokio::test]
 async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_receives_staging_ready()
@@ -69,7 +70,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
 
     // Visual state fixtures: minimal states to satisfy fail-fast validation
     let location_state_id = wrldbldr_domain::LocationStateId::new();
-    let location_state = wrldbldr_domain::LocationState::from_parts(
+    let location_state = wrldbldr_domain::LocationState::from_storage(
         location_state_id,
         location_id,
         world_id,
@@ -90,7 +91,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     );
 
     let region_state_id = wrldbldr_domain::RegionStateId::new();
-    let region_state = wrldbldr_domain::RegionState::from_parts(
+    let region_state = wrldbldr_domain::RegionState::from_storage(
         region_state_id,
         region_id,
         location_id,
@@ -470,11 +471,23 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     )
     .await;
 
-    // Player receives StagingReady broadcast, containing only visible NPC.
-    let staging_ready = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::StagingReady { .. })
-    })
-    .await;
+    // Player receives StagingReady and VisualStateChanged broadcasts (order not guaranteed)
+    let mut got_staging_ready: Option<ServerMessage> = None;
+    let mut got_visual_state: Option<ServerMessage> = None;
+
+    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+        while got_staging_ready.is_none() || got_visual_state.is_none() {
+            let msg = ws_recv_server(&mut player_ws).await;
+            match msg {
+                ServerMessage::StagingReady { .. } => got_staging_ready = Some(msg),
+                ServerMessage::VisualStateChanged { .. } => got_visual_state = Some(msg),
+                _ => {}
+            }
+        }
+    }).await.unwrap();
+
+    let staging_ready = got_staging_ready.unwrap();
+    let visual_state_changed = got_visual_state.unwrap();
 
     match staging_ready {
         ServerMessage::StagingReady {
@@ -489,26 +502,20 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
             assert!(!npcs_present
                 .iter()
                 .any(|n| n.character_id == hidden_npc_id.to_string()));
-            // Visual state should be None since no state IDs were provided in approval
-            assert!(staging_visual_state.is_none());
+            // Visual state should be present since active states exist and are resolved
+            assert!(staging_visual_state.is_some());
         }
         other => panic!("expected StagingReady, got: {:?}", other),
     }
-
-    // Player receives VisualStateChanged broadcast after staging approval
-    let visual_state_changed = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::VisualStateChanged { .. })
-    })
-    .await;
 
     match visual_state_changed {
         ServerMessage::VisualStateChanged {
             region_id: got_region_id,
             visual_state,
         } => {
-            assert_eq!(got_region_id, region_id.to_string());
-            // Visual state should be None since no state IDs were provided in approval
-            assert!(visual_state.is_none());
+            assert_eq!(got_region_id, Some(region_id.to_string()));
+            // Visual state should be present since active states exist and are resolved
+            assert!(visual_state.is_some());
         }
         other => panic!("expected VisualStateChanged, got: {:?}", other),
     }
@@ -584,7 +591,7 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
 
     // Visual state fixtures: one valid state
     let valid_location_state_id = wrldbldr_domain::LocationStateId::new();
-    let valid_location_state = wrldbldr_domain::LocationState::from_parts(
+    let valid_location_state = wrldbldr_domain::LocationState::from_storage(
         valid_location_state_id,
         location_id,
         world_id,
@@ -605,7 +612,7 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
     );
 
     let valid_region_state_id = wrldbldr_domain::RegionStateId::new();
-    let valid_region_state = wrldbldr_domain::RegionState::from_parts(
+    let valid_region_state = wrldbldr_domain::RegionState::from_storage(
         valid_region_state_id,
         region_id,
         location_id,
@@ -794,6 +801,13 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
             ))
         });
 
+    // Character repo: no NPCs for region
+    repos
+        .character_repo
+        .expect_get_npcs_for_region()
+        .times(0..)
+        .returning(|_| Ok(vec![]));
+
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -908,7 +922,7 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
         ServerMessage::Error { code, message } => {
             assert_eq!(code, "ValidationError");
             assert!(message.contains("Invalid location_state_id"));
-            assert!(message.contains("not in available options"));
+            assert!(message.contains("not in available options for this staging request"));
         }
         other => panic!("expected Error, got: {:?}", other),
     }
@@ -977,7 +991,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
 
     // Visual state fixtures: two states each (to test selection)
     let location_state1_id = wrldbldr_domain::LocationStateId::new();
-    let location_state1 = wrldbldr_domain::LocationState::from_parts(
+    let location_state1 = wrldbldr_domain::LocationState::from_storage(
         location_state1_id,
         location_id,
         world_id,
@@ -998,7 +1012,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
     );
 
     let location_state2_id = wrldbldr_domain::LocationStateId::new();
-    let location_state2 = wrldbldr_domain::LocationState::from_parts(
+    let location_state2 = wrldbldr_domain::LocationState::from_storage(
         location_state2_id,
         location_id,
         world_id,
@@ -1019,7 +1033,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
     );
 
     let region_state1_id = wrldbldr_domain::RegionStateId::new();
-    let region_state1 = wrldbldr_domain::RegionState::from_parts(
+    let region_state1 = wrldbldr_domain::RegionState::from_storage(
         region_state1_id,
         region_id,
         location_id,
@@ -1040,7 +1054,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
     );
 
     let region_state2_id = wrldbldr_domain::RegionStateId::new();
-    let region_state2 = wrldbldr_domain::RegionState::from_parts(
+    let region_state2 = wrldbldr_domain::RegionState::from_storage(
         region_state2_id,
         region_id,
         location_id,
@@ -1267,7 +1281,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
             s.region_id() == region_id_for_staging
                 && s.location_id() == location_id_for_staging
                 && s.world_id() == world_id_for_staging
-                && s.source() == wrldbldr_domain::VisualStateSource::DmOverride // KEY ASSERTION
+                && s.visual_state_source() == wrldbldr_domain::VisualStateSource::DmOverride // KEY ASSERTION
                 && s.npcs().iter().any(|n| {
                     n.character_id == visible_npc_id_for_staging
                         && n.is_present()
@@ -1403,11 +1417,23 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
     )
     .await;
 
-    // Player should receive StagingReady with visual state data
-    let staging_ready = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::StagingReady { .. })
-    })
-    .await;
+    // Player should receive StagingReady and VisualStateChanged broadcasts (order not guaranteed)
+    let mut got_staging_ready: Option<ServerMessage> = None;
+    let mut got_visual_state: Option<ServerMessage> = None;
+
+    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+        while got_staging_ready.is_none() || got_visual_state.is_none() {
+            let msg = ws_recv_server(&mut player_ws).await;
+            match msg {
+                ServerMessage::StagingReady { .. } => got_staging_ready = Some(msg),
+                ServerMessage::VisualStateChanged { .. } => got_visual_state = Some(msg),
+                _ => {}
+            }
+        }
+    }).await.unwrap();
+
+    let staging_ready = got_staging_ready.unwrap();
+    let visual_state_changed = got_visual_state.unwrap();
 
     match staging_ready {
         ServerMessage::StagingReady {
@@ -1434,18 +1460,12 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
         other => panic!("expected StagingReady, got: {:?}", other),
     }
 
-    // Player should receive VisualStateChanged broadcast
-    let visual_state_changed = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::VisualStateChanged { .. })
-    })
-    .await;
-
     match visual_state_changed {
         ServerMessage::VisualStateChanged {
             region_id: got_region_id,
             visual_state,
         } => {
-            assert_eq!(got_region_id, region_id.to_string());
+            assert_eq!(got_region_id, Some(region_id.to_string()));
             // Visual state data should match StagingReady
             assert!(visual_state.is_some());
             let vs = visual_state.as_ref().unwrap();
@@ -1493,7 +1513,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
 
     // Visual state fixtures: minimal states to satisfy fail-fast validation
     let location_state_id = wrldbldr_domain::LocationStateId::new();
-    let location_state = wrldbldr_domain::LocationState::from_parts(
+    let location_state = wrldbldr_domain::LocationState::from_storage(
         location_state_id,
         location_id,
         world_id,
@@ -1514,7 +1534,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     );
 
     let region_state_id = wrldbldr_domain::RegionStateId::new();
-    let region_state = wrldbldr_domain::RegionState::from_parts(
+    let region_state = wrldbldr_domain::RegionState::from_storage(
         region_state_id,
         region_id,
         location_id,
@@ -1534,7 +1554,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         now,
     );
 
-    let region = wrldbldr_domain::Region::from_parts(
+    let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
@@ -1713,7 +1733,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
 
     // Visual state fixtures: minimal states to satisfy fail-fast validation
     let location_state_id = wrldbldr_domain::LocationStateId::new();
-    let location_state = wrldbldr_domain::LocationState::from_parts(
+    let location_state = wrldbldr_domain::LocationState::from_storage(
         location_state_id,
         location_id,
         world_id,
@@ -1734,7 +1754,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     );
 
     let region_state_id = wrldbldr_domain::RegionStateId::new();
-    let region_state = wrldbldr_domain::RegionState::from_parts(
+    let region_state = wrldbldr_domain::RegionState::from_storage(
         region_state_id,
         region_id,
         location_id,
@@ -1754,7 +1774,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         now,
     );
 
-    let region = wrldbldr_domain::Region::from_parts(
+    let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
@@ -1898,10 +1918,11 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     );
 }
 
-/// Tests that staging approval with visual state IDs broadcasts VisualStateChanged
-/// with resolved visual state data in the payload
+/// Tests that PreStageRegion persists staging with visual state IDs correctly.
+/// Note: PreStageRegion does NOT broadcast StagingReady/VisualStateChanged - 
+/// it only persists the staging for future player entry.
 #[tokio::test]
-async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_resolved_state()
+async fn when_dm_prestages_region_with_visual_state_ids_then_staging_is_persisted_correctly()
 {
     use wrldbldr_domain::TimeMode;
 
@@ -1929,7 +1950,7 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let region = wrldbldr_domain::Region::from_parts(
+    let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
@@ -1952,18 +1973,14 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
 
     // Visual state fixtures with overrides
     let location_state_id = wrldbldr_domain::LocationStateId::new();
-    let backdrop_override_path = wrldbldr_domain::AssetPath::new("/backdrop_night.jpg").ok();
-    let backdrop_override = backdrop_override_path.as_ref().map(|s| s.to_string());
-    let atmosphere_override_atm = wrldbldr_domain::Atmosphere::new("Atmosphere: Nighttime fog").ok();
-    let atmosphere_override = atmosphere_override_atm.as_ref().map(|s| s.to_string());
-    let _location_state = wrldbldr_domain::LocationState::from_parts(
+    let _location_state = wrldbldr_domain::LocationState::from_storage(
         location_state_id,
         location_id,
         world_id,
         wrldbldr_domain::StateName::new("Night State").unwrap(),
         wrldbldr_domain::Description::default(),
-        backdrop_override_path.clone(),
-        atmosphere_override_atm.clone(),
+        None, // backdrop_override
+        None, // atmosphere_override
         None, // ambient_sound
         None, // map_overlay
         vec![wrldbldr_domain::ActivationRule::Always],
@@ -2015,8 +2032,29 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
         .times(0..)
         .returning(|_| Ok(None)); // No NPCs for this test
 
+    // Player character repo: return the PC
+    let pc_for_get = _pc.clone();
+    repos
+        .player_character_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |_| Ok(Some(pc_for_get.clone())));
+
     // Mock repos for state resolution and saving
+    let location_state_for_mock = _location_state.clone();
     let region_state_for_mock = region_state.clone();
+
+    repos
+        .location_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == location_state_id {
+                Ok(Some(location_state_for_mock.clone()))
+            } else {
+                Ok(None)
+            }
+        });
 
     repos
         .region_state_repo
@@ -2029,6 +2067,28 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
                 Ok(None)
             }
         });
+
+    // Staging repo: expect save_and_activate_pending_staging_with_states for DM pre-staging
+    // This is the KEY ASSERTION - verifies staging is persisted with correct visual state IDs
+    let region_id_for_staging = region_id;
+    let location_id_for_staging = location_id;
+    let world_id_for_staging = world_id;
+    let location_state_id_for_assertion = location_state_id;
+    let region_state_id_for_assertion = region_state_id;
+    repos
+        .staging_repo
+        .expect_save_and_activate_pending_staging_with_states()
+        .withf(move |s, r, loc_state_id, reg_state_id| {
+            s.region_id() == region_id_for_staging
+                && s.location_id() == location_id_for_staging
+                && s.world_id() == world_id_for_staging
+                && s.ttl_hours() == 6 // DM-specified TTL
+                && s.source() == wrldbldr_domain::StagingSource::PreStaged
+                && *r == region_id_for_staging
+                && loc_state_id == &Some(location_state_id_for_assertion)
+                && reg_state_id == &Some(region_state_id_for_assertion)
+        })
+        .returning(|_, _, _, _| Ok(()));
 
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
@@ -2082,7 +2142,7 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
     // DM pre-stages region with visual state IDs
     ws_send_client(
         &mut dm_ws,
-        &        ClientMessage::PreStageRegion {
+        &ClientMessage::PreStageRegion {
             region_id: region_id.to_string(),
             npcs: vec![],
             ttl_hours: 6,
@@ -2092,64 +2152,18 @@ async fn when_dm_approves_staging_with_visual_state_ids_then_broadcast_includes_
     )
     .await;
 
-    // Player should receive StagingReady with visual state data
-    let staging_ready = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+    // PreStageRegion does NOT broadcast StagingReady or VisualStateChanged messages.
+    // It only persists the staging for when a player later enters the region.
+    // Verify that player does NOT receive these messages within a short timeout.
+    ws_expect_no_message_matching(&mut player_ws, Duration::from_millis(300), |m| {
         matches!(m, ServerMessage::StagingReady { .. })
     })
     .await;
 
-    match staging_ready {
-        ServerMessage::StagingReady {
-            region_id: got_region_id,
-            npcs_present,
-            visual_state,
-        } => {
-            assert_eq!(got_region_id, region_id.to_string());
-            assert!(npcs_present.is_empty());
-            // Verify visual state data is present and correct
-            assert!(visual_state.is_some());
-            let vs = visual_state.as_ref().unwrap();
-            assert!(vs.location_state.is_some());
-            assert!(vs.region_state.is_some());
-            let loc_state = vs.location_state.as_ref().unwrap();
-            assert_eq!(loc_state.id, location_state_id.to_string());
-            assert_eq!(loc_state.name, "Night State");
-            assert_eq!(loc_state.backdrop_override, backdrop_override);
-            assert_eq!(loc_state.atmosphere_override, atmosphere_override);
-            let reg_state = vs.region_state.as_ref().unwrap();
-            assert_eq!(reg_state.id, region_state_id.to_string());
-            assert_eq!(reg_state.name, "Battle Damaged");
-            assert_eq!(reg_state.backdrop_override, backdrop_override);
-            assert_eq!(reg_state.atmosphere_override, atmosphere_override);
-        }
-        other => panic!("expected StagingReady, got: {:?}", other),
-    }
-
-    // Player should receive VisualStateChanged with same visual state data
-    let visual_state_changed = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+    ws_expect_no_message_matching(&mut player_ws, Duration::from_millis(300), |m| {
         matches!(m, ServerMessage::VisualStateChanged { .. })
     })
     .await;
-
-    match visual_state_changed {
-        ServerMessage::VisualStateChanged {
-            region_id: got_region_id,
-            visual_state,
-        } => {
-            assert_eq!(got_region_id, region_id.to_string());
-            // Visual state data should match StagingReady
-            assert!(visual_state.is_some());
-            let vs = visual_state.as_ref().unwrap();
-            assert!(vs.location_state.is_some());
-            assert!(vs.region_state.is_some());
-            let loc_state = vs.location_state.as_ref().unwrap();
-            assert_eq!(loc_state.id, location_state_id.to_string());
-            assert_eq!(loc_state.backdrop_override, backdrop_override);
-            let reg_state = vs.region_state.as_ref().unwrap();
-            assert_eq!(reg_state.id, region_state_id.to_string());
-        }
-        other => panic!("expected VisualStateChanged, got: {:?}", other),
-    }
 
     server.abort();
 }

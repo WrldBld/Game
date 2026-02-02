@@ -27,6 +27,10 @@ pub enum RepoError {
     /// Business constraint violated.
     #[error("Constraint violation: {0}")]
     ConstraintViolation(String),
+
+    /// Configuration error.
+    #[error("Configuration error: {0}")]
+    Config(String),
 }
 
 impl RepoError {
@@ -54,6 +58,11 @@ impl RepoError {
     /// Create a ConstraintViolation error.
     pub fn constraint(message: impl ToString) -> Self {
         Self::ConstraintViolation(message.to_string())
+    }
+
+    /// Create a Config error.
+    pub fn config(message: impl ToString) -> Self {
+        Self::Config(message.to_string())
     }
 
     /// Check if this is a NotFound error.

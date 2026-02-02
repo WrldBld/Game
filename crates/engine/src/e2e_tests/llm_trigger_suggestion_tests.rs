@@ -160,8 +160,8 @@ async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
         let all_events = ctx
             .app
             .repositories
-            .narrative
-            .list_events(ctx.world.world_id)
+            .narrative_repo
+            .list_events_for_world(ctx.world.world_id)
             .await
             .expect("Should list events");
 
@@ -505,8 +505,8 @@ async fn test_multi_condition_event_filtered_when_flag_not_set() {
         let events = ctx
             .app
             .repositories
-            .narrative
-            .list_events(ctx.world.world_id)
+            .narrative_repo
+            .list_events_for_world(ctx.world.world_id)
             .await
             .expect("Should list events");
 
@@ -812,7 +812,7 @@ async fn test_triggered_event_not_in_prompt() {
 
         ctx.app
             .repositories
-            .narrative
+            .narrative_repo
             .save_event(&event)
             .await
             .expect("Failed to save event");
@@ -821,8 +821,8 @@ async fn test_triggered_event_not_in_prompt() {
         let all_events = ctx
             .app
             .repositories
-            .narrative
-            .list_events(ctx.world.world_id)
+            .narrative_repo
+            .list_events_for_world(ctx.world.world_id)
             .await
             .expect("Should list events");
 
@@ -911,7 +911,7 @@ async fn test_inactive_event_not_in_prompt() {
 
         ctx.app
             .repositories
-            .narrative
+            .narrative_repo
             .save_event(&event)
             .await
             .expect("Failed to save event");
@@ -920,8 +920,8 @@ async fn test_inactive_event_not_in_prompt() {
         let all_events = ctx
             .app
             .repositories
-            .narrative
-            .list_events(ctx.world.world_id)
+            .narrative_repo
+            .list_events_for_world(ctx.world.world_id)
             .await
             .expect("Should list events");
 
@@ -1011,7 +1011,7 @@ async fn test_repeatable_triggered_event_in_prompt() {
 
         ctx.app
             .repositories
-            .narrative
+            .narrative_repo
             .save_event(&event)
             .await
             .expect("Failed to save event");
@@ -1021,8 +1021,8 @@ async fn test_repeatable_triggered_event_in_prompt() {
         let all_events = ctx
             .app
             .repositories
-            .narrative
-            .list_events(ctx.world.world_id)
+            .narrative_repo
+            .list_events_for_world(ctx.world.world_id)
             .await
             .expect("Should list events");
 

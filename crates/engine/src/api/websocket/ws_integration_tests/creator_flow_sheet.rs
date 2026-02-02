@@ -2,8 +2,9 @@ use super::*;
 
 use wrldbldr_domain::{value_objects::RuleSystemConfig, Character, CharacterId, WorldId};
 use wrldbldr_shared::{
-    ClientMessage, ErrorCode, ProtoWorldRole, RequestPayload, ResponseResult, ServerMessage,
+    ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage,
 };
+use crate::api::websocket::ProtoWorldRole;
 use wrldbldr_domain::types::{ChangeType, EntityType};
 
 /// Create a D&D 5e world for testing.
@@ -22,12 +23,11 @@ fn create_dnd5e_world(
 fn create_test_character(
     character_id: CharacterId,
     world_id: WorldId,
-    now: chrono::DateTime<chrono::Utc>,
+    _now: chrono::DateTime<chrono::Utc>,
 ) -> Character {
     let name = wrldbldr_domain::CharacterName::new("Test Character").unwrap();
     Character::new(world_id, name, wrldbldr_domain::CampbellArchetype::Hero)
         .with_id(character_id)
-        .with_created_at(now)
 }
 
 #[tokio::test]
@@ -38,10 +38,11 @@ async fn character_sheet_update_field_emits_entity_changed() {
     let character_id = CharacterId::new();
     let character = create_test_character(character_id, world_id, now);
 
-    // Setup world repo
+    // Setup world repo - allow multiple calls (JoinWorld + character_sheet.update_field)
     let mut world_repo = MockWorldRepo::new();
     world_repo
         .expect_get()
+        .times(0..)
         .returning(move |_| Ok(Some(world.clone())));
 
     // Setup character repo
@@ -54,14 +55,15 @@ async fn character_sheet_update_field_emits_entity_changed() {
         .returning(move |_| Ok(Some(character_clone.clone())));
 
     character_repo
-        .expect_update_sheet_value()
-        .returning(|_, _, _| Ok(Some(10)));
+        .expect_save()
+        .returning(|_| Ok(()));
 
     character_repo
         .expect_list_in_world()
         .returning(|_, _, _| Ok(Vec::new()));
 
-    let repos = TestAppRepos::new(world_repo);
+    let mut repos = TestAppRepos::new(world_repo);
+    repos.character_repo = character_repo;
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -103,38 +105,23 @@ async fn character_sheet_update_field_emits_entity_changed() {
             payload: RequestPayload::CharacterSheet(
                 wrldbldr_shared::CharacterSheetRequest::UpdateField {
                     character_id: character_id.to_string(),
-                    field_id: "strength".to_string(),
-                    value: 18,
+                    field_id: "STR".to_string(),
+                    value: wrldbldr_shared::SheetValue::Integer(18),
                 },
             ),
         },
     )
     .await;
 
-    // Expect response
-    let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response {
-            request_id: rid, ..
-        } = m
-        {
-            rid == &request_id
-        } else {
-            false
-        }
-    })
-    .await;
+    // Expect response and EntityChanged broadcast (order not guaranteed)
+    let (response, entity_changed) =
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
 
     if let ServerMessage::Response { result, .. } = response {
         assert!(result.is_success(), "Field update should succeed");
     } else {
         panic!("Expected Response message");
     }
-
-    // Expect EntityChanged broadcast
-    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::EntityChanged { .. })
-    })
-    .await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);
@@ -156,10 +143,11 @@ async fn character_sheet_update_fields_emits_entity_changed() {
     let character_id = CharacterId::new();
     let character = create_test_character(character_id, world_id, now);
 
-    // Setup world repo
+    // Setup world repo - allow multiple calls (JoinWorld + character_sheet.update_fields)
     let mut world_repo = MockWorldRepo::new();
     world_repo
         .expect_get()
+        .times(0..)
         .returning(move |_| Ok(Some(world.clone())));
 
     // Setup character repo
@@ -172,14 +160,15 @@ async fn character_sheet_update_fields_emits_entity_changed() {
         .returning(move |_| Ok(Some(character_clone.clone())));
 
     character_repo
-        .expect_update_sheet_values()
-        .returning(|_, _| Ok(vec![]));
+        .expect_save()
+        .returning(|_| Ok(()));
 
     character_repo
         .expect_list_in_world()
         .returning(|_, _, _| Ok(Vec::new()));
 
-    let repos = TestAppRepos::new(world_repo);
+    let mut repos = TestAppRepos::new(world_repo);
+    repos.character_repo = character_repo;
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
 
@@ -222,13 +211,13 @@ async fn character_sheet_update_fields_emits_entity_changed() {
                 wrldbldr_shared::CharacterSheetRequest::UpdateFields {
                     character_id: character_id.to_string(),
                     updates: vec![
-                        wrldbldr_shared::UpdateFieldData {
-                            field_id: "strength".to_string(),
-                            value: 18,
+                        wrldbldr_shared::FieldUpdateData {
+                            field_id: "STR".to_string(),
+                            value: wrldbldr_shared::SheetValue::Integer(18),
                         },
-                        wrldbldr_shared::UpdateFieldData {
-                            field_id: "dexterity".to_string(),
-                            value: 16,
+                        wrldbldr_shared::FieldUpdateData {
+                            field_id: "DEX".to_string(),
+                            value: wrldbldr_shared::SheetValue::Integer(16),
                         },
                     ],
                 },
@@ -237,30 +226,15 @@ async fn character_sheet_update_fields_emits_entity_changed() {
     )
     .await;
 
-    // Expect response
-    let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response {
-            request_id: rid, ..
-        } = m
-        {
-            rid == &request_id
-        } else {
-            false
-        }
-    })
-    .await;
+    // Expect response and EntityChanged broadcast (order not guaranteed)
+    let (response, entity_changed) =
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
 
     if let ServerMessage::Response { result, .. } = response {
         assert!(result.is_success(), "Fields update should succeed");
     } else {
         panic!("Expected Response message");
     }
-
-    // Expect EntityChanged broadcast
-    let entity_changed = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        matches!(m, ServerMessage::EntityChanged { .. })
-    })
-    .await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);

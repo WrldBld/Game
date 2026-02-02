@@ -1,0 +1,1 @@
+Generate 3 different descriptions for {entity_name} (a {entity_type}). Setting: {world_setting}. Each description should be 2-3 sentences covering what stands out visually, sounds, and smells. Return each description separated by a blank line.

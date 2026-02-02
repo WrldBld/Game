@@ -462,6 +462,7 @@ pub fn create_shared_log(test_name: &str) -> Arc<E2EEventLog> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_event_log_creation() {

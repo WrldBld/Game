@@ -15,7 +15,7 @@ use wrldbldr_domain::{
 use wrldbldr_shared::character_sheet::SheetValue;
 
 use crate::infrastructure::ports::{
-    ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, ItemRepo, ObservationRepo,
+    ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, ItemRepo, LoreRepo, ObservationRepo,
     PlayerCharacterRepo, SceneRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
@@ -69,6 +69,7 @@ pub struct EffectExecutionContext {
 /// - EnableEvent / DisableEvent via NarrativeEffectExecutor
 /// - ModifyRelationship via RelationshipEffectExecutor
 /// - RevealInformation via ObservationEffectExecutor
+/// - RevealLore via LoreEffectExecutor
 /// - ModifyStat via StatEffectExecutor
 /// - TriggerScene via SceneEffectExecutor
 /// - SetFlag via FlagEffectExecutor
@@ -79,6 +80,7 @@ pub struct ExecuteEffects {
     narrative_executor: NarrativeEffectExecutor,
     relationship_executor: RelationshipEffectExecutor,
     observation_executor: ObservationEffectExecutor,
+    lore_executor: LoreEffectExecutor,
     scene_executor: SceneEffectExecutor,
     flag_executor: FlagEffectExecutor,
     stat_executor: StatEffectExecutor,
@@ -97,6 +99,7 @@ impl ExecuteEffects {
         flag: Arc<dyn FlagRepo>,
         world: Arc<dyn WorldRepo>,
         clock: Arc<dyn ClockPort>,
+        lore: Arc<dyn LoreRepo>,
     ) -> Self {
         let item_executor = ItemEffectExecutor {
             item: item.clone(),
@@ -109,6 +112,7 @@ impl ExecuteEffects {
             clock: clock.clone(),
         };
         let observation_executor = ObservationEffectExecutor { observation };
+        let lore_executor = LoreEffectExecutor { lore };
         let scene_executor = SceneEffectExecutor { scene };
         let flag_executor = FlagEffectExecutor { flag };
         let stat_executor = StatEffectExecutor { pc: pc.clone() };
@@ -124,6 +128,7 @@ impl ExecuteEffects {
             narrative_executor,
             relationship_executor,
             observation_executor,
+            lore_executor,
             scene_executor,
             flag_executor,
             stat_executor,
@@ -279,6 +284,23 @@ impl ExecuteEffects {
                         title,
                         content,
                         *persist_to_journal,
+                    )
+                    .await
+            }
+
+            EventEffect::RevealLore {
+                lore_id,
+                lore_title,
+                chunk_ids,
+                reveal_to_pc,
+            } => {
+                self.lore_executor
+                    .execute_reveal_lore(
+                        context.pc_id,
+                        *lore_id,
+                        lore_title,
+                        chunk_ids.clone(),
+                        *reveal_to_pc,
                     )
                     .await
             }
@@ -706,6 +728,60 @@ impl ObservationEffectExecutor {
                 error: None,
                 requires_dm_action: false,
             }
+        }
+    }
+}
+
+/// Helper for executing lore-related effects.
+struct LoreEffectExecutor {
+    lore: Arc<dyn LoreRepo>,
+}
+
+impl LoreEffectExecutor {
+    async fn execute_reveal_lore(
+        &self,
+        pc_id: PlayerCharacterId,
+        lore_id: wrldbldr_domain::LoreId,
+        lore_title: &str,
+        chunk_ids: Option<Vec<wrldbldr_domain::LoreChunkId>>,
+        reveal_to_pc: Option<wrldbldr_domain::PlayerCharacterId>,
+    ) -> EffectExecutionResult {
+        // Use specified PC or default to context PC
+        let target_pc_id = reveal_to_pc.unwrap_or(pc_id);
+        let target_char_id = wrldbldr_domain::CharacterId::from_uuid(*target_pc_id.as_uuid());
+
+        // Create LoreKnowledge entry
+        let knowledge = wrldbldr_domain::LoreKnowledge {
+            lore_id,
+            character_id: target_char_id,
+            known_chunk_ids: chunk_ids.clone().unwrap_or_default(),
+            discovery_source: wrldbldr_domain::LoreDiscoverySource::DmGranted {
+                reason: Some(format!("Revealed via narrative event: {}", lore_title)),
+            },
+            discovered_at: chrono::Utc::now(),
+            notes: Some(format!("Revealed via narrative event: {}", lore_title)),
+        };
+
+        match self.lore.grant_knowledge(&knowledge).await {
+            Ok(()) => EffectExecutionResult {
+                description: format!(
+                    "Revealed lore '{}' to character (chunks: {:?})",
+                    lore_title,
+                    chunk_ids
+                        .as_ref()
+                        .map(|c| c.len().to_string())
+                        .unwrap_or_else(|| "all".to_string())
+                ),
+                success: true,
+                error: None,
+                requires_dm_action: false,
+            },
+            Err(e) => EffectExecutionResult {
+                description: format!("Failed to reveal lore '{}' to character", lore_title),
+                success: false,
+                error: Some(e.to_string()),
+                requires_dm_action: false,
+            },
         }
     }
 }

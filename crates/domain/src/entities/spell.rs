@@ -539,7 +539,7 @@ mod tests {
 
     #[test]
     fn spell_accessors() {
-        let spell = Spell::from_parts(
+        let spell = Spell::from_storage(
             "test_spell",
             "test_system",
             "Test Spell",

@@ -201,7 +201,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
 
             // Verify item properties
             for tool in &give_item_tools {
-                if let Some(item_name) = tool.arguments.get("item_name").and_then(|v| v.as_str()) {
+                if let crate::game_tools::ToolArgs::GiveItem { item_name, .. } = &tool.arguments {
                     let found = final_inventory.iter().any(|i| i.name.as_str() == item_name);
                     assert!(
                         found,
@@ -873,27 +873,28 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
         let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
 
         // Create tools with INVALID arguments directly
+        // Using ToolArgs::Unknown for invalid/malformed tools since they don't match valid variants
         let invalid_tools = vec![
-            // give_item without required item_name
+            // give_item without required item_name - use Unknown since it's invalid
             ProposedTool {
                 id: "call_invalid_1".to_string(),
                 name: "give_item".to_string(),
                 description: "Give item without name".to_string(),
-                arguments: json!({}), // Missing required item_name!
+                arguments: crate::game_tools::ToolArgs::Unknown,
             },
-            // give_item with wrong type for item_name
+            // give_item with wrong type for item_name - use Unknown since it's invalid
             ProposedTool {
                 id: "call_invalid_2".to_string(),
                 name: "give_item".to_string(),
                 description: "Give item with invalid type".to_string(),
-                arguments: json!({"item_name": 12345}), // Number instead of string!
+                arguments: crate::game_tools::ToolArgs::Unknown,
             },
             // Unknown tool (should be skipped gracefully)
             ProposedTool {
                 id: "call_invalid_3".to_string(),
                 name: "nonexistent_tool".to_string(),
                 description: "Tool that doesn't exist".to_string(),
-                arguments: json!({"foo": "bar"}),
+                arguments: crate::game_tools::ToolArgs::Unknown,
             },
         ];
 
@@ -908,7 +909,7 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
             .queue
             .enqueue_dm_approval(&ApprovalRequestData {
                 world_id: ctx.world.world_id,
-                source_action_id: uuid::Uuid::new_v4(),
+                source_action_id: QueueItemId::new(),
                 decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
                 urgency: crate::queue_types::ApprovalUrgency::Normal,
                 pc_id: Some(pc_id),
@@ -924,6 +925,7 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
                 player_dialogue: Some("Give me stuff".to_string()),
                 scene_id: None,
                 location_id: None,
+                region_id: None,
                 game_time: None,
                 topics: vec![],
                 conversation_id: None,

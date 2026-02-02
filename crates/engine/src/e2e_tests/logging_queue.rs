@@ -43,7 +43,7 @@ impl QueuePort for LoggingQueue {
         let id = self.inner.enqueue_player_action(data).await?;
 
         self.event_log.log(E2EEvent::ActionEnqueued {
-            id: id.to_uuid(),
+            id,
             action_type: data.action_type.clone(),
             target: data.target.clone(),
             dialogue: data.dialogue.clone(),
@@ -58,7 +58,7 @@ impl QueuePort for LoggingQueue {
 
         if let Some(ref item) = result {
             self.event_log.log(E2EEvent::ActionProcessed {
-                id: item.id.to_uuid(),
+                id: item.id,
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
@@ -71,7 +71,7 @@ impl QueuePort for LoggingQueue {
         let id = self.inner.enqueue_llm_request(data).await?;
 
         self.event_log.log(E2EEvent::LlmRequestEnqueued {
-            id: id.to_uuid(),
+            id,
             request_type: format!("{:?}", data.request_type),
             callback_id: data.callback_id.clone(),
         });
@@ -91,7 +91,7 @@ impl QueuePort for LoggingQueue {
         let id = self.inner.enqueue_dm_approval(data).await?;
 
         self.event_log.log(E2EEvent::ApprovalEnqueued {
-            id: id.to_uuid(),
+            id,
             decision_type: format!("{:?}", data.decision_type),
             urgency: format!("{:?}", data.urgency),
         });

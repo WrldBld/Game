@@ -1,0 +1,1 @@
+Generate 3 different physical descriptions for {entity_name}. Setting: {world_setting}. Archetype: {hints}. Each description should be 2-3 sentences covering appearance, mannerisms, and voice. Return each description on its own line, separated by blank lines.

@@ -543,10 +543,10 @@ async fn test_llm_suggests_challenge_during_dialogue() {
                 "Challenge suggestion found"
             );
 
-            // ASSERTION 1: Challenge ID should be non-empty
+            // ASSERTION 1: Challenge ID should be non-nil
             assert!(
-                !suggestion.challenge_id.is_empty(),
-                "Challenge ID should not be empty"
+                *suggestion.challenge_id.as_uuid() != uuid::Uuid::nil(),
+                "Challenge ID should not be nil"
             );
 
             // ASSERTION 2: Challenge name should be enriched (not empty)
@@ -783,10 +783,10 @@ async fn test_llm_suggests_narrative_event() {
                 "Narrative event suggestion found"
             );
 
-            // ASSERTION 1: Event ID should be non-empty
+            // ASSERTION 1: Event ID should be non-nil
             assert!(
-                !suggestion.event_id.is_empty(),
-                "Event ID should not be empty"
+                *suggestion.event_id.as_uuid() != uuid::Uuid::nil(),
+                "Event ID should not be nil"
             );
 
             // ASSERTION 2: Event name should be enriched (not empty)

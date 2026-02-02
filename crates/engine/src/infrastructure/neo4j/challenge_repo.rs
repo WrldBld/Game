@@ -894,4 +894,67 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         tracing::debug!(challenge_id = %challenge_id, "Removed availability edges");
         Ok(())
     }
+
+    async fn record_resolution(
+        &self,
+        id: ChallengeId,
+        pc_id: PlayerCharacterId,
+        success: bool,
+    ) -> Result<(), RepoError> {
+        // Create a CHALLENGE_RESOLVED edge from PC to Challenge with success status
+        let pc_char_id = CharacterId::from_uuid(*pc_id.as_uuid());
+        let q = query(
+            "MATCH (c:Challenge {id: $challenge_id}), (pc:PlayerCharacter {id: $pc_id})
+            MERGE (pc)-[r:CHALLENGE_RESOLVED]->(c)
+            SET r.success = $success,
+                r.resolved_at = datetime()",
+        )
+        .param("challenge_id", id.to_string())
+        .param("pc_id", pc_char_id.to_string())
+        .param("success", success);
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        tracing::debug!(
+            challenge_id = %id,
+            pc_id = %pc_id,
+            success = %success,
+            "Recorded challenge resolution"
+        );
+        Ok(())
+    }
+
+    async fn get_challenge_success(
+        &self,
+        challenge_id: ChallengeId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Option<bool>, RepoError> {
+        let pc_char_id = CharacterId::from_uuid(*pc_id.as_uuid());
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:CHALLENGE_RESOLVED]->(c:Challenge {id: $challenge_id})
+            RETURN r.success AS success",
+        )
+        .param("pc_id", pc_char_id.to_string())
+        .param("challenge_id", challenge_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let success: bool = row.get("success").map_err(|e| RepoError::database("query", e))?;
+            Ok(Some(success))
+        } else {
+            Ok(None)
+        }
+    }
 }

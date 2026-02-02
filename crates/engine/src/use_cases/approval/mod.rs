@@ -417,6 +417,34 @@ impl ApprovalDecisionFlow {
                     .filter_map(|r| r.stat_update)
                     .collect();
             }
+
+            // Evaluate narrative triggers after dialogue approval (Phase 3 hook)
+            // This enables narrative events to fire based on dialogue topics/actions
+            if let (Some(pc_id), Some(region_id)) = (approval_data.pc_id, approval_data.region_id) {
+                match self.evaluate_triggers_after_approval(
+                    approval_data.world_id,
+                    region_id,
+                    pc_id,
+                    approval_data.topics.clone(),
+                ).await {
+                    Ok(triggered_events) => {
+                        if !triggered_events.is_empty() {
+                            tracing::info!(
+                                approval_id = %approval_id,
+                                event_count = triggered_events.len(),
+                                "Narrative events triggered after dialogue approval"
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            approval_id = %approval_id,
+                            error = %e,
+                            "Failed to evaluate narrative triggers after approval (non-critical)"
+                        );
+                    }
+                }
+            }
         }
 
         Ok(ApprovalDecisionOutcome {
@@ -430,6 +458,38 @@ impl ApprovalDecisionFlow {
             time_suggestion,
             stat_updates,
         })
+    }
+
+    /// Evaluate narrative triggers after dialogue approval.
+    ///
+    /// This enables narrative events to fire based on dialogue topics and actions,
+    /// creating immediate story consequences from player conversations.
+    ///
+    /// # Arguments
+    /// * `world_id` - The world context
+    /// * `region_id` - The region where dialogue occurred
+    /// * `pc_id` - The player character who engaged in dialogue
+    /// * `topics` - Topics discussed in the dialogue
+    ///
+    /// # Returns
+    /// List of narrative events that were triggered
+    async fn evaluate_triggers_after_approval(
+        &self,
+        _world_id: WorldId,
+        region_id: RegionId,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
+        topics: Vec<String>,
+    ) -> Result<Vec<wrldbldr_domain::NarrativeEvent>, RepoError> {
+        // Build trigger context with dialogue topics
+        let mut custom_results = std::collections::HashMap::new();
+        for topic in topics {
+            custom_results.insert(format!("dialogue_topic:{}", topic), true);
+        }
+
+        // Check triggers for the region
+        self.narrative
+            .check_triggers_with_custom_results(region_id, pc_id, custom_results)
+            .await
     }
 }
 
@@ -602,7 +662,7 @@ mod tests {
             &self,
             id: wrldbldr_domain::QueueItemId,
         ) -> Result<Option<crate::queue_types::ApprovalRequestData>, crate::infrastructure::ports::QueueError> {
-            Ok(self.approvals.lock().unwrap().get(&id.to_uuid()).cloned())
+            Ok(self.approvals.lock().unwrap().get(&id).cloned())
         }
 
         async fn get_generation_read_state(
@@ -679,7 +739,7 @@ mod tests {
         // Set up queue
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: ActionId::new(),
+            source_action_id: QueueItemId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),
@@ -695,29 +755,30 @@ mod tests {
             player_dialogue: Some("Hi!".to_string()),
             scene_id: None,
             location_id: Some(location_id),
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: Some(conversation_id),
         };
 
         let simple_queue = SimpleQueue::new();
-        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        simple_queue.insert_approval(approval_id, approval_data);
         let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
         // Set up narrative repos and real NarrativeOps
-        let mut narrative_repo_mock = crate::infrastructure::ports::MockNarrativeRepo::new();
-        narrative_repo_mock
+        let mut narrative_repo_mock1 = crate::infrastructure::ports::MockNarrativeRepo::new();
+        narrative_repo_mock1
             .expect_save_story_event()
             .returning(|_| Ok(()));
-        narrative_repo_mock
+        narrative_repo_mock1
             .expect_update_spoke_to()
             .returning(|_, _, _, _| Ok(()));
-        narrative_repo_mock
+        narrative_repo_mock1
             .expect_record_dialogue_context()
             .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
-        narrative_repo_mock
+        narrative_repo_mock1
             .expect_add_dialogue_turn()
-            .returning(|_, _, _, _, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _, _| Ok(()));
 
         let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
         scene_repo_mock
@@ -725,7 +786,7 @@ mod tests {
             .returning(|_| Ok(None));
 
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(narrative_repo_mock.clone()),
+            Arc::new(narrative_repo_mock1),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
             world_repo.clone(),
             pc_repo.clone(),
@@ -751,11 +812,26 @@ mod tests {
 
         let clock = build_clock(now);
 
+        // Create a second mock for the flow
+        let mut narrative_repo_mock2 = crate::infrastructure::ports::MockNarrativeRepo::new();
+        narrative_repo_mock2
+            .expect_save_story_event()
+            .returning(|_| Ok(()));
+        narrative_repo_mock2
+            .expect_update_spoke_to()
+            .returning(|_, _, _, _| Ok(()));
+        narrative_repo_mock2
+            .expect_record_dialogue_context()
+            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+        narrative_repo_mock2
+            .expect_add_dialogue_turn()
+            .returning(|_, _, _, _, _, _| Ok(()));
+
         let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
             narrative,
-            Arc::new(narrative_repo_mock),
+            Arc::new(narrative_repo_mock2),
             queue.clone(),
             tool_executor,
             suggest_time,
@@ -770,7 +846,7 @@ mod tests {
 
         assert!(result.approved, "Approval should be accepted");
         assert_eq!(result.final_dialogue, Some("Hello there!".to_string()));
-        assert!(result.npc_id, Some(npc_id), "NPC ID should be present as CharacterId");
+        assert_eq!(result.npc_id, Some(npc_id), "NPC ID should be present as CharacterId");
         assert!(result.time_suggestion.is_some(), "Time suggestion should be emitted");
         let suggestion = result.time_suggestion.unwrap();
         assert_eq!(suggestion.suggested_seconds, 300);
@@ -825,7 +901,7 @@ mod tests {
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: ActionId::new(),
+            source_action_id: QueueItemId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),
@@ -841,13 +917,14 @@ mod tests {
             player_dialogue: Some("Hi!".to_string()),
             scene_id: None,
             location_id: None,
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: Some(conversation_id),
         };
 
         let simple_queue = SimpleQueue::new();
-        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        simple_queue.insert_approval(approval_id, approval_data);
         let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
         // Set up narrative repos with expectations
@@ -860,18 +937,19 @@ mod tests {
             .returning(|_, _, _, _| Ok(()));
         narrative_repo_mock
             .expect_record_dialogue_context()
-            .returning(|_, _, _, _, _, _, _, _, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
         narrative_repo_mock
             .expect_add_dialogue_turn()
-            .returning(|_, _, _, _, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _, _| Ok(()));
 
         let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
         scene_repo_mock
             .expect_get_current()
             .returning(|_| Ok(None));
 
+        let narrative_repo_arc = Arc::new(narrative_repo_mock);
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(narrative_repo_mock.clone()),
+            narrative_repo_arc.clone(),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
             world_repo.clone(),
             pc_repo.clone(),
@@ -897,11 +975,12 @@ mod tests {
 
         let clock = build_clock(now);
 
+        // Reuse the Arc for the flow
         let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
             narrative,
-            Arc::new(narrative_repo_mock),
+            narrative_repo_arc,
             queue.clone(),
             tool_executor,
             suggest_time,
@@ -967,7 +1046,7 @@ mod tests {
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: ActionId::new(),
+            source_action_id: QueueItemId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),
@@ -983,13 +1062,14 @@ mod tests {
             player_dialogue: Some("Hi!".to_string()),
             scene_id: None,
             location_id: None,
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: Some(conversation_id),
         };
 
         let simple_queue = SimpleQueue::new();
-        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        simple_queue.insert_approval(approval_id, approval_data);
         let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
         // Set up narrative repos with expectations
@@ -1002,7 +1082,7 @@ mod tests {
             .returning(|_, _, _, _| Ok(()));
         narrative_repo_mock
             .expect_record_dialogue_context()
-            .returning(|_, _, _, _, _, _, _, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
         narrative_repo_mock
             .expect_add_dialogue_turn()
             .returning(|_, _, _, _, _, _| Ok(()));
@@ -1012,8 +1092,9 @@ mod tests {
             .expect_get_current()
             .returning(|_| Ok(None));
 
+        let narrative_repo_arc = Arc::new(narrative_repo_mock);
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(narrative_repo_mock.clone()),
+            narrative_repo_arc.clone(),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
             world_repo.clone(),
             pc_repo.clone(),
@@ -1043,7 +1124,7 @@ mod tests {
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
             narrative,
-            Arc::new(narrative_repo_mock),
+            narrative_repo_arc,
             queue.clone(),
             tool_executor,
             suggest_time,
@@ -1102,7 +1183,7 @@ mod tests {
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
-            source_action_id: ActionId::new(),
+            source_action_id: QueueItemId::new(),
             decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
             urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: Some(pc_id),
@@ -1118,13 +1199,14 @@ mod tests {
             player_dialogue: Some("Hi!".to_string()),
             scene_id: None,
             location_id: None,
+            region_id: None,
             game_time: None,
             topics: vec![],
             conversation_id: Some(conversation_id),
         };
 
         let simple_queue = SimpleQueue::new();
-        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        simple_queue.insert_approval(approval_id, approval_data);
         let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
         let narrative_repo_mock = Arc::new(crate::infrastructure::ports::MockNarrativeRepo::new());

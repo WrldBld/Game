@@ -7,6 +7,8 @@ vars:
   ENGINE_DIR: ./crates/engine
   PLAYER_DIR: ./crates/player
   PROTOCOL_DIR: ./crates/protocol
+  KOBOLDCPP_MODEL_PATH: ./models/Cydonia-24B-v4zg-Q6_K.gguf
+  KOBOLDCPP_MODEL_URL: https://huggingface.co/TheDrummer/Cydonia-24B-v4.3-GGUF/resolve/main/Cydonia-24B-v4zg-Q6_K.gguf?download=true
 
 env:
   RUST_LOG: info,wrldbldr_engine=debug,wrldbldr_player=debug
@@ -330,12 +332,6 @@ tasks:
       - docker-compose stop neo4j
  
   docker:down:
-    desc: Stop Docker
-    dir: ./docker
-    cmds:
-      - docker-compose down
-
-  docker:down:
     desc: Stop Docker services
     dir: ./docker
     cmds:
@@ -396,3 +392,45 @@ tasks:
     desc: Generate documentation without opening
     cmds:
       - cargo doc --workspace --no-deps
+
+
+  # ===========================================================================
+  # LLM Serving
+  # ===========================================================================
+
+  llm:serve:
+    desc: Serve local MLX LLM (OpenAI compatible)
+    cmds:
+      - scripts/serve-llm.sh --model mlx-community/Qwen2.5-7B-Instruct-4bit --port 11434
+
+  koboldcpp:model:download:
+    desc: Download Cydonia GGUF model into models/ (skip if exists)
+    cmds:
+      - |
+        model="{{.KOBOLDCPP_MODEL_PATH}}"
+        url="{{.KOBOLDCPP_MODEL_URL}}"
+        if [ -f "$model" ]; then
+          exit 0
+        fi
+        mkdir -p "$(dirname "$model")"
+        curl -L --progress-bar -o "$model" "$url"
+
+  koboldcpp:screen:
+    desc: Start KoboldCpp in a screen session (background LLM server)
+    cmds:
+      - scripts/koboldcpp-screen.sh
+
+  koboldcpp:screen:kill:
+    desc: Kill the KoboldCpp screen session
+    cmds:
+      - scripts/koboldcpp-screen.sh --kill
+
+  koboldcpp:screen:logs:
+    desc: View KoboldCpp screen session logs
+    cmds:
+      - scripts/koboldcpp-screen.sh --logs
+
+  koboldcpp:screen:attach:
+    desc: Attach to the KoboldCpp screen session
+    cmds:
+      - scripts/koboldcpp-screen.sh --attach

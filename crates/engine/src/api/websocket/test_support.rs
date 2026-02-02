@@ -19,7 +19,8 @@ use crate::infrastructure::ports::{
     QueuePort, RandomPort,
 };
 use wrldbldr_domain::QueueItemId;
-use crate::infrastructure::ports::{
+// Re-export mocks for use in integration tests
+pub use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
     MockFlagRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
     MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
@@ -228,6 +229,15 @@ impl LlmPort for NoopLlm {
     }
 }
 
+#[async_trait::async_trait]
+impl crate::infrastructure::ports::LlmModelsPort for NoopLlm {
+    async fn list_models(
+        &self,
+    ) -> Result<Vec<crate::infrastructure::ports::LlmModelDescriptor>, LlmError> {
+        Ok(vec![])
+    }
+}
+
 pub(crate) struct NoopImageGen;
 
 #[async_trait::async_trait]
@@ -426,11 +436,21 @@ impl LlmPort for FixedLlm {
     }
 }
 
+#[async_trait::async_trait]
+impl crate::infrastructure::ports::LlmModelsPort for FixedLlm {
+    async fn list_models(
+        &self,
+    ) -> Result<Vec<crate::infrastructure::ports::LlmModelDescriptor>, LlmError> {
+        Ok(vec![])
+    }
+}
+
 pub(crate) fn build_test_app_with_ports(
     repos: TestAppRepos,
     now: DateTime<Utc>,
     queue: Arc<dyn QueuePort>,
     llm: Arc<dyn LlmPort>,
+    llm_models: Arc<dyn crate::infrastructure::ports::LlmModelsPort>,
 ) -> Arc<App> {
     // Infrastructure ports
     let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock { now });
@@ -438,6 +458,7 @@ pub(crate) fn build_test_app_with_ports(
     let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
     let queue_port: Arc<dyn QueuePort> = queue.clone();
     let llm_port: Arc<dyn LlmPort> = llm.clone();
+    let llm_models_port: Arc<dyn crate::infrastructure::ports::LlmModelsPort> = llm_models;
 
     // Repo mocks - coerce to Arc<dyn Repo> (ADR-009: inject port traits directly)
     use crate::infrastructure::ports::{
@@ -446,6 +467,25 @@ pub(crate) fn build_test_app_with_ports(
         ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo, RegionStateRepo, SceneRepo,
         SettingsRepo, StagingRepo, WorldRepo,
     };
+
+    // Extract prompt_templates first before moving other fields
+    let prompt_templates_repo: Arc<dyn PromptTemplateRepo> = Arc::new(
+        repos.prompt_templates.unwrap_or_else(|| {
+            let mut mock = MockPromptTemplateRepo::new();
+            // Set up default expectations for system prompts that may be called during tests
+            // This prevents mock panics when LLM staging paths are exercised
+            mock.expect_resolve_template()
+                .returning(|_, key| {
+                    // Return empty defaults for known system prompt keys
+                    if key.starts_with("system.") || key.starts_with("staging.") {
+                        Ok(Some(String::new()))
+                    } else {
+                        Ok(None)
+                    }
+                });
+            mock
+        }),
+    );
 
     let world_repo: Arc<dyn WorldRepo> = Arc::new(repos.world_repo);
     let character_repo: Arc<dyn CharacterRepo> = Arc::new(repos.character_repo);
@@ -486,36 +526,6 @@ pub(crate) fn build_test_app_with_ports(
         scene_repo.clone(),
         clock_port.clone(),
     ));
-
-    // Build Repositories container (ADR-009: port traits injected directly)
-    let prompt_templates_repo: Arc<dyn PromptTemplateRepo> = Arc::new(
-        repos.prompt_templates.unwrap_or_else(|| MockPromptTemplateRepo::new()),
-    );
-    let repositories_container = Repositories {
-        // Port traits injected directly
-        character: character_repo.clone(),
-        player_character: player_character_repo.clone(),
-        location: location_repo.clone(),
-        scene: scene_repo.clone(),
-        act: act_repo.clone(),
-        content: content_repo.clone(),
-        interaction: interaction_repo.clone(),
-        challenge: challenge_repo.clone(),
-        observation: observation_repo.clone(),
-        item: item_repo.clone(),
-        goal: goal_repo.clone(),
-        location_state: location_state_repo.clone(),
-        region_state: region_state_repo.clone(),
-        staging: staging_repo.clone(),
-        world: world_repo.clone(),
-        flag: flag_repo.clone(),
-        lore: lore_repo.clone(),
-        narrative_repo: narrative_repo.clone(),
-        prompt_templates: prompt_templates_repo.clone(),
-        asset: asset_repo.clone(),
-        // Wrapper types
-        narrative: narrative.clone(),
-    };
 
     // Use cases (not exercised by these tests, but required by App).
     let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
@@ -572,6 +582,7 @@ pub(crate) fn build_test_app_with_ports(
         scene_repo.clone(),
         world_repo.clone(),
         queue_port.clone(),
+        narrative_repo.clone(),
         clock_port.clone(),
     ));
     let conversation_continue =
@@ -590,10 +601,22 @@ pub(crate) fn build_test_app_with_ports(
         player_character_repo.clone(),
         narrative.clone(),
     ));
+    let conversation_end_by_id = Arc::new(crate::use_cases::conversation::EndConversationById::new(
+        narrative_repo.clone(),
+    ));
+    let conversation_list_active = Arc::new(crate::use_cases::conversation::ListActiveConversations::new(
+        narrative_repo.clone(),
+    ));
+    let conversation_get_details = Arc::new(crate::use_cases::conversation::GetConversationDetails::new(
+        narrative_repo.clone(),
+    ));
     let conversation = crate::use_cases::ConversationUseCases::new(
         conversation_start.clone(),
         conversation_continue,
         conversation_end,
+        conversation_end_by_id,
+        conversation_list_active,
+        conversation_get_details,
     );
 
     let player_action = crate::use_cases::PlayerActionUseCases::new(Arc::new(
@@ -610,11 +633,20 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::actantial::ActantialContextOps::new(character_repo.clone()),
     );
 
-    let ai = crate::use_cases::AiUseCases::new(Arc::new(crate::use_cases::ai::SuggestionOps::new(
-        queue_port.clone(),
-        world_repo.clone(),
-        character_repo.clone(),
-    )));
+    let settings_repo_for_ai = settings_repo.clone();
+
+    let ai = crate::use_cases::AiUseCases::new(
+        Arc::new(crate::use_cases::ai::SuggestionOps::new(
+            queue_port.clone(),
+            world_repo.clone(),
+            character_repo.clone(),
+            settings_repo.clone(),
+        )),
+        Arc::new(crate::use_cases::ai::ResolveLlmModel::new(
+            llm_models_port.clone(),
+            settings_repo_for_ai,
+        )),
+    );
 
     let resolve_outcome = Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
         challenge_repo.clone(),
@@ -626,6 +658,7 @@ pub(crate) fn build_test_app_with_ports(
     let outcome_decision = Arc::new(crate::use_cases::challenge::OutcomeDecision::new(
         queue_port.clone(),
         resolve_outcome.clone(),
+        settings_repo.clone(),
     ));
 
     let challenge_uc = crate::use_cases::ChallengeUseCases::new(
@@ -635,15 +668,18 @@ pub(crate) fn build_test_app_with_ports(
             queue_port.clone(),
             random_port.clone(),
             clock_port.clone(),
+            world_repo.clone(),
         )),
         resolve_outcome,
         Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
             challenge_repo.clone(),
             player_character_repo.clone(),
+            world_repo.clone(),
         )),
         outcome_decision,
         Arc::new(crate::use_cases::challenge::ChallengeOps::new(
             challenge_repo.clone(),
+            content_repo.clone(),
         )),
     );
 
@@ -723,14 +759,19 @@ pub(crate) fn build_test_app_with_ports(
         world_repo.clone(),
         location_repo.clone(),
         narrative.clone(),
+        settings_repo.clone(),
     );
 
     let queues = crate::use_cases::QueueUseCases::new(
-        Arc::new(crate::use_cases::queues::ProcessPlayerAction::new(queue_ctx.clone())),
+        Arc::new(crate::use_cases::queues::ProcessPlayerAction::new(
+            queue_ctx.clone(),
+            prompt_templates_repo.clone(),
+        )),
         Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
             queue_ctx,
             llm_port.clone(),
             prompt_templates_repo.clone(),
+            ai.resolve_model.clone(),
         )),
     );
 
@@ -745,6 +786,7 @@ pub(crate) fn build_test_app_with_ports(
         flag_repo.clone(),
         world_repo.clone(),
         clock_port.clone(),
+        lore_repo.clone(),
     ));
     let narrative_events = Arc::new(crate::use_cases::narrative::NarrativeEventOps::new(
         narrative.clone(),
@@ -752,7 +794,8 @@ pub(crate) fn build_test_app_with_ports(
         clock_port.clone(),
     ));
     let narrative_chains = Arc::new(crate::use_cases::narrative::EventChainOps::new(
-        narrative.clone(),
+        narrative_repo.clone(),
+        clock_port.clone(),
     ));
     let narrative_decision = Arc::new(crate::use_cases::narrative::NarrativeDecisionFlow::new(
         approve_suggestion.clone(),
@@ -766,6 +809,31 @@ pub(crate) fn build_test_app_with_ports(
         narrative_chains,
         narrative_decision,
     );
+
+    // Build Repositories container (ADR-009: port traits injected directly)
+    let repositories_container = Repositories {
+        // Port traits injected directly
+        character: character_repo.clone(),
+        player_character: player_character_repo.clone(),
+        location: location_repo.clone(),
+        scene: scene_repo.clone(),
+        act: act_repo.clone(),
+        content: content_repo.clone(),
+        interaction: interaction_repo.clone(),
+        challenge: challenge_repo.clone(),
+        observation: observation_repo.clone(),
+        item: item_repo.clone(),
+        goal: goal_repo.clone(),
+        location_state: location_state_repo.clone(),
+        region_state: region_state_repo.clone(),
+        staging: staging_repo.clone(),
+        world: world_repo.clone(),
+        flag: flag_repo.clone(),
+        lore: lore_repo.clone(),
+        narrative_repo: narrative_repo.clone(),
+        // Wrapper types
+        narrative: Arc::new(narrative_uc.clone()),
+    };
 
     let time_control = Arc::new(crate::use_cases::time::TimeControl::new(
         world_repo.clone(),
@@ -816,12 +884,15 @@ pub(crate) fn build_test_app_with_ports(
             settings_repo.clone(),
             llm_port.clone(),
             clock_port.clone(),
+            prompt_templates_repo.clone(),
         )),
         Arc::new(
             crate::use_cases::staging::RegenerateStagingSuggestions::new(
                 location_repo.clone(),
                 character_repo.clone(),
                 llm_port.clone(),
+                settings_repo.clone(),
+                prompt_templates_repo.clone(),
             ),
         ),
         Arc::new(crate::use_cases::staging::ApproveStagingRequest::new(
@@ -876,7 +947,7 @@ pub(crate) fn build_test_app_with_ports(
     );
 
     let story_events_uc = crate::use_cases::StoryEventUseCases::new(Arc::new(
-        crate::use_cases::story_events::StoryEventOps::new(narrative.clone()),
+        crate::use_cases::story_events::StoryEventOps::new(narrative_repo.clone(), clock_port.clone()),
     ));
 
     let lore_uc = crate::use_cases::LoreUseCases::new(Arc::new(
@@ -941,6 +1012,7 @@ pub(crate) fn build_test_app_with_ports(
     // Create custom condition evaluator
     let custom_condition = Arc::new(crate::use_cases::CustomConditionEvaluator::new(
         llm_port.clone(),
+        prompt_templates_repo.clone(),
     ));
 
     // Create inventory use cases
@@ -985,17 +1057,28 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::content::ContentServiceConfig::default(),
     ));
 
+    // Create a default LLM runtime for testing
+    let llm_runtime = crate::infrastructure::llm_runtime::LlmRuntime::new(
+        llm.clone(),
+        llm_models_port.clone(),
+        "http://localhost:11434",
+        "mlx-community/gpt-oss-20b-MXFP4-Q8",
+    );
+    let llm_runtime_holder = crate::infrastructure::llm_runtime::LlmRuntimeHolder::new(llm_runtime);
+
     Arc::new(App {
         repositories: repositories_container,
         use_cases,
         queue,
         llm,
         content,
+        llm_runtime_holder,
     })
 }
 
 pub(crate) fn build_test_app(repos: TestAppRepos, now: DateTime<Utc>) -> Arc<App> {
-    build_test_app_with_ports(repos, now, Arc::new(NoopQueue), Arc::new(NoopLlm))
+    let llm = Arc::new(NoopLlm);
+    build_test_app_with_ports(repos, now, Arc::new(NoopQueue), llm.clone(), llm)
 }
 
 pub(crate) async fn spawn_ws_server(
@@ -1066,6 +1149,40 @@ where
             let msg = ws_recv_server(ws).await;
             if predicate(&msg) {
                 return msg;
+            }
+        }
+    })
+    .await
+    .unwrap()
+}
+
+pub(crate) async fn ws_expect_response_and_entity_changed(
+    ws: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    timeout: Duration,
+    request_id: &str,
+) -> (wrldbldr_shared::ServerMessage, wrldbldr_shared::ServerMessage) {
+    tokio::time::timeout(timeout, async {
+        let mut response: Option<wrldbldr_shared::ServerMessage> = None;
+        let mut entity_changed: Option<wrldbldr_shared::ServerMessage> = None;
+
+        loop {
+            let msg = ws_recv_server(ws).await;
+            match &msg {
+                wrldbldr_shared::ServerMessage::Response { request_id: rid, .. }
+                    if rid == request_id =>
+                {
+                    response = Some(msg);
+                }
+                wrldbldr_shared::ServerMessage::EntityChanged(_) => {
+                    entity_changed = Some(msg);
+                }
+                _ => {}
+            }
+
+            if response.is_some() && entity_changed.is_some() {
+                return (response.unwrap(), entity_changed.unwrap());
             }
         }
     })

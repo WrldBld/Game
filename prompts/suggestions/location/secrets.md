@@ -1,0 +1,1 @@
+Generate 3 hidden secrets that could be discovered in {entity_name}. Location type: {entity_type}. Features: {additional_context}. Each secret should be something players might find with investigation, 1-2 sentences. Return each secret separated by a blank line.

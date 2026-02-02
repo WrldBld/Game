@@ -11,8 +11,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    self as domain, CharacterId, LocationId, NarrativeTriggerType, PlayerCharacterId, RegionId,
-    SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext, WorldId,
+    self as domain, ChallengeId, CharacterId, LocationId, NarrativeTriggerType, PlayerCharacterId,
+    RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext,
+    WorldId,
 };
 
 use crate::infrastructure::ports::{
@@ -564,7 +565,7 @@ impl NarrativeOps {
         // Get completed events from event chains in the world
         // Note: This is world-wide rather than PC-specific. A future enhancement
         // would be to track per-PC event completion via PC->Event edges.
-        let (completed_events, event_outcomes, completed_challenges) = {
+        let (completed_events, event_outcomes, completed_challenges, challenge_successes) = {
             let events = match self.narrative.get_completed_events(world_id).await {
                 Ok(e) => e,
                 Err(e) => {
@@ -598,7 +599,30 @@ impl NarrativeOps {
                     Vec::new()
                 }
             };
-            (events, outcomes, challenges)
+            // Fetch challenge success statuses for this PC
+            let challenge_successes: HashMap<ChallengeId, bool> = {
+                let mut successes = HashMap::new();
+                for challenge_id in &challenges {
+                    match self.challenge_repo.get_challenge_success(*challenge_id, pc_id).await {
+                        Ok(Some(success)) => {
+                            successes.insert(*challenge_id, success);
+                        }
+                        Ok(None) => {
+                            // No success status recorded, skip
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                challenge_id = %challenge_id,
+                                pc_id = %pc_id,
+                                error = %e,
+                                "Failed to fetch challenge success status"
+                            );
+                        }
+                    }
+                }
+                successes
+            };
+            (events, outcomes, challenges, challenge_successes)
         };
 
         // Get flags for this PC (both world and PC-scoped)
@@ -771,12 +795,22 @@ impl NarrativeOps {
             stats_map
         };
 
+        // Get current game day from world for GameDay trigger evaluation
+        let game_day = match self.world_repo.get(world_id).await {
+            Ok(Some(world)) => {
+                let seconds = world.game_time().total_seconds();
+                Some((seconds / 86400) as u32 + 1)
+            }
+            _ => None,
+        };
+
         let mut context = TriggerContext::new();
         context.flags = flags;
         context.inventory = inventory;
         context.completed_events = completed_events;
         context.event_outcomes = event_outcomes;
         context.completed_challenges = completed_challenges;
+        context.challenge_successes = challenge_successes;
         context.custom_trigger_results = custom_trigger_results;
         context.known_spells = known_spells;
         context.character_feats = character_feats;
@@ -784,6 +818,7 @@ impl NarrativeOps {
         context.current_location = location_id;
         context.current_scene = current_scene;
         context.time_context = time_context_string;
+        context.game_day = game_day;
         context.origin_id = origin_id;
 
         // Add relationships to context

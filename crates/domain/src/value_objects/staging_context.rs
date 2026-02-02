@@ -76,7 +76,11 @@ pub struct RollResult {
 impl RollResult {
     /// Create a new roll result with computed `passed` value.
     ///
-    /// A roll passes when `rolled <= chance_percent`.
+    /// A roll passes when:
+    /// - `chance_percent == 100` (always passes)
+    /// - `chance_percent > 0 && rolled <= chance_percent` (standard check)
+    ///
+    /// A roll always fails when `chance_percent == 0`.
     ///
     /// # Errors
     ///
@@ -93,10 +97,12 @@ impl RollResult {
         if rolled > 100 {
             return Err(format!("Rolled value must be 0..=100, got {}", rolled));
         }
+        // 0% always fails, 100% always passes, otherwise check rolled <= chance_percent
+        let passed = chance_percent == 100 || (chance_percent > 0 && rolled <= chance_percent);
         Ok(Self {
             chance_percent,
             rolled,
-            passed: rolled <= chance_percent,
+            passed,
         })
     }
 
