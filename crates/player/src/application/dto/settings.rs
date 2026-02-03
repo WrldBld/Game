@@ -199,6 +199,11 @@ pub struct AppSettings {
     #[serde(default = "default_llm_temperature_custom_condition")]
     pub llm_temperature_custom_condition: f32,
 
+    /// API key for OpenAI-compatible LLM providers.
+    /// Sent as Bearer token in Authorization header.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm_api_key: Option<String>,
+
     // ============================================================================
     // Asset Generation
     // ============================================================================
@@ -294,6 +299,7 @@ impl Default for AppSettings {
             llm_temperature_outcome_suggestion: default_llm_temperature_outcome_suggestion(),
             llm_temperature_staging: default_llm_temperature_staging(),
             llm_temperature_custom_condition: default_llm_temperature_custom_condition(),
+            llm_api_key: None,
             style_reference_asset_id: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
             list_default_page_size_override: None,

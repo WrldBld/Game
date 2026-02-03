@@ -72,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
         .or_else(|_| std::env::var("OLLAMA_BASE_URL"))
         .unwrap_or_else(|_| "http://localhost:11434".into());
     let ollama_model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".into());
+    let ollama_api_key = std::env::var("OLLAMA_API_KEY").ok().filter(|s| !s.is_empty());
     let comfyui_url = std::env::var("COMFYUI_URL")
         .or_else(|_| std::env::var("COMFYUI_BASE_URL"))
         .unwrap_or_else(|_| "http://localhost:8188".into());
@@ -97,7 +98,11 @@ async fn main() -> anyhow::Result<()> {
     let repos = Neo4jRepositories::new(graph, clock.clone());
 
     // Create infrastructure clients
-    let ollama_client = Arc::new(OpenAICompatibleClient::new(&ollama_url, &ollama_model));
+    let ollama_client = Arc::new(OpenAICompatibleClient::with_api_key(
+        &ollama_url,
+        &ollama_model,
+        ollama_api_key,
+    ));
     let retry_config = RetryConfig::default();
     tracing::info!(
         "LLM client configured with retry: max_retries={}, base_delay_ms={}",

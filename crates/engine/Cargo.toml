@@ -62,13 +62,15 @@ rand = { workspace = true }
 # Regex (for content parsing)
 regex-lite = { workspace = true }
 
+# Cryptographic hashing (for VCR fingerprinting)
+sha2 = { workspace = true }
+hex = { workspace = true }
+
 [dev-dependencies]
 mockall = { workspace = true }
 tokio-tungstenite = { workspace = true }
 testcontainers = { workspace = true }
 tempfile = { workspace = true }
-sha2 = { workspace = true }
-hex = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
 

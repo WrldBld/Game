@@ -9,6 +9,19 @@
 //! - `<tool name="...">` - Game tool calls (give_item, change_relationship, etc.)
 //!
 //! See `prompt_templates.rs` for the expected output format.
+//!
+//! # Parse Error Policy
+//!
+//! The legacy parser uses **fail-fast semantics** consistent with the phased pipeline:
+//!
+//! - **Critical fields** (dialogue): Missing or empty dialogue is a hard parse error.
+//!   The queue item will be marked failed and the error propagated.
+//!
+//! - **Non-critical fields** (reasoning, topics, suggestions, tools): Best-effort parsing
+//!   with warnings logged. Partial output is returned for these fields.
+//!
+//! This ensures that unusable LLM responses (no NPC dialogue) don't silently create
+//! empty approval requests, while allowing flexibility for optional content.
 
 use regex_lite::Regex;
 use serde::Deserialize;
@@ -17,6 +30,82 @@ use uuid::Uuid;
 
 use crate::game_tools::ToolArgs;
 use crate::queue_types::ProposedTool;
+
+/// Generate a deterministic tool ID based on tool name and arguments.
+///
+/// This uses UUIDv5 with the OID namespace and a hash of the tool name
+/// concatenated with the JSON-serialized arguments. This ensures that
+/// identical tool calls (same name + same args) always produce the same ID,
+/// which is critical for:
+/// - Idempotent approval hydration
+/// - Consistent behavior between legacy and phased parsers
+/// - Retry safety (same tool call = same ID)
+///
+/// # Arguments
+/// * `name` - The tool name (e.g., "give_item")
+/// * `args` - The tool arguments as a JSON string
+///
+/// # Returns
+/// A deterministic UUIDv5 string that uniquely identifies this tool call.
+pub fn generate_tool_id(name: &str, args: &str) -> String {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_OID,
+        format!("{}|{}", name, args).as_bytes(),
+    )
+    .to_string()
+}
+
+/// Errors that can occur during legacy LLM response parsing.
+///
+/// These errors provide structured context about what failed during parsing,
+/// enabling proper error handling and queue failure semantics.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum LegacyParseError {
+    /// The response contains no usable dialogue content.
+    ///
+    /// This is a critical error because NPC dialogue is the primary output
+    /// of the LLM request. Without dialogue, the approval request is unusable.
+    #[error("Missing or empty <dialogue> content in LLM response")]
+    MissingDialogue,
+
+    /// The response format is unrecognizable.
+    ///
+    /// The response doesn't match expected XML tag format or plain text fallback.
+    #[error("Unrecognized response format: {details}")]
+    UnrecognizedFormat { details: String },
+
+    /// A required XML tag is malformed or cannot be parsed.
+    #[error("Malformed tag <{tag}>: {details}")]
+    MalformedTag { tag: String, details: String },
+
+    /// Generic parse error with context.
+    #[error("Parse error: {message}")]
+    Other { message: String },
+}
+
+impl LegacyParseError {
+    /// Create a new generic parse error.
+    pub fn other(message: impl Into<String>) -> Self {
+        Self::Other {
+            message: message.into(),
+        }
+    }
+
+    /// Create an unrecognized format error.
+    pub fn unrecognized_format(details: impl Into<String>) -> Self {
+        Self::UnrecognizedFormat {
+            details: details.into(),
+        }
+    }
+
+    /// Create a malformed tag error.
+    pub fn malformed_tag(tag: impl Into<String>, details: impl Into<String>) -> Self {
+        Self::MalformedTag {
+            tag: tag.into(),
+            details: details.into(),
+        }
+    }
+}
 
 /// Parsed components from an LLM dialogue response.
 #[derive(Debug, Clone, Default)]
@@ -168,7 +257,15 @@ static PLAIN_DIALOGUE_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// If the response contains explicit `<dialogue>` tags, those are used.
 /// Otherwise, attempts to parse plain "reasoning"/"dialogue" headings as fallback.
 /// If neither format is detected, the entire response (minus other tags) is treated as dialogue.
-pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
+///
+/// # Errors
+///
+/// Returns `LegacyParseError::MissingDialogue` if no usable dialogue content is found.
+/// This is a critical error that should cause the queue item to be marked failed.
+///
+/// Other parsing issues (invalid JSON in suggestions, malformed tags) are logged as
+/// warnings but do not cause parse failure - best-effort output is returned.
+pub fn parse_llm_response(raw: &str) -> Result<ParsedLlmResponse, LegacyParseError> {
     // First, strip any model-specific special tokens that may have leaked through
     let cleaned = strip_special_tokens(raw);
     let raw = cleaned.as_str();
@@ -194,6 +291,12 @@ pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
         result.dialogue = strip_all_tags(raw);
     }
 
+    // Critical field validation: dialogue must not be empty
+    // This is a hard error - without dialogue, the approval request is unusable
+    if result.dialogue.is_empty() {
+        return Err(LegacyParseError::MissingDialogue);
+    }
+
     // Extract topics (one per line)
     if let Some(caps) = TOPICS_RE.captures(raw) {
         result.topics = caps[1]
@@ -204,7 +307,7 @@ pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
             .collect();
     }
 
-    // Extract challenge suggestion JSON
+    // Extract challenge suggestion JSON (best-effort)
     if let Some(caps) = CHALLENGE_RE.captures(raw) {
         let json_str = caps[1].trim();
         match serde_json::from_str::<RawChallengeSuggestion>(json_str) {
@@ -213,13 +316,13 @@ pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
                 tracing::warn!(
                     json = json_str,
                     error = %e,
-                    "Failed to parse challenge_suggestion JSON"
+                    "Failed to parse challenge_suggestion JSON (best-effort, continuing)"
                 );
             }
         }
     }
 
-    // Extract narrative event suggestion JSON
+    // Extract narrative event suggestion JSON (best-effort)
     if let Some(caps) = NARRATIVE_RE.captures(raw) {
         let json_str = caps[1].trim();
         match serde_json::from_str::<RawNarrativeEventSuggestion>(json_str) {
@@ -228,22 +331,22 @@ pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
                 tracing::warn!(
                     json = json_str,
                     error = %e,
-                    "Failed to parse narrative_event_suggestion JSON"
+                    "Failed to parse narrative_event_suggestion JSON (best-effort, continuing)"
                 );
             }
         }
     }
 
-    // Extract triggered challenges from <challenge> tags
+    // Extract triggered challenges from <challenge> tags (best-effort)
     result.triggered_challenge_names = get_triggered_challenge_names(raw);
 
-    // Extract triggered events from <event> tags
+    // Extract triggered events from <event> tags (best-effort)
     result.triggered_event_names = get_triggered_event_names(raw);
 
-    // Extract proposed tools from <tool> tags
+    // Extract proposed tools from <tool> tags (best-effort)
     result.proposed_tools = parse_tool_tags(raw);
 
-    result
+    Ok(result)
 }
 
 /// Parse all <challenge name="...">...</challenge> tags from the response.
@@ -443,8 +546,9 @@ pub fn parse_tool_tags(raw: &str) -> Vec<ProposedTool> {
             }
         };
 
-        // Generate a unique ID for this tool call
-        let id = Uuid::new_v4().to_string();
+        // Generate a deterministic ID for this tool call using the original JSON string
+        // to avoid serialization failures and ensure stable ID derivation
+        let id = generate_tool_id(&name, json_str);
 
         // Generate human-readable description using ToolArgs
         let description = arguments.description();
@@ -510,7 +614,7 @@ warning
 </challenge_suggestion>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.reasoning.contains("asking about the artifact"));
         assert!(parsed.dialogue.contains("Heartstone"));
@@ -527,7 +631,7 @@ warning
     fn test_parse_no_tags() {
         let raw = r#"*smiles warmly* "Welcome to my shop, traveler. What brings you here today?""#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.reasoning.is_empty());
         assert_eq!(parsed.dialogue, raw);
@@ -548,7 +652,7 @@ warning
 </narrative_event_suggestion>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.dialogue.contains("curse has been broken"));
 
@@ -571,7 +675,7 @@ greeting
 </topics>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         // Should extract just the dialogue text
         assert_eq!(parsed.dialogue, "Hello traveler, welcome to the inn!");
@@ -589,7 +693,7 @@ greeting
 </challenge_suggestion>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.dialogue.contains("Hello there"));
         // Invalid JSON should be None, not panic
@@ -607,7 +711,7 @@ greeting
 </topics>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.topics.is_empty());
     }
@@ -623,7 +727,7 @@ I should be helpful here.
 *friendly* "Hello there, welcome!"
 </dialogue>"#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.reasoning.contains("I should be helpful"));
         assert!(parsed.dialogue.contains("Hello there"));
@@ -644,7 +748,7 @@ Thinking about this.
 "Greetings!"
 </dialogue>"#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.reasoning.contains("Thinking about this"));
         assert!(parsed.dialogue.contains("Greetings"));
@@ -665,7 +769,7 @@ Thinking about this.
 </tool>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.dialogue.contains("Take this"));
         assert_eq!(parsed.proposed_tools.len(), 1);
@@ -697,7 +801,7 @@ Thinking about this.
 </tool>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert_eq!(parsed.proposed_tools.len(), 2);
         assert_eq!(parsed.proposed_tools[0].name, "change_relationship");
@@ -716,7 +820,7 @@ Thinking about this.
 </tool>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         assert!(parsed.dialogue.contains("Hello there"));
         // Invalid JSON tool should be skipped, not panic
@@ -737,12 +841,251 @@ Here's a gift for you, brave adventurer!
 </tool>
 "#;
 
-        let parsed = parse_llm_response(raw);
+        let parsed = parse_llm_response(raw).expect("parse should succeed");
 
         // Tool content should be stripped from dialogue
         assert_eq!(parsed.dialogue, "Here's a gift for you, brave adventurer!");
         // But tool should still be parsed
         assert_eq!(parsed.proposed_tools.len(), 1);
         assert_eq!(parsed.proposed_tools[0].name, "give_item");
+    }
+
+    // =============================================================================
+    // Legacy Parse Error Tests
+    // =============================================================================
+
+    #[test]
+    fn test_parse_error_missing_dialogue() {
+        // Response with no dialogue content should fail
+        let raw = r#"
+<reasoning>
+Some internal thoughts.
+</reasoning>
+
+<topics>
+topic1
+</topics>
+"#;
+
+        let result = parse_llm_response(raw);
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        match err {
+            LegacyParseError::MissingDialogue => {
+                // Expected error type
+            }
+            _ => panic!("Expected MissingDialogue error, got: {:?}", err),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_empty_dialogue_tag() {
+        // Response with empty dialogue tag should fail
+        let raw = r#"
+<reasoning>
+Some thoughts.
+</reasoning>
+
+<dialogue>
+   
+</dialogue>
+"#;
+
+        let result = parse_llm_response(raw);
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, LegacyParseError::MissingDialogue),
+            "Expected MissingDialogue for empty dialogue tag, got: {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_parse_error_empty_response() {
+        // Completely empty response should fail
+        let raw = "";
+
+        let result = parse_llm_response(raw);
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, LegacyParseError::MissingDialogue),
+            "Expected MissingDialogue for empty response, got: {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_parse_error_whitespace_only_response() {
+        // Whitespace-only response should fail
+        let raw = "   \n\t   \n   ";
+
+        let result = parse_llm_response(raw);
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, LegacyParseError::MissingDialogue),
+            "Expected MissingDialogue for whitespace-only response, got: {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_parse_error_display_format() {
+        // Test that error messages are informative
+        let err = LegacyParseError::MissingDialogue;
+        let err_str = format!("{}", err);
+        assert!(err_str.contains("dialogue"));
+
+        let err = LegacyParseError::unrecognized_format("test details");
+        let err_str = format!("{}", err);
+        assert!(err_str.contains("test details"));
+
+        let err = LegacyParseError::malformed_tag("dialogue", "unclosed");
+        let err_str = format!("{}", err);
+        assert!(err_str.contains("dialogue"));
+        assert!(err_str.contains("unclosed"));
+
+        let err = LegacyParseError::other("custom message");
+        let err_str = format!("{}", err);
+        assert!(err_str.contains("custom message"));
+    }
+
+    // =============================================================================
+    // Tool ID Determinism Tests
+    // =============================================================================
+
+    #[test]
+    fn test_generate_tool_id_is_deterministic() {
+        // Identical tool inputs should produce identical IDs
+        let name = "give_item";
+        let args =
+            r#"{"tool": "GiveItem", "item_name": "Healing Potion", "description": "A red potion"}"#;
+
+        let id1 = generate_tool_id(name, args);
+        let id2 = generate_tool_id(name, args);
+        let id3 = generate_tool_id(name, args);
+
+        assert_eq!(id1, id2, "Tool ID should be deterministic");
+        assert_eq!(
+            id2, id3,
+            "Tool ID should be deterministic across multiple calls"
+        );
+    }
+
+    #[test]
+    fn test_generate_tool_id_different_inputs_produce_different_ids() {
+        // Different tool names or args should produce different IDs
+        let id1 = generate_tool_id("give_item", r#"{"item_name": "Potion"}"#);
+        let id2 = generate_tool_id("give_item", r#"{"item_name": "Sword"}"#); // Different args
+        let id3 = generate_tool_id("change_relationship", r#"{"item_name": "Potion"}"#); // Different name
+
+        assert_ne!(id1, id2, "Different args should produce different IDs");
+        assert_ne!(
+            id1, id3,
+            "Different tool names should produce different IDs"
+        );
+        assert_ne!(
+            id2, id3,
+            "Different name and args should produce different IDs"
+        );
+    }
+
+    #[test]
+    fn test_parsed_tools_have_deterministic_ids() {
+        // Parse the same tool twice and verify IDs match
+        let raw = r#"
+<dialogue>
+"Take this potion."
+</dialogue>
+
+<tool name="give_item">
+{"tool": "GiveItem", "item_name": "Healing Potion", "description": "A red potion"}
+</tool>
+"#;
+
+        let parsed1 = parse_llm_response(raw).expect("parse should succeed");
+        let parsed2 = parse_llm_response(raw).expect("parse should succeed");
+
+        assert_eq!(parsed1.proposed_tools.len(), 1);
+        assert_eq!(parsed2.proposed_tools.len(), 1);
+
+        // IDs should be identical because tool name + args are identical
+        assert_eq!(
+            parsed1.proposed_tools[0].id, parsed2.proposed_tools[0].id,
+            "Parsed tool IDs should be deterministic for identical inputs"
+        );
+    }
+
+    #[test]
+    fn test_legacy_and_phased_parsers_produce_deterministic_tool_ids() {
+        // Verify that both parsers produce deterministic IDs for their respective formats.
+        // Both parsers now use the original JSON string for ID generation (not re-serialized)
+        // to avoid serialization failures (unwrap_or_default).
+        use crate::use_cases::queues::phases::parsers::parse_phase3_tools;
+
+        // Phased parser format: JSON within <arguments> tags
+        let tool_xml = r#"
+<tool_analysis>
+  <should_act>YES</should_act>
+  <reasoning>Player needs healing.</reasoning>
+</tool_analysis>
+<tool name="give_item">
+  <justification>Give a healing potion.</justification>
+  <arguments>
+  {"tool": "GiveItem", "item_name": "Healing Potion", "description": "A red potion"}
+  </arguments>
+</tool>
+"#;
+
+        // Parse with phased parser
+        let phased_result = parse_phase3_tools(tool_xml).expect("phase3 parse should succeed");
+        assert_eq!(phased_result.proposed_tools.len(), 1);
+        let phased_id = &phased_result.proposed_tools[0].id;
+
+        // Legacy parser format: JSON directly within <tool> tags
+        let legacy_raw = r#"
+<dialogue>"Take this."</dialogue>
+<tool name="give_item">
+{"tool": "GiveItem", "item_name": "Healing Potion", "description": "A red potion"}
+</tool>
+"#;
+        let legacy_result = parse_llm_response(legacy_raw).expect("legacy parse should succeed");
+        assert_eq!(legacy_result.proposed_tools.len(), 1);
+        let legacy_id = &legacy_result.proposed_tools[0].id;
+
+        // Both parsers should produce non-empty, valid IDs
+        assert!(
+            !phased_id.is_empty(),
+            "Phased parser should produce non-empty tool ID"
+        );
+        assert!(
+            !legacy_id.is_empty(),
+            "Legacy parser should produce non-empty tool ID"
+        );
+
+        // When the raw JSON content is identical, both parsers produce the same ID
+        // (the XML wrapper formatting doesn't affect the extracted JSON)
+        assert_eq!(
+            phased_id, legacy_id,
+            "Parsers should produce identical IDs when JSON content is identical"
+        );
+
+        // Both parsers should be deterministic - same input produces same ID
+        let phased_result2 = parse_phase3_tools(tool_xml).expect("phase3 parse should succeed");
+        let legacy_result2 = parse_llm_response(legacy_raw).expect("legacy parse should succeed");
+        assert_eq!(
+            phased_result.proposed_tools[0].id, phased_result2.proposed_tools[0].id,
+            "Phased parser should be deterministic"
+        );
+        assert_eq!(
+            legacy_result.proposed_tools[0].id, legacy_result2.proposed_tools[0].id,
+            "Legacy parser should be deterministic"
+        );
     }
 }

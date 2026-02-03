@@ -11,7 +11,7 @@ use wrldbldr_domain::WorldId;
 
 use super::error::QueueError;
 use crate::queue_types::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, QueueType,
 };
 
 use super::error::{ImageGenError, LlmError};
@@ -35,6 +35,9 @@ pub struct LlmRequest {
     pub images: Vec<ImageData>,
     /// Optional model override (uses client's default if None)
     pub model: Option<String>,
+    /// Optional fingerprint metadata for multi-phase pipeline (VCR fingerprinting)
+    /// This is ignored by the actual LLM client but used by VCR for stable matching
+    pub fingerprint_meta: Option<super::PhaseFingerprintMeta>,
 }
 
 impl LlmRequest {
@@ -46,6 +49,7 @@ impl LlmRequest {
             max_tokens: None,
             images: Vec::new(),
             model: None,
+            fingerprint_meta: None,
         }
     }
 
@@ -66,6 +70,11 @@ impl LlmRequest {
 
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    pub fn with_fingerprint_meta(mut self, meta: super::PhaseFingerprintMeta) -> Self {
+        self.fingerprint_meta = Some(meta);
         self
     }
 }
@@ -127,6 +136,21 @@ pub struct LlmResponse {
     pub finish_reason: FinishReason,
     /// Token usage
     pub usage: Option<TokenUsage>,
+}
+
+// =============================================================================
+// VCR Fingerprint Types (for multi-phase LLM pipeline)
+// =============================================================================
+
+/// Metadata for multi-phase LLM requests to include in fingerprinting.
+#[derive(Debug, Clone, Default)]
+pub struct PhaseFingerprintMeta {
+    /// Phase short ID (e.g., "chal", "evt", "tool")
+    pub phase_id: Option<String>,
+    /// Prompt template key used for this phase
+    pub template_key: Option<String>,
+    /// Template version for cache-busting when prompts change
+    pub template_version: Option<String>,
 }
 
 /// Reason the generation finished
@@ -283,14 +307,14 @@ pub trait QueuePort: Send + Sync {
     // Common operations
     async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError>;
     async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError>;
-    async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError>;
+    async fn get_pending_count(&self, queue_type: QueueType) -> Result<usize, QueueError>;
 
     /// List queue items by type (newest first).
     ///
     /// This is used by WebSocket Creator UI to hydrate a unified generation queue.
     async fn list_by_type(
         &self,
-        queue_type: &str,
+        queue_type: QueueType,
         limit: usize,
     ) -> Result<Vec<QueueItem>, QueueError>;
 
@@ -333,4 +357,24 @@ pub trait QueuePort: Send + Sync {
     ///
     /// This scans pending/completed LLM requests to find one with matching callback_id.
     async fn delete_by_callback_id(&self, callback_id: &str) -> Result<bool, QueueError>;
+
+    /// Atomically mark a queue item complete and enqueue the next phased LLM request.
+    ///
+    /// This operation is idempotent: if called multiple times with the same `phase_key`,
+    /// only one next-phase item will be enqueued. This prevents duplicate phase execution
+    /// when transient failures occur between phase transitions.
+    ///
+    /// # Arguments
+    /// * `item_id` - The queue item to mark complete
+    /// * `next_request` - The next phase's LLM request data
+    /// * `phase_key` - Unique key for idempotency (typically includes phase number and content hash)
+    ///
+    /// # Returns
+    /// The ID of the enqueued next-phase item (or the existing item if already enqueued)
+    async fn advance_phased_llm_request(
+        &self,
+        item_id: QueueItemId,
+        next_request: &LlmRequestData,
+        phase_key: &str,
+    ) -> Result<QueueItemId, QueueError>;
 }

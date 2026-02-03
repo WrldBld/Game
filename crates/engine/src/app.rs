@@ -759,17 +759,23 @@ impl App {
             }
         };
 
+        // Get API key from settings (may be None)
+        let api_key = settings.llm_api_key().map(String::from);
+        let has_api_key = api_key.is_some();
+
         tracing::info!(
             base_url = %base_url,
             model = %resolved_model.model_id,
             source = %resolved_model.source,
+            has_api_key,
             "Refreshing LLM runtime"
         );
 
-        // Build new OpenAI-compatible client
-        let client = Arc::new(crate::infrastructure::openai_compatible::OpenAICompatibleClient::new(
+        // Build new OpenAI-compatible client with API key
+        let client = Arc::new(crate::infrastructure::openai_compatible::OpenAICompatibleClient::with_api_key(
             &base_url,
             &resolved_model.model_id,
+            api_key,
         ));
 
         // Create resilient wrapper

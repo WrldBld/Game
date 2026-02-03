@@ -563,6 +563,7 @@ impl SuggestionOps {
             callback_id: callback_id.clone(),
             conversation_id: None,
             temperature: Some(temperature),
+            phase_meta: None, // Suggestions don't use phased pipeline
         };
 
         self.queue.enqueue_llm_request(&llm_request).await?;

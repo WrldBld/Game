@@ -113,7 +113,7 @@ pub(super) async fn handle_generation_request(
             let asset_items = state
                 .app
                 .queue
-                .list_by_type("asset_generation", 500)
+                .list_by_type(crate::queue_types::QueueType::AssetGeneration, 500)
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
@@ -182,7 +182,7 @@ pub(super) async fn handle_generation_request(
             let llm_items = state
                 .app
                 .queue
-                .list_by_type("llm_request", 500)
+                .list_by_type(crate::queue_types::QueueType::LlmRequest, 500)
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),

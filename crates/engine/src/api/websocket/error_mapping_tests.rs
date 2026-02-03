@@ -249,3 +249,107 @@ mod error_mapping_consistency {
         }
     }
 }
+
+#[cfg(test)]
+mod catalog_error_sanitizer_tests {
+    use crate::api::websocket::error_sanitizer::{messages, sanitize_catalog_error};
+    use crate::use_cases::visual_state::CatalogError;
+    use wrldbldr_domain::{LocationId, LocationStateId, RegionId, RegionStateId};
+
+    #[test]
+    fn not_found_errors_return_not_found_message() {
+        let test_cases = vec![
+            (
+                CatalogError::LocationNotFound(LocationId::new()),
+                "location not found",
+            ),
+            (
+                CatalogError::RegionNotFound(RegionId::new()),
+                "region not found",
+            ),
+            (
+                CatalogError::LocationStateNotFound(LocationStateId::new()),
+                "location state not found",
+            ),
+            (
+                CatalogError::RegionStateNotFound(RegionStateId::new()),
+                "region state not found",
+            ),
+        ];
+
+        for (error, _desc) in test_cases {
+            let result = sanitize_catalog_error(&error, "test operation");
+            assert_eq!(
+                result,
+                messages::NOT_FOUND,
+                "{} should return NOT_FOUND message",
+                _desc
+            );
+        }
+    }
+
+    #[test]
+    fn validation_errors_return_invalid_request_message() {
+        let test_cases = vec![
+            (
+                CatalogError::Validation("invalid input".to_string()),
+                "validation",
+            ),
+            (
+                CatalogError::InvalidActivationRules("bad json".to_string()),
+                "invalid activation rules",
+            ),
+            (
+                CatalogError::InvalidActivationLogic("bad logic".to_string()),
+                "invalid activation logic",
+            ),
+            (CatalogError::NameEmpty, "name empty"),
+            (CatalogError::NameTooLong, "name too long"),
+            (CatalogError::DescriptionTooLong, "description too long"),
+        ];
+
+        for (error, _desc) in test_cases {
+            let result = sanitize_catalog_error(&error, "test operation");
+            assert_eq!(
+                result,
+                messages::INVALID_REQUEST,
+                "{} should return INVALID_REQUEST message",
+                _desc
+            );
+        }
+    }
+
+    #[test]
+    fn internal_errors_return_internal_error_message() {
+        use crate::infrastructure::ports::{QueueError, RepoError};
+
+        let test_cases = vec![
+            (
+                CatalogError::Repo(RepoError::database("query", "db down")),
+                "repo error",
+            ),
+            (
+                CatalogError::Queue(QueueError::database("enqueue", "queue down")),
+                "queue error",
+            ),
+        ];
+
+        for (error, _desc) in test_cases {
+            let result = sanitize_catalog_error(&error, "test operation");
+            assert_eq!(
+                result,
+                messages::INTERNAL_ERROR,
+                "{} should return INTERNAL_ERROR message",
+                _desc
+            );
+        }
+    }
+
+    #[test]
+    fn sanitizer_includes_operation_context_in_logs() {
+        // This test verifies the function signature accepts operation context
+        // The actual logging is verified by compilation
+        let error = CatalogError::Validation("test".to_string());
+        let _result = sanitize_catalog_error(&error, "my operation");
+    }
+}

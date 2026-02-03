@@ -23,6 +23,7 @@ use super::{
     create_shared_log, create_test_player, start_conversation_with_npc, E2ETestContext,
     LoggingLlmDecorator, TestOutcome, VcrLlm,
 };
+use crate::queue_types::QueueType;
 
 // =============================================================================
 // Player Character Creation Tests
@@ -518,7 +519,7 @@ async fn test_queue_processes_player_action_to_llm_request() {
         let pending_llm = ctx
             .app
             .queue
-            .get_pending_count("llm_request")
+            .get_pending_count(QueueType::LlmRequest)
             .await
             .expect("Failed to get pending count");
 

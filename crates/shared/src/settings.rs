@@ -413,6 +413,17 @@ pub fn settings_metadata() -> Vec<SettingsFieldMetadata> {
             requires_restart: false,
         },
         SettingsFieldMetadata {
+            key: "llm_api_key".into(),
+            display_name: "LLM API Key".into(),
+            description: "API key for OpenAI-compatible LLM providers (e.g., OpenAI, Anthropic). Sent as Bearer token. Can also be set via OLLAMA_API_KEY env var.".into(),
+            field_type: "secret".into(),
+            default_value: serde_json::json!(null),
+            min_value: None,
+            max_value: None,
+            category: "LLM".into(),
+            requires_restart: true,
+        },
+        SettingsFieldMetadata {
             key: "style_reference_asset_id".into(),
             display_name: "Style Reference Asset ID".into(),
             description: "Default style reference asset ID for image generation".into(),

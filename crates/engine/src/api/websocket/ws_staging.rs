@@ -330,7 +330,8 @@ fn game_time_to_protocol(gt: &crate::use_cases::staging::GameTimeData) -> wrldbl
     let formatted_time = Some(format!("{}:{:02} {}", display_hour, gt.minute, am_pm));
 
     // Calculate total_seconds from day/hour/minute/second
-    let total_seconds = (gt.day as i64 - 1) * 24 * 60 * 60
+    let day_index = gt.day.saturating_sub(1) as i64;
+    let total_seconds = day_index * 24 * 60 * 60
         + (gt.hour as i64) * 60 * 60
         + (gt.minute as i64) * 60
         + (gt.second as i64);
@@ -434,12 +435,22 @@ pub(super) async fn handle_staging_regenerate(
         Some(guidance.as_str())
     };
 
+    let world_id = match conn_info.world_id {
+        Some(world_id) => world_id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "No world selected for this connection",
+            ))
+        }
+    };
+
     let llm_based_npcs = match state
         .app
         .use_cases
         .staging
         .regenerate
-        .execute(region_id, conn_info.world_id.unwrap(), guidance_opt)
+        .execute(region_id, world_id, guidance_opt)
         .await
     {
         Ok(npcs) => npcs,

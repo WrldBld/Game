@@ -126,6 +126,20 @@ pub mod keys {
     /// Narrative event suggestion format instructions.
     pub const DIALOGUE_NARRATIVE_EVENT_FORMAT: &str = "dialogue.narrative_event_format";
 
+    // === Multi-Phase Dialogue Pipeline ===
+    /// Phase 0: Context digest (deterministic game state summary).
+    pub const DIALOGUE_PHASE0_CONTEXT_DIGEST: &str = "dialogue.phase0_context_digest";
+    /// Phase 1: Challenge trigger analysis.
+    pub const DIALOGUE_PHASE1_CHALLENGE_TRIGGERS: &str = "dialogue.phase1_challenge_triggers";
+    /// Phase 2: Narrative event trigger analysis.
+    pub const DIALOGUE_PHASE2_EVENT_TRIGGERS: &str = "dialogue.phase2_event_triggers";
+    /// Phase 3: Tool intent detection.
+    pub const DIALOGUE_PHASE3_TOOL_INTENT: &str = "dialogue.phase3_tool_intent";
+    /// Phase 4: Behavior analysis (deflection, mood, disposition).
+    pub const DIALOGUE_PHASE4_BEHAVIOR_ANALYSIS: &str = "dialogue.phase4_behavior_analysis";
+    /// Phase 5: Final response generation.
+    pub const DIALOGUE_PHASE5_FINAL_RESPONSE: &str = "dialogue.phase5_final_response";
+
     // === Staging System ===
     /// System prompt for NPC staging decisions.
     pub const STAGING_SYSTEM_PROMPT: &str = "staging.system_prompt";
@@ -210,6 +224,49 @@ pub fn template_definitions() -> Vec<PromptTemplateDefinition> {
             description: "Format instructions for suggesting narrative events during dialogue",
             category: PromptTemplateCategory::Dialogue,
             env_var: "WRLDBLDR_PROMPT_DIALOGUE_NARRATIVE_EVENT_FORMAT",
+        },
+        // Multi-Phase Dialogue Pipeline
+        PromptTemplateDefinition {
+            key: keys::DIALOGUE_PHASE0_CONTEXT_DIGEST,
+            label: "Phase 0: Context Digest",
+            description: "Deterministic game state summary for downstream phases",
+            category: PromptTemplateCategory::Dialogue,
+            env_var: "WRLDBLDR_PROMPT_DIALOGUE_PHASE0_CONTEXT_DIGEST",
+        },
+        PromptTemplateDefinition {
+            key: keys::DIALOGUE_PHASE1_CHALLENGE_TRIGGERS,
+            label: "Phase 1: Challenge Trigger Analysis",
+            description: "Analyze player action against active challenges",
+            category: PromptTemplateCategory::Dialogue,
+            env_var: "WRLDBLDR_PROMPT_DIALOGUE_PHASE1_CHALLENGE_TRIGGERS",
+        },
+        PromptTemplateDefinition {
+            key: keys::DIALOGUE_PHASE2_EVENT_TRIGGERS,
+            label: "Phase 2: Event Trigger Analysis",
+            description: "Analyze player action against active narrative events",
+            category: PromptTemplateCategory::Dialogue,
+            env_var: "WRLDBLDR_PROMPT_DIALOGUE_PHASE2_EVENT_TRIGGERS",
+        },
+        PromptTemplateDefinition {
+            key: keys::DIALOGUE_PHASE3_TOOL_INTENT,
+            label: "Phase 3: Tool Intent Detection",
+            description: "Identify appropriate game tools based on player action",
+            category: PromptTemplateCategory::Dialogue,
+            env_var: "WRLDBLDR_PROMPT_DIALOGUE_PHASE3_TOOL_INTENT",
+        },
+        PromptTemplateDefinition {
+            key: keys::DIALOGUE_PHASE4_BEHAVIOR_ANALYSIS,
+            label: "Phase 4: Behavior Analysis",
+            description: "Determine deflection behavior and emotional stance",
+            category: PromptTemplateCategory::Dialogue,
+            env_var: "WRLDBLDR_PROMPT_DIALOGUE_PHASE4_BEHAVIOR_ANALYSIS",
+        },
+        PromptTemplateDefinition {
+            key: keys::DIALOGUE_PHASE5_FINAL_RESPONSE,
+            label: "Phase 5: Final Response Generation",
+            description: "Generate player-facing dialogue based on prior phase outputs",
+            category: PromptTemplateCategory::Dialogue,
+            env_var: "WRLDBLDR_PROMPT_DIALOGUE_PHASE5_FINAL_RESPONSE",
         },
         // Staging
         PromptTemplateDefinition {

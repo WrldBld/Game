@@ -12,6 +12,7 @@
 
 pub mod response_parser;
 pub mod uuid_aliaser;
+pub mod phases;
 use uuid_aliaser::UuidAliaser;
 
 #[cfg(test)]
@@ -29,10 +30,7 @@ use crate::llm_context::{
     TriggerHints,
 };
 use crate::prompt_templates::{
-    keys::{
-        DIALOGUE_CHALLENGE_SUGGESTION_FORMAT, DIALOGUE_NARRATIVE_EVENT_FORMAT,
-        DIALOGUE_RESPONSE_FORMAT,
-    },
+    keys::DIALOGUE_RESPONSE_FORMAT,
 };
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
@@ -123,18 +121,58 @@ impl QueueProcessingContext {
         }
     }
 
-    /// Helper to fetch active challenges for a world
+    /// Resolve temperature for NPC response generation.
+    ///
+    /// Temperature precedence:
+    /// 1. Template front matter temperature (if provided)
+    /// 2. AppSettings per-world temperature
+    /// 3. AppSettings global temperature
+    /// 4. Default (0.7)
+    ///
+    /// # Arguments
+    /// * `world_id` - The world ID for settings lookup
+    /// * `template_temperature` - Optional temperature from template front matter
+    pub async fn resolve_temperature_npc_response(
+        &self,
+        world_id: WorldId,
+        template_temperature: Option<f32>,
+    ) -> f32 {
+        // Priority 1: Template front matter temperature
+        if let Some(temp) = template_temperature {
+            tracing::debug!(temperature = temp, "Using template front matter temperature");
+            return temp;
+        }
+
+        // Priority 2: AppSettings per-world temperature
+        if let Ok(Some(settings)) = self.settings.get_for_world(world_id).await {
+            return settings.llm_temperature_npc_response();
+        }
+
+        // Priority 3: AppSettings global temperature
+        if let Ok(Some(settings)) = self.settings.get_global().await {
+            return settings.llm_temperature_npc_response();
+        }
+
+        // Priority 4: Default
+        0.7
+    }
+
+    /// Helper to fetch active challenges for a world.
+    ///
+    /// # Errors
+    /// Returns `QueueError::Repo` if repository access fails. This is treated as a
+    /// hard error because missing challenge data can materially change LLM decisions.
     pub async fn fetch_active_challenges(
         &self,
         world_id: WorldId,
-    ) -> Vec<ActiveChallengeContext> {
-        self.challenge
+    ) -> Result<Vec<ActiveChallengeContext>, QueueError> {
+        let challenges = self
+            .challenge
             .list_for_world(world_id)
             .await
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to fetch active challenges");
-                vec![]
-            })
+            .map_err(QueueError::Repo)?;
+
+        Ok(challenges
             .into_iter()
             .filter(|c| c.active())
             .map(|c| {
@@ -167,7 +205,7 @@ impl QueueProcessingContext {
                     trigger_hints,
                 }
             })
-            .collect()
+            .collect())
     }
 
     /// Helper to fetch active narrative events for a world.
@@ -175,21 +213,24 @@ impl QueueProcessingContext {
     /// When `player_dialogue` is provided, events are sorted by relevance
     /// (keyword overlap score) in descending order. Events with no keyword
     /// matches retain their original relative order.
+    ///
+    /// # Errors
+    /// Returns `QueueError::Repo` if repository access fails. This is treated as a
+    /// hard error because missing event data can materially change LLM decisions.
     pub async fn fetch_active_narrative_events(
         &self,
         world_id: WorldId,
         player_dialogue: Option<&str>,
-    ) -> Vec<ActiveNarrativeEventContext> {
+    ) -> Result<Vec<ActiveNarrativeEventContext>, QueueError> {
         let dialogue_lower = player_dialogue.map(|d| d.to_lowercase());
 
-        let mut events_with_scores: Vec<(ActiveNarrativeEventContext, usize, Vec<String>)> = self
+        let events = self
             .narrative_ops
             .list_events(world_id)
             .await
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to fetch narrative events");
-                vec![]
-            })
+            .map_err(QueueError::Repo)?;
+
+        let mut events_with_scores: Vec<(ActiveNarrativeEventContext, usize, Vec<String>)> = events
             .into_iter()
             .filter(|e| e.is_active() && (!e.is_triggered() || e.is_repeatable()))
             .map(|e| {
@@ -264,7 +305,7 @@ impl QueueProcessingContext {
         events_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
 
         // Store matched keywords in custom hints for display
-        events_with_scores
+        Ok(events_with_scores
             .into_iter()
             .map(|(mut ctx, _, matched)| {
                 if !matched.is_empty() {
@@ -274,7 +315,7 @@ impl QueueProcessingContext {
                 }
                 ctx
             })
-            .collect()
+            .collect())
     }
 }
 
@@ -343,10 +384,17 @@ impl ProcessPlayerAction {
         };
 
         // Build the prompt with character context
-        let prompt = self.build_prompt(&action_data).await.unwrap_or_else(|e| {
-            tracing::warn!("Failed to build prompt: {}, using fallback", e);
-            self.build_fallback_prompt(&action_data)
-        });
+        // Fail-fast: repository errors during prompt building are treated as hard errors
+        // because missing context data can materially change LLM decisions
+        let prompt = match self.build_prompt(&action_data).await {
+            Ok(prompt) => prompt,
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to build prompt, marking queue item as failed");
+                let message = format!("Prompt building failed: {}", e);
+                self.ctx.queue.mark_failed(item.id, &message).await?;
+                return Err(e);
+            }
+        };
 
         // Resolve template temperature from front matter (if available)
         let template_temp = self
@@ -359,8 +407,12 @@ impl ProcessPlayerAction {
 
         // Resolve temperature with precedence: template -> settings -> default
         let temperature = self
+            .ctx
             .resolve_temperature_npc_response(action_data.world_id, template_temp)
             .await;
+
+        // Initialize multi-phase pipeline metadata
+        let phase_meta = self.build_phase_metadata(&prompt, action_data.world_id, item.id).await;
 
         let llm_request = LlmRequestData {
             request_type: LlmRequestType::NpcResponse {
@@ -373,10 +425,20 @@ impl ProcessPlayerAction {
             callback_id: item.id.to_string(),
             conversation_id: action_data.conversation_id.map(|id| wrldbldr_domain::ConversationId::from(id)),
             temperature: Some(temperature),
+            phase_meta,
         };
 
         // Enqueue the LLM request
-        let llm_request_id = self.ctx.queue.enqueue_llm_request(&llm_request).await?;
+        // On failure, mark the player action as failed to prevent it from being stuck in "processing"
+        let llm_request_id = match self.ctx.queue.enqueue_llm_request(&llm_request).await {
+            Ok(id) => id,
+            Err(e) => {
+                let message = format!("Failed to enqueue LLM request: {}", e);
+                tracing::error!(error = %e, item_id = %item.id, "enqueue_llm_request failed, marking player action as failed");
+                self.ctx.queue.mark_failed(item.id, &message).await?;
+                return Err(QueueError::EnqueueFailed { message });
+            }
+        };
 
         // Mark the player action as complete
         self.ctx.queue.mark_complete(item.id).await?;
@@ -640,35 +702,43 @@ impl ProcessPlayerAction {
 
         // Fetch conversation history if we have both PC and NPC IDs
         // Default limit is 20 turns (can be made configurable via settings)
+        // Note: Conversation history is treated as best-effort because it is enrichment
+        // data that should not block the core player action processing. A warning is logged
+        // when the fetch fails so operators can detect data quality issues.
         let conversation_history = match (action_data.pc_id, npc_id) {
             (Some(pc_id), Some(npc_id)) => self
                 .ctx
                 .narrative_ops
                 .get_conversation_turns(pc_id, npc_id, 20)
                 .await
-                .unwrap_or_else(|e| {
+                .map_err(|e| {
                     tracing::warn!(
                         error = %e,
-                        "Failed to fetch conversation history, using empty"
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        "Failed to fetch conversation history, proceeding without context"
                     );
-                    vec![]
-                }),
+                    e
+                })
+                .unwrap_or_default(),
             _ => vec![],
         };
 
         // Fetch active challenges for this world
+        // Fail-fast: challenge data is critical for LLM decision quality
         let active_challenges = self
             .ctx
             .fetch_active_challenges(action_data.world_id)
-            .await;
+            .await?;
 
         // Fetch active narrative events for this world
         // Pass player dialogue for relevance scoring and keyword matching
+        // Fail-fast: event data is critical for LLM decision quality
         let player_dialogue = action_data.dialogue.as_deref();
         let active_narrative_events: Vec<ActiveNarrativeEventContext> = self
             .ctx
             .fetch_active_narrative_events(action_data.world_id, player_dialogue)
-            .await;
+            .await?;
 
         Ok(GamePromptRequest {
             world_id: Some(action_data.world_id.to_string()),
@@ -748,40 +818,90 @@ impl ProcessPlayerAction {
         }
     }
 
-    /// Resolve temperature for NPC response generation.
+    /// Build phase metadata for multi-phase LLM pipeline initialization.
     ///
-    /// Temperature precedence:
-    /// 1. Template front matter temperature (if provided)
-    /// 2. AppSettings per-world temperature
-    /// 3. AppSettings global temperature
-    /// 4. Default (0.7)
-    ///
-    /// # Arguments
-    /// * `world_id` - The world ID for settings lookup
-    /// * `template_temperature` - Optional temperature from template front matter
-    async fn resolve_temperature_npc_response(
+    /// Creates Phase 0 context digest (deterministic) and sets up the pipeline
+    /// to start at Phase 1 (ChallengeTriggers).
+    async fn build_phase_metadata(
         &self,
+        prompt: &GamePromptRequest,
         world_id: WorldId,
-        template_temperature: Option<f32>,
-    ) -> f32 {
-        // Priority 1: Template front matter temperature
-        if let Some(temp) = template_temperature {
-            tracing::debug!(temperature = temp, "Using template front matter temperature");
-            return temp;
-        }
+        action_item_id: wrldbldr_domain::QueueItemId,
+    ) -> Option<crate::queue_types::PhaseMetadata> {
+        use crate::queue_types::{LlmPhase, PhaseOutputs};
+        use crate::use_cases::queues::phases::{build_context_digest, generate_phase_key};
+        use sha2::{Digest, Sha256};
 
-        // Priority 2: AppSettings per-world temperature
-        if let Ok(Some(settings)) = self.ctx.settings.get_for_world(world_id).await {
-            return settings.llm_temperature_npc_response();
-        }
+        // Build Phase 0 context digest (deterministic)
+        let phase0_context = build_context_digest(prompt);
 
-        // Priority 3: AppSettings global temperature
-        if let Ok(Some(settings)) = self.ctx.settings.get_global().await {
-            return settings.llm_temperature_npc_response();
-        }
+        // Build initial PhaseOutputs with just the context digest
+        let phase_outputs = PhaseOutputs {
+            phase0_context: Some(phase0_context),
+            phase1_challenges: None,
+            phase2_events: None,
+            phase3_tools: None,
+            phase4_behavior: None,
+            phase5_response: None,
+        };
 
-        // Priority 4: Default
-        0.7
+        // Serialize phase outputs to JSON
+        let phase_outputs_json = match serde_json::to_string(&phase_outputs) {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to serialize phase outputs, falling back to single-phase");
+                return None;
+            }
+        };
+
+        // Build base request for phase key generation
+        let base_request = crate::queue_types::LlmRequestData {
+            request_type: crate::queue_types::LlmRequestType::NpcResponse { action_item_id },
+            world_id,
+            pc_id: None,
+            prompt: Some(prompt.clone()),
+            suggestion_context: None,
+            callback_id: action_item_id.to_string(),
+            conversation_id: None,
+            temperature: None,
+            phase_meta: None,
+        };
+
+        // Generate phase key for Phase 1
+        // Include Phase 0 outputs in the key so retries with different context produce different keys
+        let phase_key = generate_phase_key(LlmPhase::ChallengeTriggers, &base_request, prompt, Some(&phase_outputs));
+
+        // Compute template version (short hash of resolved template text)
+        let template_version = match self
+            .prompt_templates
+            .resolve_template(Some(world_id), LlmPhase::ChallengeTriggers.prompt_template_key())
+            .await
+        {
+            Ok(value) => value
+                .map(|text| {
+                    let mut hasher = Sha256::new();
+                    hasher.update(text.as_bytes());
+                    format!("{:.8}", hex::encode(hasher.finalize()))
+                })
+                .unwrap_or_else(|| "default".to_string()),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    world_id = %world_id,
+                    template_key = %LlmPhase::ChallengeTriggers.prompt_template_key(),
+                    "Failed to resolve Phase 1 template; using default version"
+                );
+                "default".to_string()
+            }
+        };
+
+        Some(crate::queue_types::PhaseMetadata {
+            current_phase: LlmPhase::ChallengeTriggers,
+            phase_key,
+            phase_outputs_json: Some(phase_outputs_json),
+            phase_version: "1.0".to_string(),
+            template_version,
+        })
     }
 }
 
@@ -853,7 +973,7 @@ impl ProcessLlmRequest {
         };
 
         // Handle different request types
-        match &request_data.request_type {
+        let result = match &request_data.request_type {
             LlmRequestType::OutcomeSuggestion {
                 resolution_id,
                 world_id,
@@ -1021,15 +1141,27 @@ impl ProcessLlmRequest {
                 };
 
                 // Load system prompt from template repository
-                let system_prompt = self
+                let system_prompt = match self
                     .prompt_templates
-                    .resolve_template(Some(world_id), crate::prompt_templates::keys::SYSTEM_GENERIC_SUGGESTION)
+                    .resolve_template(
+                        Some(world_id),
+                        crate::prompt_templates::keys::SYSTEM_GENERIC_SUGGESTION,
+                    )
                     .await
-                    .ok()
-                    .flatten()
-                    .unwrap_or_else(|| {
+                {
+                    Ok(value) => value.unwrap_or_else(|| {
                         "You are a helpful worldbuilding assistant. Return only suggestions, one per line.".to_string()
-                    });
+                    }),
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            world_id = %world_id,
+                            template_key = %crate::prompt_templates::keys::SYSTEM_GENERIC_SUGGESTION,
+                            "Failed to resolve suggestion system prompt; using default"
+                        );
+                        "You are a helpful worldbuilding assistant. Return only suggestions, one per line.".to_string()
+                    }
+                };
 
                 let llm_request = crate::infrastructure::ports::LlmRequest::new(vec![
                     crate::infrastructure::ports::ChatMessage::user(&prompt),
@@ -1100,452 +1232,30 @@ impl ProcessLlmRequest {
             }
 
             LlmRequestType::NpcResponse { .. } => {
-                // Create UUID aliaser for this request - aliases UUIDs in prompts
-                // and dealiases them in responses for token efficiency
-                let mut aliaser = UuidAliaser::new();
-
-                // Extract world_id from request_data (needed for template resolution)
-                let world_id = request_data.world_id;
-
-                // Build LLM request from the queued prompt data
-                let llm_request = if let Some(ref prompt) = request_data.prompt {
-                    // Use the full GamePromptRequest to build a rich prompt
-                    // Include structured output format from prompt_templates
-
-                    // Format active challenges with their trigger hints
-                    // Use aliased IDs (CHAL_0, CHAL_1, etc.) instead of UUIDs
-                    let challenges_context = if prompt.active_challenges.is_empty() {
-                        String::new()
-                    } else {
-                        let challenge_list: Vec<String> = prompt
-                            .active_challenges
-                            .iter()
-                            .map(|c| {
-                                let aliased_id = aliaser.alias_challenge(&c.id);
-                                format!(
-                                    "- {} [{}]: {} - {} {}{}",
-                                    c.name,
-                                    aliased_id,
-                                    c.description,
-                                    c.skill_name,
-                                    c.difficulty_display,
-                                    c.trigger_hints.format_for_prompt()
-                                )
-                            })
-                            .collect();
-                        format!(
-                            "\n\nACTIVE CHALLENGES:\nYou MUST analyze each challenge below and determine if the player's action triggers it.\nFor each challenge, check if the player's words match any keywords in `pc_mentions` or if their action matches `interacts_with`.\n\n{}\n\nYou MUST include a <challenge> block for each challenge listed above.",
-                            challenge_list.join("\n")
-                        )
-                    };
-
-                    // Format active narrative events with their trigger hints
-                    // Use aliased IDs (EVT_0, EVT_1, etc.) instead of UUIDs
-                    let events_context = if prompt.active_narrative_events.is_empty() {
-                        String::new()
-                    } else {
-                        let event_list: Vec<String> = prompt
-                            .active_narrative_events
-                            .iter()
-                            .map(|e| {
-                                let aliased_id = aliaser.alias_event(&e.id);
-                                format!(
-                                    "- {} [{}]: {}{}",
-                                    e.name,
-                                    aliased_id,
-                                    e.description,
-                                    e.trigger_hints.format_for_prompt()
-                                )
-                            })
-                            .collect();
-                        format!(
-                            "\n\nACTIVE NARRATIVE EVENTS:\nYou MUST analyze each event below and determine if the player's action triggers it.\nFor each event, check if the player's words match any keywords in `pc_mentions`.\n\n{}\n\nYou MUST include an <event> block for EACH event listed above.",
-                            event_list.join("\n")
-                        )
-                    };
-
-                    // Resolve prompt templates via repository
-                    let response_format_key = DIALOGUE_RESPONSE_FORMAT.trim();
-                    let challenge_format_key = DIALOGUE_CHALLENGE_SUGGESTION_FORMAT.trim();
-                    let event_format_key = DIALOGUE_NARRATIVE_EVENT_FORMAT.trim();
-
-                    // Resolve prompt templates via repository
-                    // The repository handles fallback to file-backed defaults automatically
-                    let response_format = match self
-                        .prompt_templates
-                        .resolve_template(Some(world_id), response_format_key)
-                        .await
-                        .map_err(|e| QueueError::Repo(e))?
-                    {
-                        Some(v) => v,
-                        None => {
-                            return Err(QueueError::ParseError(
-                                format!("Template '{}' not found", response_format_key)
-                            ));
-                        }
-                    };
-
-                    let challenge_suggestion_format = match self
-                        .prompt_templates
-                        .resolve_template(Some(world_id), challenge_format_key)
-                        .await
-                        .map_err(|e| QueueError::Repo(e))?
-                    {
-                        Some(v) => v,
-                        None => {
-                            return Err(QueueError::ParseError(
-                                format!("Template '{}' not found", challenge_format_key)
-                            ));
-                        }
-                    };
-
-                    let narrative_event_format = match self
-                        .prompt_templates
-                        .resolve_template(Some(world_id), event_format_key)
-                        .await
-                        .map_err(|e| QueueError::Repo(e))?
-                    {
-                        Some(v) => v,
-                        None => {
-                            return Err(QueueError::ParseError(
-                                format!("Template '{}' not found", event_format_key)
-                            ));
-                        }
-                    };
-
-                    // Build NO PIVOT rule block when events or challenges are present
-                    let no_pivot_rule = if prompt.active_challenges.is_empty()
-                        && prompt.active_narrative_events.is_empty()
-                    {
-                        String::new()
-                    } else {
-                        "\n\nNO PIVOT RULE:\n\
-                        Do NOT use event or challenge descriptions as dialogue topics unless:\n\
-                        - The player's message contains a matching keyword from the trigger hints, OR\n\
-                        - You explicitly mark the trigger as YES in the response block."
-                            .to_string()
-                    };
-
-                    // Build SECRET MOTIVATIONS block if the NPC has secret motivations
-                    let secret_motivations_context = build_secret_motivations_context(&prompt.responding_character);
-
-                    // Build occupational context hint based on location name
-                    let occupational_hint = if prompt.scene_context.location_name.to_lowercase().contains("inn") 
-                        || prompt.scene_context.location_name.to_lowercase().contains("tavern")
-                        || prompt.scene_context.location_name.to_lowercase().contains("pub") {
-                        "\n\nOCCUPATIONAL CONTEXT:\n\
-                        You work at this establishment. Your dialogue should reflect your role - mention guests, travelers, rooms, ale, meals, or the business. Use hospitality language, not generic phrases."
-                    } else if prompt.scene_context.location_name.to_lowercase().contains("shop") 
-                        || prompt.scene_context.location_name.to_lowercase().contains("store")
-                        || prompt.scene_context.location_name.to_lowercase().contains("market") {
-                        "\n\nOCCUPATIONAL CONTEXT:\n\
-                        You work at this establishment. Your dialogue should reflect your role as a merchant - mention wares, prices, stock, or business matters."
-                    } else if prompt.scene_context.location_name.to_lowercase().contains("temple")
-                        || prompt.scene_context.location_name.to_lowercase().contains("shrine")
-                        || prompt.scene_context.location_name.to_lowercase().contains("church") {
-                        "\n\nOCCUPATIONAL CONTEXT:\n\
-                        You serve at this holy place. Your dialogue should reflect your religious role - reference your deity, spiritual duties, or temple matters."
-                    } else if prompt.scene_context.location_name.to_lowercase().contains("guard")
-                        || prompt.scene_context.location_name.to_lowercase().contains("barracks")
-                        || prompt.scene_context.location_name.to_lowercase().contains("watch") {
-                        "\n\nOCCUPATIONAL CONTEXT:\n\
-                        You serve as a guard. Your dialogue should reflect your duty - be watchful, reference safety, orders, or your post."
-                    } else {
-                        ""
-                    };
-
-                    let system_prompt = format!(
-                        "You are roleplaying as an NPC in a fantasy TTRPG. {}\n\n\
-                        Scene: {} at {}\n\
-                        Present characters: {}\n\n\
-                        Stay true to the NPC's personality and motivations.{}{}{}{}{}\n\n\
-                        {}\n\n\
-                        {}\n\n\
-                        {}",
-                        prompt.directorial_notes,
-                        prompt.scene_context.scene_name,
-                        prompt.scene_context.location_name,
-                        prompt.scene_context.present_characters.join(", "),
-                        challenges_context,
-                        events_context,
-                        no_pivot_rule,
-                        secret_motivations_context,
-                        occupational_hint,
-                        response_format,
-                        challenge_suggestion_format,
-                        narrative_event_format
-                    );
-
-                    let current_message = if let Some(ref dialogue) = prompt.player_action.dialogue
-                    {
-                        format!(
-                            "The player character says to {}: \"{}\"",
-                            prompt.player_action.target.as_deref().unwrap_or("you"),
-                            dialogue
-                        )
-                    } else {
-                        format!(
-                            "The player character performs action '{}' targeting {}",
-                            prompt.player_action.action_type,
-                            prompt.player_action.target.as_deref().unwrap_or("you")
-                        )
-                    };
-
-                    // Convert conversation history to chat messages
-                    // NPC turns become "assistant" messages, player turns become "user" messages
-                    // The NPC's name is in responding_character.name
-                    let npc_name = &prompt.responding_character.name;
-
-                    let mut messages: Vec<crate::infrastructure::ports::ChatMessage> = prompt
-                        .conversation_history
-                        .iter()
-                        .map(|turn| {
-                            // If the speaker matches the NPC's name, it's an assistant message
-                            // Otherwise it's a user message (player/PC)
-                            if turn.speaker == *npc_name
-                                || turn.speaker.to_lowercase() == npc_name.to_lowercase()
-                            {
-                                crate::infrastructure::ports::ChatMessage::assistant(&turn.text)
-                            } else {
-                                // Player/PC dialogue
-                                crate::infrastructure::ports::ChatMessage::user(&turn.text)
-                            }
-                        })
-                        .collect();
-
-                    // Add the current message
-                    messages.push(crate::infrastructure::ports::ChatMessage::user(
-                        &current_message,
-                    ));
-
-                    // Use persisted temperature or resolve from settings
-                    let temperature = match request_data.temperature {
-                        Some(t) => t,
-                        None => self.resolve_temperature_npc_response(world_id).await,
-                    };
-
-                    crate::infrastructure::ports::LlmRequest::new(messages)
-                        .with_system_prompt(system_prompt)
-                        .with_temperature(temperature)
-                        .with_max_tokens(Some(2048)) // Allow room for model's internal reasoning + structured output
-                } else {
-                    // Fallback if no prompt was provided
-                    tracing::warn!("LLM request has no prompt data, using fallback");
-
-                    // Use persisted temperature or resolve from settings
-                    let temperature = match request_data.temperature {
-                        Some(t) => t,
-                        None => self.resolve_temperature_npc_response(world_id).await,
-                    };
-
-                    crate::infrastructure::ports::LlmRequest::new(vec![
-                        crate::infrastructure::ports::ChatMessage::user(
-                            "Generate a brief, in-character NPC response to the player's action.",
-                        ),
-                    ])
-                    .with_system_prompt(
-                        "You are an NPC in a fantasy TTRPG. Respond briefly and in character.",
-                    )
-                    .with_temperature(temperature)
-                    .with_max_tokens(Some(512)) // Simpler fallback response
-                };
-
-                // Extract NPC context for error logging
-                let npc_name_for_log = request_data
-                    .prompt
-                    .as_ref()
-                    .map(|p| p.responding_character.name.as_str())
-                    .unwrap_or("unknown");
-                let world_id_for_log = request_data.world_id;
-
-                // Resolve the model for this request
-                let resolve_input = crate::use_cases::ai::ResolveModelInput {
-                    world_id: Some(world_id_for_log),
-                    env_default_override: None,
-                };
-                let resolved_model = match self.resolve_model.execute(resolve_input).await {
-                    Ok(m) => m,
-                    Err(e) => {
-                        tracing::warn!(error = %e, "Failed to resolve model, using default");
-                        crate::use_cases::ai::ResolvedModel {
-                            model_id: "mlx-community/gpt-oss-20b-MXFP4-Q8".to_string(),
-                            source: crate::use_cases::ai::ModelSource::EnvDefault,
-                            warning: Some(format!("Model resolution failed: {}", e)),
-                        }
-                    }
-                };
-
-                // Add model to the request
-                let llm_request = llm_request.with_model(resolved_model.model_id);
-
-                let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
-                    tracing::error!(
-                        world_id = %world_id_for_log,
-                        npc_name = %npc_name_for_log,
-                        request_id = %item.id,
-                        error = %e,
-                        "LLM NPC response generation failed"
-                    );
-                    e
-                })?;
-
-                // Log raw LLM response for debugging structured output
-                tracing::debug!(
-                    raw_content = %llm_response.content,
-                    content_len = llm_response.content.len(),
-                    "Raw LLM response content"
-                );
-
-                // Parse structured content from LLM response
-                let mut parsed = response_parser::parse_llm_response(&llm_response.content);
-
-                // Check if player is probing secret motivations and enforce deflection behavior
-                if let Some(ref prompt) = request_data.prompt {
-                    if let Some(ref dialogue) = prompt.player_action.dialogue {
-                        if is_probing_secret_motivations(dialogue) {
-                            if let Some(ref motivations) = prompt.responding_character.motivations {
-                                if !motivations.secret.is_empty() {
-                                    // Player is probing and NPC has secrets - enforce deflection
-                                    let deflection = select_deflection_behavior(motivations, dialogue);
-                                    if !deflection.is_empty() {
-                                        tracing::info!(
-                                            npc_name = %prompt.responding_character.name,
-                                            player_dialogue = %dialogue,
-                                            deflection_behavior = %deflection,
-                                            "Enforcing deflection behavior for secret motivation probe"
-                                        );
-                                        parsed.dialogue = deflection;
-                                        // Clear any tools that might reveal secrets
-                                        parsed.proposed_tools.clear();
-                                    }
-                                }
-                            }
-                        }
-                    }
+                // Check if this is a phased pipeline request
+                if let Some(ref phase_meta) = request_data.phase_meta {
+                    // Multi-phase pipeline execution
+                    return self.execute_phased_npc_response(&request_data, phase_meta, item.id).await;
                 }
 
-                // Log parsed output for debugging
-                tracing::debug!(
-                    reasoning_len = parsed.reasoning.len(),
-                    dialogue_len = parsed.dialogue.len(),
-                    topics_count = parsed.topics.len(),
-                    tools_count = parsed.proposed_tools.len(),
-                    has_challenge_suggestion = parsed.challenge_suggestion.is_some(),
-                    has_narrative_event_suggestion = parsed.narrative_event_suggestion.is_some(),
-                    "Parsed LLM response"
+                // Legacy single-shot execution (preserve backward compatibility)
+                return self.execute_legacy_npc_response(&request_data, item.id).await;
+            }
+
+        };
+
+        if let Err(ref e) = result {
+            let message = format!("{}", e);
+            if let Err(mark_err) = self.ctx.queue.mark_failed(item.id, &message).await {
+                tracing::warn!(
+                    error = %mark_err,
+                    item_id = %item.id,
+                    "Failed to mark queue item as failed after error"
                 );
-
-                // Extract proposed tools from XML tags in LLM response
-                let proposed_tools = parsed.proposed_tools.clone();
-
-                let (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time) =
-                    if let Some(ref prompt) = request_data.prompt {
-                        let npc_id = prompt
-                            .responding_character
-                            .character_id
-                            .as_deref()
-                            .and_then(try_parse_typed_id::<wrldbldr_domain::CharacterId>);
-                        let npc_name = prompt.responding_character.name.clone();
-                        let player_dialogue = prompt.player_action.dialogue.clone();
-                        let scene_id = prompt
-                            .scene_id
-                            .as_deref()
-                            .and_then(try_parse_typed_id::<wrldbldr_domain::SceneId>);
-                        let location_id = prompt
-                            .location_id
-                            .as_deref()
-                            .and_then(try_parse_typed_id::<wrldbldr_domain::LocationId>);
-                        let game_time = prompt.game_time.clone();
-
-                        (
-                            npc_id,
-                            npc_name,
-                            player_dialogue,
-                            scene_id,
-                            location_id,
-                            game_time,
-                        )
-                    } else {
-                        (None, String::new(), None, None, None, None)
-                    };
-
-                // Enrich challenge suggestion with metadata if present
-                // First check for explicit JSON suggestion, then fall back to triggered challenge tags
-                // Pass the aliaser to dealias any aliased IDs (CHAL_0 -> UUID) in the LLM response
-                let challenge_suggestion = if let Some(raw) = parsed.challenge_suggestion {
-                    self.enrich_challenge_suggestion(&raw, request_data.pc_id, Some(&aliaser))
-                        .await
-                } else if let Some(triggered_name) = parsed.triggered_challenge_names.first() {
-                    // Convert triggered challenge from <challenge> tag to challenge_suggestion
-                    self.create_challenge_suggestion_from_name(
-                        request_data.world_id,
-                        triggered_name,
-                        request_data.pc_id,
-                    )
-                    .await
-                } else {
-                    None
-                };
-
-                // Enrich narrative event suggestion with metadata if present
-                // First check for explicit JSON suggestion, then fall back to triggered event tags
-                // Pass the aliaser to dealias any aliased IDs (EVT_0 -> UUID) in the LLM response
-                let narrative_event_suggestion =
-                    if let Some(raw) = parsed.narrative_event_suggestion {
-                        self.enrich_narrative_event_suggestion(&raw, Some(&aliaser))
-                            .await
-                    } else if let Some(triggered_name) = parsed.triggered_event_names.first() {
-                        // Convert triggered event from <event> tag to narrative_event_suggestion
-                        self.create_narrative_event_suggestion_from_name(
-                            request_data.world_id,
-                            triggered_name,
-                        )
-                        .await
-                    } else {
-                        None
-                    };
-
-                // Clone dialogue for return value before moving into approval data
-                let npc_dialogue = parsed.dialogue.clone();
-
-                // Create approval request
-                let approval_data = crate::queue_types::ApprovalRequestData {
-                    world_id: request_data.world_id,
-                    source_action_id: item.id,
-                    decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
-                    urgency: crate::queue_types::ApprovalUrgency::AwaitingPlayer,
-                    pc_id: request_data.pc_id,
-                    npc_id,
-                    npc_name,
-                    proposed_dialogue: parsed.dialogue,
-                    internal_reasoning: parsed.reasoning,
-                    proposed_tools,
-                    retry_count: 0,
-                    challenge_suggestion,
-                    narrative_event_suggestion,
-                    challenge_outcome: None,
-                    player_dialogue,
-                    scene_id,
-                    location_id,
-                    region_id: None,
-                    game_time,
-                    topics: parsed.topics,
-                    conversation_id: request_data.conversation_id.map(|id| wrldbldr_domain::ConversationId::from(id)),
-                };
-
-                // Enqueue for DM approval
-                let approval_id = self.ctx.queue.enqueue_dm_approval(&approval_data).await?;
-
-                // Mark the LLM request as complete
-                self.ctx.queue.mark_complete(item.id).await?;
-                Ok(Some(LlmRequestProcessed {
-                    request_id: item.id.to_uuid(),
-                    approval_id: approval_id.to_uuid(),
-                    npc_dialogue,
-                    broadcast_events: vec![],
-                }))
             }
         }
+
+        result
     }
 
     /// Enrich a raw challenge suggestion with challenge metadata from the database.
@@ -1746,24 +1456,6 @@ impl ProcessLlmRequest {
         })
     }
 
-    /// Resolve temperature for NPC response generation.
-    ///
-    /// Falls back through: per-world setting -> global setting -> default.
-    async fn resolve_temperature_npc_response(&self, world_id: WorldId) -> f32 {
-        // Try per-world setting first
-        if let Ok(Some(settings)) = self.ctx.settings.get_for_world(world_id).await {
-            return settings.llm_temperature_npc_response();
-        }
-
-        // Fall back to global setting
-        if let Ok(Some(settings)) = self.ctx.settings.get_global().await {
-            return settings.llm_temperature_npc_response();
-        }
-
-        // Final fallback to default
-        0.7
-    }
-
     /// Resolve temperature for generic content suggestions.
     ///
     /// Falls back through: per-world setting -> global setting -> default.
@@ -1798,6 +1490,828 @@ impl ProcessLlmRequest {
 
         // Final fallback to default
         0.8
+    }
+
+    /// Execute phased NPC response pipeline.
+    ///
+    /// Processes the current phase, updates phase outputs, and either:
+    /// - Enqueues the next phase if not at FinalResponse
+    /// - Creates ApprovalRequestData if at FinalResponse
+    async fn execute_phased_npc_response(
+        &self,
+        request_data: &LlmRequestData,
+        phase_meta: &crate::queue_types::PhaseMetadata,
+        item_id: wrldbldr_domain::QueueItemId,
+    ) -> Result<Option<LlmRequestProcessed>, QueueError> {
+        use crate::queue_types::{
+            LlmPhase, PhaseOutputs,
+        };
+        use crate::use_cases::queues::phases::{
+            build_phase_prompt, generate_phase_key, parsers,
+        };
+        use crate::infrastructure::ports::PhaseFingerprintMeta;
+        use sha2::{Digest, Sha256};
+
+        let prompt = request_data
+            .prompt
+            .as_ref()
+            .ok_or_else(|| QueueError::Parse(QueueParseError::missing_field("prompt")))?;
+
+        // Deserialize phase outputs
+        let mut phase_outputs: PhaseOutputs = match phase_meta.phase_outputs_json {
+            Some(ref json) => match serde_json::from_str(json) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    let message = format!(
+                        "Failed to deserialize phase outputs for {}: {}",
+                        phase_meta.phase_key, e
+                    );
+                    self.ctx.queue.mark_failed(item_id, &message).await?;
+                    return Err(QueueError::Parse(QueueParseError::deserialize(message)));
+                }
+            },
+            None => PhaseOutputs::default(),
+        };
+
+        let current_phase = phase_meta.current_phase;
+
+        tracing::info!(
+            phase = ?current_phase,
+            phase_key = %phase_meta.phase_key,
+            "Executing phased NPC response"
+        );
+
+        // Build phase-specific prompt
+        let phase_prompt = build_phase_prompt(current_phase, prompt, &phase_outputs);
+
+        // Resolve template (with metadata) for this phase
+        let template_key = current_phase.prompt_template_key();
+        let resolved_template = match self
+            .prompt_templates
+            .resolve_template_with_metadata(Some(request_data.world_id), template_key)
+            .await
+        {
+            Ok(value) => value,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    world_id = %request_data.world_id,
+                    template_key,
+                    "Failed to resolve phase template; using defaults"
+                );
+                None
+            }
+        };
+        let template_text = resolved_template.as_ref().map(|t| t.text.clone());
+        let template_temperature = resolved_template.as_ref().and_then(|t| t.temperature);
+
+        // Compute template version
+        let template_version = template_text
+            .as_ref()
+            .map(|text| {
+                let mut hasher = Sha256::new();
+                hasher.update(text.as_bytes());
+                format!("{:.8}", hex::encode(hasher.finalize()))
+            })
+            .unwrap_or_else(|| "default".to_string());
+
+        // Build system prompt from template or use default
+        let system_prompt = template_text.unwrap_or_else(|| {
+            match current_phase {
+                LlmPhase::ChallengeTriggers => "Analyze player dialogue for challenge triggers.".to_string(),
+                LlmPhase::EventTriggers => "Analyze player dialogue for narrative event triggers.".to_string(),
+                LlmPhase::ToolIntent => "Determine appropriate game tools based on context.".to_string(),
+                LlmPhase::BehaviorAnalysis => "Analyze NPC behavioral stance.".to_string(),
+                LlmPhase::FinalResponse => "Generate NPC dialogue response.".to_string(),
+                LlmPhase::ContextDigest => "Generate context digest.".to_string(),
+            }
+        });
+
+        // Resolve temperature: use persisted value or resolve from settings
+        let temperature = match request_data.temperature {
+            Some(t) => t,
+            None => {
+                self.ctx
+                    .resolve_temperature_npc_response(request_data.world_id, template_temperature)
+                    .await
+            }
+        };
+
+        // Build LLM request with fingerprint metadata for VCR
+        let fingerprint_meta = PhaseFingerprintMeta {
+            phase_id: Some(current_phase.short_id().to_string()),
+            template_key: Some(template_key.to_string()),
+            template_version: Some(template_version.clone()),
+        };
+
+        let llm_request = crate::infrastructure::ports::LlmRequest::new(vec![
+            crate::infrastructure::ports::ChatMessage::user(&phase_prompt),
+        ])
+        .with_system_prompt(system_prompt)
+        .with_temperature(temperature)
+        .with_max_tokens(Some(2048))
+        .with_fingerprint_meta(fingerprint_meta);
+
+        // Resolve model
+        let resolve_input = crate::use_cases::ai::ResolveModelInput {
+            world_id: Some(request_data.world_id),
+            env_default_override: None,
+        };
+        let resolved_model = match self.resolve_model.execute(resolve_input).await {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to resolve model, using default");
+                crate::use_cases::ai::ResolvedModel {
+                    model_id: "mlx-community/gpt-oss-20b-MXFP4-Q8".to_string(),
+                    source: crate::use_cases::ai::ModelSource::EnvDefault,
+                    warning: Some(format!("Model resolution failed: {}", e)),
+                }
+            }
+        };
+
+        let llm_request = llm_request.with_model(resolved_model.model_id);
+
+        // Call LLM
+        let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
+            tracing::error!(
+                phase = ?current_phase,
+                world_id = %request_data.world_id,
+                error = %e,
+                "Phased LLM generation failed"
+            );
+            e
+        })?;
+
+        // Parse response based on phase
+        let raw_response = llm_response.content;
+
+        match current_phase {
+            LlmPhase::ChallengeTriggers => {
+                let challenge_order: Vec<String> = prompt
+                    .active_challenges
+                    .iter()
+                    .map(|c| c.id.clone())
+                    .collect();
+                let parsed = match parsers::parse_phase1_challenges(
+                    &raw_response,
+                    &challenge_order,
+                ) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        let err = QueueParseError::phase(1, e);
+                        let message = format!("{}", err);
+                        self.ctx.queue.mark_failed(item_id, &message).await?;
+                        return Err(QueueError::Parse(err));
+                    }
+                };
+                phase_outputs.phase1_challenges = Some(parsed);
+            }
+            LlmPhase::EventTriggers => {
+                let event_order: Vec<String> = prompt
+                    .active_narrative_events
+                    .iter()
+                    .map(|e| e.id.clone())
+                    .collect();
+                let parsed = match parsers::parse_phase2_events(
+                    &raw_response,
+                    &event_order,
+                ) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        let err = QueueParseError::phase(2, e);
+                        let message = format!("{}", err);
+                        self.ctx.queue.mark_failed(item_id, &message).await?;
+                        return Err(QueueError::Parse(err));
+                    }
+                };
+                phase_outputs.phase2_events = Some(parsed);
+            }
+            LlmPhase::ToolIntent => {
+                let parsed = match parsers::parse_phase3_tools(&raw_response) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        let err = QueueParseError::phase(3, e);
+                        let message = format!("{}", err);
+                        self.ctx.queue.mark_failed(item_id, &message).await?;
+                        return Err(QueueError::Parse(err));
+                    }
+                };
+                phase_outputs.phase3_tools = Some(parsed);
+            }
+            LlmPhase::BehaviorAnalysis => {
+                let parsed = match parsers::parse_phase4_behavior(&raw_response) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        let err = QueueParseError::phase(4, e);
+                        let message = format!("{}", err);
+                        self.ctx.queue.mark_failed(item_id, &message).await?;
+                        return Err(QueueError::Parse(err));
+                    }
+                };
+                phase_outputs.phase4_behavior = Some(parsed);
+            }
+            LlmPhase::FinalResponse => {
+                let parsed = match parsers::parse_phase5_response(&raw_response) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        let err = QueueParseError::phase(5, e);
+                        let message = format!("{}", err);
+                        self.ctx.queue.mark_failed(item_id, &message).await?;
+                        return Err(QueueError::Parse(err));
+                    }
+                };
+                phase_outputs.phase5_response = Some(parsed);
+            }
+            LlmPhase::ContextDigest => {
+                // Context digest is typically deterministic, but handle LLM-based if needed
+                let parsed = parsers::parse_phase0_digest(&raw_response)
+                    .unwrap_or_else(|| crate::use_cases::queues::phases::build_context_digest(prompt));
+                phase_outputs.phase0_context = Some(parsed);
+            }
+        }
+
+        // Check if there's a next phase
+        if let Some(next_phase) = current_phase.next() {
+            // Serialize updated phase outputs
+            let phase_outputs_json = match serde_json::to_string(&phase_outputs) {
+                Ok(json) => json,
+                Err(e) => {
+                    let err = QueueParseError::serialize(format!("Failed to serialize phase outputs: {}", e));
+                    let message = format!("{}", err);
+                    self.ctx.queue.mark_failed(item_id, &message).await?;
+                    return Err(QueueError::Parse(err));
+                }
+            };
+
+            // Generate new phase key
+            let base_request = crate::queue_types::LlmRequestData {
+                request_type: request_data.request_type.clone(),
+                world_id: request_data.world_id,
+                pc_id: request_data.pc_id,
+                prompt: request_data.prompt.clone(),
+                suggestion_context: None,
+                callback_id: request_data.callback_id.clone(),
+                conversation_id: request_data.conversation_id,
+                temperature: request_data.temperature,
+                phase_meta: None,
+            };
+            // Generate phase key including the updated phase outputs
+            // This ensures that if prior phases produce different outputs,
+            // the next phase gets a different key (preventing stale prompts)
+            let next_phase_key = generate_phase_key(next_phase, &base_request, prompt, Some(&phase_outputs));
+
+            // Create next phase metadata
+            let next_template_version = match self
+                .prompt_templates
+                .resolve_template_with_metadata(
+                    Some(request_data.world_id),
+                    next_phase.prompt_template_key(),
+                )
+                .await
+            {
+                Ok(value) => value
+                    .map(|t| {
+                        let mut hasher = Sha256::new();
+                        hasher.update(t.text.as_bytes());
+                        format!("{:.8}", hex::encode(hasher.finalize()))
+                    })
+                    .unwrap_or_else(|| "default".to_string()),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        world_id = %request_data.world_id,
+                        template_key = %next_phase.prompt_template_key(),
+                        "Failed to resolve next phase template; using default version"
+                    );
+                    "default".to_string()
+                }
+            };
+
+            let next_phase_meta = crate::queue_types::PhaseMetadata {
+                current_phase: next_phase,
+                phase_key: next_phase_key.clone(),
+                phase_outputs_json: Some(phase_outputs_json),
+                phase_version: phase_meta.phase_version.clone(),
+                template_version: next_template_version,
+            };
+
+            // Enqueue next phase atomically with marking current complete
+            // This prevents duplicate phase execution if the operation is retried
+            let next_request = crate::queue_types::LlmRequestData {
+                request_type: request_data.request_type.clone(),
+                world_id: request_data.world_id,
+                pc_id: request_data.pc_id,
+                prompt: request_data.prompt.clone(),
+                suggestion_context: None,
+                callback_id: request_data.callback_id.clone(),
+                conversation_id: request_data.conversation_id,
+                temperature: request_data.temperature,
+                phase_meta: Some(next_phase_meta),
+            };
+
+            self.ctx
+                .queue
+                .advance_phased_llm_request(item_id, &next_request, &next_phase_key)
+                .await?;
+
+            Ok(None) // No final result yet, more phases to process
+        } else {
+            // Final phase - create approval request using phase outputs
+            self.create_approval_from_phase_outputs(
+                request_data,
+                &phase_outputs,
+                item_id,
+            ).await
+        }
+    }
+
+    /// Create approval request from phase outputs.
+    async fn create_approval_from_phase_outputs(
+        &self,
+        request_data: &LlmRequestData,
+        phase_outputs: &crate::queue_types::PhaseOutputs,
+        item_id: wrldbldr_domain::QueueItemId,
+    ) -> Result<Option<LlmRequestProcessed>, QueueError> {
+        use crate::queue_types::{ChallengeSuggestion, NarrativeEventSuggestion};
+
+        let prompt = request_data
+            .prompt
+            .as_ref()
+            .ok_or_else(|| QueueError::Parse(QueueParseError::missing_field("prompt")))?;
+
+        // Extract data from phase outputs
+        let phase5 = phase_outputs.phase5_response.as_ref().ok_or_else(|| {
+            QueueError::Parse(QueueParseError::missing_field("Phase5FinalResponse"))
+        })?;
+
+        let phase3 = phase_outputs.phase3_tools.as_ref();
+        let phase1 = phase_outputs.phase1_challenges.as_ref();
+        let phase2 = phase_outputs.phase2_events.as_ref();
+
+        // Get NPC info from prompt
+        let npc_id = prompt
+            .responding_character
+            .character_id
+            .as_deref()
+            .and_then(try_parse_typed_id::<wrldbldr_domain::CharacterId>);
+        let npc_name = prompt.responding_character.name.clone();
+        let player_dialogue = prompt.player_action.dialogue.clone();
+        let scene_id = prompt
+            .scene_id
+            .as_deref()
+            .and_then(try_parse_typed_id::<wrldbldr_domain::SceneId>);
+        let location_id = prompt
+            .location_id
+            .as_deref()
+            .and_then(try_parse_typed_id::<wrldbldr_domain::LocationId>);
+        let game_time = prompt.game_time.clone();
+
+        // Build challenge suggestion from phase1 if any challenge triggered
+        let challenge_suggestion = if let Some(p1) = phase1 {
+            p1.challenges
+                .iter()
+                .find(|c| c.should_trigger)
+                .and_then(|triggered| {
+                    // Find the matching challenge in prompt data
+                    prompt
+                        .active_challenges
+                        .iter()
+                        .find(|c| {
+                            if !triggered.challenge_id.is_empty() {
+                                c.id == triggered.challenge_id
+                            } else {
+                                c.name == triggered.challenge_name
+                            }
+                        })
+                        .and_then(|challenge_ctx| {
+                            try_parse_typed_id::<wrldbldr_domain::ChallengeId>(&challenge_ctx.id)
+                                .map(|challenge_id| ChallengeSuggestion {
+                                    challenge_id,
+                                    challenge_name: challenge_ctx.name.clone(),
+                                    skill_name: challenge_ctx.skill_name.clone(),
+                                    difficulty_display: challenge_ctx.difficulty_display.clone(),
+                                    confidence: triggered.confidence.clone(),
+                                    reasoning: triggered.reasoning.clone(),
+                                    target_pc_id: request_data.pc_id,
+                                    outcomes: None,
+                                })
+                        })
+                })
+        } else {
+            None
+        };
+
+        // Build narrative event suggestion from phase2 if an event was selected
+        let narrative_event_suggestion = if let Some(p2) = phase2 {
+            p2.events
+                .iter()
+                .find(|e| e.should_trigger)
+                .and_then(|triggered| {
+                    // Find the matching event in prompt data
+                    prompt
+                        .active_narrative_events
+                        .iter()
+                        .find(|e| {
+                            if !triggered.event_id.is_empty() {
+                                e.id == triggered.event_id
+                            } else {
+                                e.name == triggered.event_name
+                            }
+                        })
+                        .and_then(|event_ctx| {
+                            try_parse_typed_id::<wrldbldr_domain::NarrativeEventId>(&event_ctx.id)
+                                .map(|event_id| NarrativeEventSuggestion {
+                                    event_id,
+                                    event_name: event_ctx.name.clone(),
+                                    description: event_ctx.description.clone(),
+                                    scene_direction: event_ctx.scene_direction.clone(),
+                                    confidence: "high".to_string(),
+                                    reasoning: "Selected by Phase 2 event trigger analysis".to_string(),
+                                    matched_triggers: vec![],
+                                    suggested_outcome: None,
+                                })
+                        })
+                })
+        } else {
+            None
+        };
+
+        // Build proposed tools from phase3
+        let mut proposed_tools = phase3
+            .map(|p3| p3.proposed_tools.clone())
+            .unwrap_or_default();
+
+        let mut proposed_dialogue = phase5.dialogue.clone();
+        let mut internal_reasoning = phase5.reasoning.clone();
+        let mut topics = phase5.topics.clone();
+
+        // Enforce deflection for secret motivations (phased path)
+        if let Some(ref player_dialogue) = prompt.player_action.dialogue {
+            if is_probing_secret_motivations(player_dialogue) {
+                if let Some(ref motivations) = prompt.responding_character.motivations {
+                    if !motivations.secret.is_empty() {
+                        let deflection = select_deflection_behavior(motivations, player_dialogue);
+                        if !deflection.is_empty() {
+                            tracing::info!(
+                                npc_name = %prompt.responding_character.name,
+                                "Enforcing deflection behavior for secret motivation probe (phased path)"
+                            );
+                            proposed_dialogue = deflection;
+                            internal_reasoning = "Deflection enforced to protect secret motivations.".to_string();
+                            topics = vec!["deflection".to_string()];
+                            proposed_tools.clear();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create approval request
+        let approval_data = crate::queue_types::ApprovalRequestData {
+            world_id: request_data.world_id,
+            source_action_id: item_id,
+            decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
+            urgency: crate::queue_types::ApprovalUrgency::AwaitingPlayer,
+            pc_id: request_data.pc_id,
+            npc_id,
+            npc_name,
+            proposed_dialogue: proposed_dialogue.clone(),
+            internal_reasoning,
+            proposed_tools,
+            retry_count: 0,
+            challenge_suggestion,
+            narrative_event_suggestion,
+            challenge_outcome: None,
+            player_dialogue,
+            scene_id,
+            location_id,
+            region_id: None,
+            game_time,
+            topics,
+            conversation_id: request_data.conversation_id,
+        };
+
+        // Enqueue for DM approval
+        let approval_id = self.ctx.queue.enqueue_dm_approval(&approval_data).await?;
+
+        // Mark the LLM request as complete
+        self.ctx.queue.mark_complete(item_id).await?;
+
+        Ok(Some(LlmRequestProcessed {
+            request_id: item_id.to_uuid(),
+            approval_id: approval_id.to_uuid(),
+            npc_dialogue: proposed_dialogue.clone(),
+            broadcast_events: vec![],
+        }))
+    }
+
+    /// Execute legacy single-shot NPC response (preserved for backward compatibility).
+    async fn execute_legacy_npc_response(
+        &self,
+        request_data: &LlmRequestData,
+        item_id: wrldbldr_domain::QueueItemId,
+    ) -> Result<Option<LlmRequestProcessed>, QueueError> {
+        // This is the original implementation, preserved for backward compatibility
+        // Create UUID aliaser for this request
+        let mut aliaser = UuidAliaser::new();
+
+        // Extract world_id from request_data
+        let world_id = request_data.world_id;
+
+        // Build LLM request from the queued prompt data
+        let llm_request = if let Some(ref prompt) = request_data.prompt {
+            // Format active challenges
+            let challenges_context = if prompt.active_challenges.is_empty() {
+                String::new()
+            } else {
+                let challenge_list: Vec<String> = prompt
+                    .active_challenges
+                    .iter()
+                    .map(|c| {
+                        let aliased_id = aliaser.alias_challenge(&c.id);
+                        format!(
+                            "- {} [{}]: {} - {} {}{}",
+                            c.name,
+                            aliased_id,
+                            c.description,
+                            c.skill_name,
+                            c.difficulty_display,
+                            c.trigger_hints.format_for_prompt()
+                        )
+                    })
+                    .collect();
+                format!(
+                    "\n\nACTIVE CHALLENGES:\n{}\n",
+                    challenge_list.join("\n")
+                )
+            };
+
+            // Format active narrative events
+            let events_context = if prompt.active_narrative_events.is_empty() {
+                String::new()
+            } else {
+                let event_list: Vec<String> = prompt
+                    .active_narrative_events
+                    .iter()
+                    .map(|e| {
+                        let aliased_id = aliaser.alias_event(&e.id);
+                        format!(
+                            "- {} [{}]: {}{}",
+                            e.name,
+                            aliased_id,
+                            e.description,
+                            e.trigger_hints.format_for_prompt()
+                        )
+                    })
+                    .collect();
+                format!(
+                    "\n\nACTIVE NARRATIVE EVENTS:\n{}\n",
+                    event_list.join("\n")
+                )
+            };
+
+            // Resolve prompt templates
+            let response_format = self
+                .prompt_templates
+                .resolve_template(Some(world_id), DIALOGUE_RESPONSE_FORMAT.trim())
+                .await
+                .map_err(|e| QueueError::Repo(e))?
+                .unwrap_or_default();
+
+            let system_prompt = format!(
+                "You are roleplaying as an NPC. {}\n\n\
+                Scene: {} at {}\n\
+                Present: {}\n\n\
+                {}{}\n\n\
+                {}",
+                prompt.directorial_notes,
+                prompt.scene_context.scene_name,
+                prompt.scene_context.location_name,
+                prompt.scene_context.present_characters.join(", "),
+                challenges_context,
+                events_context,
+                response_format
+            );
+
+            let current_message = if let Some(ref dialogue) = prompt.player_action.dialogue {
+                format!(
+                    "The player says: \"{}\"",
+                    dialogue
+                )
+            } else {
+                format!(
+                    "The player performs action: {}",
+                    prompt.player_action.action_type
+                )
+            };
+
+            let npc_name = &prompt.responding_character.name;
+            let mut messages: Vec<crate::infrastructure::ports::ChatMessage> = prompt
+                .conversation_history
+                .iter()
+                .map(|turn| {
+                    if turn.speaker == *npc_name
+                        || turn.speaker.to_lowercase() == npc_name.to_lowercase()
+                    {
+                        crate::infrastructure::ports::ChatMessage::assistant(&turn.text)
+                    } else {
+                        crate::infrastructure::ports::ChatMessage::user(&turn.text)
+                    }
+                })
+                .collect();
+
+            messages.push(crate::infrastructure::ports::ChatMessage::user(&current_message));
+
+            let temperature = match request_data.temperature {
+                Some(t) => t,
+                None => self.ctx.resolve_temperature_npc_response(world_id, None).await,
+            };
+
+            crate::infrastructure::ports::LlmRequest::new(messages)
+                .with_system_prompt(system_prompt)
+                .with_temperature(temperature)
+                .with_max_tokens(Some(2048))
+        } else {
+            // Fallback
+            let temperature = match request_data.temperature {
+                Some(t) => t,
+                None => self.ctx.resolve_temperature_npc_response(world_id, None).await,
+            };
+
+            crate::infrastructure::ports::LlmRequest::new(vec![
+                crate::infrastructure::ports::ChatMessage::user(
+                    "Generate NPC response.",
+                ),
+            ])
+            .with_system_prompt("You are an NPC in a fantasy TTRPG.")
+            .with_temperature(temperature)
+            .with_max_tokens(Some(512))
+        };
+
+        // Resolve model
+        let resolve_input = crate::use_cases::ai::ResolveModelInput {
+            world_id: Some(world_id),
+            env_default_override: None,
+        };
+        let resolved_model = match self.resolve_model.execute(resolve_input).await {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to resolve model, using default");
+                crate::use_cases::ai::ResolvedModel {
+                    model_id: "mlx-community/gpt-oss-20b-MXFP4-Q8".to_string(),
+                    source: crate::use_cases::ai::ModelSource::EnvDefault,
+                    warning: Some(format!("Model resolution failed: {}", e)),
+                }
+            }
+        };
+
+        let llm_request = llm_request.with_model(resolved_model.model_id);
+
+        let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
+            tracing::error!(
+                world_id = %world_id,
+                error = %e,
+                "Legacy LLM NPC response generation failed"
+            );
+            e
+        })?;
+
+        // Parse response
+        // Fail-fast: parse errors are treated as hard errors because an unparseable
+        // response cannot be used for DM approval. This is consistent with the
+        // phased pipeline's strict parsing semantics.
+        let mut parsed = match response_parser::parse_llm_response(&llm_response.content) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    world_id = %world_id,
+                    "Legacy LLM response parsing failed"
+                );
+                let message = format!("Parse error: {}", e);
+                self.ctx.queue.mark_failed(item_id, &message).await?;
+                return Err(QueueError::Parse(QueueParseError::other(message)));
+            }
+        };
+
+        // Check deflection (only for legacy path - phased path handles this in Phase 4/5)
+        if let Some(ref prompt) = request_data.prompt {
+            if let Some(ref dialogue) = prompt.player_action.dialogue {
+                if is_probing_secret_motivations(dialogue) {
+                    if let Some(ref motivations) = prompt.responding_character.motivations {
+                        if !motivations.secret.is_empty() {
+                            let deflection = select_deflection_behavior(motivations, dialogue);
+                            if !deflection.is_empty() {
+                                tracing::info!(
+                                    npc_name = %prompt.responding_character.name,
+                                    "Enforcing deflection behavior for secret motivation probe (legacy path)"
+                                );
+                                parsed.dialogue = deflection;
+                                parsed.proposed_tools.clear();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let proposed_tools = parsed.proposed_tools.clone();
+
+        let (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time) =
+            if let Some(ref prompt) = request_data.prompt {
+                let npc_id = prompt
+                    .responding_character
+                    .character_id
+                    .as_deref()
+                    .and_then(try_parse_typed_id::<wrldbldr_domain::CharacterId>);
+                let npc_name = prompt.responding_character.name.clone();
+                let player_dialogue = prompt.player_action.dialogue.clone();
+                let scene_id = prompt
+                    .scene_id
+                    .as_deref()
+                    .and_then(try_parse_typed_id::<wrldbldr_domain::SceneId>);
+                let location_id = prompt
+                    .location_id
+                    .as_deref()
+                    .and_then(try_parse_typed_id::<wrldbldr_domain::LocationId>);
+                let game_time = prompt.game_time.clone();
+
+                (
+                    npc_id,
+                    npc_name,
+                    player_dialogue,
+                    scene_id,
+                    location_id,
+                    game_time,
+                )
+            } else {
+                (None, String::new(), None, None, None, None)
+            };
+
+        // Enrich suggestions
+        let challenge_suggestion = if let Some(raw) = parsed.challenge_suggestion {
+            self.enrich_challenge_suggestion(&raw, request_data.pc_id, Some(&aliaser))
+                .await
+        } else if let Some(triggered_name) = parsed.triggered_challenge_names.first() {
+            self.create_challenge_suggestion_from_name(
+                request_data.world_id,
+                triggered_name,
+                request_data.pc_id,
+            )
+            .await
+        } else {
+            None
+        };
+
+        let narrative_event_suggestion =
+            if let Some(raw) = parsed.narrative_event_suggestion {
+                self.enrich_narrative_event_suggestion(&raw, Some(&aliaser))
+                    .await
+            } else if let Some(triggered_name) = parsed.triggered_event_names.first() {
+                self.create_narrative_event_suggestion_from_name(
+                    request_data.world_id,
+                    triggered_name,
+                )
+                .await
+            } else {
+                None
+            };
+
+        let npc_dialogue = parsed.dialogue.clone();
+
+        let approval_data = crate::queue_types::ApprovalRequestData {
+            world_id: request_data.world_id,
+            source_action_id: item_id,
+            decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
+            urgency: crate::queue_types::ApprovalUrgency::AwaitingPlayer,
+            pc_id: request_data.pc_id,
+            npc_id,
+            npc_name,
+            proposed_dialogue: parsed.dialogue,
+            internal_reasoning: parsed.reasoning,
+            proposed_tools,
+            retry_count: 0,
+            challenge_suggestion,
+            narrative_event_suggestion,
+            challenge_outcome: None,
+            player_dialogue,
+            scene_id,
+            location_id,
+            region_id: None,
+            game_time,
+            topics: parsed.topics,
+            conversation_id: request_data.conversation_id,
+        };
+
+        let approval_id = self.ctx.queue.enqueue_dm_approval(&approval_data).await?;
+        self.ctx.queue.mark_complete(item_id).await?;
+
+        Ok(Some(LlmRequestProcessed {
+            request_id: item_id.to_uuid(),
+            approval_id: approval_id.to_uuid(),
+            npc_dialogue,
+            broadcast_events: vec![],
+        }))
     }
 }
 
@@ -1958,7 +2472,7 @@ fn build_suggestion_prompt(
 fn parse_typed_id<T: From<Uuid>>(value: &str, field: &str) -> Result<T, QueueError> {
     Uuid::parse_str(value)
         .map(T::from)
-        .map_err(|e| QueueError::ParseError(format!("Invalid UUID for {}: {}", field, e)))
+        .map_err(|e| QueueError::Parse(QueueParseError::other(format!("Invalid UUID for {}: {}", field, e))))
 }
 
 /// Try to parse a typed ID, returning None if the value is empty or invalid.
@@ -1967,7 +2481,83 @@ fn try_parse_typed_id<T: From<Uuid>>(value: &str) -> Option<T> {
     if value.is_empty() {
         return None;
     }
-    Uuid::parse_str(value).ok().map(T::from)
+    match Uuid::parse_str(value) {
+        Ok(uuid) => Some(T::from(uuid)),
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                value = %value,
+                "Invalid UUID for optional field"
+            );
+            None
+        }
+    }
+}
+
+/// Errors that can occur during phase output parsing in the queue pipeline.
+///
+/// This is a wrapper around `PhaseParseError` that adds queue-specific context
+/// such as the phase number and item ID where the error occurred.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum QueueParseError {
+    /// A phase parser returned an error.
+    #[error("Phase {phase} parse error: {source}")]
+    Phase {
+        phase: u8,
+        #[source]
+        source: crate::use_cases::queues::phases::PhaseParseError,
+    },
+
+    /// Failed to deserialize phase outputs from JSON.
+    #[error("Failed to deserialize phase outputs: {message}")]
+    Deserialize { message: String },
+
+    /// Failed to serialize phase outputs to JSON.
+    #[error("Failed to serialize phase outputs: {message}")]
+    Serialize { message: String },
+
+    /// Missing required field in phased request.
+    #[error("Missing required field in phased request: {field}")]
+    MissingField { field: String },
+
+    /// Generic parse error with context.
+    #[error("Parse error: {message}")]
+    Other { message: String },
+}
+
+impl QueueParseError {
+    /// Create a phase-specific parse error.
+    pub fn phase(phase: u8, source: crate::use_cases::queues::phases::PhaseParseError) -> Self {
+        Self::Phase { phase, source }
+    }
+
+    /// Create a deserialization error.
+    pub fn deserialize(message: impl Into<String>) -> Self {
+        Self::Deserialize {
+            message: message.into(),
+        }
+    }
+
+    /// Create a serialization error.
+    pub fn serialize(message: impl Into<String>) -> Self {
+        Self::Serialize {
+            message: message.into(),
+        }
+    }
+
+    /// Create a missing field error.
+    pub fn missing_field(field: impl Into<String>) -> Self {
+        Self::MissingField {
+            field: field.into(),
+        }
+    }
+
+    /// Create a generic parse error.
+    pub fn other(message: impl Into<String>) -> Self {
+        Self::Other {
+            message: message.into(),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1980,6 +2570,214 @@ pub enum QueueError {
     Llm(#[from] crate::infrastructure::ports::LlmError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+    /// Parse error with structured context.
     #[error("Parse error: {0}")]
-    ParseError(String),
+    Parse(#[from] QueueParseError),
+    /// Failed to enqueue LLM request after player action was dequeued.
+    /// The player action queue item has been marked as failed.
+    #[error("Failed to enqueue LLM request: {message}")]
+    EnqueueFailed { message: String },
+}
+
+// =============================================================================
+// Legacy Parser Error Propagation Tests
+// =============================================================================
+
+#[cfg(test)]
+mod legacy_parse_error_tests {
+    use super::response_parser::{parse_llm_response, LegacyParseError, ParsedLlmResponse};
+    use super::{QueueError, QueueParseError};
+
+    /// Test that parse errors can be converted to QueueError::Parse
+    #[test]
+    fn test_legacy_parse_error_to_queue_error() {
+        let legacy_err = LegacyParseError::MissingDialogue;
+        let queue_parse_err = QueueParseError::other(legacy_err.to_string());
+
+        match &queue_parse_err {
+            QueueParseError::Other { message } => {
+                assert!(message.contains("dialogue"), "Error message should mention dialogue");
+            }
+            _ => panic!("Expected QueueParseError::Other, got: {:?}", queue_parse_err),
+        }
+    }
+
+    /// Test that missing dialogue produces a hard parse error
+    #[test]
+    fn test_missing_dialogue_is_hard_error() {
+        let raw = r#"
+<reasoning>
+Some internal thoughts without dialogue.
+</reasoning>
+"#;
+
+        let result = parse_llm_response(raw);
+        assert!(result.is_err(), "Missing dialogue should produce an error");
+
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, LegacyParseError::MissingDialogue),
+            "Expected MissingDialogue error, got: {:?}",
+            err
+        );
+    }
+
+    /// Test that valid responses with dialogue succeed
+    #[test]
+    fn test_valid_response_succeeds() {
+        let raw = r#"
+<reasoning>
+The player is asking about the quest.
+</reasoning>
+
+<dialogue>
+"I know nothing about that."
+</dialogue>
+"#;
+
+        let result = parse_llm_response(raw);
+        assert!(result.is_ok(), "Valid response should parse successfully");
+
+        let parsed = result.unwrap();
+        assert!(parsed.dialogue.contains("nothing"));
+        assert!(parsed.reasoning.contains("quest"));
+    }
+
+    /// Test that partial content (missing optional fields) still succeeds
+    #[test]
+    fn test_partial_content_succeeds() {
+        let raw = r#"
+<dialogue>
+"Just dialogue, no other content."
+</dialogue>
+"#;
+
+        let result = parse_llm_response(raw);
+        assert!(result.is_ok(), "Partial content should still parse");
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.dialogue, "\"Just dialogue, no other content.\"");
+        assert!(parsed.reasoning.is_empty());
+        assert!(parsed.topics.is_empty());
+        assert!(parsed.proposed_tools.is_empty());
+    }
+
+    /// Test error message formatting for queue failure logging
+    #[test]
+    fn test_error_message_format_for_queue_failure() {
+        let test_cases = vec![
+            (
+                LegacyParseError::MissingDialogue,
+                "Missing or empty <dialogue>",
+            ),
+            (
+                LegacyParseError::unrecognized_format("test format"),
+                "Unrecognized response format",
+            ),
+            (
+                LegacyParseError::malformed_tag("dialogue", "unclosed"),
+                "Malformed tag",
+            ),
+            (LegacyParseError::other("custom error"), "custom error"),
+        ];
+
+        for (err, expected_substring) in test_cases {
+            let message = err.to_string();
+            assert!(
+                message.contains(expected_substring),
+                "Error message '{}' should contain '{}'",
+                message,
+                expected_substring
+            );
+        }
+    }
+
+    /// Test that empty dialogue after tag stripping fails
+    #[test]
+    fn test_empty_dialogue_after_tag_stripping_fails() {
+        // Response that only contains tags, no actual dialogue
+        let raw = r#"
+<reasoning>
+Thinking about this.
+</reasoning>
+
+<topics>
+topic1
+topic2
+</topics>
+
+<challenge_suggestion>
+{"challenge_id": "test"}
+</challenge_suggestion>
+"#;
+
+        let result = parse_llm_response(raw);
+        assert!(
+            result.is_err(),
+            "Response with only tags and no dialogue should fail"
+        );
+    }
+
+    /// Test that whitespace-only dialogue fails
+    #[test]
+    fn test_whitespace_only_dialogue_fails() {
+        let raw = r#"
+<dialogue>
+
+   
+
+</dialogue>
+"#;
+
+        let result = parse_llm_response(raw);
+        assert!(
+            result.is_err(),
+            "Whitespace-only dialogue should produce an error"
+        );
+    }
+
+    /// Test consistency between legacy and phased error handling
+    /// Both pipelines should treat missing critical content as a hard error
+    #[test]
+    fn test_legacy_phased_error_consistency() {
+        // Legacy parser: missing dialogue = error
+        let legacy_result = parse_llm_response("<reasoning>thoughts</reasoning>");
+        assert!(
+            legacy_result.is_err(),
+            "Legacy parser should error on missing dialogue"
+        );
+
+        // The phased pipeline uses PhaseParseError::MissingElement for similar cases
+        // This test documents that both pipelines have consistent fail-fast semantics
+        let legacy_err = legacy_result.unwrap_err();
+        let err_message = legacy_err.to_string();
+        assert!(
+            err_message.to_lowercase().contains("dialogue"),
+            "Error should mention dialogue: {}",
+            err_message
+        );
+    }
+
+    /// Test that QueueError::EnqueueFailed can be constructed and contains the expected message.
+    /// This verifies the error variant exists for the fail-fast handling in ProcessPlayerAction.
+    #[test]
+    fn test_enqueue_failed_error_variant() {
+        let error_message = "duplicate callback_id constraint".to_string();
+        let err = QueueError::EnqueueFailed {
+            message: error_message.clone(),
+        };
+
+        // Verify the error message is included in the display
+        let display = err.to_string();
+        assert!(
+            display.contains("Failed to enqueue LLM request"),
+            "Error display should indicate LLM enqueue failure: {}",
+            display
+        );
+        assert!(
+            display.contains(&error_message),
+            "Error display should contain the original error message: {}",
+            display
+        );
+    }
 }

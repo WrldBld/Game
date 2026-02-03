@@ -24,6 +24,8 @@ pub struct LlmRuntime {
     base_url: String,
     /// The effective model (used as fallback when request doesn't specify)
     model: String,
+    /// The API key for authenticated requests (if configured)
+    api_key: Option<String>,
 }
 
 impl LlmRuntime {
@@ -39,6 +41,24 @@ impl LlmRuntime {
             models,
             base_url: base_url.into(),
             model: model.into(),
+            api_key: None,
+        }
+    }
+
+    /// Create a new LLM runtime with API key.
+    pub fn with_api_key(
+        llm: Arc<dyn LlmPort>,
+        models: Arc<dyn LlmModelsPort>,
+        base_url: impl Into<String>,
+        model: impl Into<String>,
+        api_key: Option<String>,
+    ) -> Self {
+        Self {
+            llm,
+            models,
+            base_url: base_url.into(),
+            model: model.into(),
+            api_key,
         }
     }
 
@@ -51,6 +71,7 @@ impl LlmRuntime {
     ) -> Self {
         let base_url = client.base_url().to_string();
         let model = client.model().to_string();
+        let api_key = client.api_key().map(String::from);
         let llm: Arc<dyn LlmPort> = Arc::new(ResilientLlmClient::new(client.clone(), retry_config));
         let models: Arc<dyn LlmModelsPort> = client;
 
@@ -59,6 +80,7 @@ impl LlmRuntime {
             models,
             base_url,
             model,
+            api_key,
         }
     }
 
@@ -80,6 +102,11 @@ impl LlmRuntime {
     /// Get the effective model.
     pub fn model(&self) -> &str {
         &self.model
+    }
+
+    /// Get the API key (if configured).
+    pub fn api_key(&self) -> Option<&str> {
+        self.api_key.as_deref()
     }
 }
 
@@ -125,5 +152,10 @@ impl LlmRuntimeHolder {
     /// Get the current model.
     pub fn model(&self) -> String {
         self.runtime.load().model().to_string()
+    }
+
+    /// Get the current API key (if configured).
+    pub fn api_key(&self) -> Option<String> {
+        self.runtime.load().api_key().map(String::from)
     }
 }

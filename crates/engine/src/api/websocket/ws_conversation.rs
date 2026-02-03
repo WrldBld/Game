@@ -527,7 +527,7 @@ pub(super) async fn handle_perform_interaction(
     let queue_depth = state
         .app
         .queue
-        .get_pending_count("player_action")
+        .get_pending_count(crate::queue_types::QueueType::PlayerAction)
         .await
         .unwrap_or(1);
 

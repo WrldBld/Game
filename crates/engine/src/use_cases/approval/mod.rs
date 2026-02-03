@@ -269,7 +269,23 @@ impl ApprovalDecisionFlow {
                     let player_dialogue = approval_data.player_dialogue.as_ref();
 
                     // Compute game_time in seconds from approval_data
-                    let game_time_seconds = approval_data.game_time.as_ref().and_then(|s| s.parse::<i64>().ok());
+                    let game_time_seconds = approval_data.game_time.as_ref().and_then(|s| {
+                        if s.trim().is_empty() {
+                            return None;
+                        }
+                        match s.parse::<i64>() {
+                            Ok(value) => Some(value),
+                            Err(e) => {
+                                tracing::warn!(
+                                    error = %e,
+                                    approval_id = %approval_id,
+                                    game_time = %s,
+                                    "Invalid game_time string in approval; dropping value"
+                                );
+                                None
+                            }
+                        }
+                    });
 
                     // Use conversation_id from approval_data (not result) to avoid double-fetch race
                     let conversation_id = approval_data.conversation_id;
@@ -550,6 +566,7 @@ mod tests {
     use crate::infrastructure::ports::{
         ClockPort, MockPlayerCharacterRepo, MockWorldRepo, QueuePort,
     };
+    use crate::queue_types::QueueType;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -586,7 +603,7 @@ mod tests {
             &self,
             _data: &crate::queue_types::PlayerActionData,
         ) -> Result<wrldbldr_domain::QueueItemId, crate::infrastructure::ports::QueueError> {
-            Err(crate::infrastructure::ports::QueueError::Error("not implemented".to_string()))
+            Err(crate::infrastructure::ports::QueueError::database("enqueue_player_action", "not implemented"))
         }
 
         async fn dequeue_player_action(&self) -> Result<Option<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
@@ -594,7 +611,7 @@ mod tests {
         }
 
         async fn enqueue_llm_request(&self, _data: &crate::queue_types::LlmRequestData) -> Result<wrldbldr_domain::QueueItemId, crate::infrastructure::ports::QueueError> {
-            Err(crate::infrastructure::ports::QueueError::Error("not implemented".to_string()))
+            Err(crate::infrastructure::ports::QueueError::database("enqueue_llm_request", "not implemented"))
         }
 
         async fn dequeue_llm_request(&self) -> Result<Option<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
@@ -616,7 +633,7 @@ mod tests {
             &self,
             _data: &crate::queue_types::AssetGenerationData,
         ) -> Result<wrldbldr_domain::QueueItemId, crate::infrastructure::ports::QueueError> {
-            Err(crate::infrastructure::ports::QueueError::Error("not implemented".to_string()))
+            Err(crate::infrastructure::ports::QueueError::database("enqueue_asset_generation", "not implemented"))
         }
 
         async fn dequeue_asset_generation(&self) -> Result<Option<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
@@ -631,13 +648,13 @@ mod tests {
             Ok(())
         }
 
-        async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, crate::infrastructure::ports::QueueError> {
+        async fn get_pending_count(&self, _queue_type: QueueType) -> Result<usize, crate::infrastructure::ports::QueueError> {
             Ok(0)
         }
 
         async fn list_by_type(
             &self,
-            _queue_type: &str,
+            _queue_type: QueueType,
             _limit: usize,
         ) -> Result<Vec<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
             Ok(vec![])
@@ -685,6 +702,16 @@ mod tests {
 
         async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, crate::infrastructure::ports::QueueError> {
             Ok(false)
+        }
+
+        async fn advance_phased_llm_request(
+            &self,
+            _item_id: wrldbldr_domain::QueueItemId,
+            _next_request: &crate::queue_types::LlmRequestData,
+            _phase_key: &str,
+        ) -> Result<wrldbldr_domain::QueueItemId, crate::infrastructure::ports::QueueError> {
+            // Simple mock: just mark complete and return a new ID
+            Ok(wrldbldr_domain::QueueItemId::new())
         }
     }
 

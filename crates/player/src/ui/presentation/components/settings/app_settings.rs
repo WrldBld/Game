@@ -403,6 +403,34 @@ pub fn AppSettingsPanel() -> Element {
                         }
                     }
 
+                    // LLM Connection Settings
+                    SettingsSection {
+                        title: "LLM Connection",
+                        description: "Connection settings for OpenAI-compatible LLM providers",
+
+                        TextField {
+                            label: "LLM Base URL",
+                            description: "Base URL for the LLM provider (e.g., http://localhost:11434 for Ollama, https://api.openai.com for OpenAI)",
+                            value: settings.read().llm_base_url.clone(),
+                            onchange: move |val: String| {
+                                settings.with_mut(|s| s.llm_base_url = val);
+                                success_message.set(None);
+                            }
+                        }
+
+                        SecretField {
+                            label: "LLM API Key",
+                            description: "API key for authenticated LLM providers. Leave empty for local Ollama. Can also be set via OLLAMA_API_KEY env var.",
+                            value: settings.read().llm_api_key.clone().unwrap_or_default(),
+                            placeholder: "sk-...",
+                            onchange: move |val: String| {
+                                let api_key = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.llm_api_key = api_key);
+                                success_message.set(None);
+                            }
+                        }
+                    }
+
                     // LLM Context Budget Settings
                     SettingsSection {
                         title: "LLM Context Budget",
@@ -795,6 +823,115 @@ fn BooleanField(props: BooleanFieldProps) -> Element {
                     span {
                         class: "text-gray-500 text-xs",
                         "{props.description}"
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Text input field component
+#[derive(Props, Clone, PartialEq)]
+struct TextFieldProps {
+    label: &'static str,
+    description: &'static str,
+    value: String,
+    onchange: EventHandler<String>,
+}
+
+#[component]
+fn TextField(props: TextFieldProps) -> Element {
+    rsx! {
+        div {
+            class: "text-field",
+
+            label {
+                class: "block",
+
+                div {
+                    class: "flex justify-between items-baseline mb-1",
+
+                    span {
+                        class: "text-gray-300 text-sm font-medium",
+                        "{props.label}"
+                    }
+
+                    span {
+                        class: "text-gray-500 text-xs",
+                        "{props.description}"
+                    }
+                }
+
+                input {
+                    r#type: "text",
+                    class: "w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    value: "{props.value}",
+                    oninput: move |evt| {
+                        props.onchange.call(evt.value());
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Secret/password input field component for sensitive values like API keys
+#[derive(Props, Clone, PartialEq)]
+struct SecretFieldProps {
+    label: &'static str,
+    description: &'static str,
+    value: String,
+    placeholder: &'static str,
+    onchange: EventHandler<String>,
+}
+
+#[component]
+fn SecretField(props: SecretFieldProps) -> Element {
+    // Signal to track whether the secret is visible
+    let mut show_secret = use_signal(|| false);
+
+    rsx! {
+        div {
+            class: "secret-field",
+
+            label {
+                class: "block",
+
+                div {
+                    class: "flex justify-between items-baseline mb-1",
+
+                    span {
+                        class: "text-gray-300 text-sm font-medium",
+                        "{props.label}"
+                    }
+
+                    span {
+                        class: "text-gray-500 text-xs",
+                        "{props.description}"
+                    }
+                }
+
+                div {
+                    class: "flex gap-2",
+
+                    input {
+                        r#type: if *show_secret.read() { "text" } else { "password" },
+                        class: "flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        value: "{props.value}",
+                        placeholder: "{props.placeholder}",
+                        oninput: move |evt| {
+                            props.onchange.call(evt.value());
+                        }
+                    }
+
+                    button {
+                        class: "px-3 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        r#type: "button",
+                        onclick: move |_| {
+                            let current = *show_secret.read();
+                            show_secret.set(!current);
+                        },
+                        if *show_secret.read() { "Hide" } else { "Show" }
                     }
                 }
             }

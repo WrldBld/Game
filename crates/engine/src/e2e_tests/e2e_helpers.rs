@@ -39,7 +39,7 @@ use crate::infrastructure::prompt_templates::SqlitePromptTemplateRepo;
 use crate::infrastructure::queue::SqliteQueue;
 use crate::infrastructure::settings::SqliteSettingsRepo;
 use crate::queue_types::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, QueueType,
 };
 use crate::test_fixtures::world_seeder::{load_thornhaven, TestWorld};
 use crate::use_cases::content::ContentServiceConfig;
@@ -2405,13 +2405,13 @@ impl QueuePort for RecordingQueue {
         Ok(())
     }
 
-    async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
+    async fn get_pending_count(&self, _queue_type: QueueType) -> Result<usize, QueueError> {
         Ok(0)
     }
 
     async fn list_by_type(
         &self,
-        _queue_type: &str,
+        _queue_type: QueueType,
         _limit: usize,
     ) -> Result<Vec<QueueItem>, QueueError> {
         Ok(vec![])
@@ -2459,6 +2459,17 @@ impl QueuePort for RecordingQueue {
 
     async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
         Ok(false)
+    }
+
+    async fn advance_phased_llm_request(
+        &self,
+        _item_id: QueueItemId,
+        next_request: &LlmRequestData,
+        _phase_key: &str,
+    ) -> Result<QueueItemId, QueueError> {
+        // Record the request and return a new ID
+        self.llm_requests.lock().unwrap().push(next_request.clone());
+        Ok(Uuid::new_v4().into())
     }
 }
 

@@ -104,6 +104,7 @@ impl SettingsOps {
         let mut settings = base_settings;
         Self::apply_env_list_limits(&mut settings);
         Self::apply_env_llm_model(&mut settings);
+        Self::apply_env_llm_api_key(&mut settings);
         settings
     }
 
@@ -118,6 +119,23 @@ impl SettingsOps {
                     .with_llm_model_env_default(Some(model.trim().to_string()));
                 *settings = updated;
                 tracing::info!(model = %model.trim(), "Applied WRLDBLDR_LLM_MODEL_DEFAULT environment variable");
+            }
+        }
+    }
+
+    /// Apply LLM API key environment variable to settings.
+    ///
+    /// Supported environment variable:
+    /// - OLLAMA_API_KEY: API key for OpenAI-compatible LLM providers
+    ///   (e.g., OpenAI, Anthropic, or any provider using Bearer token auth)
+    pub fn apply_env_llm_api_key(settings: &mut AppSettings) {
+        if let Ok(api_key) = std::env::var("OLLAMA_API_KEY") {
+            if !api_key.trim().is_empty() {
+                let updated = std::mem::take(settings)
+                    .with_llm_api_key(Some(api_key.trim().to_string()));
+                *settings = updated;
+                // Log that we applied the key, but don't log the key itself for security
+                tracing::info!(key_length = api_key.trim().len(), "Applied OLLAMA_API_KEY environment variable");
             }
         }
     }

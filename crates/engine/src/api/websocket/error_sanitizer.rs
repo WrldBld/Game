@@ -6,6 +6,7 @@
 //! Prevents leaking internal details (paths, DB errors, stack traces) to clients.
 
 use crate::infrastructure::correlation::CorrelationId;
+use crate::use_cases::visual_state::CatalogError;
 use tracing;
 
 /// Sanitize an error for client consumption.
@@ -59,4 +60,56 @@ pub mod messages {
     pub const NOT_FOUND: &str = "The requested resource was not found";
     pub const INVALID_REQUEST: &str = "Invalid request parameters";
     pub const UNAUTHORIZED: &str = "You are not authorized for this action";
+}
+
+/// Sanitize a CatalogError for client consumption.
+///
+/// Maps CatalogError variants to stable, client-friendly messages:
+/// - NotFound variants -> "The requested resource was not found"
+/// - Validation variants -> "Invalid request parameters"
+/// - All others -> "An internal error occurred"
+///
+/// Logs the full error server-side with context.
+pub fn sanitize_catalog_error(error: &CatalogError, operation: &str) -> String {
+    use CatalogError;
+
+    match error {
+        // NotFound variants - client-friendly not found message
+        CatalogError::LocationNotFound(_)
+        | CatalogError::RegionNotFound(_)
+        | CatalogError::LocationStateNotFound(_)
+        | CatalogError::RegionStateNotFound(_) => {
+            tracing::warn!(
+                error = %error,
+                operation = operation,
+                "Catalog not found error"
+            );
+            messages::NOT_FOUND.to_string()
+        }
+
+        // Validation variants - client-friendly validation message
+        CatalogError::Validation(_)
+        | CatalogError::InvalidActivationRules(_)
+        | CatalogError::InvalidActivationLogic(_)
+        | CatalogError::NameEmpty
+        | CatalogError::NameTooLong
+        | CatalogError::DescriptionTooLong => {
+            tracing::warn!(
+                error = %error,
+                operation = operation,
+                "Catalog validation error"
+            );
+            messages::INVALID_REQUEST.to_string()
+        }
+
+        // Internal errors - log full details, return generic message
+        _ => {
+            tracing::error!(
+                error = %error,
+                operation = operation,
+                "Catalog internal error"
+            );
+            messages::INTERNAL_ERROR.to_string()
+        }
+    }
 }

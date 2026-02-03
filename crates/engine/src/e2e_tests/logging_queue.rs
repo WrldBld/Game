@@ -10,7 +10,7 @@ use uuid::Uuid;
 use wrldbldr_domain::WorldId;
 
 use crate::queue_types::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, QueueType,
 };
 
 use crate::infrastructure::ports::{
@@ -131,13 +131,13 @@ impl QueuePort for LoggingQueue {
         self.inner.mark_failed(id, error).await
     }
 
-    async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError> {
+    async fn get_pending_count(&self, queue_type: QueueType) -> Result<usize, QueueError> {
         self.inner.get_pending_count(queue_type).await
     }
 
     async fn list_by_type(
         &self,
-        queue_type: &str,
+        queue_type: QueueType,
         limit: usize,
     ) -> Result<Vec<QueueItem>, QueueError> {
         self.inner.list_by_type(queue_type, limit).await
@@ -187,5 +187,16 @@ impl QueuePort for LoggingQueue {
 
     async fn delete_by_callback_id(&self, callback_id: &str) -> Result<bool, QueueError> {
         self.inner.delete_by_callback_id(callback_id).await
+    }
+
+    async fn advance_phased_llm_request(
+        &self,
+        item_id: QueueItemId,
+        next_request: &LlmRequestData,
+        phase_key: &str,
+    ) -> Result<QueueItemId, QueueError> {
+        self.inner
+            .advance_phased_llm_request(item_id, next_request, phase_key)
+            .await
     }
 }

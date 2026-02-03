@@ -28,7 +28,7 @@ pub use crate::infrastructure::ports::{
     MockSettingsRepo, MockStagingRepo,
 };
 use crate::queue_types::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, QueueType,
 };
 
 pub(crate) use crate::infrastructure::ports::MockWorldRepo;
@@ -115,7 +115,7 @@ impl QueuePort for NoopQueue {
         &self,
         _data: &PlayerActionData,
     ) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("noop".to_string()))
+        Err(QueueError::database("enqueue_player_action", "noop"))
     }
 
     async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -123,7 +123,7 @@ impl QueuePort for NoopQueue {
     }
 
     async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("noop".to_string()))
+        Err(QueueError::database("enqueue_llm_request", "noop"))
     }
 
     async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -134,7 +134,7 @@ impl QueuePort for NoopQueue {
         &self,
         _data: &ApprovalRequestData,
     ) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("noop".to_string()))
+        Err(QueueError::database("enqueue_dm_approval", "noop"))
     }
 
     async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -145,7 +145,7 @@ impl QueuePort for NoopQueue {
         &self,
         _data: &AssetGenerationData,
     ) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("noop".to_string()))
+        Err(QueueError::database("enqueue_asset_generation", "noop"))
     }
 
     async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -160,13 +160,13 @@ impl QueuePort for NoopQueue {
         Ok(())
     }
 
-    async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
+    async fn get_pending_count(&self, _queue_type: QueueType) -> Result<usize, QueueError> {
         Ok(0)
     }
 
     async fn list_by_type(
         &self,
-        _queue_type: &str,
+        _queue_type: QueueType,
         _limit: usize,
     ) -> Result<Vec<QueueItem>, QueueError> {
         Ok(vec![])
@@ -214,6 +214,15 @@ impl QueuePort for NoopQueue {
 
     async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
         Ok(false)
+    }
+
+    async fn advance_phased_llm_request(
+        &self,
+        _item_id: QueueItemId,
+        _next_request: &LlmRequestData,
+        _phase_key: &str,
+    ) -> Result<QueueItemId, QueueError> {
+        Err(QueueError::database("advance_phased_llm_request", "noop"))
     }
 }
 
@@ -311,7 +320,7 @@ impl QueuePort for RecordingApprovalQueue {
         &self,
         _data: &PlayerActionData,
     ) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("not implemented".to_string()))
+        Err(QueueError::database("enqueue_player_action", "not implemented"))
     }
 
     async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -319,7 +328,7 @@ impl QueuePort for RecordingApprovalQueue {
     }
 
     async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("not implemented".to_string()))
+        Err(QueueError::database("enqueue_llm_request", "not implemented"))
     }
 
     async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -330,7 +339,7 @@ impl QueuePort for RecordingApprovalQueue {
         &self,
         _data: &ApprovalRequestData,
     ) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("not implemented".to_string()))
+        Err(QueueError::database("enqueue_dm_approval", "not implemented"))
     }
 
     async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -341,7 +350,7 @@ impl QueuePort for RecordingApprovalQueue {
         &self,
         _data: &AssetGenerationData,
     ) -> Result<QueueItemId, QueueError> {
-        Err(QueueError::Error("not implemented".to_string()))
+        Err(QueueError::database("enqueue_asset_generation", "not implemented"))
     }
 
     async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -360,13 +369,13 @@ impl QueuePort for RecordingApprovalQueue {
         Ok(())
     }
 
-    async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
+    async fn get_pending_count(&self, _queue_type: QueueType) -> Result<usize, QueueError> {
         Ok(0)
     }
 
     async fn list_by_type(
         &self,
-        _queue_type: &str,
+        _queue_type: QueueType,
         _limit: usize,
     ) -> Result<Vec<QueueItem>, QueueError> {
         Ok(vec![])
@@ -415,6 +424,16 @@ impl QueuePort for RecordingApprovalQueue {
 
     async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
         Ok(false)
+    }
+
+    async fn advance_phased_llm_request(
+        &self,
+        _item_id: QueueItemId,
+        _next_request: &LlmRequestData,
+        _phase_key: &str,
+    ) -> Result<QueueItemId, QueueError> {
+        // Simple mock: mark complete and return new ID
+        Err(QueueError::database("advance_phased_llm_request", "not implemented"))
     }
 }
 

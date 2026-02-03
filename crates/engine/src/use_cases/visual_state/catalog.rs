@@ -199,17 +199,53 @@ impl VisualStateCatalog {
             .with_is_default(is_default)
             .with_rules(activation_rules, activation_logic);
 
-        if let Some(asset) = backdrop_asset.and_then(|p| AssetPath::new(p).ok()) {
-            state = state.with_backdrop(asset);
+        if let Some(path) = backdrop_asset {
+            match AssetPath::new(path.clone()) {
+                Ok(asset) => state = state.with_backdrop(asset),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        value = %path,
+                        "Invalid backdrop asset path; skipping"
+                    );
+                }
+            }
         }
-        if let Some(atm) = atmosphere.and_then(|a| Atmosphere::new(a).ok()) {
-            state = state.with_atmosphere(atm);
+        if let Some(value) = atmosphere {
+            match Atmosphere::new(value.clone()) {
+                Ok(atm) => state = state.with_atmosphere(atm),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        value = %value,
+                        "Invalid atmosphere value; skipping"
+                    );
+                }
+            }
         }
-        if let Some(sound) = ambient_sound.and_then(|s| AssetPath::new(s).ok()) {
-            state = state.with_ambient_sound(sound);
+        if let Some(path) = ambient_sound {
+            match AssetPath::new(path.clone()) {
+                Ok(sound) => state = state.with_ambient_sound(sound),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        value = %path,
+                        "Invalid ambient sound asset path; skipping"
+                    );
+                }
+            }
         }
-        if let Some(overlay) = map_overlay.and_then(|m| AssetPath::new(m).ok()) {
-            state = state.with_map_overlay(overlay);
+        if let Some(path) = map_overlay {
+            match AssetPath::new(path.clone()) {
+                Ok(overlay) => state = state.with_map_overlay(overlay),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        value = %path,
+                        "Invalid map overlay asset path; skipping"
+                    );
+                }
+            }
         }
 
         self.location_state_repo.save(&state).await?;
@@ -253,14 +289,41 @@ impl VisualStateCatalog {
         .with_is_default(is_default)
         .with_rules(activation_rules, activation_logic);
 
-        if let Some(asset) = backdrop_asset.and_then(|p| AssetPath::new(p).ok()) {
-            state = state.with_backdrop(asset);
+        if let Some(path) = backdrop_asset {
+            match AssetPath::new(path.clone()) {
+                Ok(asset) => state = state.with_backdrop(asset),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        value = %path,
+                        "Invalid backdrop asset path; skipping"
+                    );
+                }
+            }
         }
-        if let Some(atm) = atmosphere.and_then(|a| Atmosphere::new(a).ok()) {
-            state = state.with_atmosphere(atm);
+        if let Some(value) = atmosphere {
+            match Atmosphere::new(value.clone()) {
+                Ok(atm) => state = state.with_atmosphere(atm),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        value = %value,
+                        "Invalid atmosphere value; skipping"
+                    );
+                }
+            }
         }
-        if let Some(sound) = ambient_sound.and_then(|s| AssetPath::new(s).ok()) {
-            state = state.with_ambient_sound(sound);
+        if let Some(path) = ambient_sound {
+            match AssetPath::new(path.clone()) {
+                Ok(sound) => state = state.with_ambient_sound(sound),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        value = %path,
+                        "Invalid ambient sound asset path; skipping"
+                    );
+                }
+            }
         }
 
         self.region_state_repo.save(&state).await?;
@@ -359,10 +422,34 @@ impl VisualStateCatalog {
         }
 
         // Update asset paths
-        let backdrop = backdrop_asset.and_then(|p| AssetPath::new(p).ok());
-        let atm = atmosphere.and_then(|a| Atmosphere::new(a).ok());
-        let sound = ambient_sound.and_then(|s| AssetPath::new(s).ok());
-        let overlay = map_overlay.and_then(|m| AssetPath::new(m).ok());
+        let backdrop = match backdrop_asset {
+            Some(path) => Some(
+                AssetPath::new(path.clone())
+                    .map_err(|e| CatalogError::Validation(format!("Invalid backdrop asset path: {}", e)))?,
+            ),
+            None => None,
+        };
+        let atm = match atmosphere {
+            Some(value) => Some(
+                Atmosphere::new(value.clone())
+                    .map_err(|e| CatalogError::Validation(format!("Invalid atmosphere value: {}", e)))?,
+            ),
+            None => None,
+        };
+        let sound = match ambient_sound {
+            Some(path) => Some(
+                AssetPath::new(path.clone())
+                    .map_err(|e| CatalogError::Validation(format!("Invalid ambient sound path: {}", e)))?,
+            ),
+            None => None,
+        };
+        let overlay = match map_overlay {
+            Some(path) => Some(
+                AssetPath::new(path.clone())
+                    .map_err(|e| CatalogError::Validation(format!("Invalid map overlay path: {}", e)))?,
+            ),
+            None => None,
+        };
 
         // Parse rules and logic
         let activation_rules = activation_rules.unwrap_or_else(|| state.activation_rules().to_vec());
@@ -435,9 +522,27 @@ impl VisualStateCatalog {
         }
 
         // Update asset paths
-        let backdrop = backdrop_asset.and_then(|p| AssetPath::new(p).ok());
-        let atm = atmosphere.and_then(|a| Atmosphere::new(a).ok());
-        let sound = ambient_sound.and_then(|s| AssetPath::new(s).ok());
+        let backdrop = match backdrop_asset {
+            Some(path) => Some(
+                AssetPath::new(path.clone())
+                    .map_err(|e| CatalogError::Validation(format!("Invalid backdrop asset path: {}", e)))?,
+            ),
+            None => None,
+        };
+        let atm = match atmosphere {
+            Some(value) => Some(
+                Atmosphere::new(value.clone())
+                    .map_err(|e| CatalogError::Validation(format!("Invalid atmosphere value: {}", e)))?,
+            ),
+            None => None,
+        };
+        let sound = match ambient_sound {
+            Some(path) => Some(
+                AssetPath::new(path.clone())
+                    .map_err(|e| CatalogError::Validation(format!("Invalid ambient sound path: {}", e)))?,
+            ),
+            None => None,
+        };
 
         // Parse rules and logic
         let activation_rules = activation_rules.unwrap_or_else(|| state.activation_rules().to_vec());

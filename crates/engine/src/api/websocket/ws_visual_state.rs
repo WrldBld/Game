@@ -183,8 +183,8 @@ async fn handle_create_visual_state(
         return err;
     }
 
-    // Validate name length
-    if request.name.len() > MAX_STATE_NAME {
+    // Validate name length (count characters, not bytes)
+    if request.name.chars().count() > MAX_STATE_NAME {
         return ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(
@@ -194,9 +194,9 @@ async fn handle_create_visual_state(
         };
     }
 
-    // Validate description length
+    // Validate description length (count characters, not bytes)
     if let Some(desc) = &request.description {
-        if desc.len() > MAX_STATE_DESCRIPTION {
+        if desc.chars().count() > MAX_STATE_DESCRIPTION {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -209,7 +209,7 @@ async fn handle_create_visual_state(
 
     // Validate asset paths
     if let Some(asset) = &request.backdrop_asset {
-        if asset.len() > MAX_ASSET_PATH_LENGTH {
+        if asset.chars().count() > MAX_ASSET_PATH_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -221,7 +221,7 @@ async fn handle_create_visual_state(
     }
 
     if let Some(asset) = &request.ambient_sound {
-        if asset.len() > MAX_ASSET_PATH_LENGTH {
+        if asset.chars().count() > MAX_ASSET_PATH_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -233,7 +233,7 @@ async fn handle_create_visual_state(
     }
 
     if let Some(asset) = &request.map_overlay {
-        if asset.len() > MAX_ASSET_PATH_LENGTH {
+        if asset.chars().count() > MAX_ASSET_PATH_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -379,7 +379,7 @@ async fn handle_update_visual_state(
 ) -> ServerMessage {
     // Validate lengths
     if let Some(name) = &request.name {
-        if name.len() > MAX_STATE_NAME {
+        if name.chars().count() > MAX_STATE_NAME {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -391,7 +391,7 @@ async fn handle_update_visual_state(
     }
 
     if let Some(desc) = &request.description {
-        if desc.len() > MAX_STATE_DESCRIPTION {
+        if desc.chars().count() > MAX_STATE_DESCRIPTION {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -404,7 +404,7 @@ async fn handle_update_visual_state(
 
     // Validate asset paths
     if let Some(asset) = &request.backdrop_asset {
-        if asset.len() > MAX_ASSET_PATH_LENGTH {
+        if asset.chars().count() > MAX_ASSET_PATH_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -416,7 +416,7 @@ async fn handle_update_visual_state(
     }
 
     if let Some(asset) = &request.ambient_sound {
-        if asset.len() > MAX_ASSET_PATH_LENGTH {
+        if asset.chars().count() > MAX_ASSET_PATH_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -428,7 +428,7 @@ async fn handle_update_visual_state(
     }
 
     if let Some(asset) = &request.map_overlay {
-        if asset.len() > MAX_ASSET_PATH_LENGTH {
+        if asset.chars().count() > MAX_ASSET_PATH_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -639,7 +639,7 @@ async fn handle_generate_visual_state(
     }
 
     // Validate lengths
-    if request.name.len() > MAX_STATE_NAME {
+    if request.name.chars().count() > MAX_STATE_NAME {
         return ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(
@@ -649,7 +649,7 @@ async fn handle_generate_visual_state(
         };
     }
 
-    if request.description.len() > MAX_STATE_DESCRIPTION {
+    if request.description.chars().count() > MAX_STATE_DESCRIPTION {
         return ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(
@@ -659,7 +659,7 @@ async fn handle_generate_visual_state(
         };
     }
 
-    if request.prompt.len() > MAX_PROMPT_LENGTH {
+    if request.prompt.chars().count() > MAX_PROMPT_LENGTH {
         return ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(
@@ -669,7 +669,7 @@ async fn handle_generate_visual_state(
         };
     }
 
-    if request.workflow.len() > MAX_WORKFLOW_LENGTH {
+    if request.workflow.chars().count() > MAX_WORKFLOW_LENGTH {
         return ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(
@@ -680,7 +680,7 @@ async fn handle_generate_visual_state(
     }
 
     if let Some(neg_prompt) = &request.negative_prompt {
-        if neg_prompt.len() > MAX_NEGATIVE_PROMPT_LENGTH {
+        if neg_prompt.chars().count() > MAX_NEGATIVE_PROMPT_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -705,7 +705,7 @@ async fn handle_generate_visual_state(
     }
 
     for tag in &request.tags {
-        if tag.len() > MAX_TAG_LENGTH {
+        if tag.chars().count() > MAX_TAG_LENGTH {
             return ServerMessage::Response {
                 request_id: request_id.to_string(),
                 result: ResponseResult::error(
@@ -1007,5 +1007,87 @@ mod tests {
 
         let err = CatalogError::LocationNotFound(LocationId::new());
         assert_eq!(map_catalog_error_to_code(&err), ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn test_multibyte_character_validation_uses_char_count_not_bytes() {
+        // This test verifies that string length validation uses character count
+        // (Unicode scalar values) rather than byte length. This is important for
+        // non-ASCII content like emoji, CJK characters, etc.
+        //
+        // Example: "🎮" is 4 bytes but 1 character
+        // Example: "中" is 3 bytes but 1 character
+
+        // Create a string with 200 emoji characters (each is 4 bytes = 800 bytes total)
+        // This should pass validation since it's exactly MAX_STATE_NAME characters
+        let emoji_name: String = "🎮".repeat(MAX_STATE_NAME);
+        assert_eq!(emoji_name.chars().count(), MAX_STATE_NAME);
+        assert!(emoji_name.len() > MAX_STATE_NAME); // Byte length exceeds limit!
+
+        // Validation using chars().count() should pass (200 chars == MAX_STATE_NAME)
+        let char_validation_result = if emoji_name.chars().count() > MAX_STATE_NAME {
+            Err("too long")
+        } else {
+            Ok(())
+        };
+        assert!(
+            char_validation_result.is_ok(),
+            "200 emoji chars should pass validation (200 chars == MAX_STATE_NAME)"
+        );
+
+        // Validation using .len() would incorrectly fail (800 bytes > MAX_STATE_NAME)
+        let byte_validation_result = if emoji_name.len() > MAX_STATE_NAME {
+            Err("too long")
+        } else {
+            Ok(())
+        };
+        assert!(
+            byte_validation_result.is_err(),
+            "Byte-based validation would incorrectly reject 200 emoji chars"
+        );
+
+        // Now test with 201 emoji characters - should fail char-based validation
+        let oversized_emoji_name: String = "🎮".repeat(MAX_STATE_NAME + 1);
+        assert_eq!(oversized_emoji_name.chars().count(), MAX_STATE_NAME + 1);
+
+        let oversized_validation = if oversized_emoji_name.chars().count() > MAX_STATE_NAME {
+            Err("too long")
+        } else {
+            Ok(())
+        };
+        assert!(
+            oversized_validation.is_err(),
+            "201 emoji chars should fail validation (201 chars > MAX_STATE_NAME)"
+        );
+
+        // Test with CJK characters (each is 3 bytes in UTF-8)
+        let cjk_name: String = "中".repeat(MAX_STATE_NAME);
+        assert_eq!(cjk_name.chars().count(), MAX_STATE_NAME);
+        assert!(cjk_name.len() > MAX_STATE_NAME); // 600 bytes > 200
+
+        let cjk_validation = if cjk_name.chars().count() > MAX_STATE_NAME {
+            Err("too long")
+        } else {
+            Ok(())
+        };
+        assert!(
+            cjk_validation.is_ok(),
+            "200 CJK chars should pass validation (200 chars == MAX_STATE_NAME)"
+        );
+
+        // Test mixed ASCII and multi-byte characters
+        let mixed_name = "A🎮B中C".to_string();
+        assert_eq!(mixed_name.chars().count(), 5); // A, 🎮, B, 中, C
+        assert!(mixed_name.len() > 5); // Byte length is greater
+
+        let mixed_validation = if mixed_name.chars().count() > MAX_STATE_NAME {
+            Err("too long")
+        } else {
+            Ok(())
+        };
+        assert!(
+            mixed_validation.is_ok(),
+            "Mixed ASCII/multi-byte string should pass validation"
+        );
     }
 }

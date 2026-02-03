@@ -945,6 +945,7 @@ Roll: {} + {} = {}",
                     callback_id: format!("outcome_suggestion:{}", approval_queue_id),
                     conversation_id: None,
                     temperature: Some(temperature),
+                    phase_meta: None, // Outcome suggestions don't use phased pipeline
                 };
 
                 self.queue.enqueue_llm_request(&llm_request).await?;

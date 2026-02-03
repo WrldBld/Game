@@ -85,7 +85,7 @@ impl HandlePlayerAction {
 
         let action_id = self.queue.enqueue_player_action(&action_data).await?;
 
-        let queue_depth = self.queue.get_pending_count("player_action").await?;
+        let queue_depth = self.queue.get_pending_count(crate::queue_types::QueueType::PlayerAction).await?;
 
         Ok(PlayerActionProcessed {
             action_id: ActionId::from(action_id),

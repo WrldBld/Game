@@ -27,6 +27,7 @@ pub struct OpenAICompatibleClient {
     client: Client,
     base_url: String,
     model: String,
+    api_key: Option<String>,
 }
 
 /// Default base URL (Ollama default).
@@ -41,6 +42,11 @@ pub const DEFAULT_OLLAMA_MODEL: &str = DEFAULT_MODEL;
 
 impl OpenAICompatibleClient {
     pub fn new(base_url: &str, model: &str) -> Self {
+        Self::with_api_key(base_url, model, None)
+    }
+
+    /// Create client with API key for authenticated requests.
+    pub fn with_api_key(base_url: &str, model: &str, api_key: Option<String>) -> Self {
         // Use 120 second timeout for LLM requests (they can be slow)
         let client = Client::builder()
             .timeout(Duration::from_secs(120))
@@ -51,11 +57,22 @@ impl OpenAICompatibleClient {
             client,
             base_url: base_url.trim_end_matches('/').to_string(),
             model: model.to_string(),
+            api_key,
         }
     }
 
     /// Create client with custom timeout (for testing).
     pub fn with_timeout(base_url: &str, model: &str, timeout_secs: u64) -> Self {
+        Self::with_timeout_and_key(base_url, model, timeout_secs, None)
+    }
+
+    /// Create client with custom timeout and API key (for testing).
+    pub fn with_timeout_and_key(
+        base_url: &str,
+        model: &str,
+        timeout_secs: u64,
+        api_key: Option<String>,
+    ) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
             .build()
@@ -65,6 +82,7 @@ impl OpenAICompatibleClient {
             client,
             base_url: base_url.trim_end_matches('/').to_string(),
             model: model.to_string(),
+            api_key,
         }
     }
 
@@ -73,12 +91,15 @@ impl OpenAICompatibleClient {
     /// Uses `OLLAMA_BASE_URL` and `OLLAMA_MODEL` environment variables,
     /// falling back to defaults if not set.
     ///
+    /// Also reads `OLLAMA_API_KEY` for authenticated APIs.
+    ///
     /// Note: Environment variable names kept as OLLAMA_* for backward compatibility.
     pub fn from_env() -> Self {
         let base_url =
             std::env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
         let model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string());
-        Self::new(&base_url, &model)
+        let api_key = std::env::var("OLLAMA_API_KEY").ok().filter(|s| !s.is_empty());
+        Self::with_api_key(&base_url, &model, api_key)
     }
 }
 
@@ -98,6 +119,23 @@ impl OpenAICompatibleClient {
     pub fn model(&self) -> &str {
         &self.model
     }
+
+    /// Get the API key (if configured).
+    pub fn api_key(&self) -> Option<&str> {
+        self.api_key.as_deref()
+    }
+
+    /// Create a request builder with Authorization header if API key is present.
+    fn build_request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        let url = format!("{}{}", self.base_url, path);
+        let mut request = self.client.request(method, &url);
+
+        if let Some(api_key) = &self.api_key {
+            request = request.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        request
+    }
 }
 
 #[async_trait]
@@ -113,8 +151,7 @@ impl LlmPort for OpenAICompatibleClient {
         };
 
         let response = self
-            .client
-            .post(format!("{}/v1/chat/completions", self.base_url))
+            .build_request(reqwest::Method::POST, "/v1/chat/completions")
             .json(&api_request)
             .send()
             .await
@@ -141,8 +178,7 @@ impl LlmPort for OpenAICompatibleClient {
 impl LlmModelsPort for OpenAICompatibleClient {
     async fn list_models(&self) -> Result<Vec<LlmModelDescriptor>, LlmError> {
         let response = self
-            .client
-            .get(format!("{}/v1/models", self.base_url))
+            .build_request(reqwest::Method::GET, "/v1/models")
             .send()
             .await
             .map_err(|e| LlmError::RequestFailed(e.to_string()))?;

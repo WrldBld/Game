@@ -55,7 +55,7 @@ pub use types::{
 pub use external::{
     ChatMessage, FinishReason, ImageGenPort, ImageRequest, ImageResult,
     LlmModelDescriptor, LlmModelsPort, LlmPort, LlmRequest, LlmResponse, MessageRole,
-    QueueItem, QueueItemData, QueueItemStatus, QueuePort, TokenUsage,
+    PhaseFingerprintMeta, QueueItem, QueueItemData, QueueItemStatus, QueuePort, TokenUsage,
 };
 
 // =============================================================================

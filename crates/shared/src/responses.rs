@@ -104,6 +104,7 @@ impl ResponseResult {
 
 /// Error classification codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     // === Client Errors (4xx) ===
     /// Request was malformed or invalid
@@ -135,6 +136,29 @@ pub enum ErrorCode {
     /// Unknown variant for forward compatibility
     #[serde(other)]
     Unknown,
+}
+
+impl ErrorCode {
+    /// Return the canonical string representation for this error code.
+    ///
+    /// This is the snake_case string used in wire format, matching
+    /// the serde serialization but without the overhead of JSON encoding.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ErrorCode::BadRequest => "bad_request",
+            ErrorCode::Unauthorized => "unauthorized",
+            ErrorCode::Forbidden => "forbidden",
+            ErrorCode::NotFound => "not_found",
+            ErrorCode::Conflict => "conflict",
+            ErrorCode::ValidationError => "validation_error",
+            ErrorCode::RateLimitExceeded => "rate_limit_exceeded",
+            ErrorCode::InternalError => "internal_error",
+            ErrorCode::ServiceUnavailable => "service_unavailable",
+            ErrorCode::Timeout => "timeout",
+            ErrorCode::NotImplemented => "not_implemented",
+            ErrorCode::Unknown => "unknown",
+        }
+    }
 }
 
 // NOTE: ErrorCode::to_http_status() was removed as it was unused and violates

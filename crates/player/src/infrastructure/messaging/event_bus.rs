@@ -30,7 +30,7 @@ use std::rc::Rc;
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 pub struct EventBus {
-    subscribers: Arc<Mutex<Vec<Box<dyn FnMut(PlayerEvent) + Send + 'static>>>>,
+    subscribers: Arc<Mutex<Vec<Arc<Mutex<Box<dyn FnMut(PlayerEvent) + Send + 'static>>>>>>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -54,18 +54,19 @@ impl EventBus {
     /// Returns immediately; the callback is stored and called asynchronously
     /// when events arrive.
     pub async fn subscribe(&self, callback: impl FnMut(PlayerEvent) + Send + 'static) {
-        self.subscribers.lock().await.push(Box::new(callback));
+        self.subscribers
+            .lock()
+            .await
+            .push(Arc::new(Mutex::new(Box::new(callback))));
     }
 
     /// Subscribe to all events (sync version for non-async contexts).
     ///
     /// Uses blocking lock - prefer `subscribe()` in async contexts.
     pub fn subscribe_sync(&self, callback: impl FnMut(PlayerEvent) + Send + 'static) {
-        // Use try_lock to avoid blocking, or spawn a task
-        let subscribers = Arc::clone(&self.subscribers);
-        tokio::spawn(async move {
-            subscribers.lock().await.push(Box::new(callback));
-        });
+        self.subscribers
+            .blocking_lock()
+            .push(Arc::new(Mutex::new(Box::new(callback))));
     }
 
     /// Dispatch an event to all subscribers.
@@ -73,9 +74,10 @@ impl EventBus {
     /// This is called by the WebSocket bridge when events arrive.
     /// Each subscriber's callback is invoked with a clone of the event.
     pub async fn dispatch(&self, event: PlayerEvent) {
-        let mut subscribers = self.subscribers.lock().await;
-        for subscriber in subscribers.iter_mut() {
-            subscriber(event.clone());
+        let subscribers = self.subscribers.lock().await.clone();
+        for subscriber in subscribers {
+            let mut callback = subscriber.lock().await;
+            callback(event.clone());
         }
     }
 
@@ -140,11 +142,10 @@ impl Default for EventBus {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_subscribe_and_dispatch() {
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -166,7 +167,6 @@ mod tests {
         assert_eq!(count.load(Ordering::SeqCst), 2);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_multiple_subscribers() {
         use std::sync::atomic::{AtomicU32, Ordering};

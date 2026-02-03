@@ -89,8 +89,74 @@ pub enum ImageGenError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum QueueError {
-    #[error("Queue error: {0}")]
-    Error(String),
+    /// Validation error - input data is invalid.
+    #[error("Validation error: {0}")]
+    Validation(String),
+    /// Item not found.
+    #[error("Queue item not found: {id}")]
+    NotFound { id: String },
+    /// Database error - includes operation name for tracing.
+    #[error("Database error in {operation}: {message}")]
+    Database {
+        operation: &'static str,
+        message: String,
+    },
+    /// Conflict - item already exists (e.g., unique constraint violation).
+    #[error("Conflict: {message}")]
+    Conflict { message: String },
+    /// Serialization/deserialization error.
+    #[error("Serialization error: {0}")]
+    Serialization(String),
+}
+
+impl QueueError {
+    /// Create a NotFound error with item ID context.
+    pub fn not_found(id: impl ToString) -> Self {
+        Self::NotFound { id: id.to_string() }
+    }
+
+    /// Create a Database error with operation and message context.
+    pub fn database(operation: &'static str, message: impl ToString) -> Self {
+        Self::Database {
+            operation,
+            message: message.to_string(),
+        }
+    }
+
+    /// Create a Conflict error with message context.
+    pub fn conflict(message: impl ToString) -> Self {
+        Self::Conflict {
+            message: message.to_string(),
+        }
+    }
+
+    /// Create a Validation error.
+    pub fn validation(message: impl ToString) -> Self {
+        Self::Validation(message.to_string())
+    }
+
+    /// Create a Serialization error.
+    pub fn serialization(message: impl ToString) -> Self {
+        Self::Serialization(message.to_string())
+    }
+
+    /// Check if this is a NotFound error.
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Self::NotFound { .. })
+    }
+
+    /// Check if this is a Conflict error.
+    pub fn is_conflict(&self) -> bool {
+        matches!(self, Self::Conflict { .. })
+    }
+
+    /// Get the operation name if this is a Database error.
+    pub fn operation(&self) -> Option<&'static str> {
+        match self {
+            Self::Database { operation, .. } => Some(operation),
+            _ => None,
+        }
+    }
 }
 
 /// Errors from session/connection operations.

@@ -6,7 +6,7 @@ use crate::infrastructure::ports::{
 };
 use wrldbldr_domain::QueueItemId;
 use crate::queue_types::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, QueueType,
 };
 
 /// Simple mock queue for testing.
@@ -78,13 +78,13 @@ impl QueuePort for MockQueueForTesting {
         Ok(())
     }
 
-    async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
+    async fn get_pending_count(&self, _queue_type: QueueType) -> Result<usize, QueueError> {
         Ok(0)
     }
 
     async fn list_by_type(
         &self,
-        _queue_type: &str,
+        _queue_type: QueueType,
         _limit: usize,
     ) -> Result<Vec<QueueItem>, QueueError> {
         Ok(vec![])
@@ -132,5 +132,14 @@ impl QueuePort for MockQueueForTesting {
 
     async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
         Ok(false)
+    }
+
+    async fn advance_phased_llm_request(
+        &self,
+        _item_id: QueueItemId,
+        _next_request: &LlmRequestData,
+        _phase_key: &str,
+    ) -> Result<QueueItemId, QueueError> {
+        Ok(QueueItemId::new())
     }
 }

@@ -14,6 +14,8 @@
 //!
 //! The fingerprint uses SHA-256 hashing of normalized request content:
 //!
+//! - **Phase key**: Phase identifier for multi-phase pipeline (e.g., "chal", "evt", "tool")
+//! - **Prompt template key**: Template version for phase-specific prompts
 //! - **System prompt**: Full content (None and empty string are normalized to equivalent)
 //! - **Messages**: Full role and content for each message in order
 //! - **Parameters**: Temperature (defaults to 0.7 if unset), max_tokens (defaults to 0 if unset)
@@ -22,12 +24,19 @@
 //!
 //! This creates stable fingerprints where semantically identical requests produce
 //! the same fingerprint, enabling reliable cassette lookups.
+//!
+//! # Multi-Phase Pipeline Support
+//!
+//! For phased LLM requests, the fingerprint includes:
+//! - Phase short ID (e.g., "chal" for challenge triggers)
+//! - Prompt template key/version
+//! - This ensures different phases with identical content get distinct fingerprints
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
-use crate::infrastructure::ports::LlmRequest;
+use crate::infrastructure::ports::{LlmRequest, PhaseFingerprintMeta};
 
 /// Regex pattern for matching UUIDs (both hyphenated and non-hyphenated forms).
 ///
@@ -75,7 +84,40 @@ impl RequestFingerprint {
     /// identifier for cassette matching. UUIDs are replaced with placeholders
     /// to ensure stability across test runs.
     pub fn from_request(request: &LlmRequest) -> Self {
+        Self::from_request_with_phase(request, None)
+    }
+
+    /// Create a fingerprint from an LLM request with phase metadata.
+    ///
+    /// For multi-phase LLM pipeline requests, include phase information
+    /// to ensure different phases get distinct fingerprints even with
+    /// similar content.
+    ///
+    /// # Arguments
+    /// * `request` - The LLM request to fingerprint
+    /// * `phase_meta` - Optional phase metadata for multi-phase requests
+    pub fn from_request_with_phase(
+        request: &LlmRequest,
+        phase_meta: Option<PhaseFingerprintMeta>,
+    ) -> Self {
         let mut hasher = Sha256::new();
+
+        // Hash phase metadata if present (for multi-phase pipeline)
+        if let Some(meta) = phase_meta {
+            hasher.update(b"phase:");
+            if let Some(phase_id) = meta.phase_id {
+                hasher.update(phase_id.as_bytes());
+            }
+            hasher.update(b":");
+            if let Some(template_key) = meta.template_key {
+                hasher.update(template_key.as_bytes());
+            }
+            hasher.update(b":");
+            if let Some(template_version) = meta.template_version {
+                hasher.update(template_version.as_bytes());
+            }
+            hasher.update(b"|");
+        }
 
         // Hash normalized system prompt (treat None and empty as equivalent)
         let system = request.system_prompt.as_deref().unwrap_or("");

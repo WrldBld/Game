@@ -434,7 +434,7 @@ impl VcrLlm {
 
     /// Record a request/response pair indexed by fingerprint.
     fn record(&self, request: &LlmRequest, response: &LlmResponse) {
-        let fingerprint = RequestFingerprint::from_request(request);
+        let fingerprint = RequestFingerprint::from_request_with_phase(request, request.fingerprint_meta.clone());
         let fingerprint_hex = fingerprint.to_hex();
 
         let recording = LlmRecording {
@@ -453,7 +453,7 @@ impl VcrLlm {
 
     /// Get recorded response matching the request fingerprint.
     fn playback_for_request(&self, request: &LlmRequest) -> Result<LlmResponse, LlmError> {
-        let fingerprint = RequestFingerprint::from_request(request);
+        let fingerprint = RequestFingerprint::from_request_with_phase(request, request.fingerprint_meta.clone());
         let fingerprint_hex = fingerprint.to_hex();
 
         let mut cassette = self.cassette.lock().expect("cassette mutex poisoned");

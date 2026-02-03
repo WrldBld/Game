@@ -1175,6 +1175,12 @@ pub struct AppSettings {
     #[serde(default = "default_llm_temperature_custom_condition")]
     llm_temperature_custom_condition: f32,
 
+    /// API key for OpenAI-compatible LLM providers.
+    /// Set from OLLAMA_API_KEY env var or per-world settings.
+    /// When present, sent as Bearer token in Authorization header.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    llm_api_key: Option<String>,
+
     // ============================================================================
     // Asset Generation
     // ============================================================================
@@ -1225,6 +1231,7 @@ impl Default for AppSettings {
             llm_temperature_outcome_suggestion: default_llm_temperature_outcome_suggestion(),
             llm_temperature_staging: default_llm_temperature_staging(),
             llm_temperature_custom_condition: default_llm_temperature_custom_condition(),
+            llm_api_key: None,
             style_reference_asset_id: None,
             map_workflow_name: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
@@ -1409,6 +1416,12 @@ impl AppSettings {
     /// Temperature for custom condition evaluation (clamped to 0.0 - 2.0)
     pub fn llm_temperature_custom_condition(&self) -> f32 {
         self.llm_temperature_custom_condition.clamp(0.0, 2.0)
+    }
+
+    /// API key for OpenAI-compatible LLM providers.
+    /// Returns None if no API key is configured.
+    pub fn llm_api_key(&self) -> Option<&str> {
+        self.llm_api_key.as_deref()
     }
 
     /// Default style reference asset ID for image generation
@@ -1744,6 +1757,14 @@ impl AppSettings {
     pub fn with_llm_temperature_custom_condition(self, temperature: f32) -> Self {
         Self {
             llm_temperature_custom_condition: temperature,
+            ..self
+        }
+    }
+
+    /// Set LLM API key for OpenAI-compatible providers
+    pub fn with_llm_api_key(self, api_key: Option<String>) -> Self {
+        Self {
+            llm_api_key: api_key,
             ..self
         }
     }
