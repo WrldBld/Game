@@ -35,6 +35,7 @@ mod player_character_repo;
 mod region_state_repo;
 mod scene_repo;
 mod staging_repo;
+mod workflow_config_repo;
 mod world_repo;
 
 pub use act_repo::Neo4jActRepo;
@@ -55,6 +56,7 @@ pub use player_character_repo::Neo4jPlayerCharacterRepo;
 pub use region_state_repo::Neo4jRegionStateRepo;
 pub use scene_repo::Neo4jSceneRepo;
 pub use staging_repo::Neo4jStagingRepo;
+pub use workflow_config_repo::Neo4jWorkflowConfigRepo;
 pub use world_repo::Neo4jWorldRepo;
 
 #[cfg(test)]
@@ -83,6 +85,7 @@ pub struct Neo4jRepositories {
     pub lore: Arc<Neo4jLoreRepo>,
     pub location_state: Arc<Neo4jLocationStateRepo>,
     pub region_state: Arc<Neo4jRegionStateRepo>,
+    pub workflow_config: Arc<Neo4jWorkflowConfigRepo>,
 }
 
 impl Neo4jRepositories {
@@ -114,7 +117,8 @@ impl Neo4jRepositories {
             goal: Arc::new(Neo4jGoalRepo::new(graph.clone())),
             lore: Arc::new(Neo4jLoreRepo::new(graph.clone(), clock.clone())),
             location_state: Arc::new(Neo4jLocationStateRepo::new(graph.clone(), clock.clone())),
-            region_state: Arc::new(Neo4jRegionStateRepo::new(graph, clock)),
+            region_state: Arc::new(Neo4jRegionStateRepo::new(graph.clone(), clock)),
+            workflow_config: Arc::new(Neo4jWorkflowConfigRepo::new(graph)),
         }
     }
 }

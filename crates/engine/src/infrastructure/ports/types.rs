@@ -12,6 +12,21 @@ use wrldbldr_domain::*;
 pub use wrldbldr_domain::WorldRole;
 
 // =============================================================================
+// ControlNet Mapping Types
+// =============================================================================
+
+/// ControlNet node mapping for pose injection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ControlNetMapping {
+    /// Node ID in the workflow
+    pub node_id: String,
+    /// Input key on that node
+    pub input_key: String,
+    /// Whether this mapping is enabled
+    pub enabled: bool,
+}
+
+// =============================================================================
 // Session/Connection Types
 // =============================================================================
 

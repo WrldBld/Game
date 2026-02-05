@@ -5,8 +5,9 @@
 
 use dioxus::prelude::*;
 
+use crate::application::services::WorkflowSlotStatus;
 use crate::infrastructure::spawn_task;
-use crate::presentation::services::use_visual_state_service;
+use crate::presentation::services::{use_visual_state_service, use_workflow_service};
 
 use wrldbldr_shared::requests::visual_state::{GenerateVisualStateRequest, VisualStateType};
 
@@ -78,17 +79,52 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
     // SECTION 1: ALL HOOKS - Always at top, never conditional
     // ═══════════════════════════════════════════════════════════════
     let visual_state_service = use_visual_state_service();
+    let workflow_service = use_workflow_service();
 
     // Form fields
     let mut name = use_signal(|| "New State".to_string());
     let mut description = use_signal(String::new);
     let mut atmosphere_guidance = use_signal(String::new);
     let mut generate_backdrop = use_signal(|| true);
+    let mut selected_workflow = use_signal(|| "backdrop_v2".to_string());
+    let mut pose_asset_id = use_signal(String::new);
+
+    // Workflow list state
+    let mut workflow_slots = use_signal(Vec::<WorkflowSlotStatus>::new);
+    let mut is_loading_workflows = use_signal(|| true);
 
     // Generation state
     let mut is_generating = use_signal(|| false);
     let mut generation_error: Signal<Option<String>> = use_signal(|| None);
     let mut generated_result: Signal<Option<GeneratedStateResult>> = use_signal(|| None);
+
+    // Load workflow slots on mount
+    let workflow_service_for_effect = workflow_service.clone();
+    use_effect(move || {
+        let svc = workflow_service_for_effect.clone();
+        spawn_task(async move {
+            is_loading_workflows.set(true);
+            match svc.list_workflows().await {
+                Ok(response) => {
+                    // Flatten categories into a list of configured slots
+                    let mut slots: Vec<WorkflowSlotStatus> = Vec::new();
+                    for category in response.categories {
+                        for slot in category.slots {
+                            if slot.configured {
+                                slots.push(slot);
+                            }
+                        }
+                    }
+                    workflow_slots.set(slots);
+                    is_loading_workflows.set(false);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load workflow slots: {}", e);
+                    is_loading_workflows.set(false);
+                }
+            }
+        });
+    });
 
     // Quick presets
     let mut handle_apply_preset = move |preset: QuickPreset| {
@@ -132,6 +168,8 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
         let name_clone = name.read().clone();
         let desc_clone = desc.clone();
         let generate_backdrop_clone = *generate_backdrop.read();
+        let workflow_clone = selected_workflow.read().clone();
+        let _pose_asset_clone = pose_asset_id.read().clone();
         let service = visual_state_service.clone();
 
         // Reuse the composed prompt we already validated
@@ -152,7 +190,7 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                 name: name_clone.clone(),
                 description: desc_clone,
                 prompt,
-                workflow: "backdrop_v2".to_string(),
+                workflow: workflow_clone,
                 map_workflow: None,
                 negative_prompt: Some("blurry, low quality, ugly, distorted".to_string()),
                 generate_backdrop: generate_backdrop_clone,
@@ -356,6 +394,71 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                             value: "{atmosphere_guidance}",
                             oninput: move |e| atmosphere_guidance.set(e.value()),
                             placeholder: "e.g., Foggy, mysterious lighting"
+                        }
+                    }
+
+                    // Workflow selection
+                    div {
+                        class: "mb-4",
+                        label {
+                            class: "block text-gray-400 text-sm mb-2",
+                            "Workflow"
+                        }
+                        if *is_loading_workflows.read() {
+                            div {
+                                class: "text-gray-500 text-sm",
+                                "Loading workflows..."
+                            }
+                        } else {
+                            select {
+                                class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                                value: "{selected_workflow}",
+                                onchange: move |e| selected_workflow.set(e.value()),
+                                {
+                                    let slots = workflow_slots.read();
+                                    if slots.is_empty() {
+                                        rsx! {
+                                            option {
+                                                value: "backdrop_v2",
+                                                "backdrop_v2 (default)"
+                                            }
+                                        }
+                                    } else {
+                                        rsx! {
+                                            for slot in slots.iter() {
+                                                option {
+                                                    value: "{slot.slot}",
+                                                    "{slot.display_name}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        p {
+                            class: "text-gray-600 text-xs mt-1",
+                            "Select a ComfyUI workflow for generation"
+                        }
+                    }
+
+                    // Pose asset selection
+                    div {
+                        class: "mb-4",
+                        label {
+                            class: "block text-gray-400 text-sm mb-2",
+                            "Pose Asset (optional)"
+                        }
+                        input {
+                            r#type: "text",
+                            class: "w-full p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
+                            value: "{pose_asset_id}",
+                            oninput: move |e| pose_asset_id.set(e.value()),
+                            placeholder: "Enter asset ID for pose reference"
+                        }
+                        p {
+                            class: "text-gray-600 text-xs mt-1",
+                            "Asset ID for ControlNet pose injection (if workflow supports it)"
                         }
                     }
 

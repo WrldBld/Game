@@ -228,6 +228,96 @@ pub struct ImageRequest {
     pub workflow: String,
     pub width: u32,
     pub height: u32,
+    /// Model ID override (e.g., "sdxl.safetensors")
+    pub model_id: Option<String>,
+    /// Negative prompt (what to avoid)
+    pub negative_prompt: Option<String>,
+    /// Prompt prefix (prepended to prompt)
+    pub prompt_prefix: Option<String>,
+    /// Prompt suffix (appended to prompt)
+    pub prompt_suffix: Option<String>,
+    /// Whether SCORE tokens should be prepended
+    pub score_tokens_enabled: bool,
+    /// Pose asset ID for ControlNet
+    pub pose_asset_id: Option<String>,
+    /// ControlNet node mappings
+    pub controlnet_mappings: Option<Vec<super::types::ControlNetMapping>>,
+}
+
+impl ImageRequest {
+    /// Create a new image request with the given prompt and workflow.
+    pub fn new(prompt: impl Into<String>, workflow: impl Into<String>, width: u32, height: u32) -> Self {
+        Self {
+            prompt: prompt.into(),
+            workflow: workflow.into(),
+            width,
+            height,
+            model_id: None,
+            negative_prompt: None,
+            prompt_prefix: None,
+            prompt_suffix: None,
+            score_tokens_enabled: true,
+            pose_asset_id: None,
+            controlnet_mappings: None,
+        }
+    }
+
+    /// Set the model ID.
+    pub fn with_model_id(mut self, model_id: impl Into<String>) -> Self {
+        self.model_id = Some(model_id.into());
+        self
+    }
+
+    /// Set the negative prompt.
+    pub fn with_negative_prompt(mut self, negative_prompt: impl Into<String>) -> Self {
+        self.negative_prompt = Some(negative_prompt.into());
+        self
+    }
+
+    /// Set the prompt prefix.
+    pub fn with_prompt_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prompt_prefix = Some(prefix.into());
+        self
+    }
+
+    /// Set the prompt suffix.
+    pub fn with_prompt_suffix(mut self, suffix: impl Into<String>) -> Self {
+        self.prompt_suffix = Some(suffix.into());
+        self
+    }
+
+    /// Set whether SCORE tokens are enabled.
+    pub fn with_score_tokens_enabled(mut self, enabled: bool) -> Self {
+        self.score_tokens_enabled = enabled;
+        self
+    }
+
+    /// Set the pose asset ID.
+    pub fn with_pose_asset_id(mut self, pose_asset_id: impl Into<String>) -> Self {
+        self.pose_asset_id = Some(pose_asset_id.into());
+        self
+    }
+
+    /// Set the ControlNet mappings.
+    pub fn with_controlnet_mappings(mut self, mappings: Vec<super::types::ControlNetMapping>) -> Self {
+        self.controlnet_mappings = Some(mappings);
+        self
+    }
+
+    /// Get the effective prompt with prefix and suffix applied.
+    pub fn effective_prompt(&self) -> String {
+        let mut result = String::new();
+        if let Some(ref prefix) = self.prompt_prefix {
+            result.push_str(prefix);
+            result.push_str(", ");
+        }
+        result.push_str(&self.prompt);
+        if let Some(ref suffix) = self.prompt_suffix {
+            result.push_str(", ");
+            result.push_str(suffix);
+        }
+        result
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -277,6 +367,7 @@ pub enum QueueItemStatus {
     Failed,
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait QueuePort: Send + Sync {
     // Player action queue

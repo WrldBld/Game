@@ -12,7 +12,8 @@
 use dioxus::prelude::*;
 
 use crate::application::services::{
-    InputDefault, PromptMapping, TestWorkflowResponse, WorkflowConfig, WorkflowInput,
+    ControlNetMapping, InputDefault, PromptMapping, TestWorkflowResponse, WorkflowConfig,
+    WorkflowInput,
 };
 use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_workflow_service;
@@ -69,6 +70,14 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
     let mut is_testing = use_signal(|| false);
     let mut test_result: Signal<Option<WorkflowTestResult>> = use_signal(|| None);
     let mut test_error: Signal<Option<String>> = use_signal(|| None);
+    // Track ComfyUI override fields
+    let mut edited_model_id: Signal<String> = use_signal(String::new);
+    let mut edited_prompt_prefix: Signal<String> = use_signal(String::new);
+    let mut edited_prompt_suffix: Signal<String> = use_signal(String::new);
+    let mut edited_negative_prompt: Signal<String> = use_signal(String::new);
+    let mut edited_score_tokens: Signal<Option<bool>> = use_signal(|| None);
+    let mut edited_pose_asset_id: Signal<String> = use_signal(String::new);
+    let mut edited_controlnet_mappings: Signal<Vec<ControlNetMapping>> = use_signal(Vec::new);
 
     let slot_id = props.slot.clone();
     let slot_id_for_effect = slot_id.clone();
@@ -87,6 +96,13 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                     edited_defaults.set(fetched_config.input_defaults.clone());
                     edited_mappings.set(fetched_config.prompt_mappings.clone());
                     edited_locked.set(fetched_config.locked_inputs.clone());
+                    edited_model_id.set(fetched_config.model_id.clone().unwrap_or_default());
+                    edited_prompt_prefix.set(fetched_config.prompt_prefix.clone().unwrap_or_default());
+                    edited_prompt_suffix.set(fetched_config.prompt_suffix.clone().unwrap_or_default());
+                    edited_negative_prompt.set(fetched_config.negative_prompt_override.clone().unwrap_or_default());
+                    edited_score_tokens.set(fetched_config.score_tokens_enabled);
+                    edited_pose_asset_id.set(fetched_config.controlnet_pose_asset_id.clone().unwrap_or_default());
+                    edited_controlnet_mappings.set(fetched_config.controlnet_mappings.clone().unwrap_or_default());
                     config.set(Some(fetched_config));
                     is_loading.set(false);
                 }
@@ -111,6 +127,13 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
         let locked = edited_locked.read().clone();
         let current_config = config.read().clone();
         let svc = workflow_service_for_save.clone();
+        let model_id = edited_model_id.read().clone();
+        let prompt_prefix = edited_prompt_prefix.read().clone();
+        let prompt_suffix = edited_prompt_suffix.read().clone();
+        let negative_prompt = edited_negative_prompt.read().clone();
+        let score_tokens = *edited_score_tokens.read();
+        let pose_asset_id = edited_pose_asset_id.read().clone();
+        let controlnet_mappings = edited_controlnet_mappings.read().clone();
 
         spawn_task(async move {
             is_saving.set(true);
@@ -118,7 +141,18 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
 
             if current_config.is_some() {
                 match svc
-                    .update_workflow_defaults(&slot, defaults, Some(locked))
+                    .update_workflow_defaults(
+                        &slot,
+                        defaults,
+                        Some(locked),
+                        Some(model_id).filter(|s| !s.is_empty()),
+                        Some(prompt_prefix).filter(|s| !s.is_empty()),
+                        Some(prompt_suffix).filter(|s| !s.is_empty()),
+                        Some(negative_prompt).filter(|s| !s.is_empty()),
+                        score_tokens,
+                        Some(pose_asset_id).filter(|s| !s.is_empty()),
+                        Some(controlnet_mappings).filter(|v| !v.is_empty()),
+                    )
                     .await
                 {
                     Ok(updated_config) => {
@@ -428,6 +462,140 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                                             },
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // ComfyUI Overrides section
+                    CollapsibleSection {
+                        title: "ComfyUI Overrides",
+                        is_expanded: *expanded_section.read() == "comfyui",
+                        on_toggle: move |_| {
+                            if *expanded_section.read() == "comfyui" {
+                                expanded_section.set("");
+                            } else {
+                                expanded_section.set("comfyui");
+                            }
+                        },
+
+                        div {
+                            class: "flex flex-col gap-3",
+
+                            p {
+                                class: "text-gray-500 text-xs mb-2",
+                                "Override global ComfyUI settings for this workflow. Leave empty to use global defaults."
+                            }
+
+                            // Model ID override
+                            div {
+                                class: "flex flex-col gap-1",
+                                label {
+                                    class: "text-gray-300 text-sm",
+                                    "Model ID"
+                                }
+                                input {
+                                    r#type: "text",
+                                    class: "w-full px-3 py-2 bg-dark-bg border border-gray-700 rounded-md text-white text-sm",
+                                    value: "{edited_model_id}",
+                                    placeholder: "e.g., sdxl.safetensors",
+                                    oninput: move |e| edited_model_id.set(e.value()),
+                                }
+                                p {
+                                    class: "text-gray-600 text-xs",
+                                    "Checkpoint/model override for this workflow"
+                                }
+                            }
+
+                            // Prompt prefix override
+                            div {
+                                class: "flex flex-col gap-1",
+                                label {
+                                    class: "text-gray-300 text-sm",
+                                    "Prompt Prefix"
+                                }
+                                input {
+                                    r#type: "text",
+                                    class: "w-full px-3 py-2 bg-dark-bg border border-gray-700 rounded-md text-white text-sm",
+                                    value: "{edited_prompt_prefix}",
+                                    placeholder: "Text to prepend to prompts",
+                                    oninput: move |e| edited_prompt_prefix.set(e.value()),
+                                }
+                            }
+
+                            // Prompt suffix override
+                            div {
+                                class: "flex flex-col gap-1",
+                                label {
+                                    class: "text-gray-300 text-sm",
+                                    "Prompt Suffix"
+                                }
+                                input {
+                                    r#type: "text",
+                                    class: "w-full px-3 py-2 bg-dark-bg border border-gray-700 rounded-md text-white text-sm",
+                                    value: "{edited_prompt_suffix}",
+                                    placeholder: "Text to append to prompts",
+                                    oninput: move |e| edited_prompt_suffix.set(e.value()),
+                                }
+                            }
+
+                            // Negative prompt override
+                            div {
+                                class: "flex flex-col gap-1",
+                                label {
+                                    class: "text-gray-300 text-sm",
+                                    "Negative Prompt Override"
+                                }
+                                input {
+                                    r#type: "text",
+                                    class: "w-full px-3 py-2 bg-dark-bg border border-gray-700 rounded-md text-white text-sm",
+                                    value: "{edited_negative_prompt}",
+                                    placeholder: "Override global negative prompt",
+                                    oninput: move |e| edited_negative_prompt.set(e.value()),
+                                }
+                            }
+
+                            // SCORE tokens toggle
+                            div {
+                                class: "flex items-center gap-3",
+                                label {
+                                    class: "flex items-center gap-2 cursor-pointer",
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: edited_score_tokens.read().unwrap_or(true),
+                                        onchange: move |e| {
+                                            edited_score_tokens.set(Some(e.checked()));
+                                        },
+                                        class: "w-4 h-4 rounded border-gray-600 bg-dark-bg text-purple-500",
+                                    }
+                                    span {
+                                        class: "text-gray-300 text-sm",
+                                        "SCORE Tokens Enabled"
+                                    }
+                                }
+                                span {
+                                    class: "text-gray-600 text-xs",
+                                    "Prepend SCORE_9, SCORE_8, etc. for Pony/SDXL models"
+                                }
+                            }
+
+                            // Pose asset ID
+                            div {
+                                class: "flex flex-col gap-1",
+                                label {
+                                    class: "text-gray-300 text-sm",
+                                    "ControlNet Pose Asset ID"
+                                }
+                                input {
+                                    r#type: "text",
+                                    class: "w-full px-3 py-2 bg-dark-bg border border-gray-700 rounded-md text-white text-sm",
+                                    value: "{edited_pose_asset_id}",
+                                    placeholder: "Asset ID for pose reference",
+                                    oninput: move |e| edited_pose_asset_id.set(e.value()),
+                                }
+                                p {
+                                    class: "text-gray-600 text-xs",
+                                    "Pose asset for ControlNet pose injection"
                                 }
                             }
                         }

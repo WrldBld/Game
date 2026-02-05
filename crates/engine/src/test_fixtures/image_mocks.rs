@@ -238,12 +238,7 @@ mod tests {
     #[tokio::test]
     async fn test_placeholder_generates_png() {
         let gen = PlaceholderImageGen::new();
-        let request = ImageRequest {
-            prompt: "A character portrait".to_string(),
-            workflow: "test".to_string(),
-            width: 512,
-            height: 512,
-        };
+        let request = ImageRequest::new("A character portrait", "test", 512, 512);
 
         let result = gen.generate(request).await.expect("generate should succeed");
         assert!(!result.image_data.is_empty());
@@ -262,12 +257,7 @@ mod tests {
 
         // Portrait keywords
         for keyword in ["portrait", "character", "face", "headshot"] {
-            let request = ImageRequest {
-                prompt: format!("A {} of a warrior", keyword),
-                workflow: "test".to_string(),
-                width: 512,
-                height: 512,
-            };
+            let request = ImageRequest::new(format!("A {} of a warrior", keyword), "test", 512, 512);
             let result = gen.generate(request).await.expect("generate should succeed");
             assert!(!result.image_data.is_empty());
         }
@@ -278,12 +268,7 @@ mod tests {
         let gen = PlaceholderImageGen::new();
 
         for keyword in ["scene", "action", "battle", "combat"] {
-            let request = ImageRequest {
-                prompt: format!("A {} in the forest", keyword),
-                workflow: "test".to_string(),
-                width: 1024,
-                height: 768,
-            };
+            let request = ImageRequest::new(format!("A {} in the forest", keyword), "test", 1024, 768);
             let result = gen.generate(request).await.expect("generate should succeed");
             assert!(!result.image_data.is_empty());
         }
@@ -293,12 +278,7 @@ mod tests {
     async fn test_recording_captures_requests() {
         let gen = RecordingImageGen::new();
 
-        let request = ImageRequest {
-            prompt: "Test prompt".to_string(),
-            workflow: "test".to_string(),
-            width: 256,
-            height: 256,
-        };
+        let request = ImageRequest::new("Test prompt", "test", 256, 256);
 
         gen.generate(request.clone()).await.expect("generate should succeed");
         gen.generate(request.clone()).await.expect("generate should succeed");
@@ -312,12 +292,7 @@ mod tests {
     async fn test_failing_returns_error() {
         let gen = FailingImageGen::new("Custom error");
 
-        let request = ImageRequest {
-            prompt: "Any prompt".to_string(),
-            workflow: "test".to_string(),
-            width: 256,
-            height: 256,
-        };
+        let request = ImageRequest::new("Any prompt", "test", 256, 256);
 
         let result = gen.generate(request).await;
         assert!(result.is_err());
@@ -335,12 +310,7 @@ mod tests {
 
         assert_eq!(gen.call_count(), 0);
 
-        let request = ImageRequest {
-            prompt: "Test".to_string(),
-            workflow: "test".to_string(),
-            width: 256,
-            height: 256,
-        };
+        let request = ImageRequest::new("Test", "test", 256, 256);
 
         gen.generate(request.clone()).await.expect("generate should succeed");
         assert_eq!(gen.call_count(), 1);

@@ -431,6 +431,77 @@ pub fn AppSettingsPanel() -> Element {
                         }
                     }
 
+                    // ComfyUI Settings
+                    SettingsSection {
+                        title: "ComfyUI Image Generation",
+                        description: "Global defaults for ComfyUI image generation",
+
+                        TextField {
+                            label: "ComfyUI Base URL",
+                            description: "Base URL for ComfyUI server (overrides COMFYUI_BASE_URL env var if set)",
+                            value: settings.read().comfyui_base_url.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_base_url = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        TextField {
+                            label: "Default Model ID",
+                            description: "Default checkpoint/model for image generation (e.g., sdxl.safetensors)",
+                            value: settings.read().comfyui_default_model_id.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_default_model_id = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        TextField {
+                            label: "Prompt Prefix",
+                            description: "Global prompt prefix prepended to all generation prompts",
+                            value: settings.read().comfyui_prompt_prefix.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_prompt_prefix = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        TextField {
+                            label: "Prompt Suffix",
+                            description: "Global prompt suffix appended to all generation prompts",
+                            value: settings.read().comfyui_prompt_suffix.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_prompt_suffix = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        TextField {
+                            label: "Negative Prompt",
+                            description: "Global negative prompt for all generations",
+                            value: settings.read().comfyui_negative_prompt.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_negative_prompt = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        BooleanField {
+                            label: "SCORE Tokens Enabled",
+                            description: "Whether to prepend SCORE_9, SCORE_8, etc. tokens for Pony/SDXL models",
+                            value: settings.read().comfyui_score_tokens_enabled,
+                            onchange: move |val: bool| {
+                                settings.with_mut(|s| s.comfyui_score_tokens_enabled = val);
+                                success_message.set(None);
+                            }
+                        }
+                    }
+
                     // LLM Context Budget Settings
                     SettingsSection {
                         title: "LLM Context Budget",

@@ -372,6 +372,12 @@ impl GenerateVisualState {
                 prompt: input.prompt.clone(),
                 negative_prompt: input.negative_prompt.clone(),
                 count: 1,
+                model_id: None, // TODO: Get from settings
+                prompt_prefix: None, // TODO: Get from settings
+                prompt_suffix: None, // TODO: Get from settings
+                score_tokens_enabled: None, // TODO: Get from settings
+                pose_asset_id: None, // TODO: Get from settings
+                controlnet_mappings: None, // TODO: Get from settings
             };
 
             match self.queue.enqueue_asset_generation(&data).await {
@@ -408,6 +414,12 @@ impl GenerateVisualState {
                     prompt: format!("Map overlay: {}", input.prompt),
                     negative_prompt: input.negative_prompt.clone(),
                     count: 1,
+                    model_id: None, // TODO: Get from settings
+                    prompt_prefix: None, // TODO: Get from settings
+                    prompt_suffix: None, // TODO: Get from settings
+                    score_tokens_enabled: None, // TODO: Get from settings
+                    pose_asset_id: None, // TODO: Get from settings
+                    controlnet_mappings: None, // TODO: Get from settings
                 };
 
                 match self.queue.enqueue_asset_generation(&data).await {

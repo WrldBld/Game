@@ -32,6 +32,7 @@ pub mod story_events;
 pub mod time;
 pub mod validation;
 pub mod visual_state;
+pub mod workflows;
 pub mod world;
 
 // Re-export main types
@@ -62,4 +63,5 @@ pub use staging::StagingUseCases;
 pub use story_events::StoryEventUseCases;
 pub use time::TimeUseCases;
 pub use visual_state::VisualStateUseCases;
+pub use workflows::WorkflowUseCases;
 pub use world::WorldUseCases;

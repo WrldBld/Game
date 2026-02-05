@@ -55,6 +55,7 @@ pub(crate) struct TestAppRepos {
     pub(crate) location_state_repo: MockLocationStateRepo,
     pub(crate) region_state_repo: MockRegionStateRepo,
     pub(crate) prompt_templates: Option<MockPromptTemplateRepo>,
+    pub(crate) workflow_config_repo: Option<MockWorkflowConfigRepo>,
 }
 
 impl TestAppRepos {
@@ -103,6 +104,7 @@ impl TestAppRepos {
             location_state_repo: MockLocationStateRepo::new(),
             region_state_repo: MockRegionStateRepo::new(),
             prompt_templates: None,
+            workflow_config_repo: None,
         }
     }
 }
@@ -1079,6 +1081,13 @@ pub(crate) fn build_test_app_with_ports(
         custom_condition,
         inventory,
         character_sheet,
+        workflows: crate::use_cases::WorkflowUseCases::new(
+            repos.workflow_config_repo.map(Arc::new).unwrap_or_else(|| {
+                Arc::new(crate::infrastructure::ports::MockWorkflowConfigRepo::new())
+            }),
+            clock.clone(),
+            queue.clone(),
+        ),
     };
 
     // Create content service for game content (races, classes, spells, etc.)

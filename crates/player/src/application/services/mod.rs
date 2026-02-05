@@ -73,8 +73,9 @@ pub use narrative_event_service::NarrativeEventService;
 
 // Re-export workflow service types
 pub use workflow_service::{
-    AnalyzeWorkflowResponse, InputDefault, PromptMapping, TestWorkflowResponse, WorkflowAnalysis,
-    WorkflowConfig, WorkflowInput, WorkflowService, WorkflowSlotCategory, WorkflowSlotStatus,
+    AnalyzeWorkflowResponse, ControlNetMapping, InputDefault, PromptMapping, TestWorkflowResponse,
+    WorkflowAnalysis, WorkflowConfig, WorkflowInput, WorkflowService, WorkflowSlotCategory,
+    WorkflowSlotStatus,
 };
 
 // Re-export asset service types

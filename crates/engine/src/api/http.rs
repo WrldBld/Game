@@ -2,7 +2,7 @@
 
 use axum::{
     extract::{Path, State, Query},
-    routing::{get, post, put},
+    routing::{get, post, put, patch},
     http::StatusCode,
     Json, Router,
 };
@@ -17,6 +17,7 @@ use crate::use_cases::management::ManagementError;
 use crate::use_cases::prompt_templates::PromptTemplateError;
 use crate::use_cases::settings::SettingsError;
 use crate::use_cases::world::WorldError;
+use crate::use_cases::workflows::WorkflowError;
 
 // =============================================================================
 // Prompt Template DTOs (wire format)
@@ -100,6 +101,12 @@ pub fn routes() -> Router<Arc<App>> {
             put(set_world_override).delete(delete_world_override),
         )
         .route("/api/prompt-templates/resolve/{key}", get(resolve_template))
+        // Workflow management
+        .route("/api/workflows", get(list_workflows))
+        .route("/api/workflows/{slot}", get(get_workflow).post(save_workflow).delete(delete_workflow))
+        .route("/api/workflows/{slot}/defaults", patch(update_workflow_defaults))
+        .route("/api/workflows/analyze", post(analyze_workflow))
+        .route("/api/workflows/{slot}/test", post(test_workflow))
     // Add more routes as needed
 }
 
@@ -612,6 +619,269 @@ fn map_prompt_template_error(e: PromptTemplateError) -> ApiError {
 }
 
 // =============================================================================
+// Workflow Management
+// =============================================================================
+
+async fn list_workflows(
+    State(app): State<Arc<App>>,
+) -> Result<Json<wrldbldr_shared::dto::WorkflowSlotsResponseDto>, ApiError> {
+    let workflows = app
+        .use_cases
+        .workflows
+        .list
+        .execute()
+        .await
+        .map_err(map_workflow_error)?;
+
+    let categories = group_workflows_by_category(workflows);
+
+    Ok(Json(wrldbldr_shared::dto::WorkflowSlotsResponseDto {
+        categories,
+    }))
+}
+
+async fn get_workflow(
+    State(app): State<Arc<App>>,
+    Path(slot): Path<String>,
+) -> Result<Json<wrldbldr_shared::dto::WorkflowConfigFullResponseDto>, ApiError> {
+    let slot = parse_workflow_slot(&slot)?;
+
+    let config = app
+        .use_cases
+        .workflows
+        .get
+        .execute(slot)
+        .await
+        .map_err(map_workflow_error)?
+        .ok_or(ApiError::NotFound)?;
+
+    let analysis = wrldbldr_shared::workflow::analyze_workflow(&config.workflow_json);
+
+    Ok(Json(workflow_config_to_full_dto(config, analysis)))
+}
+
+async fn save_workflow(
+    State(app): State<Arc<App>>,
+    Path(slot): Path<String>,
+    Json(req): Json<wrldbldr_shared::dto::CreateWorkflowConfigRequestDto>,
+) -> Result<Json<wrldbldr_shared::dto::WorkflowConfigResponseDto>, ApiError> {
+    let slot = parse_workflow_slot(&slot)?;
+
+    let prompt_mappings: Vec<wrldbldr_shared::workflow::PromptMapping> = req
+        .prompt_mappings
+        .into_iter()
+        .map(|dto| dto.into())
+        .collect();
+
+    let input_defaults: Vec<wrldbldr_shared::workflow::InputDefault> = req
+        .input_defaults
+        .into_iter()
+        .map(|dto| dto.into())
+        .collect();
+
+    let config = app
+        .use_cases
+        .workflows
+        .save
+        .execute(
+            slot,
+            req.name,
+            req.workflow_json,
+            prompt_mappings,
+            input_defaults,
+            req.locked_inputs,
+        )
+        .await
+        .map_err(map_workflow_error)?;
+
+    Ok(Json(workflow_config_to_dto(config)))
+}
+
+async fn delete_workflow(
+    State(app): State<Arc<App>>,
+    Path(slot): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let slot = parse_workflow_slot(&slot)?;
+
+    app.use_cases
+        .workflows
+        .delete
+        .execute(slot)
+        .await
+        .map_err(map_workflow_error)?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn update_workflow_defaults(
+    State(app): State<Arc<App>>,
+    Path(slot): Path<String>,
+    Json(req): Json<wrldbldr_shared::dto::UpdateWorkflowDefaultsRequestDto>,
+) -> Result<Json<wrldbldr_shared::dto::WorkflowConfigResponseDto>, ApiError> {
+    let slot = parse_workflow_slot(&slot)?;
+
+    let input_defaults: Vec<wrldbldr_shared::workflow::InputDefault> = req
+        .input_defaults
+        .into_iter()
+        .map(|dto| dto.into())
+        .collect();
+
+    let config = app
+        .use_cases
+        .workflows
+        .update_defaults
+        .execute(slot, input_defaults, req.locked_inputs)
+        .await
+        .map_err(map_workflow_error)?;
+
+    Ok(Json(workflow_config_to_dto(config)))
+}
+
+async fn analyze_workflow(
+    Json(req): Json<wrldbldr_shared::dto::AnalyzeWorkflowRequestDto>,
+) -> Result<Json<wrldbldr_shared::dto::WorkflowAnalysisResponseDto>, ApiError> {
+    let analysis = wrldbldr_shared::workflow::analyze_workflow(&req.workflow_json);
+    let suggested_mappings = wrldbldr_shared::workflow::auto_detect_prompt_mappings(&req.workflow_json);
+
+    let suggested_dtos: Vec<wrldbldr_shared::dto::PromptMappingDto> = suggested_mappings
+        .into_iter()
+        .map(|m| m.into())
+        .collect();
+
+    Ok(Json(wrldbldr_shared::dto::WorkflowAnalysisResponseDto {
+        is_valid: analysis.is_valid(),
+        analysis: analysis.into(),
+        suggested_prompt_mappings: suggested_dtos,
+    }))
+}
+
+async fn test_workflow(
+    State(app): State<Arc<App>>,
+    Path(slot): Path<String>,
+    Json(req): Json<wrldbldr_shared::dto::TestWorkflowRequestDto>,
+) -> Result<Json<wrldbldr_shared::dto::TestWorkflowResponseDto>, ApiError> {
+    let slot = parse_workflow_slot(&slot)?;
+
+    let item_id = app
+        .use_cases
+        .workflows
+        .test
+        .execute(slot, req.prompt, req.negative_prompt)
+        .await
+        .map_err(map_workflow_error)?;
+
+    Ok(Json(wrldbldr_shared::dto::TestWorkflowResponseDto {
+        prompt_id: item_id.to_string(),
+        queue_position: 0, // Queue position not tracked in current implementation
+    }))
+}
+
+fn parse_workflow_slot(slot: &str) -> Result<wrldbldr_shared::workflow::WorkflowSlot, ApiError> {
+    slot.parse::<wrldbldr_shared::workflow::WorkflowSlot>()
+        .map_err(|_| ApiError::BadRequest(format!("Invalid workflow slot: {}", slot)))
+}
+
+fn group_workflows_by_category(
+    workflows: Vec<(wrldbldr_shared::workflow::WorkflowSlot, Option<wrldbldr_shared::workflow::WorkflowConfiguration>)>,
+) -> Vec<wrldbldr_shared::dto::WorkflowSlotCategoryDto> {
+    use std::collections::HashMap;
+
+    let mut categories: HashMap<&'static str, Vec<wrldbldr_shared::dto::WorkflowSlotStatusDto>> = HashMap::new();
+
+    for (slot, config) in workflows {
+        let category = slot.category();
+        let (width, height) = slot.default_dimensions();
+
+        let status = wrldbldr_shared::dto::WorkflowSlotStatusDto {
+            slot: slot.as_str().to_string(),
+            display_name: slot.display_name().to_string(),
+            default_width: width,
+            default_height: height,
+            configured: config.is_some(),
+            config: config.map(workflow_config_to_dto),
+        };
+
+        categories.entry(category).or_default().push(status);
+    }
+
+    categories
+        .into_iter()
+        .map(|(name, slots)| wrldbldr_shared::dto::WorkflowSlotCategoryDto {
+            name: name.to_string(),
+            slots,
+        })
+        .collect()
+}
+
+fn workflow_config_to_dto(
+    config: wrldbldr_shared::workflow::WorkflowConfiguration,
+) -> wrldbldr_shared::dto::WorkflowConfigResponseDto {
+    let prompt_mappings: Vec<wrldbldr_shared::dto::PromptMappingDto> = config
+        .prompt_mappings
+        .into_iter()
+        .map(|m| m.into())
+        .collect();
+
+    wrldbldr_shared::dto::WorkflowConfigResponseDto {
+        id: config.id,
+        slot: config.slot.as_str().to_string(),
+        slot_display_name: config.slot.display_name().to_string(),
+        name: config.name,
+        node_count: 0, // Will be populated from analysis if needed
+        input_count: 0, // Will be populated from analysis if needed
+        prompt_mappings,
+        has_primary_prompt: config.primary_prompt_mapping().is_some(),
+        has_negative_prompt: config.negative_prompt_mapping().is_some(),
+        created_at: config.created_at,
+        updated_at: config.updated_at,
+    }
+}
+
+fn workflow_config_to_full_dto(
+    config: wrldbldr_shared::workflow::WorkflowConfiguration,
+    analysis: wrldbldr_shared::workflow::WorkflowAnalysis,
+) -> wrldbldr_shared::dto::WorkflowConfigFullResponseDto {
+    let prompt_mappings: Vec<wrldbldr_shared::dto::PromptMappingDto> = config
+        .prompt_mappings
+        .into_iter()
+        .map(|m| m.into())
+        .collect();
+
+    let input_defaults: Vec<wrldbldr_shared::dto::InputDefaultDto> = config
+        .input_defaults
+        .into_iter()
+        .map(|d| d.into())
+        .collect();
+
+    wrldbldr_shared::dto::WorkflowConfigFullResponseDto {
+        id: config.id,
+        slot: config.slot.as_str().to_string(),
+        slot_display_name: config.slot.display_name().to_string(),
+        name: config.name,
+        workflow_json: config.workflow_json,
+        prompt_mappings,
+        input_defaults,
+        locked_inputs: config.locked_inputs,
+        analysis: analysis.into(),
+        created_at: config.created_at,
+        updated_at: config.updated_at,
+    }
+}
+
+fn map_workflow_error(e: WorkflowError) -> ApiError {
+    match e {
+        WorkflowError::NotFound(_) => ApiError::NotFound,
+        WorkflowError::InvalidSlot(msg) | WorkflowError::Validation(msg) => {
+            ApiError::BadRequest(msg)
+        }
+        e => {
+            tracing::error!(error = %e, "Workflow operation failed");
+            ApiError::Internal(e.to_string())
+        }
+    }
+}
+
+// =============================================================================
 // Error Mapping Helpers
 // =============================================================================
 
@@ -1010,6 +1280,460 @@ mod tests {
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let payload: serde_json::Value = read_body_json(response).await;
         assert_eq!(payload["id"], world.id().to_string());
+    }
+
+    // =============================================================================
+    // Workflow API Tests
+    // =============================================================================
+
+    #[tokio::test]
+    async fn list_workflows_returns_categories() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        workflow_repo
+            .expect_list_all()
+            .returning(|| Ok(Vec::new()));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let payload: wrldbldr_shared::dto::WorkflowSlotsResponseDto = read_body_json(response).await;
+        // Should have categories for all workflow slots
+        assert!(!payload.categories.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_workflow_returns_config_when_exists() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        let config = wrldbldr_shared::workflow::WorkflowConfiguration::new(
+            wrldbldr_shared::workflow::WorkflowSlot::CharacterPortrait,
+            "Test Workflow",
+            serde_json::json!({"test": "workflow"}),
+            chrono::Utc::now().to_rfc3339(),
+        );
+        workflow_repo
+            .expect_get_by_slot()
+            .returning(move |_| Ok(Some(config.clone())));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let payload: wrldbldr_shared::dto::WorkflowConfigFullResponseDto = read_body_json(response).await;
+        assert_eq!(payload.slot, "character_portrait");
+        assert_eq!(payload.name, "Test Workflow");
+    }
+
+    #[tokio::test]
+    async fn get_workflow_returns_404_when_not_found() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        workflow_repo
+            .expect_get_by_slot()
+            .returning(|_| Ok(None));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn save_workflow_creates_config() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        workflow_repo
+            .expect_save()
+            .times(1)
+            .returning(|_| Ok(()));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let request = wrldbldr_shared::dto::CreateWorkflowConfigRequestDto {
+            name: "New Workflow".to_string(),
+            workflow_json: serde_json::json!({"test": "workflow"}),
+            prompt_mappings: vec![],
+            input_defaults: vec![],
+            locked_inputs: vec![],
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait")
+                    .method(axum::http::Method::POST)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&request).expect("test: request should serialize"),
+                    ))
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let payload: wrldbldr_shared::dto::WorkflowConfigResponseDto = read_body_json(response).await;
+        assert_eq!(payload.slot, "character_portrait");
+        assert_eq!(payload.name, "New Workflow");
+    }
+
+    #[tokio::test]
+    async fn delete_workflow_removes_config() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        workflow_repo
+            .expect_exists()
+            .returning(|_| Ok(true));
+        workflow_repo
+            .expect_delete()
+            .times(1)
+            .returning(|_| Ok(()));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait")
+                    .method(axum::http::Method::DELETE)
+                    .body(Body::empty())
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn delete_workflow_returns_404_when_not_exists() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        workflow_repo
+            .expect_exists()
+            .returning(|_| Ok(false));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait")
+                    .method(axum::http::Method::DELETE)
+                    .body(Body::empty())
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn analyze_workflow_returns_analysis() {
+        let repos = TestAppRepos::new(MockWorldRepo::new());
+        let router = build_router_with_repos(repos);
+
+        let workflow_json = serde_json::json!({
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {
+                    "ckpt_name": "model.safetensors"
+                }
+            },
+            "2": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": "positive prompt"
+                }
+            }
+        });
+
+        let request = wrldbldr_shared::dto::AnalyzeWorkflowRequestDto {
+            workflow_json,
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/analyze")
+                    .method(axum::http::Method::POST)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&request).expect("test: request should serialize"),
+                    ))
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let payload: wrldbldr_shared::dto::WorkflowAnalysisResponseDto = read_body_json(response).await;
+        assert!(payload.is_valid);
+        assert_eq!(payload.analysis.node_count, 2);
+        assert!(!payload.analysis.inputs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn analyze_workflow_returns_invalid_for_empty_workflow() {
+        let repos = TestAppRepos::new(MockWorldRepo::new());
+        let router = build_router_with_repos(repos);
+
+        let request = wrldbldr_shared::dto::AnalyzeWorkflowRequestDto {
+            workflow_json: serde_json::json!({}),
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/analyze")
+                    .method(axum::http::Method::POST)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&request).expect("test: request should serialize"),
+                    ))
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let payload: wrldbldr_shared::dto::WorkflowAnalysisResponseDto = read_body_json(response).await;
+        assert!(!payload.is_valid);
+    }
+
+    #[tokio::test]
+    async fn update_workflow_defaults_modifies_config() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        let config = wrldbldr_shared::workflow::WorkflowConfiguration::new(
+            wrldbldr_shared::workflow::WorkflowSlot::CharacterPortrait,
+            "Test Workflow",
+            serde_json::json!({"test": "workflow"}),
+            chrono::Utc::now().to_rfc3339(),
+        );
+        workflow_repo
+            .expect_get_by_slot()
+            .returning(move |_| Ok(Some(config.clone())));
+        workflow_repo
+            .expect_save()
+            .times(1)
+            .returning(|_| Ok(()));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let request = wrldbldr_shared::dto::UpdateWorkflowDefaultsRequestDto {
+            input_defaults: vec![wrldbldr_shared::dto::InputDefaultDto {
+                node_id: "1".to_string(),
+                input_name: "seed".to_string(),
+                default_value: serde_json::json!(42),
+            }],
+            locked_inputs: Some(vec!["1.seed".to_string()]),
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait/defaults")
+                    .method(axum::http::Method::PATCH)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&request).expect("test: request should serialize"),
+                    ))
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_workflow_queues_generation() {
+        use wrldbldr_domain::QueueItemId;
+        use crate::infrastructure::ports::MockQueuePort;
+
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        let config = wrldbldr_shared::workflow::WorkflowConfiguration::new(
+            wrldbldr_shared::workflow::WorkflowSlot::CharacterPortrait,
+            "Test Workflow",
+            serde_json::json!({"test": "workflow"}),
+            chrono::Utc::now().to_rfc3339(),
+        );
+        workflow_repo
+            .expect_get_by_slot()
+            .returning(move |_| Ok(Some(config.clone())));
+
+        let mut queue = MockQueuePort::new();
+        queue
+            .expect_enqueue_asset_generation()
+            .times(1)
+            .returning(|_| Ok(QueueItemId::new()));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let app = crate::api::websocket::test_support::build_test_app_with_ports(
+            repos,
+            chrono::Utc::now(),
+            Arc::new(queue),
+            Arc::new(crate::api::websocket::test_support::NoopLlm),
+            Arc::new(crate::api::websocket::test_support::NoopLlm),
+        );
+        let router: Router = routes().with_state(app);
+
+        let request = wrldbldr_shared::dto::TestWorkflowRequestDto {
+            prompt: "test prompt".to_string(),
+            negative_prompt: Some("test negative".to_string()),
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait/test")
+                    .method(axum::http::Method::POST)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&request).expect("test: request should serialize"),
+                    ))
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let payload: wrldbldr_shared::dto::TestWorkflowResponseDto = read_body_json(response).await;
+        // Response should have a valid prompt_id (queue item id)
+        assert!(!payload.prompt_id.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_workflow_returns_404_when_workflow_not_configured() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        workflow_repo
+            .expect_get_by_slot()
+            .returning(|_| Ok(None));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        let request = wrldbldr_shared::dto::TestWorkflowRequestDto {
+            prompt: "test prompt".to_string(),
+            negative_prompt: None,
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait/test")
+                    .method(axum::http::Method::POST)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&request).expect("test: request should serialize"),
+                    ))
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn save_workflow_rejects_invalid_workflow_json() {
+        let mut workflow_repo = crate::infrastructure::ports::MockWorkflowConfigRepo::new();
+        // save should not be called for invalid workflow
+        workflow_repo.expect_save().times(0);
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.workflow_config_repo = Some(workflow_repo);
+
+        let router = build_router_with_repos(repos);
+
+        // Invalid workflow - not a valid ComfyUI API format (no class_type)
+        let request = wrldbldr_shared::dto::CreateWorkflowConfigRequestDto {
+            name: "Invalid Workflow".to_string(),
+            workflow_json: serde_json::json!({"invalid": "workflow"}),
+            prompt_mappings: vec![],
+            input_defaults: vec![],
+            locked_inputs: vec![],
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/workflows/character_portrait")
+                    .method(axum::http::Method::POST)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&request).expect("test: request should serialize"),
+                    ))
+                    .expect("test: request should build"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
     }
 
 }

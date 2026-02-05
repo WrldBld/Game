@@ -94,6 +94,7 @@ pub struct UseCases {
     pub custom_condition: Arc<use_cases::CustomConditionEvaluator>,
     pub inventory: use_cases::InventoryUseCases,
     pub character_sheet: use_cases::CharacterSheetUseCases,
+    pub workflows: use_cases::WorkflowUseCases,
 }
 
 impl App {
@@ -661,6 +662,14 @@ impl App {
         let character_sheet =
             use_cases::CharacterSheetUseCases::new(repos.character.clone(), repos.world.clone());
 
+        let workflow_config_repo: Arc<dyn crate::infrastructure::ports::WorkflowConfigRepo> =
+            repos.workflow_config.clone();
+        let workflows = use_cases::WorkflowUseCases::new(
+            workflow_config_repo,
+            clock_port.clone(),
+            queue_port.clone(),
+        );
+
         let use_cases = UseCases {
             movement,
             conversation,
@@ -688,6 +697,7 @@ impl App {
             custom_condition,
             inventory,
             character_sheet,
+            workflows,
         };
 
         // Create content service for game content (races, classes, spells, etc.)

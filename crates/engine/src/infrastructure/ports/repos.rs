@@ -1238,3 +1238,40 @@ pub trait PromptTemplateRepo: Send + Sync {
         key: &str,
     ) -> Result<Option<ResolvedPromptTemplate>, RepoError>;
 }
+
+// =============================================================================
+// Workflow Configuration Storage
+// =============================================================================
+
+use wrldbldr_shared::workflow::{WorkflowConfiguration, WorkflowSlot};
+
+/// Repository for workflow configuration storage.
+///
+/// Stores WorkflowConfiguration nodes in Neo4j keyed by workflow slot.
+/// Per ADR-009, this is a port trait injected directly into use cases.
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait WorkflowConfigRepo: Send + Sync {
+    /// Get workflow configuration by slot.
+    async fn get_by_slot(
+        &self,
+        slot: WorkflowSlot,
+    ) -> Result<Option<WorkflowConfiguration>, RepoError>;
+
+    /// Save workflow configuration.
+    ///
+    /// If a configuration already exists for this slot, it is replaced.
+    async fn save(&self, config: &WorkflowConfiguration) -> Result<(), RepoError>;
+
+    /// Delete workflow configuration by slot.
+    async fn delete(&self, slot: WorkflowSlot) -> Result<(), RepoError>;
+
+    /// List all configured workflow slots.
+    async fn list_all(&self) -> Result<Vec<WorkflowConfiguration>, RepoError>;
+
+    /// Check if a workflow configuration exists for the given slot.
+    async fn exists(&self, slot: WorkflowSlot) -> Result<bool, RepoError> {
+        let config = self.get_by_slot(slot).await?;
+        Ok(config.is_some())
+    }
+}

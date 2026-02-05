@@ -113,12 +113,7 @@ impl GenerateAsset {
         }
 
         // Generate the image
-        let request = ImageRequest {
-            prompt: prompt.to_string(),
-            workflow: workflow.to_string(),
-            width: 512,
-            height: 512,
-        };
+        let request = ImageRequest::new(prompt, workflow, 512, 512);
 
         let image_result = self
             .image_gen
@@ -183,6 +178,12 @@ impl GenerateAsset {
             prompt: prompt.to_string(),
             negative_prompt: None,
             count,
+            model_id: None,
+            prompt_prefix: None,
+            prompt_suffix: None,
+            score_tokens_enabled: None,
+            pose_asset_id: None,
+            controlnet_mappings: None,
         };
 
         let queue_item_id = self.queue.enqueue_asset_generation(&data).await?;

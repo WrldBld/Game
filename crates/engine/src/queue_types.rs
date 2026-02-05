@@ -738,4 +738,33 @@ pub struct AssetGenerationData {
     pub negative_prompt: Option<String>,
     /// Number of assets to generate
     pub count: u32,
+    /// Model ID override (e.g., "sdxl.safetensors")
+    #[serde(default)]
+    pub model_id: Option<String>,
+    /// Prompt prefix (prepended to prompt)
+    #[serde(default)]
+    pub prompt_prefix: Option<String>,
+    /// Prompt suffix (appended to prompt)
+    #[serde(default)]
+    pub prompt_suffix: Option<String>,
+    /// Whether SCORE tokens should be prepended
+    #[serde(default)]
+    pub score_tokens_enabled: Option<bool>,
+    /// Pose asset ID for ControlNet
+    #[serde(default)]
+    pub pose_asset_id: Option<String>,
+    /// ControlNet node mappings
+    #[serde(default)]
+    pub controlnet_mappings: Option<Vec<ControlNetMapping>>,
+}
+
+/// ControlNet node mapping for pose injection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ControlNetMapping {
+    /// Node ID in the workflow
+    pub node_id: String,
+    /// Input key on that node
+    pub input_key: String,
+    /// Whether this mapping is enabled
+    pub enabled: bool,
 }

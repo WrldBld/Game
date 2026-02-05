@@ -37,6 +37,14 @@ pub struct WorkflowSlotsResponse {
     pub categories: Vec<WorkflowSlotCategory>,
 }
 
+/// ControlNet mapping for pose injection
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ControlNetMapping {
+    pub node_id: String,
+    pub input_key: String,
+    pub enabled: bool,
+}
+
 /// Full workflow configuration data
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkflowConfig {
@@ -48,6 +56,27 @@ pub struct WorkflowConfig {
     pub prompt_mappings: Vec<PromptMapping>,
     pub input_defaults: Vec<InputDefault>,
     pub locked_inputs: Vec<String>,
+    /// Model ID override for this workflow
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// Prompt prefix override
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_prefix: Option<String>,
+    /// Prompt suffix override
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_suffix: Option<String>,
+    /// Negative prompt override
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub negative_prompt_override: Option<String>,
+    /// Whether SCORE tokens are enabled for this workflow
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score_tokens_enabled: Option<bool>,
+    /// Pose asset ID for ControlNet
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controlnet_pose_asset_id: Option<String>,
+    /// ControlNet node mappings
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controlnet_mappings: Option<Vec<ControlNetMapping>>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -228,16 +257,38 @@ impl<A: ApiPort> WorkflowService<A> {
     /// * `slot_id` - The slot identifier
     /// * `input_defaults` - New default values for inputs
     /// * `locked_inputs` - Optional list of locked input identifiers
+    /// * `model_id` - Optional model ID override
+    /// * `prompt_prefix` - Optional prompt prefix override
+    /// * `prompt_suffix` - Optional prompt suffix override
+    /// * `negative_prompt_override` - Optional negative prompt override
+    /// * `score_tokens_enabled` - Optional SCORE tokens toggle
+    /// * `controlnet_pose_asset_id` - Optional pose asset ID for ControlNet
+    /// * `controlnet_mappings` - Optional ControlNet node mappings
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_workflow_defaults(
         &self,
         slot_id: &str,
         input_defaults: Vec<InputDefault>,
         locked_inputs: Option<Vec<String>>,
+        model_id: Option<String>,
+        prompt_prefix: Option<String>,
+        prompt_suffix: Option<String>,
+        negative_prompt_override: Option<String>,
+        score_tokens_enabled: Option<bool>,
+        controlnet_pose_asset_id: Option<String>,
+        controlnet_mappings: Option<Vec<ControlNetMapping>>,
     ) -> Result<WorkflowConfig, ApiError> {
         let path = format!("/api/workflows/{}/defaults", slot_id);
         let body = serde_json::json!({
             "input_defaults": input_defaults,
             "locked_inputs": locked_inputs,
+            "model_id": model_id,
+            "prompt_prefix": prompt_prefix,
+            "prompt_suffix": prompt_suffix,
+            "negative_prompt_override": negative_prompt_override,
+            "score_tokens_enabled": score_tokens_enabled,
+            "controlnet_pose_asset_id": controlnet_pose_asset_id,
+            "controlnet_mappings": controlnet_mappings,
         });
         self.api.patch(&path, &body).await
     }

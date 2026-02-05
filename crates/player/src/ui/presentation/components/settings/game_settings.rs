@@ -279,6 +279,67 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
                         }
                     }
 
+                    // ComfyUI Settings (per-world overrides)
+                    CollapsibleSettingsSection {
+                        title: "ComfyUI Overrides",
+                        description: "Override global ComfyUI settings for this world",
+                        initially_open: false,
+
+                        TextField {
+                            label: "Default Model ID",
+                            description: "Override global model (leave empty to use global)",
+                            value: settings.read().comfyui_default_model_id.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_default_model_id = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        TextField {
+                            label: "Prompt Prefix",
+                            description: "Override global prompt prefix",
+                            value: settings.read().comfyui_prompt_prefix.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_prompt_prefix = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        TextField {
+                            label: "Prompt Suffix",
+                            description: "Override global prompt suffix",
+                            value: settings.read().comfyui_prompt_suffix.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_prompt_suffix = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        TextField {
+                            label: "Negative Prompt",
+                            description: "Override global negative prompt",
+                            value: settings.read().comfyui_negative_prompt.clone().unwrap_or_default(),
+                            onchange: move |val: String| {
+                                let value = if val.trim().is_empty() { None } else { Some(val) };
+                                settings.with_mut(|s| s.comfyui_negative_prompt = value);
+                                success_message.set(None);
+                            }
+                        }
+
+                        BooleanField {
+                            label: "SCORE Tokens Enabled",
+                            description: "Override global SCORE tokens setting",
+                            value: settings.read().comfyui_score_tokens_enabled,
+                            onchange: move |val: bool| {
+                                settings.with_mut(|s| s.comfyui_score_tokens_enabled = val);
+                                success_message.set(None);
+                            }
+                        }
+                    }
+
                     // Animation Settings
                     SettingsSection {
                         title: "Text Animation",
@@ -468,6 +529,15 @@ struct NumberFieldProps {
     onchange: EventHandler<usize>,
 }
 
+/// Text input field component
+#[derive(Props, Clone, PartialEq)]
+struct TextFieldProps {
+    label: &'static str,
+    description: &'static str,
+    value: String,
+    onchange: EventHandler<String>,
+}
+
 /// Simple select field component
 #[derive(Props, Clone, PartialEq)]
 struct SelectFieldProps {
@@ -512,6 +582,40 @@ fn SelectField(props: SelectFieldProps) -> Element {
                             "{opt_label}"
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn TextField(props: TextFieldProps) -> Element {
+    rsx! {
+        div {
+            class: "text-field",
+
+            label {
+                class: "block",
+
+                div {
+                    class: "flex justify-between items-baseline mb-1",
+
+                    span {
+                        class: "text-gray-300 text-xs font-medium",
+                        "{props.label}"
+                    }
+
+                    span {
+                        class: "text-gray-600 text-xs",
+                        "{props.description}"
+                    }
+                }
+
+                input {
+                    r#type: "text",
+                    class: "w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    value: "{props.value}",
+                    oninput: move |evt| props.onchange.call(evt.value()),
                 }
             }
         }

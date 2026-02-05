@@ -193,6 +193,12 @@ impl GenerateExpressionSheet {
                 prompt,
                 negative_prompt: None,
                 count: 1, // Expression sheet is a single image
+                model_id: None,
+                prompt_prefix: None,
+                prompt_suffix: None,
+                score_tokens_enabled: None,
+                pose_asset_id: None,
+                controlnet_mappings: None,
             })
             .await?;
 

@@ -217,6 +217,37 @@ pub struct AppSettings {
     pub batch_queue_failure_policy: BatchQueueFailurePolicy,
 
     // ============================================================================
+    // ComfyUI Settings
+    // ============================================================================
+    /// Base URL for ComfyUI server (overrides COMFYUI_BASE_URL env var if set)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comfyui_base_url: Option<String>,
+
+    /// Default checkpoint/model for image generation (e.g., sdxl.safetensors)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comfyui_default_model_id: Option<String>,
+
+    /// Global prompt prefix prepended to all generation prompts
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comfyui_prompt_prefix: Option<String>,
+
+    /// Global prompt suffix appended to all generation prompts
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comfyui_prompt_suffix: Option<String>,
+
+    /// Global negative prompt for all generations
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comfyui_negative_prompt: Option<String>,
+
+    /// Whether SCORE tokens are enabled by default
+    #[serde(default = "default_comfyui_score_tokens_enabled")]
+    pub comfyui_score_tokens_enabled: bool,
+
+    /// Per-workflow configuration overrides
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comfyui_workflow_overrides: Option<serde_json::Value>,
+
+    // ============================================================================
     // List Pagination Limits - Environment Overrides
     // ============================================================================
     /// Environment variable override for default list page size
@@ -268,6 +299,10 @@ fn default_llm_temperature_custom_condition() -> f32 {
     0.1
 }
 
+fn default_comfyui_score_tokens_enabled() -> bool {
+    true
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -302,6 +337,13 @@ impl Default for AppSettings {
             llm_api_key: None,
             style_reference_asset_id: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
+            comfyui_base_url: None,
+            comfyui_default_model_id: None,
+            comfyui_prompt_prefix: None,
+            comfyui_prompt_suffix: None,
+            comfyui_negative_prompt: None,
+            comfyui_score_tokens_enabled: default_comfyui_score_tokens_enabled(),
+            comfyui_workflow_overrides: None,
             list_default_page_size_override: None,
             list_max_page_size_override: None,
         }

@@ -1197,6 +1197,13 @@ pub struct AppSettings {
     /// Policy for how to handle failures while queueing prompts for a batch.
     #[serde(default = "default_batch_queue_failure_policy")]
     batch_queue_failure_policy: BatchQueueFailurePolicy,
+
+    // ============================================================================
+    // ComfyUI Settings
+    // ============================================================================
+    /// ComfyUI configuration settings
+    #[serde(default)]
+    comfyui_settings: wrldbldr_shared::settings::ComfyUiSettings,
 }
 
 impl Default for AppSettings {
@@ -1239,6 +1246,7 @@ impl Default for AppSettings {
             list_max_page_size: default_list_max_page_size(),
             list_default_page_size_override: None,
             list_max_page_size_override: None,
+            comfyui_settings: wrldbldr_shared::settings::ComfyUiSettings::default(),
         }
     }
 }
@@ -1447,6 +1455,11 @@ impl AppSettings {
     /// Maximum allowed page size for list operations (DoS prevention)
     pub fn list_max_page_size(&self) -> u32 {
         self.list_max_page_size
+    }
+
+    /// ComfyUI settings
+    pub fn comfyui_settings(&self) -> &wrldbldr_shared::settings::ComfyUiSettings {
+        &self.comfyui_settings
     }
 
     /// Get effective default list page size (with environment override applied)
@@ -1765,6 +1778,17 @@ impl AppSettings {
     pub fn with_llm_api_key(self, api_key: Option<String>) -> Self {
         Self {
             llm_api_key: api_key,
+            ..self
+        }
+    }
+
+    /// Set ComfyUI settings
+    pub fn with_comfyui_settings(
+        self,
+        comfyui_settings: wrldbldr_shared::settings::ComfyUiSettings,
+    ) -> Self {
+        Self {
+            comfyui_settings,
             ..self
         }
     }

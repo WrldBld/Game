@@ -68,8 +68,11 @@ pub use repos::{
     MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo,
     MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
     MockPromptTemplateRepo, MockRegionStateRepo, MockSceneRepo,
-    MockSettingsRepo, MockStagingRepo, MockWorldRepo,
+    MockSettingsRepo, MockStagingRepo, MockWorkflowConfigRepo, MockWorldRepo,
 };
+
+#[cfg(test)]
+pub use external::MockQueuePort;
 
 #[cfg(test)]
 pub use testing::MockClockPort;
