@@ -500,15 +500,19 @@ impl App {
             repos.location.clone(),
             repos.location_state.clone(),
             repos.region_state.clone(),
-            image_gen.clone(),
-            repos.asset.clone(),
+            clock_port.clone(),
+        ));
+
+        let visual_state_generation = Arc::new(use_cases::visual_state::GenerateVisualState::new(
+            repos.location.clone(),
+            repos.location_state.clone(),
+            repos.region_state.clone(),
             queue_port.clone(),
             clock_port.clone(),
-            random_port.clone(),
         ));
 
         let visual_state_uc =
-            use_cases::VisualStateUseCases::new(visual_state_resolve, visual_state_catalog);
+            use_cases::VisualStateUseCases::new(visual_state_resolve, visual_state_catalog, visual_state_generation);
 
         let settings_ops = Arc::new(SettingsOps::new(settings_repo.clone()));
 

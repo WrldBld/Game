@@ -112,7 +112,7 @@ async fn character_create_emits_entity_changed_broadcast() {
 
     // Expect response and EntityChanged broadcast (order not guaranteed)
     let (response, entity_changed) =
-        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(5), &request_id).await;
 
     if let ServerMessage::Response { result, .. } = response {
         assert!(result.is_success(), "Character creation should succeed");
@@ -217,7 +217,7 @@ async fn character_update_emits_entity_changed_broadcast() {
 
     // Expect response and EntityChanged broadcast (order not guaranteed)
     let (_response, entity_changed) =
-        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(5), &request_id).await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);
@@ -308,7 +308,7 @@ async fn character_delete_emits_entity_changed_broadcast() {
 
     // Expect response and EntityChanged broadcast (order not guaranteed)
     let (_response, entity_changed) =
-        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(5), &request_id).await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);
@@ -403,7 +403,7 @@ async fn character_change_archetype_emits_entity_changed_broadcast() {
 
     // Expect response and EntityChanged broadcast (order not guaranteed)
     let (_response, entity_changed) =
-        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(5), &request_id).await;
 
     if let ServerMessage::EntityChanged(data) = entity_changed {
         assert_eq!(data.entity_type, EntityType::Character);

@@ -46,6 +46,8 @@ pub struct UpdateFieldResult {
     pub value: SheetValue,
     /// Calculated/derived values that were recalculated.
     pub calculated: HashMap<String, SheetValue>,
+    /// The world ID this character belongs to (for broadcast).
+    pub world_id: WorldId,
 }
 
 /// Result of updating multiple fields.
@@ -55,6 +57,8 @@ pub struct UpdateFieldsResult {
     pub updated_count: usize,
     /// Calculated/derived values that were recalculated.
     pub calculated: HashMap<String, SheetValue>,
+    /// The world ID this character belongs to (for broadcast).
+    pub world_id: WorldId,
 }
 
 /// Result of completing character creation.
@@ -231,6 +235,7 @@ impl CharacterSheetUseCases {
             field_id,
             value,
             calculated,
+            world_id: character.world_id(),
         })
     }
 
@@ -304,6 +309,7 @@ impl CharacterSheetUseCases {
         Ok(UpdateFieldsResult {
             updated_count,
             calculated,
+            world_id: character.world_id(),
         })
     }
 

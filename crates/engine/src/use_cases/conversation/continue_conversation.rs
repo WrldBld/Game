@@ -814,7 +814,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let _conversation_id = ConversationId::new();
+        let conversation_id = ConversationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             UserId::new("user").expect("valid user id"),
@@ -847,11 +847,47 @@ mod tests {
             .withf(move |id| *id == npc_id)
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
+        // Set up world repo to return a valid world (needed for staging validation)
         let mut world_repo = MockWorldRepo::new();
+        let world_name = WorldName::new("W").expect("valid world name");
+        let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
+        let current_game_time = world.game_time().clone();
+        let world_for_get = world.clone();
         world_repo
             .expect_get()
             .withf(move |id| *id == world_id)
-            .returning(|_| Ok(None));
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+
+        // Set up staging repo with NPC present (so validation passes)
+        let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
+        npc.mood = MoodState::Calm;
+        let staged_npc = npc;
+        let game_time_seconds = current_game_time.total_seconds();
+        let staging = Staging::new(
+            region_id,
+            location_id,
+            world_id,
+            game_time_seconds,
+            "dm",
+            StagingSource::DmCustomized,
+            6,
+            now,
+        )
+        .with_npcs(vec![staged_npc]);
+
+        let mut staging_repo = MockStagingRepo::new();
+        let staging_for_get = staging.clone();
+        staging_repo
+            .expect_get_active_staging()
+            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
+            .returning(move |_, _| Ok(Some(staging_for_get.clone())));
+
+        // Mock the narrative repo to return false for is_conversation_active
+        let mut narrative_repo_for_ops = MockNarrativeRepo::new();
+        narrative_repo_for_ops
+            .expect_is_conversation_active()
+            .withf(move |id| *id == conversation_id)
+            .returning(|_| Ok(false));
 
         let clock = build_clock(now);
         let queue_port = build_queue(QueueItemId::new());
@@ -859,9 +895,9 @@ mod tests {
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
             Arc::new(pc_repo),
-            Arc::new(MockStagingRepo::new()),
+            Arc::new(staging_repo),
             Arc::new(world_repo),
-            create_narrative_entity(MockNarrativeRepo::new()),
+            create_narrative_entity(narrative_repo_for_ops),
             Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
             clock,
@@ -874,7 +910,7 @@ mod tests {
                 npc_id,
                 "player".to_string(),
                 "Hello again".to_string(),
-                None,
+                Some(conversation_id),
             )
             .await
             .expect_err("should return error");

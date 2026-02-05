@@ -6,7 +6,7 @@
 //! Prevents leaking internal details (paths, DB errors, stack traces) to clients.
 
 use crate::infrastructure::correlation::CorrelationId;
-use crate::use_cases::visual_state::CatalogError;
+use crate::use_cases::visual_state::{CatalogError, GenerationError};
 use tracing;
 
 /// Sanitize an error for client consumption.
@@ -107,6 +107,139 @@ pub fn sanitize_catalog_error(error: &CatalogError, operation: &str) -> String {
                 error = %error,
                 operation = operation,
                 "Catalog internal error"
+            );
+            messages::INTERNAL_ERROR.to_string()
+        }
+    }
+}
+
+/// Sanitize a GenerationError for client consumption.
+///
+/// Maps GenerationError variants to stable, client-friendly messages:
+/// - Validation -> specific validation message (safe to expose)
+/// - Domain -> mapped to stable messages per variant (no raw error strings)
+/// - LocationNotFound/RegionNotFound -> clear "not found" message
+/// - Repo/Queue -> sanitized generic internal error (no details leaked)
+///
+/// Logs the full error server-side with context.
+pub fn sanitize_generation_error(error: &GenerationError, operation: &str) -> String {
+    use wrldbldr_domain::DomainError;
+    use GenerationError;
+
+    match error {
+        // Validation errors - expose the specific validation message (safe for clients)
+        GenerationError::Validation(msg) => {
+            tracing::warn!(
+                error = %error,
+                operation = operation,
+                "Generation validation error"
+            );
+            msg.clone()
+        }
+
+        // Domain errors - map variants to stable client-safe messages
+        GenerationError::Domain(domain_err) => {
+            match domain_err {
+                // Validation messages are safe to expose
+                DomainError::Validation(msg) => {
+                    tracing::warn!(
+                        error = %error,
+                        operation = operation,
+                        "Generation domain validation error"
+                    );
+                    msg.clone()
+                }
+
+                // Invalid ID - stable message
+                DomainError::InvalidId(_) => {
+                    tracing::warn!(
+                        error = %error,
+                        operation = operation,
+                        "Generation domain invalid ID error"
+                    );
+                    "Invalid ID".to_string()
+                }
+
+                // Not found - stable message
+                DomainError::NotFound { entity_type, id } => {
+                    tracing::warn!(
+                        error = %error,
+                        operation = operation,
+                        entity_type = entity_type,
+                        entity_id = %id,
+                        "Generation domain not found error"
+                    );
+                    "Entity not found".to_string()
+                }
+
+                // Constraint violation - generic invalid input
+                DomainError::Constraint(_) => {
+                    tracing::warn!(
+                        error = %error,
+                        operation = operation,
+                        "Generation domain constraint error"
+                    );
+                    "Invalid input".to_string()
+                }
+
+                // Parse error - generic invalid input
+                DomainError::Parse(_) => {
+                    tracing::warn!(
+                        error = %error,
+                        operation = operation,
+                        "Generation domain parse error"
+                    );
+                    "Invalid input".to_string()
+                }
+
+                // Invalid state transition - generic invalid input
+                DomainError::InvalidStateTransition(_) => {
+                    tracing::warn!(
+                        error = %error,
+                        operation = operation,
+                        "Generation domain state transition error"
+                    );
+                    "Invalid input".to_string()
+                }
+
+                // Container full - specific capacity message
+                DomainError::ContainerFull { current, max } => {
+                    tracing::warn!(
+                        error = %error,
+                        operation = operation,
+                        current = current,
+                        max = max,
+                        "Generation domain container full error"
+                    );
+                    "Capacity reached".to_string()
+                }
+            }
+        }
+
+        // Not found errors - clear, specific messages
+        GenerationError::LocationNotFound(_) => {
+            tracing::warn!(
+                error = %error,
+                operation = operation,
+                "Generation location not found"
+            );
+            "Location not found".to_string()
+        }
+        GenerationError::RegionNotFound(_) => {
+            tracing::warn!(
+                error = %error,
+                operation = operation,
+                "Generation region not found"
+            );
+            "Region not found".to_string()
+        }
+
+        // Repository/Queue errors - internal details must not leak
+        GenerationError::Repo(_) | GenerationError::Queue(_) => {
+            tracing::error!(
+                error = %error,
+                operation = operation,
+                "Generation internal error"
             );
             messages::INTERNAL_ERROR.to_string()
         }

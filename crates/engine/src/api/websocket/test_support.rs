@@ -875,8 +875,6 @@ pub(crate) fn build_test_app_with_ports(
         ),
     );
 
-    let image_gen = Arc::new(crate::test_fixtures::image_mocks::PlaceholderImageGen::new());
-
     let queue = Arc::new(crate::test_fixtures::queue_mocks::MockQueueForTesting::new());
 
     let visual_state_catalog = Arc::new(
@@ -884,17 +882,24 @@ pub(crate) fn build_test_app_with_ports(
             location_repo.clone(),
             location_state_repo.clone(),
             region_state_repo.clone(),
-            image_gen.clone(),
-            asset_repo.clone(),
+            clock_port.clone(),
+        ),
+    );
+
+    let visual_state_generation = Arc::new(
+        crate::use_cases::visual_state::GenerateVisualState::new(
+            location_repo.clone(),
+            location_state_repo.clone(),
+            region_state_repo.clone(),
             queue.clone(),
             clock_port.clone(),
-            random_port.clone(),
         ),
     );
 
     let visual_state_uc = crate::use_cases::VisualStateUseCases::new(
         visual_state_resolve.clone(),
         visual_state_catalog.clone(),
+        visual_state_generation.clone(),
     );
 
     let staging_uc = crate::use_cases::StagingUseCases::new(
@@ -1211,8 +1216,11 @@ pub(crate) async fn ws_expect_response_and_entity_changed(
                 _ => {}
             }
 
-            if let (Some(resp), Some(entity)) = (response.take(), entity_changed.take()) {
-                return (resp, entity);
+            // Only take values when both are present to avoid consuming one before the other arrives
+            if response.is_some() && entity_changed.is_some() {
+                if let (Some(resp), Some(entity)) = (response.take(), entity_changed.take()) {
+                    return (resp, entity);
+                }
             }
         }
     })

@@ -20,12 +20,6 @@ pub const MAX_WORKFLOW_LENGTH: usize = 100;
 /// Maximum length for negative prompts (characters, not bytes).
 pub const MAX_NEGATIVE_PROMPT_LENGTH: usize = 2000;
 
-/// Maximum number of tags allowed.
-pub const MAX_TAGS_COUNT: usize = 20;
-
-/// Maximum length for individual tags (characters, not bytes).
-pub const MAX_TAG_LENGTH: usize = 50;
-
 /// Maximum length for asset paths (characters, not bytes).
 pub const MAX_ASSET_PATH_LENGTH: usize = 500;
 
@@ -86,12 +80,15 @@ pub fn validate_state_name_required(name: &str) -> ValidationResult {
     validate_state_name(name)
 }
 
-/// Validates an optional state description for length (character count, not bytes).
+/// Validates an optional state description for non-empty (when provided) and length constraints.
 ///
 /// # Errors
-/// Returns an error if the description exceeds `MAX_STATE_DESCRIPTION` characters.
+/// Returns an error if the description is whitespace-only (after trimming) or exceeds `MAX_STATE_DESCRIPTION` characters.
 pub fn validate_state_description(description: Option<&str>) -> ValidationResult {
     if let Some(desc) = description {
+        if desc.trim().is_empty() {
+            return ValidationResult::error("Description cannot be empty".to_string());
+        }
         if desc.chars().count() > MAX_STATE_DESCRIPTION {
             return ValidationResult::error(format!(
                 "Description too long (max {} chars)",
@@ -118,12 +115,15 @@ pub fn validate_asset_path(path: Option<&str>, field_name: &str) -> ValidationRe
     ValidationResult::success()
 }
 
-/// Validates a generation prompt for length (character count, not bytes).
+/// Validates a generation prompt for non-empty and length constraints.
 ///
 /// # Errors
-/// Returns an error if the prompt exceeds `MAX_PROMPT_LENGTH` characters.
+/// Returns an error if the prompt is empty (after trimming) or exceeds `MAX_PROMPT_LENGTH` characters.
 pub fn validate_generation_prompt(prompt: Option<&str>) -> ValidationResult {
     if let Some(p) = prompt {
+        if p.trim().is_empty() {
+            return ValidationResult::error("Generation prompt cannot be empty".to_string());
+        }
         if p.chars().count() > MAX_PROMPT_LENGTH {
             return ValidationResult::error(format!(
                 "Generation prompt too long (max {} chars)",
@@ -134,12 +134,15 @@ pub fn validate_generation_prompt(prompt: Option<&str>) -> ValidationResult {
     ValidationResult::success()
 }
 
-/// Validates a workflow ID for length (character count, not bytes).
+/// Validates a workflow ID for non-empty and length constraints.
 ///
 /// # Errors
-/// Returns an error if the workflow ID exceeds `MAX_WORKFLOW_LENGTH` characters.
+/// Returns an error if the workflow ID is empty (after trimming) or exceeds `MAX_WORKFLOW_LENGTH` characters.
 pub fn validate_workflow_id(workflow_id: Option<&str>) -> ValidationResult {
     if let Some(w) = workflow_id {
+        if w.trim().is_empty() {
+            return ValidationResult::error("Workflow ID cannot be empty".to_string());
+        }
         if w.chars().count() > MAX_WORKFLOW_LENGTH {
             return ValidationResult::error(format!(
                 "Workflow ID too long (max {} chars)",
@@ -166,23 +169,6 @@ pub fn validate_negative_prompt(neg_prompt: Option<&str>) -> ValidationResult {
     ValidationResult::success()
 }
 
-/// Validates tags for count and individual tag length.
-///
-/// # Errors
-/// Returns an error if there are more than `MAX_TAGS_COUNT` tags,
-/// or if any individual tag exceeds `MAX_TAG_LENGTH` characters.
-pub fn validate_tags(tags: &[String]) -> ValidationResult {
-    if tags.len() > MAX_TAGS_COUNT {
-        return ValidationResult::error(format!("Too many tags (max {})", MAX_TAGS_COUNT));
-    }
-    for tag in tags {
-        if tag.chars().count() > MAX_TAG_LENGTH {
-            return ValidationResult::error(format!("Tag too long (max {} chars)", MAX_TAG_LENGTH));
-        }
-    }
-    ValidationResult::success()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,7 +184,10 @@ mod tests {
         let name = "A".repeat(MAX_STATE_NAME + 1);
         let result = validate_state_name(&name);
         assert!(!result.is_valid());
-        assert!(result.error_message().expect("result should be Some").contains("Name too long"));
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("Name too long"));
     }
 
     #[test]
@@ -215,21 +204,30 @@ mod tests {
         let name = "A".repeat(MAX_STATE_NAME + 1);
         let result = validate_state_name_required(&name);
         assert!(!result.is_valid());
-        assert!(result.error_message().expect("result should be Some").contains("Name too long"));
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("Name too long"));
     }
 
     #[test]
     fn test_validate_state_name_required_empty() {
         let result = validate_state_name_required("");
         assert!(!result.is_valid());
-        assert!(result.error_message().expect("result should be Some").contains("cannot be empty"));
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("cannot be empty"));
     }
 
     #[test]
     fn test_validate_state_name_required_whitespace_only() {
         let result = validate_state_name_required("   ");
         assert!(!result.is_valid());
-        assert!(result.error_message().expect("result should be Some").contains("cannot be empty"));
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("cannot be empty"));
     }
 
     #[test]
@@ -252,6 +250,16 @@ mod tests {
     #[test]
     fn test_validate_state_description_none_is_valid() {
         assert!(validate_state_description(None).is_valid());
+    }
+
+    #[test]
+    fn test_validate_state_description_whitespace_only() {
+        let result = validate_state_description(Some("   "));
+        assert!(!result.is_valid());
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("cannot be empty"));
     }
 
     #[test]
@@ -299,6 +307,26 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_generation_prompt_empty() {
+        let result = validate_generation_prompt(Some(""));
+        assert!(!result.is_valid());
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_validate_generation_prompt_whitespace_only() {
+        let result = validate_generation_prompt(Some("   "));
+        assert!(!result.is_valid());
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("cannot be empty"));
+    }
+
+    #[test]
     fn test_validate_workflow_id_within_limit() {
         let workflow = Some("workflow_v1".to_string());
         assert!(validate_workflow_id(workflow.as_deref()).is_valid());
@@ -321,6 +349,26 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_workflow_id_empty() {
+        let result = validate_workflow_id(Some(""));
+        assert!(!result.is_valid());
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_validate_workflow_id_whitespace_only() {
+        let result = validate_workflow_id(Some("   "));
+        assert!(!result.is_valid());
+        assert!(result
+            .error_message()
+            .expect("result should be Some")
+            .contains("cannot be empty"));
+    }
+
+    #[test]
     fn test_validate_negative_prompt_within_limit() {
         let prompt = Some("A".repeat(MAX_NEGATIVE_PROMPT_LENGTH));
         assert!(validate_negative_prompt(prompt.as_deref()).is_valid());
@@ -340,34 +388,5 @@ mod tests {
     #[test]
     fn test_validate_negative_prompt_none_is_valid() {
         assert!(validate_negative_prompt(None).is_valid());
-    }
-
-    #[test]
-    fn test_validate_tags_within_limits() {
-        let tags: Vec<String> = (0..MAX_TAGS_COUNT).map(|i| format!("tag{}", i)).collect();
-        assert!(validate_tags(&tags).is_valid());
-    }
-
-    #[test]
-    fn test_validate_tags_exceeds_count() {
-        let tags: Vec<String> = (0..MAX_TAGS_COUNT + 1)
-            .map(|i| format!("tag{}", i))
-            .collect();
-        let result = validate_tags(&tags);
-        assert!(!result.is_valid());
-        assert!(result.error_message().expect("result should be Some").contains("Too many tags"));
-    }
-
-    #[test]
-    fn test_validate_tags_exceeds_length() {
-        let tags: Vec<String> = vec!["A".repeat(MAX_TAG_LENGTH + 1)];
-        let result = validate_tags(&tags);
-        assert!(!result.is_valid());
-        assert!(result.error_message().expect("result should be Some").contains("Tag too long"));
-    }
-
-    #[test]
-    fn test_validate_tags_empty_is_valid() {
-        assert!(validate_tags(&[]).is_valid());
     }
 }

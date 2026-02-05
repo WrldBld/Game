@@ -127,19 +127,18 @@ impl Neo4jLoreRepo {
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        // Parse tags from JSON - fail-fast on invalid JSON
-        let tags_str = node
-            .get_optional_string("tags")
-            .ok_or_else(|| RepoError::database("query", format!("Missing tags for Lore {}", id)))?;
-        let tags_raw: Vec<String> = serde_json::from_str(&tags_str).map_err(|e| {
-            RepoError::database(
-                "parse",
-                format!(
-                    "Invalid tags JSON for Lore {}: {} (value: '{}')",
-                    id, e, tags_str
-                ),
-            )
-        })?;
+        // Parse tags from JSON - treat missing/null as empty, fail-fast on invalid JSON
+        let tags_raw: Vec<String> = match node.get_optional_string("tags") {
+            Some(tags_str) if !tags_str.is_empty() => {
+                serde_json::from_str(&tags_str).map_err(|e| {
+                    RepoError::serialization(format!(
+                        "Invalid tags JSON for Lore {}: {} (value: '{}')",
+                        id, e, tags_str
+                    ))
+                })?
+            }
+            _ => Vec::new(),
+        };
 
         let mut lore = Lore::new(world_id, title, category, created_at)
             .with_id(id)
@@ -300,13 +299,16 @@ impl Neo4jLoreRepo {
     }
 
     /// Helper function to convert a node to LoreDetailRepo with chunks.
+    ///
+    /// # Fail-Fast Behavior
+    /// This function returns errors for:
+    /// - Missing or malformed tags JSON (RepoError::Serialization)
+    /// - Missing required chunk fields: id, order, content (RepoError::Database)
     fn node_to_lore_detail_repo(
         &self,
         node: neo4rs::Node,
         row: &Row,
     ) -> Result<LoreDetailRepo, RepoError> {
-        let _fallback = self.clock.now();
-
         let id: String = node.get("id").map_err(|e| {
             RepoError::database("query", format!("Failed to get lore id: {}", e))
         })?;
@@ -328,12 +330,18 @@ impl Neo4jLoreRepo {
         };
         let is_common_knowledge: bool = node.get_bool_or("is_common_knowledge", false);
 
-        // Parse tags from JSON
-        let tags_str = node.get_optional_string("tags");
-        let tags: Vec<String> = tags_str
-            .as_ref()
-            .and_then(|s| serde_json::from_str(s).ok())
-            .unwrap_or_default();
+        // Parse tags from JSON - fail-fast on invalid JSON
+        let tags: Vec<String> = match node.get_optional_string("tags") {
+            Some(tags_str) if !tags_str.is_empty() => {
+                serde_json::from_str(&tags_str).map_err(|e| {
+                    RepoError::serialization(format!(
+                        "Invalid tags JSON for Lore {}: {} (value: '{}')",
+                        id, e, tags_str
+                    ))
+                })?
+            }
+            _ => Vec::new(),
+        };
 
         // Get chunks from the collect result with explicit type
         let chunk_nodes: Vec<neo4rs::Node> = row.get("chunks").map_err(|e| {
@@ -346,21 +354,48 @@ impl Neo4jLoreRepo {
         let chunks: Vec<LoreChunkRepo> = chunk_nodes
             .into_iter()
             .map(|c| {
-                let chunk_id: String = c.get("id").unwrap_or_default();
-                let order: i64 = c.get("order").unwrap_or(0);
+                // Fail-fast: chunk id is required
+                let chunk_id: String = c.get("id").map_err(|e| {
+                    RepoError::database(
+                        "query",
+                        format!("Missing required field 'id' for chunk in lore {}: {}", id, e),
+                    )
+                })?;
+
+                // Fail-fast: chunk order is required
+                let order: i64 = c.get("order").map_err(|e| {
+                    RepoError::database(
+                        "query",
+                        format!(
+                            "Missing required field 'order' for chunk {} in lore {}: {}",
+                            chunk_id, id, e
+                        ),
+                    )
+                })?;
+
+                // Fail-fast: chunk content is required
+                let content: String = c.get("content").map_err(|e| {
+                    RepoError::database(
+                        "query",
+                        format!(
+                            "Missing required field 'content' for chunk {} in lore {}: {}",
+                            chunk_id, id, e
+                        ),
+                    )
+                })?;
+
                 let title: Option<String> = c.get_optional_string("title");
-                let content: String = c.get("content").unwrap_or_default();
                 let discovery_hint: Option<String> = c.get_optional_string("discovery_hint");
 
-                LoreChunkRepo {
+                Ok(LoreChunkRepo {
                     id: chunk_id,
                     order: order as u32,
                     title,
                     content,
                     discovery_hint,
-                }
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, RepoError>>()?;
 
         Ok(LoreDetailRepo {
             id,
@@ -616,43 +651,38 @@ impl LoreRepo for Neo4jLoreRepo {
         }
 
         // Search for lore entries that have ANY of the specified tags.
-        // Tags are stored as JSON arrays, so we check if the JSON string contains
-        // each tag as a quoted string (e.g., `"history"` for tag "history").
-        // Build a WHERE clause with OR conditions for each tag.
-        // SAFETY: tag_conditions are generated programmatically from enumerate(),
-        // not from user input. The format string only contains numeric indices
-        // like "$tag0", "$tag1", etc. Tag values themselves are passed as
-        // parameterized values, preventing Cypher injection.
-        let tag_conditions: Vec<String> = tags
-            .iter()
-            .enumerate()
-            .map(|(i, _)| format!("l.tags CONTAINS $tag{}", i))
-            .collect();
-        let where_clause = tag_conditions.join(" OR ");
+        //
+        // TAG MATCHING SEMANTICS:
+        // Tags are stored as JSON arrays (e.g., `["history", "martial", "art"]`).
+        // We use exact membership matching to avoid false positives.
+        //
+        // APPROACH: Use apoc.convert.fromJsonList() + ANY() for exact membership
+        // - Converts the JSON string to a list in Cypher
+        // - Uses ANY() to check if any of the search tags exist in the list
+        // - This avoids substring false positives (e.g., "art" won't match "martial")
+        //
+        // APOC IS REQUIRED: Since we control deployment, APOC is a required dependency.
+        // If APOC is unavailable, the query fails fast rather than falling back
+        // to less reliable string matching.
+        //
+        // SAFETY: The Cypher query uses parameterized values for all inputs,
+        // preventing Cypher injection.
 
-        // SAFETY: The cypher query uses format!() only to interpolate `where_clause`,
-        // which contains only programmatically-generated conditions with numeric
-        // parameter placeholders (e.g., "$tag0 OR $tag1"). No user input is
-        // interpolated into the query string itself.
-        let cypher = format!(
-            "MATCH (l:Lore {{world_id: $world_id}})
-            WHERE {}
-            RETURN l ORDER BY l.title",
-            where_clause
-        );
+        // Build a list of raw tag strings for the ANY() check
+        // APOC expects raw strings for comparison with the result of fromJsonList()
+        let tag_list: Vec<String> = tags.iter().map(|t| t.to_string()).collect();
 
-        let mut q = query(&cypher).param("world_id", world_id.to_string());
+        // Query using APOC for exact membership matching
+        // apoc.convert.fromJsonList converts '["tag1", "tag2"]' to ['tag1', 'tag2']
+        // ANY() checks if any search tag exists in the list
+        // coalesce(nullIf(l.tags, ""), "[]") treats empty-string tags as empty array
+        let cypher = "MATCH (l:Lore {world_id: $world_id})
+            WHERE ANY(tag IN $tags WHERE tag IN apoc.convert.fromJsonList(coalesce(nullIf(l.tags, \"\"), \"[]\")))
+            RETURN l ORDER BY l.title";
 
-        // SAFETY: Parameter names ("tag0", "tag1", etc.) are generated from
-        // enumerate() indices, not user input. The tag values are properly
-        // passed as parameterized values to neo4rs, which handles escaping.
-        for (i, tag) in tags.iter().enumerate() {
-            // Tags in JSON are stored as `["tag1", "tag2"]`, so we search for `"tag"`.
-            // Use serde_json::to_string to properly escape quotes and special characters.
-            let json_tag =
-                serde_json::to_string(tag).map_err(|e| RepoError::Serialization(e.to_string()))?;
-            q = q.param(&format!("tag{}", i), json_tag);
-        }
+        let q = query(cypher)
+            .param("world_id", world_id.to_string())
+            .param("tags", tag_list);
 
         let mut result = self
             .graph

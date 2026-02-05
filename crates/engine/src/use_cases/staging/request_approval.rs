@@ -254,11 +254,11 @@ impl RequestStagingApproval {
                     created_at: self.clock.now(),
                     allowed_location_state_ids: available_location_states
                         .iter()
-                        .map(|s| s.id.clone())
+                        .map(|s| s.id.to_string())
                         .collect(),
                     allowed_region_state_ids: available_region_states
                         .iter()
-                        .map(|s| s.id.clone())
+                        .map(|s| s.id.to_string())
                         .collect(),
                 },
             )
@@ -382,14 +382,14 @@ impl RequestStagingApproval {
                     .location_state
                     .as_ref()
                     .map(|s| ResolvedStateInfo {
-                        id: s.id.clone(),
+                        id: s.id.to_string(),
                         name: s.name.clone(),
                         backdrop_override: s.backdrop_override.clone(),
                         atmosphere_override: s.atmosphere_override.clone(),
                         ambient_sound: s.ambient_sound.clone(),
                     }),
                 region_state: resolution.region_state.as_ref().map(|s| ResolvedStateInfo {
-                    id: s.id.clone(),
+                    id: s.id.to_string(),
                     name: s.name.clone(),
                     backdrop_override: s.backdrop_override.clone(),
                     atmosphere_override: s.atmosphere_override.clone(),
@@ -410,7 +410,7 @@ impl RequestStagingApproval {
                     None
                 };
                 StateOption {
-                    id: s.id.clone(),
+                    id: s.id.to_string(),
                     name: s.name.clone(),
                     priority: s.priority,
                     is_default: s.is_default,
@@ -429,7 +429,7 @@ impl RequestStagingApproval {
                     None
                 };
                 StateOption {
-                    id: s.id.clone(),
+                    id: s.id.to_string(),
                     name: s.name.clone(),
                     priority: s.priority,
                     is_default: s.is_default,

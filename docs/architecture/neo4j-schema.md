@@ -578,6 +578,10 @@ These fields allow the client to track which conversation an approval belongs to
     updated_at: datetime()
 })
 
+> **Note on APOC Dependency:** APOC is **required** for lore tag search, which uses `apoc.convert.fromJsonList()` for efficient JSON list parsing. Since WrldBldr controls its deployment environment, APOC is a mandatory dependency. The system will fail fast if APOC functions are unavailable, ensuring deterministic behavior rather than silently degrading to less reliable string matching.
+>
+> **Installation:** Set `NEO4JLABS_PLUGINS=["apoc"]` in your Neo4j container environment to install APOC Core, which includes the required `apoc.convert.fromJsonList()` function.
+
 (:LoreChunk {
     id: "uuid",
     lore_id: "uuid",

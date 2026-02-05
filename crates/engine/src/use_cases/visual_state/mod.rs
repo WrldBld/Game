@@ -7,6 +7,7 @@
 //! should be active based on current context and activation rules.
 
 mod catalog;
+mod generation;
 mod resolve_state;
 mod validation;
 
@@ -14,10 +15,13 @@ mod validation;
 mod llm_condition_tests;
 
 pub use catalog::{CatalogError, VisualStateCatalog, VisualStateDetails};
-pub use resolve_state::{ResolveVisualState, StateResolutionContext};
+pub use generation::{GenerateVisualState, GenerateVisualStateInput, GenerateVisualStateTarget, GenerationError};
+pub use resolve_state::{
+    ResolveVisualState, StateResolutionContext,
+};
 pub use validation::{
     validate_asset_path, validate_generation_prompt, validate_negative_prompt,
-    validate_state_description, validate_state_name, validate_state_name_required, validate_tags,
+    validate_state_description, validate_state_name, validate_state_name_required,
     validate_workflow_id, ValidationResult,
 };
 
@@ -30,10 +34,19 @@ use std::sync::Arc;
 pub struct VisualStateUseCases {
     pub resolve: Arc<ResolveVisualState>,
     pub catalog: Arc<VisualStateCatalog>,
+    pub generation: Arc<GenerateVisualState>,
 }
 
 impl VisualStateUseCases {
-    pub fn new(resolve: Arc<ResolveVisualState>, catalog: Arc<VisualStateCatalog>) -> Self {
-        Self { resolve, catalog }
+    pub fn new(
+        resolve: Arc<ResolveVisualState>,
+        catalog: Arc<VisualStateCatalog>,
+        generation: Arc<GenerateVisualState>,
+    ) -> Self {
+        Self {
+            resolve,
+            catalog,
+            generation,
+        }
     }
 }

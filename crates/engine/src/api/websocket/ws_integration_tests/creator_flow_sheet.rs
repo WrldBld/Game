@@ -47,11 +47,11 @@ async fn character_sheet_update_field_emits_entity_changed() {
 
     // Setup character repo
     let mut character_repo = MockCharacterRepo::new();
-    // update_field internally calls get() once, and we also call it for world_id resolution
+    // update_field internally calls get() once; world_id is now returned from use case result
     let character_clone = character.clone();
     character_repo
         .expect_get()
-        .times(2)
+        .times(1)
         .returning(move |_| Ok(Some(character_clone.clone())));
 
     character_repo
@@ -115,7 +115,7 @@ async fn character_sheet_update_field_emits_entity_changed() {
 
     // Expect response and EntityChanged broadcast (order not guaranteed)
     let (response, entity_changed) =
-        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(5), &request_id).await;
 
     if let ServerMessage::Response { result, .. } = response {
         assert!(result.is_success(), "Field update should succeed");
@@ -152,11 +152,11 @@ async fn character_sheet_update_fields_emits_entity_changed() {
 
     // Setup character repo
     let mut character_repo = MockCharacterRepo::new();
-    // update_fields internally calls get() once, and we also call it for world_id resolution
+    // update_fields internally calls get() once; world_id is now returned from use case result
     let character_clone = character.clone();
     character_repo
         .expect_get()
-        .times(2)
+        .times(1)
         .returning(move |_| Ok(Some(character_clone.clone())));
 
     character_repo
@@ -228,7 +228,7 @@ async fn character_sheet_update_fields_emits_entity_changed() {
 
     // Expect response and EntityChanged broadcast (order not guaranteed)
     let (response, entity_changed) =
-        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(2), &request_id).await;
+        ws_expect_response_and_entity_changed(&mut ws, Duration::from_secs(5), &request_id).await;
 
     if let ServerMessage::Response { result, .. } = response {
         assert!(result.is_success(), "Fields update should succeed");

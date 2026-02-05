@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::infrastructure::spawn_task;
-use crate::presentation::services::{use_command_bus, use_generation_service};
+use crate::presentation::services::use_visual_state_service;
 
 use wrldbldr_shared::requests::visual_state::{GenerateVisualStateRequest, VisualStateType};
 
@@ -37,41 +37,6 @@ impl QuickPreset {
             }
             QuickPreset::Festive => "Colorful lanterns, celebration decorations, lively atmosphere",
             QuickPreset::Eerie => "Thick fog, unnatural quiet, dim lighting",
-        }
-    }
-
-    fn tags(&self) -> Vec<String> {
-        match self {
-            QuickPreset::RainyNight => vec!["weather:rain".to_string(), "time:night".to_string()],
-            QuickPreset::Moonlit => {
-                vec!["time:night".to_string(), "lighting:moonlight".to_string()]
-            }
-            QuickPreset::Festive => vec![
-                "mood:festive".to_string(),
-                "activity:celebration".to_string(),
-            ],
-            QuickPreset::Eerie => vec!["mood:eerie".to_string(), "lighting:dim".to_string()],
-        }
-    }
-}
-
-/// Asset style options
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-enum AssetStyle {
-    #[default]
-    FantasyRealistic,
-    AnimeVisualNovel,
-    PixelArt,
-    DarkNoir,
-}
-
-impl AssetStyle {
-    fn name(&self) -> &'static str {
-        match self {
-            AssetStyle::FantasyRealistic => "Fantasy Realistic",
-            AssetStyle::AnimeVisualNovel => "Anime/Visual Novel",
-            AssetStyle::PixelArt => "Pixel Art",
-            AssetStyle::DarkNoir => "Dark/Noir",
         }
     }
 }
@@ -112,18 +77,13 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
     // ═══════════════════════════════════════════════════════════════
     // SECTION 1: ALL HOOKS - Always at top, never conditional
     // ═══════════════════════════════════════════════════════════════
-    let command_bus = use_command_bus();
-    let _generation_service = use_generation_service();
+    let visual_state_service = use_visual_state_service();
 
     // Form fields
     let mut name = use_signal(|| "New State".to_string());
     let mut description = use_signal(String::new);
     let mut atmosphere_guidance = use_signal(String::new);
-    let mut tags: Signal<Vec<String>> = use_signal(Vec::new);
-    let mut tag_input = use_signal(String::new);
-    let mut asset_style = use_signal(AssetStyle::default);
     let mut generate_backdrop = use_signal(|| true);
-    let mut generate_sound = use_signal(|| true);
 
     // Generation state
     let mut is_generating = use_signal(|| false);
@@ -134,36 +94,11 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
     let mut handle_apply_preset = move |preset: QuickPreset| {
         description.set(preset.description().to_string());
         atmosphere_guidance.set(String::new());
-        tags.set(preset.tags());
     };
 
     // ═══════════════════════════════════════════════════════════════
     // SECTION 2: EVENT HANDLERS
     // ═══════════════════════════════════════════════════════════════
-    let handle_add_tag = move |_| {
-        let input_value = tag_input.read().trim().to_string();
-        if !input_value.is_empty() {
-            let mut current = tags.read().clone();
-            if !current.contains(&input_value) {
-                current.push(input_value);
-                tags.set(current);
-            }
-            tag_input.set(String::new());
-        }
-    };
-
-    let handle_tag_input_change = move |e: Event<FormData>| {
-        tag_input.set(e.value());
-    };
-
-    let mut handle_remove_tag = move |idx: usize| {
-        let mut current = tags.read().clone();
-        if idx < current.len() {
-            current.remove(idx);
-            tags.set(current);
-        }
-    };
-
     let handle_generate = move |_| {
         generation_error.set(None);
         let desc = description.read();
@@ -172,9 +107,18 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
             return;
         }
 
-        if desc.len() > 500 {
+        // Compute composed prompt length (description + optional atmosphere guidance)
+        let atmosphere = atmosphere_guidance.read();
+        let composed_prompt = if atmosphere.trim().is_empty() {
+            desc.clone()
+        } else {
+            format!("{} - {}", desc, atmosphere)
+        };
+        let prompt_char_count = composed_prompt.chars().count();
+
+        if prompt_char_count > 5000 {
             generation_error.set(Some(
-                "Description must be 500 characters or less".to_string(),
+                "Prompt must be 5000 characters or less".to_string(),
             ));
             return;
         }
@@ -185,52 +129,66 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
         let scope_clone = scope;
         let location_id_clone = location_id_for_closure.clone();
         let region_id_clone = region_id_for_closure.clone();
+        let name_clone = name.read().clone();
+        let desc_clone = desc.clone();
+        let generate_backdrop_clone = *generate_backdrop.read();
+        let service = visual_state_service.clone();
 
-        // Build generation request
-        let _request = GenerateVisualStateRequest {
-            state_type: scope_clone,
-            location_id: location_id_clone
-                .as_ref()
-                .and_then(|s| uuid::Uuid::parse_str(s).ok()),
-            region_id: region_id_clone
-                .as_ref()
-                .and_then(|s| uuid::Uuid::parse_str(s).ok()),
-            name: name.read().clone(),
-            description: desc.clone(),
-            prompt: format!("{} - {}", desc, atmosphere_guidance.read()),
-            workflow: "backdrop_v2".to_string(),
-            map_workflow: None,
-            negative_prompt: Some("blurry, low quality, ugly, distorted".to_string()),
-            tags: tags.read().clone(),
-            generate_backdrop: *generate_backdrop.read(),
-            generate_map: false, // Maps not generated for regions
-            activation_rules: None,
-            activation_logic: None,
-            priority: 10,
-            is_default: false,
-        };
-
-        let _command_bus = command_bus.clone();
-        let mut is_gen = is_generating;
+        // Reuse the composed prompt we already validated
+        let prompt_clone = composed_prompt;
 
         spawn_task(async move {
-            // For now, we'll create a simplified state without actual generation
-            // In production, this would call the generation endpoint
-            let _request_id = uuid::Uuid::new_v4().to_string();
+            // Build generation request using the pre-composed prompt
+            let prompt = prompt_clone;
 
-            // TODO: Use generation_service to trigger actual generation workflow
-            // For this implementation, we simulate success after a delay
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            let request = GenerateVisualStateRequest {
+                state_type: scope_clone,
+                location_id: location_id_clone
+                    .as_ref()
+                    .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+                region_id: region_id_clone
+                    .as_ref()
+                    .and_then(|s| uuid::Uuid::parse_str(s).ok()),
+                name: name_clone.clone(),
+                description: desc_clone,
+                prompt,
+                workflow: "backdrop_v2".to_string(),
+                map_workflow: None,
+                negative_prompt: Some("blurry, low quality, ugly, distorted".to_string()),
+                generate_backdrop: generate_backdrop_clone,
+                generate_map: false, // Maps not generated for regions
+                activation_rules: None,
+                activation_logic: None,
+                priority: 10,
+                is_default: false,
+            };
 
-            let mock_state_id = uuid::Uuid::new_v4().to_string();
-            let mock_name = name.read().clone();
+            // Call the visual state service to generate
+            match service.generate_state(request).await {
+                Ok(generated_data) => {
+                    // Extract state info from the response
+                    if let Some(location_state) = generated_data.location_state {
+                        generated_result.set(Some(GeneratedStateResult {
+                            state_id: location_state.id.to_string(),
+                            name: location_state.name,
+                        }));
+                    } else if let Some(region_state) = generated_data.region_state {
+                        generated_result.set(Some(GeneratedStateResult {
+                            state_id: region_state.id.to_string(),
+                            name: region_state.name,
+                        }));
+                    } else {
+                        generation_error.set(Some(
+                            "Generation failed: missing state data".to_string(),
+                        ));
+                    }
+                }
+                Err(e) => {
+                    generation_error.set(Some(format!("Generation failed: {}", e)));
+                }
+            }
 
-            generated_result.set(Some(GeneratedStateResult {
-                state_id: mock_state_id,
-                name: mock_name,
-            }));
-
-            is_gen.set(false);
+            is_generating.set(false);
         });
     };
 
@@ -341,7 +299,16 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                         }
                         div {
                             class: "text-right text-xs text-gray-500 mt-1",
-                            "{description.read().len()}/500"
+                            {
+                                let desc = description.read();
+                                let atm = atmosphere_guidance.read();
+                                let composed_len = if atm.trim().is_empty() {
+                                    desc.chars().count()
+                                } else {
+                                    format!("{} - {}", desc, atm).chars().count()
+                                };
+                                format!("{}/5000", composed_len)
+                            }
                         }
                     }
 
@@ -392,45 +359,6 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                         }
                     }
 
-                    // Tags
-                    div {
-                        class: "mb-4",
-                        label {
-                            class: "block text-gray-400 text-sm mb-2",
-                            "Tags"
-                        }
-                        div {
-                            class: "flex gap-2 mb-2",
-                            input {
-                                r#type: "text",
-                                class: "flex-1 p-2 bg-dark-bg border border-gray-700 rounded-lg text-white text-sm",
-                                value: "{tag_input}",
-                                oninput: handle_tag_input_change,
-                                placeholder: "Enter tag..."
-                            }
-                            button {
-                                onclick: handle_add_tag,
-                                class: "px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors",
-                                "Add"
-                            }
-                        }
-                        div {
-                            class: "flex flex-wrap gap-2",
-                            for (idx, tag) in tags.read().iter().enumerate() {
-                                span {
-                                    key: "{idx}",
-                                    class: "px-2 py-1 bg-purple-500/30 text-purple-300 rounded text-sm flex items-center gap-1",
-                                    "{tag}"
-                                    button {
-                                        onclick: move |_| handle_remove_tag(idx),
-                                        class: "ml-1 text-purple-300 hover:text-white",
-                                        "×"
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     // Generation options
                     div {
                         class: "mb-4",
@@ -449,55 +377,6 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                                     class: "w-4 h-4 rounded border-gray-600 bg-dark-bg text-purple-500",
                                 }
                                 "Generate Backdrop"
-                            }
-                            label {
-                                class: "flex items-center gap-2 text-white cursor-pointer",
-                                input {
-                                    r#type: "checkbox",
-                                    checked: *generate_sound.read(),
-                                    onchange: move |e| generate_sound.set(e.checked()),
-                                    class: "w-4 h-4 rounded border-gray-600 bg-dark-bg text-purple-500",
-                                }
-                                "Generate Ambient Sound"
-                            }
-                        }
-
-                        // Asset style dropdown
-                        div {
-                            class: "mt-3",
-                            label {
-                                class: "block text-gray-400 text-sm mb-1",
-                                "Asset Style"
-                            }
-                            select {
-                                class: "w-full p-2 bg-dark-bg border border-gray-700 rounded-lg text-white",
-                                value: format!("{:?}", asset_style.read()),
-                                onchange: move |e| {
-                                    let val = e.value();
-                                    asset_style.set(match val.as_str() {
-                                        "FantasyRealistic" => AssetStyle::FantasyRealistic,
-                                        "AnimeVisualNovel" => AssetStyle::AnimeVisualNovel,
-                                        "PixelArt" => AssetStyle::PixelArt,
-                                        "DarkNoir" => AssetStyle::DarkNoir,
-                                        _ => AssetStyle::FantasyRealistic,
-                                    });
-                                },
-                                option {
-                                    value: "FantasyRealistic",
-                                    "{AssetStyle::FantasyRealistic.name()}"
-                                }
-                                option {
-                                    value: "AnimeVisualNovel",
-                                    "{AssetStyle::AnimeVisualNovel.name()}"
-                                }
-                                option {
-                                    value: "PixelArt",
-                                    "{AssetStyle::PixelArt.name()}"
-                                }
-                                option {
-                                    value: "DarkNoir",
-                                    "{AssetStyle::DarkNoir.name()}"
-                                }
                             }
                         }
                     }

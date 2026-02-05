@@ -141,6 +141,16 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
+            // Validate connection has joined this world (prevents cross-world mutations)
+            if let Some(conn_world_id) = conn_info.world_id {
+                if conn_world_id != world_id_typed {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::Unauthorized,
+                        "Connection has not joined the requested world",
+                    ));
+                }
+            }
+
             match state
                 .app
                 .use_cases
@@ -168,17 +178,16 @@ pub(super) async fn handle_character_request(
                         "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
                     });
 
-                    if let Some(world_id) = conn_info.world_id {
-                        let msg = ServerMessage::EntityChanged(
-                            EntityChangedData::created(
-                                EntityType::Character,
-                                character.id().to_string(),
-                                world_id.to_string(),
-                                &entity_data,
-                            )
-                        );
-                        state.connections.broadcast_to_world(world_id, msg).await;
-                    }
+                    // Use critical broadcast to ensure EntityChanged is not dropped
+                    let msg = ServerMessage::EntityChanged(
+                        EntityChangedData::created(
+                            EntityType::Character,
+                            character.id().to_string(),
+                            world_id_typed.to_string(),
+                            &entity_data,
+                        )
+                    );
+                    state.connections.broadcast_critical_to_world(world_id_typed, msg).await;
 
                     Ok(ResponseResult::success(entity_data))
                 }
@@ -236,6 +245,7 @@ pub(super) async fn handle_character_request(
                         "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
                     });
 
+                    // Use critical broadcast to ensure EntityChanged is not dropped
                     let msg = ServerMessage::EntityChanged(
                         EntityChangedData::updated(
                             EntityType::Character,
@@ -244,7 +254,7 @@ pub(super) async fn handle_character_request(
                             &entity_data,
                         )
                     );
-                    state.connections.broadcast_to_world(world_id, msg).await;
+                    state.connections.broadcast_critical_to_world(world_id, msg).await;
 
                     Ok(ResponseResult::success(entity_data))
                 }
@@ -272,7 +282,7 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
-            let world_id = conn_info.world_id.ok_or_else(|| {
+            let conn_world_id = conn_info.world_id.ok_or_else(|| {
                 error_response(
                     ErrorCode::BadRequest,
                     "Not connected to a world",
@@ -284,7 +294,7 @@ pub(super) async fn handle_character_request(
                 .use_cases
                 .management
                 .character
-                .delete(char_id)
+                .delete(char_id, conn_world_id)
                 .await
             {
                 Ok(()) => {
@@ -293,15 +303,18 @@ pub(super) async fn handle_character_request(
                         EntityChangedData::deleted(
                             EntityType::Character,
                             character_id,
-                            world_id.to_string(),
+                            conn_world_id.to_string(),
                         )
                     );
-                    state.connections.broadcast_to_world(world_id, msg).await;
+                    state.connections.broadcast_critical_to_world(conn_world_id, msg).await;
 
                     Ok(ResponseResult::success_empty())
                 }
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
+                Err(crate::use_cases::management::ManagementError::Unauthorized { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Character not in current world"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -318,7 +331,7 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
-            let world_id = conn_info.world_id.ok_or_else(|| {
+            let conn_world_id = conn_info.world_id.ok_or_else(|| {
                 error_response(
                     ErrorCode::BadRequest,
                     "Not connected to a world",
@@ -330,7 +343,7 @@ pub(super) async fn handle_character_request(
                 .use_cases
                 .management
                 .character
-                .change_archetype(char_id, data.new_archetype, data.reason)
+                .change_archetype(char_id, conn_world_id, data.new_archetype, data.reason)
                 .await
             {
                 Ok(()) => {
@@ -339,16 +352,19 @@ pub(super) async fn handle_character_request(
                         EntityChangedData::updated(
                             EntityType::Character,
                             character_id,
-                            world_id.to_string(),
+                            conn_world_id.to_string(),
                             &serde_json::json!({"archetype_changed": true}),
                         )
                     );
-                    state.connections.broadcast_to_world(world_id, msg).await;
+                    state.connections.broadcast_critical_to_world(conn_world_id, msg).await;
 
                     Ok(ResponseResult::success_empty())
                 }
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
+                Err(crate::use_cases::management::ManagementError::Unauthorized { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Character not in current world"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))

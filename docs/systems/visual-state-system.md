@@ -140,7 +140,7 @@ Location (City)
   - *Acceptance Criteria*:
     - Generation requests create a new catalog entry and queue asset generation
     - Responses return the new state ID and generation batch ID
-  - *Implementation Notes*: Generation is handled by `generate_visual_state` in `crates/engine/src/use_cases/visual_state/catalog.rs` and queued via `AssetGenerationData`
+  - *Implementation Notes*: Generation is handled by `GenerateVisualState` in `crates/engine/src/use_cases/visual_state/generation.rs` and queued via `AssetGenerationData`
   - *Required Data Fields*: `prompt`, `workflow`, `generation_batch_id`, `generate_backdrop`, `state_type`
   - *UI States*: Generation modal exists but API wiring is pending for pre-stage/approval
   - *Files*: `crates/engine/src/api/websocket/ws_visual_state.rs`, `crates/shared/src/requests/visual_state.rs`, `crates/player/src/ui/presentation/components/dm_panel/visual_state_generation_modal.rs`
@@ -672,7 +672,8 @@ When staging is requested, states are resolved as follows:
 | Repository | `crates/engine/src/repositories/location_state.rs` | LocationState persistence |
 | Repository | `crates/engine/src/repositories/region_state.rs` | RegionState persistence |
 | Use Case | `crates/engine/src/use_cases/visual_state/resolve_state.rs` | State resolution |
-| Use Case | `crates/engine/src/use_cases/visual_state/catalog.rs` | Catalog listing + generation |
+| Use Case | `crates/engine/src/use_cases/visual_state/catalog.rs` | Catalog CRUD operations |
+| Use Case | `crates/engine/src/use_cases/visual_state/generation.rs` | Visual state generation with asset queueing |
 | API | `crates/engine/src/api/websocket/ws_visual_state.rs` | Visual state catalog requests |
 | Protocol | `crates/shared/src/requests/visual_state.rs` | Visual state request/response DTOs |
 

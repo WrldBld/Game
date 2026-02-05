@@ -59,7 +59,7 @@ pub fn validate_trimmed_non_empty(
         )));
     }
 
-    if trimmed.len() > max_len {
+    if trimmed.chars().count() > max_len {
         return Err(DomainError::validation(format!(
             "{} cannot exceed {} characters",
             field_name, max_len
@@ -114,7 +114,7 @@ pub fn validate_trimmed_max(
     let value = value.into();
     let trimmed = value.trim();
 
-    if trimmed.len() > max_len {
+    if trimmed.chars().count() > max_len {
         return Err(DomainError::validation(format!(
             "{} cannot exceed {} characters",
             field_name, max_len
@@ -306,6 +306,50 @@ mod tests {
                 .to_string()
                 .contains("Character name"));
         }
+
+        #[test]
+        fn emoji_counted_as_single_character() {
+            // Emoji are multi-byte (4 bytes each), but should count as 1 character
+            let emoji_string = "😀".repeat(100);
+            let result = validate_trimmed_non_empty(&emoji_string, "Test field", 100);
+            assert!(result.is_ok(), "100 emoji should be valid for max_len=100");
+
+            // 101 emoji should fail
+            let emoji_string_101 = "😀".repeat(101);
+            let result = validate_trimmed_non_empty(&emoji_string_101, "Test field", 100);
+            assert!(result.is_err(), "101 emoji should fail for max_len=100");
+        }
+
+        #[test]
+        fn mixed_ascii_and_multibyte_counted_correctly() {
+            // "Hello 🌍" = 6 ASCII + 1 emoji (4 bytes) = 7 characters
+            let mixed = "Hello 🌍".to_string();
+            let result = validate_trimmed_non_empty(&mixed, "Test field", 7);
+            assert!(
+                result.is_ok(),
+                "7 characters (including emoji) should be valid"
+            );
+
+            let result = validate_trimmed_non_empty(&mixed, "Test field", 6);
+            assert!(result.is_err(), "7 characters should fail for max_len=6");
+        }
+
+        #[test]
+        fn cjk_characters_counted_correctly() {
+            // CJK characters are 3 bytes each in UTF-8
+            let cjk = "日本語".to_string(); // 3 characters, 9 bytes
+            let result = validate_trimmed_non_empty(&cjk, "Test field", 3);
+            assert!(
+                result.is_ok(),
+                "3 CJK characters should be valid for max_len=3"
+            );
+
+            let result = validate_trimmed_non_empty(&cjk, "Test field", 2);
+            assert!(
+                result.is_err(),
+                "3 CJK characters should fail for max_len=2"
+            );
+        }
     }
 
     mod validate_trimmed_max {
@@ -367,6 +411,60 @@ mod tests {
                 .expect_err("too long should fail")
                 .to_string()
                 .contains("Description"));
+        }
+
+        #[test]
+        fn emoji_counted_as_single_character() {
+            // Emoji are multi-byte (4 bytes each), but should count as 1 character
+            let emoji_string = "😀".repeat(100);
+            let result = validate_trimmed_max(&emoji_string, "Test field", 100);
+            assert!(result.is_ok(), "100 emoji should be valid for max_len=100");
+
+            // 101 emoji should fail
+            let emoji_string_101 = "😀".repeat(101);
+            let result = validate_trimmed_max(&emoji_string_101, "Test field", 100);
+            assert!(result.is_err(), "101 emoji should fail for max_len=100");
+        }
+
+        #[test]
+        fn mixed_ascii_and_multibyte_counted_correctly() {
+            // "Hello 🌍" = 6 ASCII + 1 emoji (4 bytes) = 7 characters
+            let mixed = "Hello 🌍".to_string();
+            let result = validate_trimmed_max(&mixed, "Test field", 7);
+            assert!(
+                result.is_ok(),
+                "7 characters (including emoji) should be valid"
+            );
+
+            let result = validate_trimmed_max(&mixed, "Test field", 6);
+            assert!(result.is_err(), "7 characters should fail for max_len=6");
+        }
+
+        #[test]
+        fn cjk_characters_counted_correctly() {
+            // CJK characters are 3 bytes each in UTF-8
+            let cjk = "日本語".to_string(); // 3 characters, 9 bytes
+            let result = validate_trimmed_max(&cjk, "Test field", 3);
+            assert!(
+                result.is_ok(),
+                "3 CJK characters should be valid for max_len=3"
+            );
+
+            let result = validate_trimmed_max(&cjk, "Test field", 2);
+            assert!(
+                result.is_err(),
+                "3 CJK characters should fail for max_len=2"
+            );
+        }
+
+        #[test]
+        fn empty_string_with_multibyte_limit_is_valid() {
+            // Empty string should be valid even with small max_len
+            let result = validate_trimmed_max("", "Test field", 1);
+            assert!(
+                result.is_ok(),
+                "Empty string should be valid regardless of max_len"
+            );
         }
     }
 }

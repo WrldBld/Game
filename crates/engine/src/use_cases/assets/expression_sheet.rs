@@ -191,6 +191,7 @@ impl GenerateExpressionSheet {
                 entity_id: request.character_id.to_string(),
                 workflow_id: request.workflow,
                 prompt,
+                negative_prompt: None,
                 count: 1, // Expression sheet is a single image
             })
             .await?;

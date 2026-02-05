@@ -8,7 +8,7 @@ use std::sync::Arc;
 use chrono::Datelike;
 use wrldbldr_domain::{
     ActivationEvaluation, ActivationLogic, ActivationRule, CharacterId, GameTime, LocationId,
-    LocationState, NarrativeEventId, RegionId, RegionState, WorldId,
+    LocationState, LocationStateId, NarrativeEventId, RegionId, RegionState, RegionStateId, WorldId,
 };
 
 use crate::infrastructure::ports::{LocationStateRepo, RegionStateRepo, RepoError};
@@ -62,11 +62,38 @@ impl StateResolutionContext {
     }
 }
 
+/// Typed identifier for visual states (location or region).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VisualStateId {
+    Location(LocationStateId),
+    Region(RegionStateId),
+}
+
+impl VisualStateId {
+    /// Convert to string for API/wire format.
+    pub fn to_string(&self) -> String {
+        match self {
+            VisualStateId::Location(id) => id.to_string(),
+            VisualStateId::Region(id) => id.to_string(),
+        }
+    }
+
+    /// Returns true if this is a location state ID.
+    pub fn is_location(&self) -> bool {
+        matches!(self, VisualStateId::Location(_))
+    }
+
+    /// Returns true if this is a region state ID.
+    pub fn is_region(&self) -> bool {
+        matches!(self, VisualStateId::Region(_))
+    }
+}
+
 /// Information about soft rules that need LLM evaluation
 #[derive(Debug, Clone)]
 pub struct SoftRuleContext {
-    /// State ID this rule belongs to
-    pub state_id: String,
+    /// State ID this rule belongs to (typed)
+    pub state_id: VisualStateId,
     /// State name for context
     pub state_name: String,
     /// The rule description
@@ -75,10 +102,10 @@ pub struct SoftRuleContext {
     pub llm_prompt: Option<String>,
 }
 
-/// Information about a resolved state
+/// Information about a resolved location state (typed ID).
 #[derive(Debug, Clone)]
-pub struct ResolvedStateInfo {
-    pub id: String,
+pub struct ResolvedLocationStateInfo {
+    pub id: LocationStateId,
     pub name: String,
     pub backdrop_override: Option<String>,
     pub atmosphere_override: Option<String>,
@@ -88,17 +115,44 @@ pub struct ResolvedStateInfo {
     pub evaluation: ActivationEvaluation,
 }
 
+impl ResolvedLocationStateInfo {
+    /// Convert ID to string for API/wire format.
+    pub fn id_string(&self) -> String {
+        self.id.to_string()
+    }
+}
+
+/// Information about a resolved region state (typed ID).
+#[derive(Debug, Clone)]
+pub struct ResolvedRegionStateInfo {
+    pub id: RegionStateId,
+    pub name: String,
+    pub backdrop_override: Option<String>,
+    pub atmosphere_override: Option<String>,
+    pub ambient_sound: Option<String>,
+    pub priority: i32,
+    pub is_default: bool,
+    pub evaluation: ActivationEvaluation,
+}
+
+impl ResolvedRegionStateInfo {
+    /// Convert ID to string for API/wire format.
+    pub fn id_string(&self) -> String {
+        self.id.to_string()
+    }
+}
+
 /// Result of state resolution
 #[derive(Debug, Clone)]
 pub struct StateResolutionResult {
     /// The resolved location state (if any)
-    pub location_state: Option<ResolvedStateInfo>,
+    pub location_state: Option<ResolvedLocationStateInfo>,
     /// The resolved region state (if any)
-    pub region_state: Option<ResolvedStateInfo>,
+    pub region_state: Option<ResolvedRegionStateInfo>,
     /// All available location states with their evaluations
-    pub available_location_states: Vec<ResolvedStateInfo>,
+    pub available_location_states: Vec<ResolvedLocationStateInfo>,
     /// All available region states with their evaluations
-    pub available_region_states: Vec<ResolvedStateInfo>,
+    pub available_region_states: Vec<ResolvedRegionStateInfo>,
     /// Soft rules that need LLM evaluation before final resolution
     pub pending_soft_rules: Vec<SoftRuleContext>,
     /// Whether resolution is complete (no pending soft rules)
@@ -108,10 +162,10 @@ pub struct StateResolutionResult {
 impl StateResolutionResult {
     /// Create a fully resolved result
     pub fn complete(
-        location_state: Option<ResolvedStateInfo>,
-        region_state: Option<ResolvedStateInfo>,
-        available_location_states: Vec<ResolvedStateInfo>,
-        available_region_states: Vec<ResolvedStateInfo>,
+        location_state: Option<ResolvedLocationStateInfo>,
+        region_state: Option<ResolvedRegionStateInfo>,
+        available_location_states: Vec<ResolvedLocationStateInfo>,
+        available_region_states: Vec<ResolvedRegionStateInfo>,
     ) -> Self {
         Self {
             location_state,
@@ -125,8 +179,8 @@ impl StateResolutionResult {
 
     /// Create a result that needs LLM evaluation
     pub fn needs_llm(
-        available_location_states: Vec<ResolvedStateInfo>,
-        available_region_states: Vec<ResolvedStateInfo>,
+        available_location_states: Vec<ResolvedLocationStateInfo>,
+        available_region_states: Vec<ResolvedRegionStateInfo>,
         pending_soft_rules: Vec<SoftRuleContext>,
     ) -> Self {
         Self {
@@ -177,11 +231,11 @@ impl ResolveVisualState {
         let mut pending_soft_rules: Vec<SoftRuleContext> = Vec::new();
 
         for state in &location_states {
-            let (eval, soft_rules) = self.evaluate_rules(
+            let (eval, soft_rules) = self.evaluate_location_rules(
                 state.activation_rules(),
                 state.activation_logic(),
                 context,
-                &state.id().to_string(),
+                state.id(),
                 state.name(),
             );
 
@@ -196,11 +250,11 @@ impl ResolveVisualState {
         let mut region_evaluations: Vec<(RegionState, ActivationEvaluation)> = Vec::new();
 
         for state in &region_states {
-            let (eval, soft_rules) = self.evaluate_rules(
+            let (eval, soft_rules) = self.evaluate_region_rules(
                 state.activation_rules(),
                 state.activation_logic(),
                 context,
-                &state.id().to_string(),
+                state.id(),
                 state.name(),
             );
 
@@ -212,10 +266,10 @@ impl ResolveVisualState {
         }
 
         // Build available states lists
-        let available_location_states: Vec<ResolvedStateInfo> = location_evaluations
+        let available_location_states: Vec<ResolvedLocationStateInfo> = location_evaluations
             .iter()
-            .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id().to_string(),
+            .map(|(state, eval)| ResolvedLocationStateInfo {
+                id: state.id(),
                 name: state.name().to_string(),
                 backdrop_override: state.backdrop_override().map(|s| s.to_string()),
                 atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
@@ -226,10 +280,10 @@ impl ResolveVisualState {
             })
             .collect();
 
-        let available_region_states: Vec<ResolvedStateInfo> = region_evaluations
+        let available_region_states: Vec<ResolvedRegionStateInfo> = region_evaluations
             .iter()
-            .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id().to_string(),
+            .map(|(state, eval)| ResolvedRegionStateInfo {
+                id: state.id(),
                 name: state.name().to_string(),
                 backdrop_override: state.backdrop_override().map(|s| s.to_string()),
                 atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
@@ -266,17 +320,17 @@ impl ResolveVisualState {
         &self,
         location_id: LocationId,
         context: &StateResolutionContext,
-    ) -> Result<Option<ResolvedStateInfo>, RepoError> {
+    ) -> Result<Option<ResolvedLocationStateInfo>, RepoError> {
         let location_states = self.location_state.list_for_location(location_id).await?;
 
         let mut evaluations: Vec<(LocationState, ActivationEvaluation)> = Vec::new();
 
         for state in &location_states {
-            let (eval, _) = self.evaluate_rules(
+            let (eval, _) = self.evaluate_location_rules(
                 state.activation_rules(),
                 state.activation_logic(),
                 context,
-                &state.id().to_string(),
+                state.id(),
                 state.name(),
             );
             evaluations.push((state.clone(), eval));
@@ -290,17 +344,17 @@ impl ResolveVisualState {
         &self,
         region_id: RegionId,
         context: &StateResolutionContext,
-    ) -> Result<Option<ResolvedStateInfo>, RepoError> {
+    ) -> Result<Option<ResolvedRegionStateInfo>, RepoError> {
         let region_states = self.region_state.list_for_region(region_id).await?;
 
         let mut evaluations: Vec<(RegionState, ActivationEvaluation)> = Vec::new();
 
         for state in &region_states {
-            let (eval, _) = self.evaluate_rules(
+            let (eval, _) = self.evaluate_region_rules(
                 state.activation_rules(),
                 state.activation_logic(),
                 context,
-                &state.id().to_string(),
+                state.id(),
                 state.name(),
             );
             evaluations.push((state.clone(), eval));
@@ -309,13 +363,49 @@ impl ResolveVisualState {
         Ok(self.select_best_region_state(&evaluations))
     }
 
-    /// Evaluate activation rules and return evaluation result plus any pending soft rules
-    fn evaluate_rules(
+    /// Evaluate activation rules for a location state and return evaluation result plus any pending soft rules
+    fn evaluate_location_rules(
         &self,
         rules: &[ActivationRule],
         logic: ActivationLogic,
         context: &StateResolutionContext,
-        state_id: &str,
+        state_id: LocationStateId,
+        state_name: &str,
+    ) -> (ActivationEvaluation, Vec<SoftRuleContext>) {
+        self.evaluate_rules_internal(
+            rules,
+            logic,
+            context,
+            VisualStateId::Location(state_id),
+            state_name,
+        )
+    }
+
+    /// Evaluate activation rules for a region state and return evaluation result plus any pending soft rules
+    fn evaluate_region_rules(
+        &self,
+        rules: &[ActivationRule],
+        logic: ActivationLogic,
+        context: &StateResolutionContext,
+        state_id: RegionStateId,
+        state_name: &str,
+    ) -> (ActivationEvaluation, Vec<SoftRuleContext>) {
+        self.evaluate_rules_internal(
+            rules,
+            logic,
+            context,
+            VisualStateId::Region(state_id),
+            state_name,
+        )
+    }
+
+    /// Internal method to evaluate activation rules and return evaluation result plus any pending soft rules
+    fn evaluate_rules_internal(
+        &self,
+        rules: &[ActivationRule],
+        logic: ActivationLogic,
+        context: &StateResolutionContext,
+        state_id: VisualStateId,
         state_name: &str,
     ) -> (ActivationEvaluation, Vec<SoftRuleContext>) {
         let mut matched: Vec<String> = Vec::new();
@@ -341,7 +431,7 @@ impl ResolveVisualState {
                 } = rule
                 {
                     pending_soft.push(SoftRuleContext {
-                        state_id: state_id.to_string(),
+                        state_id,
                         state_name: state_name.to_string(),
                         description: description.clone(),
                         llm_prompt: llm_prompt.clone(),
@@ -517,7 +607,7 @@ impl ResolveVisualState {
     fn select_best_state(
         &self,
         evaluations: &[(LocationState, ActivationEvaluation)],
-    ) -> Option<ResolvedStateInfo> {
+    ) -> Option<ResolvedLocationStateInfo> {
         // First try to find highest priority active state
         let active_state = evaluations
             .iter()
@@ -525,8 +615,8 @@ impl ResolveVisualState {
             .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
-            return Some(ResolvedStateInfo {
-                id: state.id().to_string(),
+            return Some(ResolvedLocationStateInfo {
+                id: state.id(),
                 name: state.name().to_string(),
                 backdrop_override: state.backdrop_override().map(|s| s.to_string()),
                 atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
@@ -541,8 +631,8 @@ impl ResolveVisualState {
         evaluations
             .iter()
             .find(|(state, _)| state.is_default())
-            .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id().to_string(),
+            .map(|(state, eval)| ResolvedLocationStateInfo {
+                id: state.id(),
                 name: state.name().to_string(),
                 backdrop_override: state.backdrop_override().map(|s| s.to_string()),
                 atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
@@ -558,7 +648,7 @@ impl ResolveVisualState {
     fn select_best_region_state(
         &self,
         evaluations: &[(RegionState, ActivationEvaluation)],
-    ) -> Option<ResolvedStateInfo> {
+    ) -> Option<ResolvedRegionStateInfo> {
         // First try to find highest priority active state
         let active_state = evaluations
             .iter()
@@ -566,8 +656,8 @@ impl ResolveVisualState {
             .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
-            return Some(ResolvedStateInfo {
-                id: state.id().to_string(),
+            return Some(ResolvedRegionStateInfo {
+                id: state.id(),
                 name: state.name().to_string(),
                 backdrop_override: state.backdrop_override().map(|s| s.to_string()),
                 atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
@@ -582,8 +672,8 @@ impl ResolveVisualState {
         evaluations
             .iter()
             .find(|(state, _)| state.is_default())
-            .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id().to_string(),
+            .map(|(state, eval)| ResolvedRegionStateInfo {
+                id: state.id(),
                 name: state.name().to_string(),
                 backdrop_override: state.backdrop_override().map(|s| s.to_string()),
                 atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),

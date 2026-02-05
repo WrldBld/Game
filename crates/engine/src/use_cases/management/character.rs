@@ -189,7 +189,27 @@ impl CharacterManagement {
         Ok(character)
     }
 
-    pub async fn delete(&self, character_id: CharacterId) -> Result<(), ManagementError> {
+    pub async fn delete(
+        &self,
+        character_id: CharacterId,
+        world_id: WorldId,
+    ) -> Result<(), ManagementError> {
+        let character = self
+            .character
+            .get(character_id)
+            .await?
+            .ok_or(ManagementError::NotFound {
+                entity_type: "Character",
+                id: character_id.to_string(),
+            })?;
+
+        // Validate character belongs to requested world
+        if character.world_id() != world_id {
+            return Err(ManagementError::Unauthorized {
+                message: "Character not in current world".to_string(),
+            });
+        }
+
         self.character.delete(character_id).await?;
         Ok(())
     }
@@ -197,6 +217,7 @@ impl CharacterManagement {
     pub async fn change_archetype(
         &self,
         character_id: CharacterId,
+        world_id: WorldId,
         new_archetype: String,
         reason: String,
     ) -> Result<(), ManagementError> {
@@ -208,6 +229,13 @@ impl CharacterManagement {
                     entity_type: "Character",
                     id: character_id.to_string(),
                 })?;
+
+        // Validate character belongs to requested world
+        if character.world_id() != world_id {
+            return Err(ManagementError::Unauthorized {
+                message: "Character not in current world".to_string(),
+            });
+        }
 
         let archetype_value = new_archetype.parse::<wrldbldr_domain::CampbellArchetype>()?;
 

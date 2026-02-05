@@ -268,6 +268,9 @@ pub fn neo4j_image(password: &str) -> GenericImage {
             "NEO4J_dbms_connector_bolt_advertised__address",
             "localhost:7687",
         )
+        // APOC plugin is REQUIRED for lore tag search (apoc.convert.fromJsonList)
+        // NEO4JLABS_PLUGINS installs APOC Core which includes fromJsonList
+        .with_env_var("NEO4JLABS_PLUGINS", "[\"apoc\"]")
         // Memory limits to prevent JVM crashes under resource pressure
         .with_env_var("NEO4J_server_memory_heap_initial__size", "256m")
         .with_env_var("NEO4J_server_memory_heap_max__size", "512m")
@@ -310,6 +313,10 @@ fn start_named_container() -> Result<(), Box<dyn std::error::Error + Send + Sync
             &format!("{}:7474", TEST_HTTP_PORT),
             "-e",
             &format!("NEO4J_AUTH=neo4j/{}", TEST_NEO4J_PASSWORD),
+            "-e",
+            // APOC plugin is REQUIRED for lore tag search (apoc.convert.fromJsonList)
+            // NEO4JLABS_PLUGINS installs APOC Core which includes fromJsonList
+            "NEO4JLABS_PLUGINS=[\"apoc\"]",
             "-e",
             "NEO4J_server_memory_heap_initial__size=256m",
             "-e",

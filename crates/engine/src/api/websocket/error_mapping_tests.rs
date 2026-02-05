@@ -326,7 +326,7 @@ mod catalog_error_sanitizer_tests {
 
     #[test]
     fn internal_errors_return_internal_error_message() {
-        use crate::infrastructure::ports::{QueueError, RepoError};
+        use crate::infrastructure::ports::RepoError;
 
         let test_cases = vec![
             (
@@ -334,7 +334,7 @@ mod catalog_error_sanitizer_tests {
                 "repo error",
             ),
             (
-                CatalogError::Queue(QueueError::database("enqueue", "queue down")),
+                CatalogError::Repo(RepoError::database("enqueue", "queue down")),
                 "queue error",
             ),
         ];
@@ -356,5 +356,239 @@ mod catalog_error_sanitizer_tests {
         // The actual logging is verified by compilation
         let error = CatalogError::Validation("test".to_string());
         let _result = sanitize_catalog_error(&error, "my operation");
+    }
+}
+
+#[cfg(test)]
+mod generation_error_sanitizer_tests {
+    use crate::api::websocket::error_sanitizer::{messages, sanitize_generation_error};
+    use crate::infrastructure::ports::{QueueError, RepoError};
+    use crate::use_cases::visual_state::GenerationError;
+    use wrldbldr_domain::{LocationId, RegionId};
+
+    #[test]
+    fn validation_error_returns_specific_message() {
+        let error = GenerationError::Validation("Name cannot be empty".to_string());
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // Validation errors should return the specific message
+        assert_eq!(
+            result, "Name cannot be empty",
+            "Validation error should return the specific validation message"
+        );
+    }
+
+    #[test]
+    fn validation_error_with_different_messages() {
+        let test_cases = vec![
+            ("Prompt too long", "prompt length validation"),
+            ("Invalid workflow ID", "workflow validation"),
+            (
+                "Description cannot exceed 2000 characters",
+                "description validation",
+            ),
+        ];
+
+        for (msg, desc) in test_cases {
+            let error = GenerationError::Validation(msg.to_string());
+            let result = sanitize_generation_error(&error, "test operation");
+            assert_eq!(result, msg, "{} should return the specific message", desc);
+        }
+    }
+
+    #[test]
+    fn location_not_found_returns_clear_message() {
+        let error = GenerationError::LocationNotFound(LocationId::new());
+        let result = sanitize_generation_error(&error, "test operation");
+
+        assert_eq!(
+            result, "Location not found",
+            "LocationNotFound should return clear message"
+        );
+    }
+
+    #[test]
+    fn region_not_found_returns_clear_message() {
+        let error = GenerationError::RegionNotFound(RegionId::new());
+        let result = sanitize_generation_error(&error, "test operation");
+
+        assert_eq!(
+            result, "Region not found",
+            "RegionNotFound should return clear message"
+        );
+    }
+
+    #[test]
+    fn repo_error_returns_internal_error_message() {
+        let error = GenerationError::Repo(RepoError::database("query", "db down"));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        assert_eq!(
+            result,
+            messages::INTERNAL_ERROR,
+            "Repo error should return sanitized internal error message"
+        );
+    }
+
+    #[test]
+    fn queue_error_returns_internal_error_message() {
+        let error = GenerationError::Queue(QueueError::database("enqueue", "queue full"));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        assert_eq!(
+            result,
+            messages::INTERNAL_ERROR,
+            "Queue error should return sanitized internal error message"
+        );
+    }
+
+    #[test]
+    fn domain_validation_error_returns_specific_message() {
+        use wrldbldr_domain::DomainError;
+
+        let error = GenerationError::Domain(DomainError::validation("Invalid name provided"));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // Domain validation errors are safe to expose
+        assert_eq!(
+            result, "Invalid name provided",
+            "Domain validation error should return the specific validation message"
+        );
+    }
+
+    #[test]
+    fn domain_invalid_id_error_returns_stable_message() {
+        use wrldbldr_domain::DomainError;
+
+        let error = GenerationError::Domain(DomainError::invalid_id("bad-id-format"));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // InvalidId errors return stable client-safe message
+        assert_eq!(
+            result, "Invalid ID",
+            "Domain InvalidId error should return stable 'Invalid ID' message"
+        );
+    }
+
+    #[test]
+    fn domain_not_found_error_returns_stable_message() {
+        use wrldbldr_domain::DomainError;
+
+        let error = GenerationError::Domain(DomainError::not_found(
+            "Character",
+            "123e4567-e89b-12d3-a456-426614174000",
+        ));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // NotFound errors return stable client-safe message
+        assert_eq!(
+            result, "Entity not found",
+            "Domain NotFound error should return stable 'Entity not found' message"
+        );
+    }
+
+    #[test]
+    fn domain_constraint_error_returns_stable_message() {
+        use wrldbldr_domain::DomainError;
+
+        let error = GenerationError::Domain(DomainError::constraint("character already exists"));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // Constraint errors return stable client-safe message
+        assert_eq!(
+            result, "Invalid input",
+            "Domain Constraint error should return stable 'Invalid input' message"
+        );
+    }
+
+    #[test]
+    fn domain_parse_error_returns_stable_message() {
+        use wrldbldr_domain::DomainError;
+
+        let error = GenerationError::Domain(DomainError::parse("unknown enum variant"));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // Parse errors return stable client-safe message
+        assert_eq!(
+            result, "Invalid input",
+            "Domain Parse error should return stable 'Invalid input' message"
+        );
+    }
+
+    #[test]
+    fn domain_invalid_state_transition_error_returns_stable_message() {
+        use wrldbldr_domain::DomainError;
+
+        let error =
+            GenerationError::Domain(DomainError::invalid_state_transition("cannot deactivate"));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // InvalidStateTransition errors return stable client-safe message
+        assert_eq!(
+            result, "Invalid input",
+            "Domain InvalidStateTransition error should return stable 'Invalid input' message"
+        );
+    }
+
+    #[test]
+    fn domain_container_full_error_returns_stable_message() {
+        use wrldbldr_domain::DomainError;
+
+        let error = GenerationError::Domain(DomainError::container_full(5, 5));
+        let result = sanitize_generation_error(&error, "test operation");
+
+        // ContainerFull errors return stable client-safe message
+        assert_eq!(
+            result, "Capacity reached",
+            "Domain ContainerFull error should return stable 'Capacity reached' message"
+        );
+    }
+
+    #[test]
+    fn domain_errors_do_not_leak_internal_details() {
+        use wrldbldr_domain::DomainError;
+
+        // Test that internal error details are not exposed to clients
+        let test_cases = vec![
+            (
+                GenerationError::Domain(DomainError::invalid_id("internal-secret-id")),
+                "Invalid ID",
+                "InvalidId",
+            ),
+            (
+                GenerationError::Domain(DomainError::not_found("SecretEntity", "secret-uuid")),
+                "Entity not found",
+                "NotFound",
+            ),
+            (
+                GenerationError::Domain(DomainError::constraint("secret constraint violation")),
+                "Invalid input",
+                "Constraint",
+            ),
+            (
+                GenerationError::Domain(DomainError::parse("secret parse failure")),
+                "Invalid input",
+                "Parse",
+            ),
+            (
+                GenerationError::Domain(DomainError::invalid_state_transition("secret state")),
+                "Invalid input",
+                "InvalidStateTransition",
+            ),
+            (
+                GenerationError::Domain(DomainError::container_full(999, 1000)),
+                "Capacity reached",
+                "ContainerFull",
+            ),
+        ];
+
+        for (error, expected_message, variant_name) in test_cases {
+            let result = sanitize_generation_error(&error, "test operation");
+            assert_eq!(
+                result, expected_message,
+                "{} error should not leak internal details",
+                variant_name
+            );
+        }
     }
 }

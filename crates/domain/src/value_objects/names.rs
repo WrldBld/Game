@@ -366,7 +366,7 @@ impl Tag {
         if trimmed.is_empty() {
             return Err(DomainError::validation("Tag cannot be empty"));
         }
-        if trimmed.len() > MAX_TAG_LENGTH {
+        if trimmed.chars().count() > MAX_TAG_LENGTH {
             return Err(DomainError::validation(format!(
                 "Tag cannot exceed {} characters",
                 MAX_TAG_LENGTH
@@ -950,6 +950,35 @@ mod tests {
         }
 
         #[test]
+        fn emoji_counted_as_single_character() {
+            // Emoji are multi-byte (4 bytes each), but should count as 1 character
+            let emoji_name = "😀".repeat(200);
+            let name = CharacterName::new(&emoji_name).expect("200 emoji should be valid");
+            assert_eq!(name.as_str().chars().count(), 200);
+
+            // 201 emoji should fail
+            let emoji_name_201 = "😀".repeat(201);
+            let result = CharacterName::new(&emoji_name_201);
+            assert!(result.is_err(), "201 emoji should fail for max_len=200");
+        }
+
+        #[test]
+        fn cjk_characters_counted_correctly() {
+            // CJK characters are 3 bytes each in UTF-8
+            let cjk_name = "日本語の名前".to_string(); // 6 characters, 18 bytes
+            let name = CharacterName::new(&cjk_name).expect("6 CJK characters should be valid");
+            assert_eq!(name.as_str(), "日本語の名前");
+
+            // Create a 201-character CJK string (should fail)
+            let long_cjk = "日".repeat(201);
+            let result = CharacterName::new(&long_cjk);
+            assert!(
+                result.is_err(),
+                "201 CJK characters should fail for max_len=200"
+            );
+        }
+
+        #[test]
         fn try_from_string() {
             let name: CharacterName = "Aragorn".to_string().try_into().expect("valid value");
             assert_eq!(name.as_str(), "Aragorn");
@@ -983,7 +1012,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = LocationName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1020,7 +1052,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = WorldName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1057,7 +1092,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = SceneName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1094,7 +1132,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = NarrativeEventName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1151,7 +1192,10 @@ mod tests {
             let long_desc = "a".repeat(5001);
             let result = Description::new(long_desc);
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("5000"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("5000"));
         }
 
         #[test]
@@ -1160,6 +1204,35 @@ mod tests {
             let desc = Description::new(max_desc).expect("valid value");
             assert_eq!(desc.as_str().len(), 5000);
             assert!(!desc.is_empty());
+        }
+
+        #[test]
+        fn emoji_counted_as_single_character() {
+            // Emoji are multi-byte (4 bytes each), but should count as 1 character
+            let emoji_desc = "😀".repeat(5000);
+            let desc = Description::new(&emoji_desc).expect("5000 emoji should be valid");
+            assert_eq!(desc.as_str().chars().count(), 5000);
+
+            // 5001 emoji should fail
+            let emoji_desc_5001 = "😀".repeat(5001);
+            let result = Description::new(&emoji_desc_5001);
+            assert!(result.is_err(), "5001 emoji should fail for max_len=5000");
+        }
+
+        #[test]
+        fn cjk_characters_counted_correctly() {
+            // CJK characters are 3 bytes each in UTF-8
+            let cjk_desc = "日本語の説明".to_string(); // 6 characters, 18 bytes
+            let desc = Description::new(&cjk_desc).expect("6 CJK characters should be valid");
+            assert_eq!(desc.as_str(), "日本語の説明");
+
+            // Create a 5001-character CJK string (should fail)
+            let long_cjk = "日".repeat(5001);
+            let result = Description::new(&long_cjk);
+            assert!(
+                result.is_err(),
+                "5001 CJK characters should fail for max_len=5000"
+            );
         }
 
         #[test]
@@ -1236,6 +1309,46 @@ mod tests {
             let max_tag = "a".repeat(50);
             let tag = Tag::new(max_tag).expect("valid value");
             assert_eq!(tag.as_str().len(), 50);
+        }
+
+        #[test]
+        fn emoji_counted_as_single_character() {
+            // Emoji are multi-byte (4 bytes each), but should count as 1 character
+            let emoji_tag = "😀".repeat(50);
+            let tag = Tag::new(&emoji_tag).expect("50 emoji should be valid");
+            assert_eq!(tag.as_str().chars().count(), 50);
+
+            // 51 emoji should fail
+            let emoji_tag_51 = "😀".repeat(51);
+            let result = Tag::new(&emoji_tag_51);
+            assert!(result.is_err(), "51 emoji should fail for max_len=50");
+        }
+
+        #[test]
+        fn cjk_characters_counted_correctly() {
+            // CJK characters are 3 bytes each in UTF-8
+            let cjk_tag = "日本語タグ".to_string(); // 5 characters, 15 bytes
+            let result = Tag::new(&cjk_tag);
+            assert!(
+                result.is_ok(),
+                "5 CJK characters should be valid for max_len=50"
+            );
+
+            // Create a 51-character CJK string (should fail)
+            let long_cjk = "日".repeat(51);
+            let result = Tag::new(&long_cjk);
+            assert!(
+                result.is_err(),
+                "51 CJK characters should fail for max_len=50"
+            );
+        }
+
+        #[test]
+        fn mixed_multibyte_and_ascii_counted_correctly() {
+            // "test-😀-日本" = 4 ASCII + 1 emoji + 2 CJK = 7 characters
+            let mixed = "test-😀-日本".to_string();
+            let tag = Tag::new(&mixed).expect("7 mixed characters should be valid");
+            assert_eq!(tag.as_str(), "test-😀-日本");
         }
 
         #[test]
@@ -1329,7 +1442,10 @@ mod tests {
 
         #[test]
         fn try_from_string() {
-            let path: AssetPath = "sprites/npc.png".to_string().try_into().expect("valid value");
+            let path: AssetPath = "sprites/npc.png"
+                .to_string()
+                .try_into()
+                .expect("valid value");
             assert_eq!(path.as_str(), "sprites/npc.png");
         }
 
@@ -1354,7 +1470,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = RegionName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1384,7 +1503,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = ItemName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1414,7 +1536,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = ChallengeName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1444,7 +1569,10 @@ mod tests {
         fn empty_name_rejected() {
             let result = GoalName::new("");
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -1466,8 +1594,8 @@ mod tests {
 
         #[test]
         fn valid_atmosphere() {
-            let atm =
-                Atmosphere::new("Warm candlelight flickers across polished brass...").expect("valid value");
+            let atm = Atmosphere::new("Warm candlelight flickers across polished brass...")
+                .expect("valid value");
             assert_eq!(
                 atm.as_str(),
                 "Warm candlelight flickers across polished brass..."
@@ -1510,7 +1638,10 @@ mod tests {
             let long_atm = "a".repeat(2001);
             let result = Atmosphere::new(long_atm);
             assert!(result.is_err());
-            assert!(result.expect_err("should fail").to_string().contains("2000"));
+            assert!(result
+                .expect_err("should fail")
+                .to_string()
+                .contains("2000"));
         }
 
         #[test]
@@ -1523,7 +1654,10 @@ mod tests {
 
         #[test]
         fn try_from_string() {
-            let atm: Atmosphere = "A cold wind blows".to_string().try_into().expect("valid value");
+            let atm: Atmosphere = "A cold wind blows"
+                .to_string()
+                .try_into()
+                .expect("valid value");
             assert_eq!(atm.as_str(), "A cold wind blows");
         }
 
@@ -1670,7 +1804,8 @@ mod tests {
 
             #[test]
             fn try_from_string() {
-                let name: EventChainName = "A New Hope".to_string().try_into().expect("valid value");
+                let name: EventChainName =
+                    "A New Hope".to_string().try_into().expect("valid value");
                 assert_eq!(name.as_str(), "A New Hope");
             }
 

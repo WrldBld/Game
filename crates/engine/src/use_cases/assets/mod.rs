@@ -181,6 +181,7 @@ impl GenerateAsset {
             entity_id: entity_id.to_string(),
             workflow_id: workflow_id.to_string(),
             prompt: prompt.to_string(),
+            negative_prompt: None,
             count,
         };
 

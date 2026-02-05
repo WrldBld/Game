@@ -204,9 +204,6 @@ pub struct GenerateVisualStateRequest {
     /// Negative prompt (optional)
     #[serde(default)]
     pub negative_prompt: Option<String>,
-    /// Tags for categorization
-    #[serde(default)]
-    pub tags: Vec<String>,
     /// Whether to generate backdrop asset
     #[serde(default)]
     pub generate_backdrop: bool,
@@ -397,7 +394,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&req).expect("valid value");
-        let decoded: GetVisualStateCatalogRequest = serde_json::from_str(&json).expect("valid value");
+        let decoded: GetVisualStateCatalogRequest =
+            serde_json::from_str(&json).expect("valid value");
 
         assert_eq!(decoded.location_id, req.location_id);
         assert_eq!(decoded.region_id, req.region_id);
@@ -439,7 +437,6 @@ mod tests {
             workflow: "backdrop_v2".to_string(),
             map_workflow: None,
             negative_prompt: None,
-            tags: vec!["evening".to_string(), "tavern".to_string()],
             generate_backdrop: true,
             generate_map: false,
             activation_rules: None,
@@ -453,6 +450,5 @@ mod tests {
 
         assert_eq!(decoded.name, "Evening");
         assert!(decoded.generate_backdrop);
-        assert_eq!(decoded.tags.len(), 2);
     }
 }

@@ -5,7 +5,6 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
-use crate::infrastructure::ports::RepoError;
 use crate::use_cases::character_sheet::{CharacterSheetError, FieldUpdate};
 use serde_json::json;
 use wrldbldr_domain::types::EntityType;
@@ -151,16 +150,8 @@ pub(super) async fn handle_character_sheet_request(
                 .await
             {
                 Ok(result) => {
-                    // Resolve world_id from character_id
-                    let world_id = match get_character_world_id(state, character_id_typed).await {
-                        Ok(wid) => wid,
-                        Err(e) => {
-                            tracing::error!(error = %e, "Failed to resolve world_id for character");
-                            return Ok(map_character_sheet_error(CharacterSheetError::CharacterNotFound(
-                                character_id_typed,
-                            )));
-                        }
-                    };
+                    // Use world_id from result (eliminates secondary lookup)
+                    let world_id = result.world_id;
 
                     // Emit EntityChanged for field update
                     let entity_data = json!({
@@ -178,7 +169,7 @@ pub(super) async fn handle_character_sheet_request(
                             &entity_data,
                         )
                     );
-                    state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+                    state.connections.broadcast_critical_to_world(world_id, entity_changed_msg).await;
 
                     Ok(ResponseResult::success(json!({
                         "field_id": result.field_id,
@@ -213,16 +204,8 @@ pub(super) async fn handle_character_sheet_request(
                 .await
             {
                 Ok(result) => {
-                    // Resolve world_id from character_id
-                    let world_id = match get_character_world_id(state, character_id_typed).await {
-                        Ok(wid) => wid,
-                        Err(e) => {
-                            tracing::error!(error = %e, "Failed to resolve world_id for character");
-                            return Ok(map_character_sheet_error(CharacterSheetError::CharacterNotFound(
-                                character_id_typed,
-                            )));
-                        }
-                    };
+                    // Use world_id from result (eliminates secondary lookup)
+                    let world_id = result.world_id;
 
                     // Emit EntityChanged for fields update
                     let entity_data = json!({
@@ -239,7 +222,7 @@ pub(super) async fn handle_character_sheet_request(
                             &entity_data,
                         )
                     );
-                    state.connections.broadcast_to_world(world_id, entity_changed_msg).await;
+                    state.connections.broadcast_critical_to_world(world_id, entity_changed_msg).await;
 
                     Ok(ResponseResult::success(json!({
                         "updated": result.updated_count,
@@ -376,21 +359,4 @@ fn map_character_sheet_error(err: CharacterSheetError) -> ResponseResult {
     };
 
     ResponseResult::error(code, message)
-}
-
-/// Helper function to resolve world_id from character_id.
-/// Fetches the character from the CharacterRepo and returns its world_id.
-async fn get_character_world_id(
-    state: &WsState,
-    character_id: wrldbldr_domain::CharacterId,
-) -> Result<wrldbldr_domain::WorldId, CharacterSheetError> {
-    state
-        .app
-        .repositories
-        .character
-        .get(character_id)
-        .await
-        .map_err(|e| CharacterSheetError::Repo(RepoError::database("get_character", e)))?
-        .map(|character| character.world_id())
-        .ok_or(CharacterSheetError::CharacterNotFound(character_id))
 }

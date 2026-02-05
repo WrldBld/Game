@@ -4,15 +4,15 @@ use chrono::{TimeZone, Utc};
 use neo4rs::query;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    Description, EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventName,
-    NarrativeTrigger, NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource,
-    TriggerLogic, WorldId,
+    CharacterId, Description, EventOutcome, LocationId, Lore, LoreCategory, LoreDiscoverySource,
+    LoreId, LoreKnowledge, MoodState, NarrativeEvent, NarrativeEventName, NarrativeTrigger,
+    NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource, Tag, TriggerLogic, WorldId,
 };
 
 use crate::e2e_tests::{clean_db, SharedNeo4jHarness};
 use crate::infrastructure::{
     clock::FixedClock,
-    ports::{NarrativeRepo, StagingRepo},
+    ports::{LoreRepo, NarrativeRepo, RepoError, StagingRepo},
 };
 
 #[tokio::test]
@@ -372,4 +372,703 @@ async fn get_chains_for_event_returns_containing_chains() {
     let chain_ids: Vec<_> = chains.iter().map(|c| c.id()).collect();
     assert!(chain_ids.contains(&chain1_id));
     assert!(chain_ids.contains(&chain2_id));
+}
+
+// =============================================================================
+// Lore Repository Tests - Fail-Fast Parsing and Tag Search Semantics
+// =============================================================================
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_search_by_tags_uses_exact_matching_not_substring() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Create lore with "martial" tag (NOT "art")
+    let lore_martial = Lore::new(
+        world_id,
+        "Martial Combat".to_string(),
+        LoreCategory::Historical,
+        now,
+    )
+    .with_tag(Tag::new("martial").expect("valid tag"))
+    .with_tag(Tag::new("combat").expect("valid tag"));
+    repo.save(&lore_martial).await.expect("save martial lore");
+
+    // Create lore with "art" tag
+    let lore_art = Lore::new(
+        world_id,
+        "Fine Arts".to_string(),
+        LoreCategory::Common,
+        now,
+    )
+    .with_tag(Tag::new("art").expect("valid tag"))
+    .with_tag(Tag::new("culture").expect("valid tag"));
+    repo.save(&lore_art).await.expect("save art lore");
+
+    // Create lore with "martial-art" tag (compound)
+    let lore_martial_art = Lore::new(
+        world_id,
+        "Kung Fu Styles".to_string(),
+        LoreCategory::Common,
+        now,
+    )
+    .with_tag(Tag::new("martial-art").expect("valid tag"))
+    .with_tag(Tag::new("history").expect("valid tag"));
+    repo.save(&lore_martial_art)
+        .await
+        .expect("save martial-art lore");
+
+    // Search for "art" - should ONLY return lore with "art" tag, not "martial"
+    let results = repo
+        .search_by_tags(world_id, &["art".to_string()])
+        .await
+        .expect("search by tags");
+
+    // Should find exactly 1 result: "Fine Arts" (has "art" tag)
+    // Should NOT find "Martial Combat" (only has "martial" tag)
+    assert_eq!(results.len(), 1, "Expected exactly 1 result for 'art' search, got {}: {:?}", 
+        results.len(), results.iter().map(|l| l.title()).collect::<Vec<_>>());
+    assert_eq!(results[0].title(), "Fine Arts");
+
+    // Search for "martial" - should NOT match "martial-art"
+    let results = repo
+        .search_by_tags(world_id, &["martial".to_string()])
+        .await
+        .expect("search by martial tag");
+
+    // Should find exactly 1 result: "Martial Combat" (has "martial" tag)
+    // Should NOT find "Kung Fu Styles" (only has "martial-art" tag)
+    assert_eq!(results.len(), 1, "Expected exactly 1 result for 'martial' search, got {}",
+        results.len());
+    assert_eq!(results[0].title(), "Martial Combat");
+
+    // Search for "martial-art" - should find only the compound tag
+    let results = repo
+        .search_by_tags(world_id, &["martial-art".to_string()])
+        .await
+        .expect("search by martial-art tag");
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].title(), "Kung Fu Styles");
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_search_by_tags_returns_multiple_matches_for_or_semantics() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Create lore entries with different tags
+    let lore1 = Lore::new(
+        world_id,
+        "History of Magic".to_string(),
+        LoreCategory::Historical,
+        now,
+    )
+    .with_tag(Tag::new("magic").expect("valid tag"))
+    .with_tag(Tag::new("history").expect("valid tag"));
+    repo.save(&lore1).await.expect("save lore1");
+
+    let lore2 = Lore::new(
+        world_id,
+        "Ancient Relics".to_string(),
+        LoreCategory::Historical,
+        now,
+    )
+    .with_tag(Tag::new("history").expect("valid tag"))
+    .with_tag(Tag::new("artifacts").expect("valid tag"));
+    repo.save(&lore2).await.expect("save lore2");
+
+    let lore3 = Lore::new(
+        world_id,
+        "Dragon Lore".to_string(),
+        LoreCategory::Legend,
+        now,
+    )
+    .with_tag(Tag::new("dragons").expect("valid tag"));
+    repo.save(&lore3).await.expect("save lore3");
+
+    // Search for "magic" OR "dragons" - should return lore1 and lore3
+    let results = repo
+        .search_by_tags(world_id, &["magic".to_string(), "dragons".to_string()])
+        .await
+        .expect("search by multiple tags");
+
+    assert_eq!(results.len(), 2);
+    let titles: Vec<_> = results.iter().map(|l| l.title()).collect();
+    assert!(titles.contains(&"History of Magic"));
+    assert!(titles.contains(&"Dragon Lore"));
+    assert!(!titles.contains(&"Ancient Relics"));
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_repo_fail_fast_on_malformed_tags_json() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+    let lore_id = LoreId::new();
+
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Insert a lore entry with malformed JSON in the tags field directly via Cypher
+    // This simulates data corruption
+    graph
+        .run(
+            query(
+                "CREATE (l:Lore {
+                    id: $lore_id,
+                    world_id: $world_id,
+                    title: $title,
+                    category: $category,
+                    tags: $malformed_tags,
+                    created_at: $created_at,
+                    updated_at: $updated_at
+                })"
+            )
+            .param("lore_id", lore_id.to_string())
+            .param("world_id", world_id.to_string())
+            .param("title", "Corrupted Lore")
+            .param("category", "History")
+            .param("malformed_tags", "not-valid-json[{")
+            .param("created_at", now.to_rfc3339())
+            .param("updated_at", now.to_rfc3339()),
+        )
+        .await
+        .expect("create corrupted lore");
+
+    // Attempting to read the lore should fail with Serialization error
+    let result = repo.get(lore_id).await;
+
+    assert!(
+        result.is_err(),
+        "Expected error when reading lore with malformed tags JSON, got: {:?}",
+        result
+    );
+
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, RepoError::Serialization(_)),
+        "Expected Serialization error, got: {:?}",
+        err
+    );
+
+    // Verify the error message contains context
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("Invalid tags JSON") || err_msg.contains("tags"),
+        "Error message should mention tags JSON issue, got: {}",
+        err_msg
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_repo_fail_fast_on_missing_chunk_fields() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+    let lore_id = LoreId::new();
+    let chunk_id = wrldbldr_domain::LoreChunkId::new();
+
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Create a lore entry
+    let lore = Lore::new(
+        world_id,
+        "Test Lore".to_string(),
+        LoreCategory::Historical,
+        now,
+    );
+    repo.save(&lore).await.expect("save lore");
+
+    // Insert a chunk with missing content field directly via Cypher
+    // This simulates data corruption
+    graph
+        .run(
+            query(
+                "MATCH (l:Lore {id: $lore_id})
+                 CREATE (c:LoreChunk {
+                    id: $chunk_id,
+                    lore_id: $lore_id,
+                    order: 0,
+                    lore_order_key: $order_key
+                 })
+                 CREATE (l)-[:HAS_CHUNK]->(c)"
+            )
+            .param("lore_id", lore_id.to_string())
+            .param("chunk_id", chunk_id.to_string())
+            .param("order_key", format!("{}_0", lore_id)),
+        )
+        .await
+        .expect("create corrupted chunk");
+
+    // Attempting to read the lore should fail due to missing chunk content
+    let result = repo.get(lore_id).await;
+
+    assert!(
+        result.is_err(),
+        "Expected error when reading lore with missing chunk content, got: {:?}",
+        result
+    );
+
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, RepoError::Database { .. }),
+        "Expected Database error, got: {:?}",
+        err
+    );
+
+    // Verify the error message contains context about the missing field
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("content") || err_msg.contains("Missing required field"),
+        "Error message should mention missing content field, got: {}",
+        err_msg
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_repo_journal_entry_fail_fast_on_malformed_tags() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+    let character_id = wrldbldr_domain::CharacterId::new();
+    let lore_id = LoreId::new();
+
+    // Create world, character, and lore with malformed tags
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    graph
+        .run(
+            query("CREATE (:Character {id: $id, name: 'Test Character'})")
+                .param("id", character_id.to_string()),
+        )
+        .await
+        .expect("create character");
+
+    // Insert lore with malformed tags
+    graph
+        .run(
+            query(
+                "CREATE (l:Lore {
+                    id: $lore_id,
+                    world_id: $world_id,
+                    title: 'Corrupted Lore',
+                    category: 'History',
+                    tags: 'invalid-json',
+                    created_at: $created_at,
+                    updated_at: $updated_at
+                })"
+            )
+            .param("lore_id", lore_id.to_string())
+            .param("world_id", world_id.to_string())
+            .param("created_at", now.to_rfc3339())
+            .param("updated_at", now.to_rfc3339()),
+        )
+        .await
+        .expect("create corrupted lore");
+
+    // Create knowledge relationship
+    graph
+        .run(
+            query(
+                "MATCH (c:Character {id: $char_id})
+                 MATCH (l:Lore {id: $lore_id})
+                 CREATE (c)-[:KNOWS_LORE {
+                    lore_id: $lore_id,
+                    character_id: $char_id,
+                    known_chunk_ids: '[]',
+                    discovery_source: '{}',
+                    discovered_at: $discovered_at
+                 }]->(l)"
+            )
+            .param("char_id", character_id.to_string())
+            .param("lore_id", lore_id.to_string())
+            .param("discovered_at", now.to_rfc3339()),
+        )
+        .await
+        .expect("create knowledge");
+
+    // Attempting to get the journal should fail with Serialization error
+    let result = repo.get_character_lore_journal(character_id).await;
+
+    assert!(
+        result.is_err(),
+        "Expected error when reading journal with malformed tags JSON, got: {:?}",
+        result
+    );
+
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, RepoError::Serialization(_)),
+        "Expected Serialization error, got: {:?}",
+        err
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_repo_handles_empty_tags_gracefully() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Create lore with no tags (empty array JSON)
+    let lore = Lore::new(
+        world_id,
+        "Untagged Lore".to_string(),
+        LoreCategory::Historical,
+        now,
+    );
+    repo.save(&lore).await.expect("save lore");
+
+    // Should be able to read it back
+    let loaded = repo.get(lore.id()).await.expect("load lore");
+    assert!(loaded.is_some());
+    let loaded = loaded.unwrap();
+    assert!(loaded.tags().is_empty());
+
+    // Searching for any tag should return empty results
+    let results = repo
+        .search_by_tags(world_id, &["nonexistent".to_string()])
+        .await
+        .expect("search by nonexistent tag");
+    assert!(results.is_empty());
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_repo_roundtrip_preserves_tags_exactly() {
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Create lore with various tag patterns that could cause false positives
+    let lore = Lore::new(
+        world_id,
+        "Complex Tags".to_string(),
+        LoreCategory::Historical,
+        now,
+    )
+    .with_tag(Tag::new("a").expect("valid tag"))
+    .with_tag(Tag::new("art").expect("valid tag"))
+    .with_tag(Tag::new("martial").expect("valid tag"))
+    .with_tag(Tag::new("martial-art").expect("valid tag"))
+    .with_tag(Tag::new("art-history").expect("valid tag"));
+    repo.save(&lore).await.expect("save lore");
+
+    // Load and verify all tags are preserved
+    let loaded = repo.get(lore.id()).await.expect("load lore").unwrap();
+    let tags: Vec<_> = loaded.tags().iter().map(|t| t.to_string()).collect();
+
+    assert_eq!(tags.len(), 5);
+    assert!(tags.contains(&"a".to_string()));
+    assert!(tags.contains(&"art".to_string()));
+    assert!(tags.contains(&"martial".to_string()));
+    assert!(tags.contains(&"martial-art".to_string()));
+    assert!(tags.contains(&"art-history".to_string()));
+
+    // Verify each tag search returns correct results
+    for tag in ["a", "art", "martial", "martial-art", "art-history"] {
+        let results = repo
+            .search_by_tags(world_id, &[tag.to_string()])
+            .await
+            .expect("search by tag");
+
+        assert_eq!(
+            results.len(),
+            1,
+            "Search for '{}' should return exactly 1 result, got {}: {:?}",
+            tag,
+            results.len(),
+            results.iter().map(|l| l.title()).collect::<Vec<_>>()
+        );
+        assert_eq!(results[0].title(), "Complex Tags");
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_repo_handles_null_tags_as_empty() {
+    // Tests that lore entries with null/missing tags property are treated as having empty tags
+    // This ensures consistent behavior between row_to_lore_without_chunks and node_to_lore_detail_repo
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+    let lore_id = LoreId::new();
+
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Create lore node directly with NULL tags (simulating legacy data)
+    // This tests the path where tags property is missing entirely
+    graph
+        .run(
+            query(
+                "CREATE (l:Lore {
+                    id: $lore_id,
+                    world_id: $world_id,
+                    title: 'Legacy Lore Without Tags',
+                    category: 'historical',
+                    is_common_knowledge: false,
+                    created_at: datetime(),
+                    updated_at: datetime()
+                })"
+            )
+            .param("lore_id", lore_id.to_string())
+            .param("world_id", world_id.to_string()),
+        )
+        .await
+        .expect("create lore with null tags");
+
+    // Should be able to read it back (treating null tags as empty)
+    let loaded = repo.get(lore_id).await.expect("load lore");
+    assert!(loaded.is_some(), "Should be able to load lore with null tags");
+    let loaded = loaded.unwrap();
+    assert!(loaded.tags().is_empty(), "Null tags should be treated as empty");
+
+    // Searching should not match any tags (empty list)
+    let results = repo
+        .search_by_tags(world_id, &["any".to_string()])
+        .await
+        .expect("search by tag");
+    assert!(results.is_empty(), "Lore with null tags should not match any search");
+
+    // Also test via journal entry path (uses node_to_lore_detail_repo)
+    let character_id = CharacterId::new();
+    graph
+        .run(query("CREATE (:Character {id: $id})").param("id", character_id.to_string()))
+        .await
+        .expect("create character");
+
+    // Grant knowledge to create a path through row_to_journal_entry
+    let knowledge = LoreKnowledge::full(
+        lore_id,
+        character_id,
+        LoreDiscoverySource::DmGranted { reason: Some("Test DM grant".to_string()) },
+        now,
+    );
+    repo.grant_knowledge(&knowledge).await.expect("grant knowledge");
+
+    // Load via journal entry path
+    let journal = repo
+        .get_character_lore_journal(character_id)
+        .await
+        .expect("get journal");
+    assert_eq!(journal.len(), 1, "Should have one journal entry");
+    assert!(
+        journal[0].lore.tags.is_empty(),
+        "Journal entry should also have empty tags for null tags"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires docker (testcontainers)"]
+async fn lore_repo_search_by_tags_handles_empty_string_tags() {
+    // Tests that lore entries with empty-string tags are treated as having empty tags
+    // This ensures the nullIf(l.tags, "") fix works correctly in search_by_tags
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
+
+    let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jLoreRepo::new(test_graph, clock);
+
+    let world_id = WorldId::new();
+    let lore_id = LoreId::new();
+
+    graph
+        .run(query("CREATE (:World {id: $id})").param("id", world_id.to_string()))
+        .await
+        .expect("create world");
+
+    // Create lore node directly with empty-string tags (simulating legacy data issue)
+    // This tests the path where tags property is an empty string instead of valid JSON
+    graph
+        .run(
+            query(
+                "CREATE (l:Lore {
+                    id: $lore_id,
+                    world_id: $world_id,
+                    title: 'Legacy Lore With Empty String Tags',
+                    category: 'historical',
+                    is_common_knowledge: false,
+                    tags: '',
+                    created_at: datetime(),
+                    updated_at: datetime()
+                })"
+            )
+            .param("lore_id", lore_id.to_string())
+            .param("world_id", world_id.to_string()),
+        )
+        .await
+        .expect("create lore with empty-string tags");
+
+    // Should be able to read it back (treating empty-string tags as empty)
+    let loaded = repo.get(lore_id).await.expect("load lore");
+    assert!(loaded.is_some(), "Should be able to load lore with empty-string tags");
+    let loaded = loaded.unwrap();
+    assert!(loaded.tags().is_empty(), "Empty-string tags should be treated as empty");
+
+    // Searching should not crash and should return empty results (empty tags don't match)
+    let results = repo
+        .search_by_tags(world_id, &["any".to_string()])
+        .await
+        .expect("search by tag should not crash with empty-string tags");
+    assert!(results.is_empty(), "Lore with empty-string tags should not match any search");
+
+    // Also create lore with valid tags to ensure search still works for valid entries
+    let lore_with_tags = Lore::new(
+        world_id,
+        "Tagged Lore".to_string(),
+        LoreCategory::Historical,
+        now,
+    )
+    .with_tag(Tag::new("magic").expect("valid tag"));
+    repo.save(&lore_with_tags).await.expect("save lore with tags");
+
+    // Search should find the lore with valid tags
+    let results = repo
+        .search_by_tags(world_id, &["magic".to_string()])
+        .await
+        .expect("search by valid tag");
+    assert_eq!(results.len(), 1, "Should find lore with valid tags");
+    assert_eq!(results[0].title(), "Tagged Lore");
 }

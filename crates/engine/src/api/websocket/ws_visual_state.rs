@@ -1,11 +1,11 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
-use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::error_sanitizer::{sanitize_generation_error, sanitize_repo_error};
 use crate::use_cases::visual_state::{
     validate_asset_path, validate_generation_prompt, validate_negative_prompt,
-    validate_state_description, validate_state_name, validate_state_name_required, validate_tags,
-    validate_workflow_id, VisualStateDetails,
+    validate_state_description, validate_state_name, validate_state_name_required,
+    validate_workflow_id, GenerateVisualStateInput, GenerateVisualStateTarget, VisualStateDetails,
 };
 use wrldbldr_domain::{ActivationLogic, ActivationRule, LocationStateId, RegionStateId};
 use wrldbldr_shared::{
@@ -955,9 +955,7 @@ async fn handle_generate_visual_state(
     ) {
         return response;
     }
-    if let Some(response) = validation_to_response(validate_tags(&request.tags), request_id) {
-        return response;
-    }
+
 
     let location_id = request.location_id.map(wrldbldr_domain::LocationId::from_uuid);
     let region_id = request.region_id.map(wrldbldr_domain::RegionId::from_uuid);
@@ -1003,27 +1001,28 @@ async fn handle_generate_visual_state(
                 }
             };
 
+            let input = GenerateVisualStateInput {
+                target: GenerateVisualStateTarget::Location(loc_id),
+                name: request.name,
+                description: request.description,
+                prompt: request.prompt,
+                negative_prompt: request.negative_prompt,
+                workflow_id: request.workflow,
+                map_workflow_id: request.map_workflow,
+                generate_backdrop: request.generate_backdrop,
+                generate_map: request.generate_map,
+                activation_rules,
+                activation_logic,
+                priority: request.priority,
+                is_default: request.is_default,
+            };
+
             match state
                 .app
                 .use_cases
                 .visual_state
-                .catalog
-                .generate_visual_state(
-                    Some(loc_id),
-                    None,
-                    request.name,
-                    request.description,
-                    request.prompt,
-                    request.workflow,
-                    request.map_workflow,
-                    request.tags,
-                    request.generate_backdrop,
-                    request.generate_map,
-                    activation_rules,
-                    activation_logic,
-                    request.priority,
-                    request.is_default,
-                )
+                .generation
+                .execute(input)
                 .await
             {
                 Ok(result) => {
@@ -1102,8 +1101,8 @@ async fn handle_generate_visual_state(
                 Err(e) => ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(
-                        map_catalog_error_to_code(&e),
-                        sanitize_repo_error(&e, "generate location visual state"),
+                        map_generation_error_to_code(&e),
+                        sanitize_generation_error(&e, "generate location visual state"),
                     ),
                 },
             }
@@ -1148,27 +1147,28 @@ async fn handle_generate_visual_state(
                 }
             };
 
+            let input = GenerateVisualStateInput {
+                target: GenerateVisualStateTarget::Region(reg_id),
+                name: request.name,
+                description: request.description,
+                prompt: request.prompt,
+                negative_prompt: request.negative_prompt,
+                workflow_id: request.workflow,
+                map_workflow_id: request.map_workflow,
+                generate_backdrop: request.generate_backdrop,
+                generate_map: request.generate_map,
+                activation_rules,
+                activation_logic,
+                priority: request.priority,
+                is_default: request.is_default,
+            };
+
             match state
                 .app
                 .use_cases
                 .visual_state
-                .catalog
-                .generate_visual_state(
-                    None,
-                    Some(reg_id),
-                    request.name,
-                    request.description,
-                    request.prompt,
-                    request.workflow,
-                    request.map_workflow,
-                    request.tags,
-                    request.generate_backdrop,
-                    request.generate_map,
-                    activation_rules,
-                    activation_logic,
-                    request.priority,
-                    request.is_default,
-                )
+                .generation
+                .execute(input)
                 .await
             {
                 Ok(result) => {
@@ -1247,8 +1247,8 @@ async fn handle_generate_visual_state(
                 Err(e) => ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(
-                        map_catalog_error_to_code(&e),
-                        sanitize_repo_error(&e, "generate region visual state"),
+                        map_generation_error_to_code(&e),
+                        sanitize_generation_error(&e, "generate region visual state"),
                     ),
                 },
             }
@@ -1279,8 +1279,33 @@ fn map_catalog_error_to_code(error: &crate::use_cases::visual_state::CatalogErro
         | CatalogError::RegionNotFound(_)
         | CatalogError::LocationStateNotFound(_)
         | CatalogError::RegionStateNotFound(_) => ErrorCode::NotFound,
+        // Repository errors - internal error
+        CatalogError::Repo(_) => ErrorCode::InternalError,
+    }
+}
+
+/// Map GenerationError to ErrorCode
+fn map_generation_error_to_code(error: &crate::use_cases::visual_state::GenerationError) -> ErrorCode {
+    use crate::use_cases::visual_state::GenerationError;
+    use wrldbldr_domain::DomainError;
+
+    match error {
+        // Validation errors - map to ValidationError
+        GenerationError::Validation(_) => ErrorCode::ValidationError,
+        // Domain errors - map based on variant
+        GenerationError::Domain(domain_err) => match domain_err {
+            DomainError::NotFound { .. } => ErrorCode::NotFound,
+            DomainError::Validation(_)
+            | DomainError::InvalidId(_)
+            | DomainError::Constraint(_)
+            | DomainError::Parse(_)
+            | DomainError::InvalidStateTransition(_)
+            | DomainError::ContainerFull { .. } => ErrorCode::ValidationError,
+        },
+        // Not found errors
+        GenerationError::LocationNotFound(_) | GenerationError::RegionNotFound(_) => ErrorCode::NotFound,
         // Repository and queue errors - internal error
-        CatalogError::Repo(_) | CatalogError::Queue(_) => ErrorCode::InternalError,
+        GenerationError::Repo(_) | GenerationError::Queue(_) => ErrorCode::InternalError,
     }
 }
 

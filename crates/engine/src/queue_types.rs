@@ -733,6 +733,9 @@ pub struct AssetGenerationData {
     pub workflow_id: String,
     /// Prompt to send to ComfyUI
     pub prompt: String,
+    /// Negative prompt to send to ComfyUI (what to avoid in generation)
+    #[serde(default)]
+    pub negative_prompt: Option<String>,
     /// Number of assets to generate
     pub count: u32,
 }
