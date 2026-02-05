@@ -327,7 +327,7 @@ mod tests {
         let filter = DomainContentFilter::default();
         let result = service
             .get_content("test", &ContentType::Spell, &filter)
-            .unwrap();
+            .expect("get_content should succeed");
         assert_eq!(result.len(), 2);
     }
 
@@ -343,7 +343,7 @@ mod tests {
         let filter = DomainContentFilter::new().with_search("fire");
         let result = service
             .get_content("test", &ContentType::Spell, &filter)
-            .unwrap();
+            .expect("get_content should succeed");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].name, "Fireball");
     }
@@ -356,13 +356,13 @@ mod tests {
 
         let result = service
             .get_content_by_id("test", &ContentType::Spell, "fireball")
-            .unwrap();
+            .expect("get_content_by_id should succeed");
         assert!(result.is_some());
-        assert_eq!(result.unwrap().name, "Fireball");
+        assert_eq!(result.expect("result should be Some").name, "Fireball");
 
         let missing = service
             .get_content_by_id("test", &ContentType::Spell, "nonexistent")
-            .unwrap();
+            .expect("get_content_by_id should succeed");
         assert!(missing.is_none());
     }
 
@@ -376,7 +376,7 @@ mod tests {
         ];
         service.register_provider("test", Arc::new(MockProvider::new(items)));
 
-        let result = service.search_content("test", "fire", 10).unwrap();
+        let result = service.search_content("test", "fire", 10).expect("search_content should succeed");
         assert_eq!(result.len(), 2);
     }
 
@@ -407,7 +407,6 @@ mod tests {
     // Run with: cargo test --package wrldbldr-engine content_service::tests::integration -- --ignored --nocapture
     mod integration {
         use super::*;
-        use crate::infrastructure::content_sources::Dnd5eContentProvider;
 
         const FIVETOOLS_PATH: &str = "/Users/otto/repos/WrldBldr/5etools/5etools-src";
 
@@ -508,7 +507,7 @@ mod tests {
                     .expect("Failed to get by ID");
 
                 assert!(found.is_some(), "Should find background by ID");
-                assert_eq!(found.unwrap().name, first_bg.name);
+                assert_eq!(found.expect("found should be Some").name, first_bg.name);
             }
         }
 

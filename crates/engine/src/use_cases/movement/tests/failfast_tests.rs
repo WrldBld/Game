@@ -6,7 +6,6 @@
 
 #[cfg(test)]
 mod fail_fast_tests {
-    use super::*;
 
     /// Test: RepoError handling for visual state lookup failures.
     ///
@@ -61,7 +60,7 @@ mod fail_fast_tests {
     fn test_some_visual_state_returns_successfully() {
         use crate::use_cases::staging::{ResolvedStateInfo, ResolvedVisualState};
 
-        let visual_state = Some(ResolvedVisualState {
+        let visual_state = ResolvedVisualState {
             location_state: Some(ResolvedStateInfo {
                 id: "test-id".to_string(),
                 name: "Test State".to_string(),
@@ -70,12 +69,16 @@ mod fail_fast_tests {
                 ambient_sound: None,
             }),
             region_state: None,
-        });
+        };
 
-        assert!(visual_state.is_some());
-        let vs = visual_state.unwrap();
-        assert_eq!(vs.location_state.unwrap().name, "Test State");
-        assert!(vs.region_state.is_none());
+        assert_eq!(
+            visual_state
+                .location_state
+                .expect("location_state should be Some")
+                .name,
+            "Test State"
+        );
+        assert!(visual_state.region_state.is_none());
     }
 
     /// Test: Active staging with no visual state IDs returns data integrity error.

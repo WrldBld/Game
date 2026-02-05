@@ -10,9 +10,9 @@ fn create_dnd5e_world(
     world_id: WorldId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> wrldbldr_domain::World {
-    let world_name = wrldbldr_domain::WorldName::new("Test D&D 5e World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test D&D 5e World").expect("test: world name should be valid");
     wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("A test world").unwrap())
+        .with_description(wrldbldr_domain::Description::new("A test world").expect("test: description should be valid"))
         .with_id(world_id)
         .with_rule_system(RuleSystemConfig::dnd_5e())
 }
@@ -104,8 +104,7 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
                 let sections = data
                     .get("sections")
                     .and_then(|v: &serde_json::Value| v.as_array());
-                assert!(sections.is_some(), "Schema should have sections");
-                let sections = sections.unwrap();
+                let sections = sections.expect("test: sections should be present");
 
                 // Check for expected sections
                 let section_ids: Vec<&str> = sections
@@ -294,7 +293,7 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
                 let sections = data
                     .get("sections")
                     .and_then(|v: &serde_json::Value| v.as_array())
-                    .unwrap();
+                    .expect("test: sections should be present");
                 let ability_section = sections
                     .iter()
                     .find(|s| {
@@ -307,7 +306,7 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
                 let fields = ability_section
                     .get("fields")
                     .and_then(|v: &serde_json::Value| v.as_array())
-                    .unwrap();
+                    .expect("test: fields should be present");
                 let str_field = fields
                     .iter()
                     .find(|f| {
@@ -319,7 +318,7 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
                 let validation = str_field.get("validation");
                 assert!(validation.is_some(), "STR should have validation rules");
 
-                let validation = validation.unwrap();
+                let validation = validation.expect("test: validation should be present");
                 let min = validation
                     .get("min")
                     .and_then(|v: &serde_json::Value| v.as_i64());

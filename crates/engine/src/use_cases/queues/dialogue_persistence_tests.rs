@@ -4,15 +4,11 @@
 
 use std::sync::Arc;
 use wrldbldr_domain::{
-    CharacterId, ConversationId, PlayerCharacterId, WorldId, UserId, CharacterName,
-    GameTime,
+    CharacterId, ConversationId, PlayerCharacterId, WorldId,
 };
 
-use crate::infrastructure::ports::{ClockPort, RepoError};
-use crate::queue_types::{
-    ApprovalRequestData, DmApprovalDecision, LlmRequestData,
-};
-use crate::use_cases::approval::{ApprovalDecisionFlow, ApprovalDecisionOutcome};
+use crate::infrastructure::ports::ClockPort;
+use crate::queue_types::ApprovalRequestData;
 
 struct TestClock(chrono::DateTime<chrono::Utc>);
 
@@ -66,5 +62,5 @@ async fn test_approval_flow_includes_conversation_id() {
 
     // This is a structural test - the actual flow requires more setup
     // with full mock infrastructure
-    assert!(true, "Conversation_id is present in approval request");
+    // Conversation_id is present in approval request
 }

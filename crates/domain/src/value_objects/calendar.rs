@@ -812,20 +812,20 @@ mod tests {
 
         #[test]
         fn valid_id() {
-            let id = CalendarId::new("gregorian").unwrap();
+            let id = CalendarId::new("gregorian").expect("valid value");
             assert_eq!(id.as_str(), "gregorian");
             assert_eq!(id.to_string(), "gregorian");
         }
 
         #[test]
         fn valid_id_with_underscore() {
-            let id = CalendarId::new("forgotten_realms").unwrap();
+            let id = CalendarId::new("forgotten_realms").expect("valid value");
             assert_eq!(id.as_str(), "forgotten_realms");
         }
 
         #[test]
         fn valid_id_with_numbers() {
-            let id = CalendarId::new("calendar_v2").unwrap();
+            let id = CalendarId::new("calendar_v2").expect("valid value");
             assert_eq!(id.as_str(), "calendar_v2");
         }
 
@@ -833,7 +833,7 @@ mod tests {
         fn empty_id_rejected() {
             let result = CalendarId::new("");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("cannot be empty"));
         }
@@ -846,13 +846,13 @@ mod tests {
 
         #[test]
         fn id_is_lowercased() {
-            let id = CalendarId::new("GREGORIAN").unwrap();
+            let id = CalendarId::new("GREGORIAN").expect("valid value");
             assert_eq!(id.as_str(), "gregorian");
         }
 
         #[test]
         fn id_is_trimmed() {
-            let id = CalendarId::new("  harptos  ").unwrap();
+            let id = CalendarId::new("  harptos  ").expect("valid value");
             assert_eq!(id.as_str(), "harptos");
         }
 
@@ -861,13 +861,13 @@ mod tests {
             let long_id = "a".repeat(51);
             let result = CalendarId::new(long_id);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("50"));
+            assert!(result.expect_err("should fail").to_string().contains("50"));
         }
 
         #[test]
         fn max_length_accepted() {
             let max_id = "a".repeat(50);
-            let id = CalendarId::new(max_id).unwrap();
+            let id = CalendarId::new(max_id).expect("valid value");
             assert_eq!(id.as_str().len(), 50);
         }
 
@@ -876,7 +876,7 @@ mod tests {
             let result = CalendarId::new("cal-endar");
             assert!(result.is_err());
             assert!(result
-                .unwrap_err()
+                .expect_err("should fail")
                 .to_string()
                 .contains("lowercase alphanumeric"));
         }
@@ -889,20 +889,20 @@ mod tests {
 
         #[test]
         fn try_from_string() {
-            let id: CalendarId = "harptos".to_string().try_into().unwrap();
+            let id: CalendarId = "harptos".to_string().try_into().expect("valid value");
             assert_eq!(id.as_str(), "harptos");
         }
 
         #[test]
         fn into_string() {
-            let id = CalendarId::new("eberron").unwrap();
+            let id = CalendarId::new("eberron").expect("valid value");
             let s: String = id.into();
             assert_eq!(s, "eberron");
         }
 
         #[test]
         fn clone_preserves_id() {
-            let id = CalendarId::new("custom").unwrap();
+            let id = CalendarId::new("custom").expect("valid value");
             let cloned = id.clone();
             assert_eq!(cloned.as_str(), "custom");
         }
@@ -980,7 +980,7 @@ mod tests {
         #[test]
         fn harptos_era_is_dr() {
             let calendar = CalendarDefinition::harptos();
-            assert_eq!(calendar.era().unwrap().suffix, "DR");
+            assert_eq!(calendar.era().expect("valid value").suffix, "DR");
         }
 
         #[test]
@@ -1213,7 +1213,7 @@ mod tests {
         fn negative_time_before_epoch() {
             let calendar = CalendarDefinition::gregorian();
             let epoch = EpochConfig::new(
-                CalendarId::new("gregorian").unwrap(),
+                CalendarId::new("gregorian").expect("valid value"),
                 2024,
                 1,
                 2, // January 2
@@ -1288,7 +1288,7 @@ mod tests {
         fn custom_epoch_hour() {
             let calendar = CalendarDefinition::gregorian();
             let epoch = EpochConfig::new(
-                CalendarId::new("gregorian").unwrap(),
+                CalendarId::new("gregorian").expect("valid value"),
                 2024,
                 1,
                 1,
@@ -1308,7 +1308,7 @@ mod tests {
         fn custom_epoch_mid_year() {
             let calendar = CalendarDefinition::gregorian();
             let epoch = EpochConfig::new(
-                CalendarId::new("gregorian").unwrap(),
+                CalendarId::new("gregorian").expect("valid value"),
                 2024,
                 6,
                 15, // June 15
@@ -1382,7 +1382,7 @@ mod tests {
 // Validation tests
 #[test]
 fn calendar_definition_new_rejects_empty_months() {
-    let id = CalendarId::new("test").unwrap();
+    let id = CalendarId::new("test").expect("valid value");
     let result = CalendarDefinition::new(
         id.clone(),
         "Test Calendar",
@@ -1395,14 +1395,14 @@ fn calendar_definition_new_rejects_empty_months() {
     );
     assert!(result.is_err());
     assert!(result
-        .unwrap_err()
+        .expect_err("should fail")
         .to_string()
         .contains("Months cannot be empty"));
 }
 
 #[test]
 fn calendar_definition_new_rejects_empty_day_names() {
-    let id = CalendarId::new("test").unwrap();
+    let id = CalendarId::new("test").expect("valid value");
     let result = CalendarDefinition::new(
         id.clone(),
         "Test Calendar",
@@ -1415,14 +1415,14 @@ fn calendar_definition_new_rejects_empty_day_names() {
     );
     assert!(result.is_err());
     assert!(result
-        .unwrap_err()
+        .expect_err("should fail")
         .to_string()
         .contains("Day names cannot be empty"));
 }
 
 #[test]
 fn calendar_definition_new_rejects_zero_hours_per_day() {
-    let id = CalendarId::new("test").unwrap();
+    let id = CalendarId::new("test").expect("valid value");
     let result = CalendarDefinition::new(
         id.clone(),
         "Test Calendar",
@@ -1435,14 +1435,14 @@ fn calendar_definition_new_rejects_zero_hours_per_day() {
     );
     assert!(result.is_err());
     assert!(result
-        .unwrap_err()
+        .expect_err("should fail")
         .to_string()
         .contains("Hours per day must be positive"));
 }
 
 #[test]
 fn calendar_definition_new_rejects_zero_minutes_per_hour() {
-    let id = CalendarId::new("test").unwrap();
+    let id = CalendarId::new("test").expect("valid value");
     let result = CalendarDefinition::new(
         id.clone(),
         "Test Calendar",
@@ -1455,14 +1455,14 @@ fn calendar_definition_new_rejects_zero_minutes_per_hour() {
     );
     assert!(result.is_err());
     assert!(result
-        .unwrap_err()
+        .expect_err("should fail")
         .to_string()
         .contains("Minutes per hour must be positive"));
 }
 
 #[test]
 fn calendar_definition_new_rejects_zero_day_month() {
-    let id = CalendarId::new("test").unwrap();
+    let id = CalendarId::new("test").expect("valid value");
     let result = CalendarDefinition::new(
         id.clone(),
         "Test Calendar",
@@ -1475,14 +1475,14 @@ fn calendar_definition_new_rejects_zero_day_month() {
     );
     assert!(result.is_err());
     assert!(result
-        .unwrap_err()
+        .expect_err("should fail")
         .to_string()
         .contains("cannot have zero days"));
 }
 
 #[test]
 fn calendar_definition_new_rejects_invalid_intercalary_placement() {
-    let id = CalendarId::new("test").unwrap();
+    let id = CalendarId::new("test").expect("valid value");
     let result = CalendarDefinition::new(
         id.clone(),
         "Test Calendar",
@@ -1494,12 +1494,12 @@ fn calendar_definition_new_rejects_invalid_intercalary_placement() {
         None,
     );
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("out of bounds"));
+    assert!(result.expect_err("should fail").to_string().contains("out of bounds"));
 }
 
 #[test]
 fn calendar_definition_new_accepts_valid_values() {
-    let id = CalendarId::new("test").unwrap();
+    let id = CalendarId::new("test").expect("valid value");
     let result = CalendarDefinition::new(
         id.clone(),
         "Test Calendar",
@@ -1511,7 +1511,7 @@ fn calendar_definition_new_accepts_valid_values() {
         None,
     );
     assert!(result.is_ok());
-    let cal = result.unwrap();
+    let cal = result.expect("valid value");
     assert_eq!(cal.months().len(), 1);
     assert_eq!(cal.day_names().len(), 1);
 }
@@ -1525,7 +1525,7 @@ mod integration {
         // Typical FR campaign: 1492 DR, Hammer 1, 9:00 AM
         let calendar = CalendarDefinition::harptos();
         let epoch = EpochConfig::new(
-            CalendarId::new("harptos").unwrap(),
+            CalendarId::new("harptos").expect("valid value"),
             1492,
             1, // Hammer
             1,
@@ -1542,7 +1542,7 @@ mod integration {
     #[test]
     fn forgotten_realms_three_hours_later() {
         let calendar = CalendarDefinition::harptos();
-        let epoch = EpochConfig::new(CalendarId::new("harptos").unwrap(), 1492, 1, 1, 9);
+        let epoch = EpochConfig::new(CalendarId::new("harptos").expect("valid value"), 1492, 1, 1, 9);
 
         // 3 hours later = noon
         let date = calculate_calendar_date(3 * 60 * 60, &calendar, &epoch);

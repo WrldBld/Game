@@ -350,7 +350,7 @@ mod tests {
 
     fn create_test_location() -> Location {
         let world_id = WorldId::new();
-        let name = LocationName::new("Test Location").unwrap();
+        let name = LocationName::new("Test Location").expect("valid location name");
         Location::new(world_id, name, LocationType::Interior)
     }
 
@@ -360,7 +360,7 @@ mod tests {
         #[test]
         fn new_creates_location_with_correct_defaults() {
             let world_id = WorldId::new();
-            let name = LocationName::new("The Prancing Pony").unwrap();
+            let name = LocationName::new("The Prancing Pony").expect("valid location name");
             let location = Location::new(world_id, name, LocationType::Interior);
 
             assert_eq!(location.name().as_str(), "The Prancing Pony");
@@ -381,14 +381,14 @@ mod tests {
             use crate::value_objects::AssetPath;
 
             let world_id = WorldId::new();
-            let name = LocationName::new("Moria").unwrap();
-            let desc = Description::new("An ancient dwarven kingdom").unwrap();
+            let name = LocationName::new("Moria").expect("valid location name");
+            let desc = Description::new("An ancient dwarven kingdom").expect("valid description");
             let region_id = RegionId::new();
-            let bounds = MapBounds::new(10, 20, 100, 50).unwrap();
-            let backdrop = AssetPath::new("backdrops/moria.png").unwrap();
-            let map = AssetPath::new("maps/moria.png").unwrap();
+            let bounds = MapBounds::new(10, 20, 100, 50).expect("valid bounds");
+            let backdrop = AssetPath::new("backdrops/moria.png").expect("valid asset path");
+            let map = AssetPath::new("maps/moria.png").expect("valid asset path");
 
-            let atm = Atmosphere::new("Dark and echoing").unwrap();
+            let atm = Atmosphere::new("Dark and echoing").expect("valid atmosphere");
             let location = Location::new(world_id, name, LocationType::Interior)
                 .with_description(desc)
                 .with_backdrop(backdrop)
@@ -428,7 +428,7 @@ mod tests {
         #[test]
         fn set_description_works() {
             let mut location = create_test_location();
-            let desc = Description::new("A cozy tavern").unwrap();
+            let desc = Description::new("A cozy tavern").expect("valid description");
             location.set_description(desc);
             assert_eq!(location.description().as_str(), "A cozy tavern");
         }
@@ -438,7 +438,9 @@ mod tests {
             use crate::value_objects::AssetPath;
 
             let mut location = create_test_location();
-            location.set_backdrop(Some(AssetPath::new("backdrops/tavern.png").unwrap()));
+            location.set_backdrop(Some(
+                AssetPath::new("backdrops/tavern.png").expect("valid asset path"),
+            ));
             assert_eq!(
                 location.backdrop_asset().map(|p| p.as_str()),
                 Some("backdrops/tavern.png")
@@ -453,7 +455,9 @@ mod tests {
             use crate::value_objects::AssetPath;
 
             let mut location = create_test_location();
-            location.set_map(Some(AssetPath::new("maps/tavern.png").unwrap()));
+            location.set_map(Some(
+                AssetPath::new("maps/tavern.png").expect("valid asset path"),
+            ));
             assert_eq!(
                 location.map_asset().map(|p| p.as_str()),
                 Some("maps/tavern.png")
@@ -466,7 +470,7 @@ mod tests {
         #[test]
         fn set_atmosphere_works() {
             let mut location = create_test_location();
-            let atm = Atmosphere::new("Warm and inviting").unwrap();
+            let atm = Atmosphere::new("Warm and inviting").expect("valid atmosphere");
             location.set_atmosphere(Some(atm));
             assert_eq!(
                 location.atmosphere().map(|a| a.as_str()),
@@ -492,7 +496,7 @@ mod tests {
         #[test]
         fn set_parent_map_bounds_works() {
             let mut location = create_test_location();
-            let bounds = MapBounds::new(10, 20, 100, 50).unwrap();
+            let bounds = MapBounds::new(10, 20, 100, 50).expect("valid bounds");
 
             location.set_parent_map_bounds(Some(bounds));
             assert!(location.parent_map_bounds().is_some());
@@ -530,8 +534,8 @@ mod tests {
         #[test]
         fn contains_point_on_parent_map_with_bounds_works() {
             let world_id = WorldId::new();
-            let name = LocationName::new("Test").unwrap();
-            let bounds = MapBounds::new(10, 20, 100, 50).unwrap();
+            let name = LocationName::new("Test").expect("valid location name");
+            let bounds = MapBounds::new(10, 20, 100, 50).expect("valid bounds");
             let location = Location::new(world_id, name, LocationType::Interior)
                 .with_parent_map_bounds(bounds);
 

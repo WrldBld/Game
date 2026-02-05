@@ -557,7 +557,7 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.set_mode(TimeMode::Suggested);
 
-        let world_name = WorldName::new("World").unwrap();
+        let world_name = WorldName::new("World").expect("valid world name");
         let domain_world = wrldbldr_domain::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config);
@@ -611,7 +611,7 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.set_mode(TimeMode::Manual);
 
-        let world_name = WorldName::new("World").unwrap();
+        let world_name = WorldName::new("World").expect("valid world name");
         let domain_world = wrldbldr_domain::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config);
@@ -647,7 +647,7 @@ mod tests {
         let world_id = WorldId::new();
 
         // Default config cost for unknown action types is 0.
-        let world_name = WorldName::new("World").unwrap();
+        let world_name = WorldName::new("World").expect("valid world name");
         let domain_world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();

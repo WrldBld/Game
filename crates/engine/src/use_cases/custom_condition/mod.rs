@@ -513,7 +513,7 @@ mod tests {
                 &context,
             )
             .await
-            .unwrap();
+            .expect("evaluation should succeed");
 
         assert!(result.result);
         assert!(result.confidence > 0.8);
@@ -530,7 +530,7 @@ mod tests {
         let result = evaluator
             .evaluate("The player has completed the secret quest", &context)
             .await
-            .unwrap();
+            .expect("evaluation should succeed");
 
         assert!(!result.result);
         assert!(!evaluator.is_condition_met(&result));
@@ -547,7 +547,7 @@ mod tests {
                 &EvaluationContext::new(),
             )
             .await
-            .unwrap();
+            .expect("evaluation should succeed");
 
         assert!(result.result); // LLM said true
         assert!(!evaluator.is_condition_met(&result)); // But confidence too low
@@ -562,7 +562,7 @@ mod tests {
         let result = evaluator
             .evaluate("The player has earned respect", &EvaluationContext::new())
             .await
-            .unwrap();
+            .expect("evaluation should succeed");
 
         assert!(evaluator.is_condition_met(&result)); // Passes lower threshold
     }

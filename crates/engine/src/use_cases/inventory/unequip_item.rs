@@ -72,7 +72,7 @@ mod tests {
     };
 
     fn test_item(world_id: WorldId) -> Item {
-        Item::new(world_id, ItemName::new("Test Sword").unwrap())
+        Item::new(world_id, ItemName::new("Test Sword").expect("valid item name"))
     }
 
     fn test_pc(world_id: WorldId) -> PlayerCharacter {
@@ -80,9 +80,9 @@ mod tests {
         let region_id = RegionId::new();
         let now = Utc::now();
         PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("Test PC").unwrap(),
+            CharacterName::new("Test PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -194,7 +194,7 @@ mod tests {
         let result = use_case.execute(pc_id, item_id).await;
 
         assert!(result.is_ok());
-        let action_result = result.unwrap();
+        let action_result = result.expect("result should be Ok");
         assert_eq!(action_result.item_name, "Test Sword");
         assert_eq!(action_result.quantity, 1);
     }

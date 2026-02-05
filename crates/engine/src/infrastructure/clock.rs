@@ -64,6 +64,7 @@ impl ClockPort for FixedClock {
 
 /// Fixed random for testing.
 #[cfg(test)]
+#[allow(dead_code)]
 pub struct FixedRandom(pub i32);
 
 #[cfg(test)]

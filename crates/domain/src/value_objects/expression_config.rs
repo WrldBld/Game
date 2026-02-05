@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn test_builder_pattern() {
         let config = ExpressionConfig::new()
-            .unwrap()
+            .expect("valid value")
             .with_expressions(vec!["calm", "excited"])
             .with_actions(vec!["waves"])
             .with_default_expression("calm")
@@ -300,13 +300,13 @@ mod tests {
     #[test]
     fn test_invalid_default_expression() {
         let result = ExpressionConfig::new()
-            .unwrap()
+            .expect("valid value")
             .with_expressions(vec!["calm", "excited"])
             .with_actions(vec!["waves"])
             .with_default_expression("neutral");
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("should fail");
         assert!(err
             .to_string()
             .contains("Default expression 'neutral' not found"));
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn test_format_for_llm() {
         let config = ExpressionConfig::new()
-            .unwrap()
+            .expect("valid value")
             .with_expressions(vec!["neutral", "happy"])
             .with_actions(vec!["nods"]);
 
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn test_adding_expression_deduplication() {
         let config = ExpressionConfig::new()
-            .unwrap()
+            .expect("valid value")
             .with_expressions(vec!["neutral"]);
 
         let config = config.adding_expression("neutral");
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn test_removing_last_expression_fails() {
         let config = ExpressionConfig::new()
-            .unwrap()
+            .expect("valid value")
             .with_expressions(vec!["only"])
             .with_default_expression("only")
             .expect("valid config");
@@ -369,7 +369,7 @@ mod tests {
         let result = config.removing_expression("only");
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Default expression"));
     }

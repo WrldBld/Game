@@ -27,7 +27,7 @@ async fn test_flag_set_trigger_evaluation() {
         .region("Common Room")
         .expect("Common Room should exist");
 
-    let (_, pc_id) = create_test_player(
+    let (_, _pc_id) = create_test_player(
         ctx.graph(),
         ctx.world.world_id,
         common_room,
@@ -50,11 +50,11 @@ async fn test_flag_set_trigger_evaluation() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Flag Triggered Event").unwrap(),
+        NarrativeEventName::new("Flag Triggered Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Triggered when quest_accepted flag is set")
-    .with_scene_direction(Description::new("The quest begins").unwrap())
+    .with_scene_direction(Description::new("The quest begins").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -104,7 +104,7 @@ async fn test_flag_set_trigger_evaluation() {
     );
 
     // Verify the event has the correct properties
-    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    let found_event = events.iter().find(|e| e.id() == event.id()).expect("Event should be found");
     assert_eq!(found_event.name().as_str(), "Flag Triggered Event");
     assert!(found_event.is_active());
     assert!(!found_event.trigger_conditions().is_empty());
@@ -131,11 +131,11 @@ async fn test_item_acquired_trigger_type() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Item Discovery Event").unwrap(),
+        NarrativeEventName::new("Item Discovery Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Triggered when ancient key is found")
-    .with_scene_direction(Description::new("You sense the key has power").unwrap())
+    .with_scene_direction(Description::new("You sense the key has power").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -163,7 +163,7 @@ async fn test_item_acquired_trigger_type() {
     );
 
     // Verify trigger configuration
-    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    let found_event = events.iter().find(|e| e.id() == event.id()).expect("Event should be found");
     assert_eq!(found_event.trigger_conditions().len(), 1);
     match &found_event.trigger_conditions()[0].trigger_type {
         NarrativeTriggerType::HasItem { item_name, .. } => {
@@ -215,11 +215,11 @@ async fn test_relationship_threshold_trigger_type() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Trust Gained Event").unwrap(),
+        NarrativeEventName::new("Trust Gained Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Triggered when friendship threshold reached")
-    .with_scene_direction(Description::new("The NPC trusts you now").unwrap())
+    .with_scene_direction(Description::new("The NPC trusts you now").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -247,7 +247,7 @@ async fn test_relationship_threshold_trigger_type() {
     );
 
     // Verify trigger configuration
-    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    let found_event = events.iter().find(|e| e.id() == event.id()).expect("Event should be found");
     assert_eq!(found_event.trigger_conditions().len(), 1);
     match &found_event.trigger_conditions()[0].trigger_type {
         NarrativeTriggerType::RelationshipThreshold {
@@ -274,7 +274,7 @@ async fn test_challenge_completed_trigger_type() {
     let challenge_id = ctx
         .world
         .challenge("Bargain Challenge")
-        .unwrap_or_else(|| ChallengeId::new());
+        .unwrap_or_else(ChallengeId::new);
 
     // Create ChallengeCompleted trigger
     let trigger = NarrativeTrigger::new(
@@ -290,11 +290,11 @@ async fn test_challenge_completed_trigger_type() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Challenge Victory Event").unwrap(),
+        NarrativeEventName::new("Challenge Victory Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Triggered when a specific challenge is completed")
-    .with_scene_direction(Description::new("Victory unlocks new possibilities").unwrap())
+    .with_scene_direction(Description::new("Victory unlocks new possibilities").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -322,7 +322,7 @@ async fn test_challenge_completed_trigger_type() {
     );
 
     // Verify trigger configuration
-    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    let found_event = events.iter().find(|e| e.id() == event.id()).expect("Event should be found");
     assert_eq!(found_event.trigger_conditions().len(), 1);
     match &found_event.trigger_conditions()[0].trigger_type {
         NarrativeTriggerType::ChallengeCompleted {
@@ -371,11 +371,11 @@ async fn test_multiple_triggers_and_logic() {
     // Create event with multiple trigger conditions (default is TriggerLogic::All)
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Complex Trigger Event").unwrap(),
+        NarrativeEventName::new("Complex Trigger Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Requires multiple conditions")
-    .with_scene_direction(Description::new("All conditions met").unwrap())
+    .with_scene_direction(Description::new("All conditions met").expect("Description should be valid"))
     .with_trigger_condition(trigger1)
     .with_trigger_condition(trigger2)
     .with_active(true)
@@ -436,11 +436,11 @@ async fn test_event_marked_as_triggered() {
     // Create a simple event without any triggers
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Simple Event").unwrap(),
+        NarrativeEventName::new("Simple Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Will be marked as triggered")
-    .with_scene_direction(Description::new("Event happened").unwrap())
+    .with_scene_direction(Description::new("Event happened").expect("Description should be valid"))
     .with_active(true)
     .with_priority(1);
 
@@ -520,7 +520,7 @@ async fn test_player_enters_location_trigger() {
         .expect("Private Booth should exist");
 
     // Create player in Private Booth
-    let (_, pc_id) = create_test_player(
+    let (_, _pc_id) = create_test_player(
         ctx.graph(),
         ctx.world.world_id,
         private_booth,
@@ -542,11 +542,11 @@ async fn test_player_enters_location_trigger() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Tavern Entry Event").unwrap(),
+        NarrativeEventName::new("Tavern Entry Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Triggered when player enters the tavern")
-    .with_scene_direction(Description::new("The tavern is bustling with activity").unwrap())
+    .with_scene_direction(Description::new("The tavern is bustling with activity").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(10);

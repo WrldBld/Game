@@ -93,7 +93,7 @@ impl SharedNeo4jHarness {
         // Slow path: serialize initialization attempts
         // Use a mutex to ensure only ONE thread starts the container
         let should_init = {
-            let mut claimed = INIT_LOCK.lock().unwrap();
+            let mut claimed = INIT_LOCK.lock().expect("Lock should not be poisoned");
             if *claimed {
                 // Another thread is already initializing or has initialized
                 false

@@ -167,7 +167,7 @@ impl ApproveStagingRequest {
                 .character
                 .get(npc_info.character_id)
                 .await
-                .map_err(|e| StagingError::Repo(e))?
+                .map_err(StagingError::Repo)?
                 .ok_or(StagingError::CharacterNotFound(npc_info.character_id))?;
 
             let name = character.name().to_string();
@@ -235,7 +235,7 @@ impl ApproveStagingRequest {
                     .character
                     .get(npc_info.character_id)
                     .await
-                    .map_err(|e| StagingError::Repo(e))?
+                    .map_err(StagingError::Repo)?
                     .ok_or(StagingError::CharacterNotFound(npc_info.character_id))?;
 
                 let name = character.name().to_string();
@@ -360,7 +360,7 @@ impl ApproveStagingRequest {
                 self.location_state
                     .get(*loc_state_id)
                     .await
-                    .map_err(|e| StagingError::Repo(e))?
+                    .map_err(StagingError::Repo)?
                     .ok_or_else(|| {
                         StagingError::Validation(format!(
                             "Location state not found: {}",
@@ -378,7 +378,7 @@ impl ApproveStagingRequest {
                 self.region_state
                     .get(*reg_state_id)
                     .await
-                    .map_err(|e| StagingError::Repo(e))?
+                    .map_err(StagingError::Repo)?
                     .ok_or_else(|| {
                         StagingError::Validation(format!("Region state not found: {}", reg_state_id))
                     })?;
@@ -399,14 +399,14 @@ impl ApproveStagingRequest {
                 .location_state
                 .get_active(location_id)
                 .await
-                .map_err(|e| StagingError::Repo(e))?
+                .map_err(StagingError::Repo)?
                 .map(|state| state.id());
 
             let resolved_region_id = self
                 .region_state
                 .get_active(region_id)
                 .await
-                .map_err(|e| StagingError::Repo(e))?
+                .map_err(StagingError::Repo)?
                 .map(|state| state.id());
 
             // Require at least one active state for all approvals (no backcompat)

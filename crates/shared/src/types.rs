@@ -1714,7 +1714,8 @@ mod tests {
         #[test]
         fn decision_approve_to_domain() {
             let decision = TimeSuggestionDecision::Approve;
-            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            let domain: wrldbldr_domain::TimeSuggestionDecision =
+                decision.try_into().expect("valid conversion");
             assert!(matches!(
                 domain,
                 wrldbldr_domain::TimeSuggestionDecision::Approve
@@ -1724,7 +1725,8 @@ mod tests {
         #[test]
         fn decision_modify_to_domain() {
             let decision = TimeSuggestionDecision::Modify { seconds: 600 };
-            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            let domain: wrldbldr_domain::TimeSuggestionDecision =
+                decision.try_into().expect("valid conversion");
             assert!(matches!(
                 domain,
                 wrldbldr_domain::TimeSuggestionDecision::Modify { seconds: 600 }
@@ -1734,7 +1736,8 @@ mod tests {
         #[test]
         fn decision_skip_to_domain() {
             let decision = TimeSuggestionDecision::Skip;
-            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            let domain: wrldbldr_domain::TimeSuggestionDecision =
+                decision.try_into().expect("valid conversion");
             assert!(matches!(
                 domain,
                 wrldbldr_domain::TimeSuggestionDecision::Skip

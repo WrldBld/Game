@@ -6,7 +6,7 @@
 //!
 //! Run with: `cargo test -p wrldbldr-engine visual_state::llm_condition_tests -- --ignored`
 
-use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest};
+use crate::infrastructure::ports::{ChatMessage, LlmRequest};
 use crate::test_fixtures::llm_integration::*;
 
 // =============================================================================

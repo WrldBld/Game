@@ -125,7 +125,7 @@ pub enum EndConversationByIdError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::ports::{MockNarrativeRepo, ParticipantType};
+    use crate::infrastructure::ports::MockNarrativeRepo;
     use chrono::Utc;
     use wrldbldr_domain::PlayerCharacterId;
 
@@ -146,7 +146,7 @@ mod tests {
         let err = use_case
             .execute(conversation_id, WorldId::new(), None, None)
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -189,7 +189,7 @@ mod tests {
         narrative_repo
             .expect_end_conversation_by_id()
             .withf(move |id, _, eb, r| {
-                *id == conversation_id && *eb == None && *r == None
+                *id == conversation_id && eb.is_none() && r.is_none()
             })
             .returning(|_, _, _, _| Ok(true));
 
@@ -200,7 +200,7 @@ mod tests {
         let err = use_case
             .execute(conversation_id, WorldId::new(), None, None)
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,

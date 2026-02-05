@@ -2043,9 +2043,11 @@ mod tests {
                 platform.as_ref(),
             );
 
-            assert!(game_state.staging_pending.read().is_some());
-            let pending = game_state.staging_pending.read().clone().unwrap();
+            let pending_guard = game_state.staging_pending.read();
+            let pending = pending_guard.as_ref()
+                .expect("staging_pending should be set after StagingPending event");
             assert_eq!(pending.timeout_seconds, 30);
+            drop(pending_guard);
             assert_eq!(
                 game_state.get_region_staging_status(&region_id),
                 RegionStagingStatus::Pending

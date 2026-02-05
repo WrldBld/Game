@@ -359,17 +359,22 @@ mod tests {
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     #[test]
     fn test_location_state_creation() {
         let now = fixed_time();
-        let atm = Atmosphere::new("The streets are alive with music and laughter...").unwrap();
+        let atm = Atmosphere::new("The streets are alive with music and laughter...")
+            .expect("valid atmosphere");
         let state = LocationState::new(LocationId::new(), WorldId::new(), "Festival Day", now)
-            .unwrap()
-            .with_description(Description::new("City-wide festival celebration").unwrap())
-            .with_backdrop(AssetPath::new("/assets/city_festival.png").unwrap())
+            .expect("valid location state")
+            .with_description(
+                Description::new("City-wide festival celebration").expect("valid description"),
+            )
+            .with_backdrop(AssetPath::new("/assets/city_festival.png").expect("valid asset path"))
             .with_atmosphere(atm)
             .with_priority(100);
 
@@ -382,8 +387,8 @@ mod tests {
     #[test]
     fn test_default_state() {
         let now = fixed_time();
-        let state =
-            LocationState::default_state(LocationId::new(), WorldId::new(), "Normal", now).unwrap();
+        let state = LocationState::default_state(LocationId::new(), WorldId::new(), "Normal", now)
+            .expect("valid default state");
 
         assert!(state.is_default());
         assert_eq!(state.activation_rules().len(), 1);
@@ -396,7 +401,8 @@ mod tests {
     #[test]
     fn test_soft_rules_detection() {
         let now = fixed_time();
-        let state = LocationState::new(LocationId::new(), WorldId::new(), "Test", now).unwrap();
+        let state = LocationState::new(LocationId::new(), WorldId::new(), "Test", now)
+            .expect("valid location state");
 
         // No rules - no soft rules
         assert!(!state.has_soft_rules());
@@ -421,7 +427,7 @@ mod tests {
     fn test_generation_metadata() {
         let now = fixed_time();
         let state = LocationState::new(LocationId::new(), WorldId::new(), "Test", now)
-            .unwrap()
+            .expect("valid location state")
             .with_generation_prompt("A serene forest path".to_string())
             .with_workflow_id("backdrop_v2".to_string());
 
@@ -447,7 +453,7 @@ mod tests {
             "Deterministic State",
             now,
         )
-        .unwrap();
+        .expect("valid location state with id");
 
         assert_eq!(state.id(), specific_id);
         assert_eq!(state.name(), "Deterministic State");
@@ -458,7 +464,7 @@ mod tests {
         let now = fixed_time();
         let result = LocationState::new(LocationId::new(), WorldId::new(), "", now);
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("empty name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
         assert!(err.to_string().contains("cannot be empty"));
     }
@@ -468,7 +474,7 @@ mod tests {
         let now = fixed_time();
         let result = LocationState::new(LocationId::new(), WorldId::new(), "   ", now);
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("whitespace-only name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
     }
 
@@ -478,7 +484,7 @@ mod tests {
         let long_name = "a".repeat(101);
         let result = LocationState::new(LocationId::new(), WorldId::new(), &long_name, now);
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("too long name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
         assert!(err.to_string().contains("100"));
     }
@@ -505,7 +511,7 @@ mod tests {
             now,
         );
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("too long name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
         assert!(err.to_string().contains("100"));
     }

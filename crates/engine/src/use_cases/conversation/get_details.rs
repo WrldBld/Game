@@ -126,7 +126,7 @@ mod tests {
 
         assert!(result.is_ok());
         // Verify we got back a use case DTO, not the infrastructure type
-        let details = result.unwrap();
+        let details = result.expect("result should be Ok");
         assert_eq!(details.conversation.id, conversation_id);
         assert_eq!(details.conversation.pc_name, "Test PC");
         assert_eq!(details.conversation.npc_name, "Test NPC");

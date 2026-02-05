@@ -169,17 +169,17 @@ impl RecordingImageGen {
 
     /// Get all recorded requests.
     pub fn requests(&self) -> Vec<ImageRequest> {
-        self.requests.lock().unwrap().clone()
+        self.requests.lock().expect("requests mutex poisoned").clone()
     }
 
     /// Get the last request, if any.
     pub fn last_request(&self) -> Option<ImageRequest> {
-        self.requests.lock().unwrap().last().cloned()
+        self.requests.lock().expect("requests mutex poisoned").last().cloned()
     }
 
     /// Clear recorded requests.
     pub fn clear(&self) {
-        self.requests.lock().unwrap().clear();
+        self.requests.lock().expect("requests mutex poisoned").clear();
     }
 }
 
@@ -192,7 +192,7 @@ impl Default for RecordingImageGen {
 #[async_trait]
 impl ImageGenPort for RecordingImageGen {
     async fn generate(&self, request: ImageRequest) -> Result<ImageResult, ImageGenError> {
-        self.requests.lock().unwrap().push(request.clone());
+        self.requests.lock().expect("requests mutex poisoned").push(request.clone());
         self.inner.generate(request).await
     }
 
@@ -245,7 +245,7 @@ mod tests {
             height: 512,
         };
 
-        let result = gen.generate(request).await.unwrap();
+        let result = gen.generate(request).await.expect("generate should succeed");
         assert!(!result.image_data.is_empty());
         assert_eq!(result.format, "png");
 
@@ -268,7 +268,7 @@ mod tests {
                 width: 512,
                 height: 512,
             };
-            let result = gen.generate(request).await.unwrap();
+            let result = gen.generate(request).await.expect("generate should succeed");
             assert!(!result.image_data.is_empty());
         }
     }
@@ -284,7 +284,7 @@ mod tests {
                 width: 1024,
                 height: 768,
             };
-            let result = gen.generate(request).await.unwrap();
+            let result = gen.generate(request).await.expect("generate should succeed");
             assert!(!result.image_data.is_empty());
         }
     }
@@ -300,8 +300,8 @@ mod tests {
             height: 256,
         };
 
-        gen.generate(request.clone()).await.unwrap();
-        gen.generate(request.clone()).await.unwrap();
+        gen.generate(request.clone()).await.expect("generate should succeed");
+        gen.generate(request.clone()).await.expect("generate should succeed");
 
         let requests = gen.requests();
         assert_eq!(requests.len(), 2);
@@ -342,10 +342,10 @@ mod tests {
             height: 256,
         };
 
-        gen.generate(request.clone()).await.unwrap();
+        gen.generate(request.clone()).await.expect("generate should succeed");
         assert_eq!(gen.call_count(), 1);
 
-        gen.generate(request.clone()).await.unwrap();
+        gen.generate(request.clone()).await.expect("generate should succeed");
         assert_eq!(gen.call_count(), 2);
     }
 }

@@ -139,11 +139,11 @@ impl RequestFingerprint {
         // Hash key parameters
         hasher.update(b"temp:");
         let temp = request.temperature.unwrap_or(DEFAULT_TEMPERATURE);
-        hasher.update(&temp.to_le_bytes());
+        hasher.update(temp.to_le_bytes());
 
         hasher.update(b"max_tokens:");
         let max_tokens = request.max_tokens.unwrap_or(0);
-        hasher.update(&max_tokens.to_le_bytes());
+        hasher.update(max_tokens.to_le_bytes());
 
         let hash: [u8; 32] = hasher.finalize().into();
         let summary = Self::create_summary(request);

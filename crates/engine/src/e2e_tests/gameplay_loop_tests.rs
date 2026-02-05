@@ -140,7 +140,7 @@ async fn test_player_joins_world_at_starting_location() {
         .expect("Common Room should exist");
 
     // Create a test player
-    let (player_id, character_id) =
+    let (_player_id, character_id) =
         create_test_player(ctx.graph(), ctx.world.world_id, common_room_id, "Test Hero")
             .await
             .expect("Failed to create test player");

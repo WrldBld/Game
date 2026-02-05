@@ -166,7 +166,7 @@ mod tests {
             Some("Critical success!".to_string()),
             Some("Critical failure!".to_string()),
         )
-        .unwrap();
+        .expect("valid value");
 
         assert_eq!(outcomes.success(), "You succeed!");
         assert_eq!(outcomes.failure(), "You fail!");
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn test_basic() {
         let outcomes =
-            AdHocOutcomes::basic("You pick the lock", "The lock resists your efforts").unwrap();
+            AdHocOutcomes::basic("You pick the lock", "The lock resists your efforts").expect("valid value");
 
         assert_eq!(outcomes.success(), "You pick the lock");
         assert_eq!(outcomes.failure(), "The lock resists your efforts");
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn test_builder_pattern() {
         let outcomes = AdHocOutcomes::basic("Success", "Failure")
-            .unwrap()
+            .expect("valid value")
             .with_critical_success("Epic success!")
             .with_critical_failure("Catastrophic failure!");
 
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn test_with_criticals() {
         let outcomes = AdHocOutcomes::basic("Win", "Lose")
-            .unwrap()
+            .expect("valid value")
             .with_criticals("Big win", "Big lose");
 
         assert_eq!(outcomes.critical_success(), Some("Big win"));
@@ -216,7 +216,7 @@ mod tests {
             Some("Crit success".to_string()),
             Some("Crit failure".to_string()),
         )
-        .unwrap();
+        .expect("valid value");
 
         let other = outcomes.clone();
         assert_eq!(outcomes, other);
@@ -227,7 +227,7 @@ mod tests {
         let result = AdHocOutcomes::new("", "Failure", None, None);
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Success outcome cannot be empty"));
     }
@@ -237,7 +237,7 @@ mod tests {
         let result = AdHocOutcomes::new("Success", "", None, None);
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Failure outcome cannot be empty"));
     }
@@ -248,7 +248,7 @@ mod tests {
             AdHocOutcomes::new("Success", "Failure", Some("Crit success".to_string()), None);
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Critical success requires critical failure"));
     }
@@ -259,7 +259,7 @@ mod tests {
             AdHocOutcomes::new("Success", "Failure", None, Some("Crit failure".to_string()));
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Critical failure requires critical success"));
     }
@@ -269,7 +269,7 @@ mod tests {
         let result = AdHocOutcomes::new("   ", "Failure", None, None);
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Success outcome cannot be empty"));
     }
@@ -296,7 +296,7 @@ mod tests {
         let result = AdHocOutcomes::basic("", "Failure");
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Success outcome cannot be empty"));
     }
@@ -306,7 +306,7 @@ mod tests {
         let result = AdHocOutcomes::basic("Success", "");
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should fail")
             .to_string()
             .contains("Failure outcome cannot be empty"));
     }

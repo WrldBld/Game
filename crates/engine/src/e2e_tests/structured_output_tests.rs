@@ -19,8 +19,6 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::QueueItemId;
-
 use crate::queue_types::DmApprovalDecision;
 
 use super::{
@@ -113,7 +111,7 @@ async fn test_llm_response_has_internal_reasoning() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request to examine structured output
         let approval_data = ctx
@@ -313,7 +311,7 @@ async fn test_llm_response_extracts_topics() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request to examine topics
         let approval_data = ctx
@@ -514,7 +512,7 @@ async fn test_llm_suggests_challenge_during_dialogue() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request to examine challenge suggestion
         let approval_data = ctx
@@ -753,7 +751,7 @@ async fn test_llm_suggests_narrative_event() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request to examine narrative event suggestion
         let approval_data = ctx
@@ -978,7 +976,7 @@ async fn test_full_structured_output_integration() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request to examine all structured outputs
         let approval_data = ctx
@@ -1053,7 +1051,7 @@ async fn test_full_structured_output_integration() {
             "Should have final dialogue after approval"
         );
 
-        let final_dialogue = approval_result.final_dialogue.unwrap();
+        let final_dialogue = approval_result.final_dialogue.expect("Final dialogue should be present");
 
         // 5. Final dialogue should also be clean of tags
         for tag in &forbidden_tags {
@@ -1203,7 +1201,7 @@ async fn test_llm_response_without_explicit_dialogue_tags() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request
         let approval_data = ctx

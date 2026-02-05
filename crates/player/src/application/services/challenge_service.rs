@@ -188,7 +188,9 @@ mod tests {
         .await;
 
         // Verify that a request message was sent
-        let msg = rx.recv().await.unwrap();
+        let msg = rx.recv()
+            .await
+            .expect("message should be received in test");
         assert!(matches!(msg, BusMessage::Request { .. }));
     }
 }

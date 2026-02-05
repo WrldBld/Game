@@ -1175,15 +1175,21 @@ mod tests {
             } => {
                 assert_eq!(region_id, Some("region-1".to_string()));
                 assert!(visual_state.is_some());
-                let vs = visual_state.as_ref().unwrap();
+                let vs = visual_state.as_ref().expect("visual_state should be Some");
                 assert!(vs.location_state.is_some());
                 assert!(vs.region_state.is_some());
-                let loc_state = vs.location_state.as_ref().unwrap();
+                let loc_state = vs
+                    .location_state
+                    .as_ref()
+                    .expect("location_state should be Some");
                 assert_eq!(loc_state.id, "loc-state-1");
                 assert_eq!(loc_state.name, "Night State");
                 assert_eq!(loc_state.backdrop_override.as_deref(), Some("/night.jpg"));
                 assert_eq!(loc_state.atmosphere_override.as_deref(), Some("Foggy"));
-                let reg_state = vs.region_state.as_ref().unwrap();
+                let reg_state = vs
+                    .region_state
+                    .as_ref()
+                    .expect("region_state should be Some");
                 assert_eq!(reg_state.id, "reg-state-1");
                 assert_eq!(reg_state.name, "Battle Damaged");
                 assert_eq!(reg_state.backdrop_override.as_deref(), Some("/damaged.jpg"));

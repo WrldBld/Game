@@ -1221,11 +1221,12 @@ mod tests {
 
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Investigate the Statue").unwrap(),
+            ChallengeName::new("Investigate the Statue").expect("valid challenge name"),
             Difficulty::d20_medium(),
         )
         .with_description(
-            Description::new("Examine the ancient statue for hidden compartments").unwrap(),
+            Description::new("Examine the ancient statue for hidden compartments")
+                .expect("valid description"),
         )
         .with_outcomes(ChallengeOutcomes {
             success: Outcome::new("You find a hidden mechanism in the statue's base"),
@@ -1281,7 +1282,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test").unwrap(),
+            ChallengeName::new("Test").expect("valid challenge name"),
             Difficulty::DC(15),
         )
         .with_outcomes(ChallengeOutcomes {
@@ -1308,7 +1309,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test").unwrap(),
+            ChallengeName::new("Test").expect("valid challenge name"),
             Difficulty::DC(15),
         )
         .with_outcomes(ChallengeOutcomes {
@@ -1335,7 +1336,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test").unwrap(),
+            ChallengeName::new("Test").expect("valid challenge name"),
             Difficulty::Percentage(45),
         )
         .with_outcomes(ChallengeOutcomes {
@@ -1360,7 +1361,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test").unwrap(),
+            ChallengeName::new("Test").expect("valid challenge name"),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
         .with_outcomes(ChallengeOutcomes {
@@ -1428,7 +1429,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test").unwrap(),
+            ChallengeName::new("Test").expect("valid challenge name"),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
         .with_outcomes(ChallengeOutcomes {
@@ -1467,7 +1468,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test").unwrap(),
+            ChallengeName::new("Test").expect("valid challenge name"),
             Difficulty::Descriptor(DifficultyDescriptor::Hard), // Hard = +4 on ladder
         )
         .with_outcomes(ChallengeOutcomes {
@@ -1504,7 +1505,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test").unwrap(),
+            ChallengeName::new("Test").expect("valid challenge name"),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
         .with_outcomes(ChallengeOutcomes {
@@ -1570,13 +1571,13 @@ mod tests {
         use crate::value_objects::{Description, Tag};
 
         let world_id = WorldId::new();
-        let combat_tag = Tag::new("combat").unwrap();
+        let combat_tag = Tag::new("combat").expect("valid tag");
         let challenge = Challenge::new(
             world_id,
-            ChallengeName::new("Test Challenge").unwrap(),
+            ChallengeName::new("Test Challenge").expect("valid challenge name"),
             Difficulty::DC(15),
         )
-        .with_description(Description::new("A test").unwrap())
+        .with_description(Description::new("A test").expect("valid description"))
         .with_tag(combat_tag.clone())
         .with_check_stat(Stat::Str)
         .with_active(false)

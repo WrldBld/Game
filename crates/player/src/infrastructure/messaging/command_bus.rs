@@ -293,9 +293,11 @@ mod tests {
         let bus = CommandBus::new(tx, pending);
 
         let msg = ClientMessage::Heartbeat;
-        bus.send(msg).unwrap();
+        bus.send(msg).expect("send should succeed in test");
 
-        let received = rx.recv().await.unwrap();
+        let received = rx.recv()
+            .await
+            .expect("message should be received in test");
         assert!(matches!(
             received,
             BusMessage::Send(ClientMessage::Heartbeat)

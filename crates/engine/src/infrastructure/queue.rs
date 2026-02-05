@@ -4,7 +4,7 @@
 //! DM approvals, and asset generation jobs.
 
 use crate::queue_types::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, LlmRequestType, PlayerActionData, QueueType,
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, QueueType,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -12,7 +12,7 @@ use sqlx::{Row, SqlitePool};
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{QueueItemId, WorldId};
+use wrldbldr_domain::QueueItemId;
 
 use crate::infrastructure::ports::{
     ClockPort, QueueError, QueueItem, QueueItemData, QueueItemStatus, QueuePort,
@@ -958,6 +958,8 @@ async fn upsert_generation_read_state(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::queue_types::LlmRequestType;
+    use wrldbldr_domain::WorldId;
 
     /// Unit tests for is_sqlite_unique_constraint_error to ensure it correctly
     /// identifies unique constraint violations while avoiding false positives
@@ -965,7 +967,7 @@ mod tests {
     #[test]
     fn is_sqlite_unique_constraint_error_detects_unique_violations() {
         // Test case 1: Error message contains "unique" (case insensitive)
-        let unique_err = sqlx::Error::RowNotFound;
+        let _unique_err = sqlx::Error::RowNotFound;
         // We can't easily construct a DatabaseError, so we test the fallback
         // path by checking the string matching logic directly.
         // The fallback requires "unique" OR ("callback_id" AND "constraint").
@@ -1154,19 +1156,19 @@ mod tests {
         use std::str::FromStr;
 
         assert_eq!(
-            QueueType::from_str("player_action").unwrap(),
+            QueueType::from_str("player_action").expect("valid queue type"),
             QueueType::PlayerAction
         );
         assert_eq!(
-            QueueType::from_str("llm_request").unwrap(),
+            QueueType::from_str("llm_request").expect("valid queue type"),
             QueueType::LlmRequest
         );
         assert_eq!(
-            QueueType::from_str("dm_approval").unwrap(),
+            QueueType::from_str("dm_approval").expect("valid queue type"),
             QueueType::DmApproval
         );
         assert_eq!(
-            QueueType::from_str("asset_generation").unwrap(),
+            QueueType::from_str("asset_generation").expect("valid queue type"),
             QueueType::AssetGeneration
         );
     }
@@ -1178,7 +1180,7 @@ mod tests {
 
         for original in QueueType::all() {
             let str_repr = original.as_str();
-            let parsed = QueueType::from_str(str_repr).unwrap();
+            let parsed = QueueType::from_str(str_repr).expect("valid queue type");
             assert_eq!(
                 *original, parsed,
                 "Round-trip failed for {:?}: '{}' -> {:?}",
@@ -1212,7 +1214,7 @@ mod tests {
             );
 
             // Verify the error message contains the unknown type
-            let err = result.unwrap_err();
+            let err = result.expect_err("should be error");
             let err_msg = format!("{}", err);
             assert!(
                 err_msg.contains(unknown) || unknown.trim().is_empty(),

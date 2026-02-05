@@ -353,11 +353,13 @@ mod tests {
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     fn create_test_world() -> World {
-        let name = WorldName::new("Test World").unwrap();
+        let name = WorldName::new("Test World").expect("valid world name");
         World::new(name, fixed_time())
     }
 
@@ -366,7 +368,7 @@ mod tests {
 
         #[test]
         fn new_creates_world_with_correct_defaults() {
-            let name = WorldName::new("Middle-earth").unwrap();
+            let name = WorldName::new("Middle-earth").expect("valid world name");
             let world = World::new(name, fixed_time());
 
             assert_eq!(world.name().as_str(), "Middle-earth");
@@ -380,8 +382,9 @@ mod tests {
 
         #[test]
         fn builder_methods_work() {
-            let name = WorldName::new("Narnia").unwrap();
-            let desc = Description::new("A magical land beyond the wardrobe").unwrap();
+            let name = WorldName::new("Narnia").expect("valid world name");
+            let desc =
+                Description::new("A magical land beyond the wardrobe").expect("valid description");
 
             let world = World::new(name, fixed_time()).with_description(desc);
 
@@ -402,7 +405,7 @@ mod tests {
             let original_updated = world.updated_at();
             let original_name = world.name().clone();
 
-            let new_name = WorldName::new("Updated World").unwrap();
+            let new_name = WorldName::new("Updated World").expect("valid world name");
             let event = world.set_name(
                 new_name.clone(),
                 original_updated + chrono::Duration::seconds(1),
@@ -429,7 +432,7 @@ mod tests {
             let original_updated = world.updated_at();
             let original_desc = world.description().clone();
 
-            let desc = Description::new("A new description").unwrap();
+            let desc = Description::new("A new description").expect("valid description");
             let event = world.set_description(
                 desc.clone(),
                 original_updated + chrono::Duration::seconds(1),

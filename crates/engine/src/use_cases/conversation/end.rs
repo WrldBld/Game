@@ -193,7 +193,7 @@ mod tests {
 
     #[tokio::test]
     async fn when_pc_not_found_then_returns_player_character_not_found() {
-        let now = Utc::now();
+        let _now = Utc::now();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
@@ -209,7 +209,8 @@ mod tests {
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
-        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
+        let err = use_case.execute(pc_id, npc_id, None).await
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -226,9 +227,9 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -253,7 +254,8 @@ mod tests {
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
-        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
+        let err = use_case.execute(pc_id, npc_id, None).await
+            .expect_err("should return error");
 
         assert!(matches!(err, super::EndConversationError::NpcNotFound(_)));
     }
@@ -268,9 +270,9 @@ mod tests {
         let conversation_id = ConversationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("TestPC").unwrap(),
+            CharacterName::new("TestPC").expect("valid character name"),
             location_id,
             now,
         )
@@ -278,7 +280,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("TestNPC").unwrap(),
+            CharacterName::new("TestNPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -333,9 +335,9 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("TestPC").unwrap(),
+            CharacterName::new("TestPC").expect("valid character name"),
             location_id,
             now,
         )
@@ -343,7 +345,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("TestNPC").unwrap(),
+            CharacterName::new("TestNPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -394,9 +396,9 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("TestPC").unwrap(),
+            CharacterName::new("TestPC").expect("valid character name"),
             location_id,
             now,
         )
@@ -404,7 +406,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("TestNPC").unwrap(),
+            CharacterName::new("TestNPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -442,7 +444,8 @@ mod tests {
         );
 
         // Should fail-fast - repo error is propagated, not swallowed
-        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
+        let err = use_case.execute(pc_id, npc_id, None).await
+            .expect_err("should return error");
 
         assert!(matches!(
             err,

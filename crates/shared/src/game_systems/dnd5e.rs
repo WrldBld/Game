@@ -1990,11 +1990,11 @@ mod tests {
 
         // XP for next level (6) should be 14000
         assert_eq!(
-            derived.get("XP_NEXT_LEVEL").unwrap().as_u64().unwrap(),
+            derived.get("XP_NEXT_LEVEL").expect("valid value").as_u64().expect("valid value"),
             14000
         );
         // Level from XP (8000) should be 5
-        assert_eq!(derived.get("LEVEL_FROM_XP").unwrap().as_u64().unwrap(), 5);
+        assert_eq!(derived.get("LEVEL_FROM_XP").expect("valid value").as_u64().expect("valid value"), 5);
     }
 
     // ==========================================================================
@@ -2115,37 +2115,37 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // Proficiency bonus at level 5 should be +3
-        assert_eq!(derived.get("PROF_BONUS").unwrap().as_u64().unwrap(), 3);
+        assert_eq!(derived.get("PROF_BONUS").expect("valid value").as_u64().expect("valid value"), 3);
 
         // Ability modifiers
-        assert_eq!(derived.get("STR_MOD").unwrap().as_i64().unwrap(), 4); // 18 -> +4
-        assert_eq!(derived.get("DEX_MOD").unwrap().as_i64().unwrap(), 2); // 14 -> +2
-        assert_eq!(derived.get("CON_MOD").unwrap().as_i64().unwrap(), 3); // 16 -> +3
-        assert_eq!(derived.get("INT_MOD").unwrap().as_i64().unwrap(), 0); // 10 -> +0
-        assert_eq!(derived.get("WIS_MOD").unwrap().as_i64().unwrap(), 1); // 12 -> +1
-        assert_eq!(derived.get("CHA_MOD").unwrap().as_i64().unwrap(), -1); // 8 -> -1
+        assert_eq!(derived.get("STR_MOD").expect("valid value").as_i64().expect("valid value"), 4); // 18 -> +4
+        assert_eq!(derived.get("DEX_MOD").expect("valid value").as_i64().expect("valid value"), 2); // 14 -> +2
+        assert_eq!(derived.get("CON_MOD").expect("valid value").as_i64().expect("valid value"), 3); // 16 -> +3
+        assert_eq!(derived.get("INT_MOD").expect("valid value").as_i64().expect("valid value"), 0); // 10 -> +0
+        assert_eq!(derived.get("WIS_MOD").expect("valid value").as_i64().expect("valid value"), 1); // 12 -> +1
+        assert_eq!(derived.get("CHA_MOD").expect("valid value").as_i64().expect("valid value"), -1); // 8 -> -1
 
         // Saving throws (STR and CON proficient)
-        assert_eq!(derived.get("STR_SAVE").unwrap().as_i64().unwrap(), 7); // +4 + 3 prof
-        assert_eq!(derived.get("DEX_SAVE").unwrap().as_i64().unwrap(), 2); // +2 (no prof)
-        assert_eq!(derived.get("CON_SAVE").unwrap().as_i64().unwrap(), 6); // +3 + 3 prof
-        assert_eq!(derived.get("INT_SAVE").unwrap().as_i64().unwrap(), 0); // +0 (no prof)
-        assert_eq!(derived.get("WIS_SAVE").unwrap().as_i64().unwrap(), 1); // +1 (no prof)
-        assert_eq!(derived.get("CHA_SAVE").unwrap().as_i64().unwrap(), -1); // -1
+        assert_eq!(derived.get("STR_SAVE").expect("valid value").as_i64().expect("valid value"), 7); // +4 + 3 prof
+        assert_eq!(derived.get("DEX_SAVE").expect("valid value").as_i64().expect("valid value"), 2); // +2 (no prof)
+        assert_eq!(derived.get("CON_SAVE").expect("valid value").as_i64().expect("valid value"), 6); // +3 + 3 prof
+        assert_eq!(derived.get("INT_SAVE").expect("valid value").as_i64().expect("valid value"), 0); // +0 (no prof)
+        assert_eq!(derived.get("WIS_SAVE").expect("valid value").as_i64().expect("valid value"), 1); // +1 (no prof)
+        assert_eq!(derived.get("CHA_SAVE").expect("valid value").as_i64().expect("valid value"), -1); // -1
 
         // Initiative = DEX mod
-        assert_eq!(derived.get("INITIATIVE").unwrap().as_i64().unwrap(), 2);
+        assert_eq!(derived.get("INITIATIVE").expect("valid value").as_i64().expect("valid value"), 2);
 
         // Passive perception = 10 + WIS mod + perception prof
         // = 10 + 1 + 3 = 14
         assert_eq!(
-            derived.get("PASSIVE_PERCEPTION").unwrap().as_i64().unwrap(),
+            derived.get("PASSIVE_PERCEPTION").expect("valid value").as_i64().expect("valid value"),
             14
         );
 
         // Max HP = 10 (d10 at L1) + 3 (CON) + 4*(6+3) (avg d10 + CON for L2-5)
         // = 13 + 36 = 49
-        assert_eq!(derived.get("MAX_HP").unwrap().as_i64().unwrap(), 49);
+        assert_eq!(derived.get("MAX_HP").expect("valid value").as_i64().expect("valid value"), 49);
     }
 
     #[test]
@@ -2155,24 +2155,24 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // Proficiency bonus at level 3 should be +2
-        assert_eq!(derived.get("PROF_BONUS").unwrap().as_i64().unwrap(), 2);
+        assert_eq!(derived.get("PROF_BONUS").expect("valid value").as_i64().expect("valid value"), 2);
 
         // Key ability modifiers
-        assert_eq!(derived.get("INT_MOD").unwrap().as_i64().unwrap(), 3); // 17 -> +3
-        assert_eq!(derived.get("DEX_MOD").unwrap().as_i64().unwrap(), 2); // 14 -> +2
-        assert_eq!(derived.get("CON_MOD").unwrap().as_i64().unwrap(), 1); // 12 -> +1
+        assert_eq!(derived.get("INT_MOD").expect("valid value").as_i64().expect("valid value"), 3); // 17 -> +3
+        assert_eq!(derived.get("DEX_MOD").expect("valid value").as_i64().expect("valid value"), 2); // 14 -> +2
+        assert_eq!(derived.get("CON_MOD").expect("valid value").as_i64().expect("valid value"), 1); // 12 -> +1
 
         // Saving throws (INT and WIS proficient)
-        assert_eq!(derived.get("INT_SAVE").unwrap().as_i64().unwrap(), 5); // +3 + 2 prof
-        assert_eq!(derived.get("WIS_SAVE").unwrap().as_i64().unwrap(), 3); // +1 + 2 prof
-        assert_eq!(derived.get("DEX_SAVE").unwrap().as_i64().unwrap(), 2); // +2 (no prof)
+        assert_eq!(derived.get("INT_SAVE").expect("valid value").as_i64().expect("valid value"), 5); // +3 + 2 prof
+        assert_eq!(derived.get("WIS_SAVE").expect("valid value").as_i64().expect("valid value"), 3); // +1 + 2 prof
+        assert_eq!(derived.get("DEX_SAVE").expect("valid value").as_i64().expect("valid value"), 2); // +2 (no prof)
 
         // Initiative = DEX mod
-        assert_eq!(derived.get("INITIATIVE").unwrap().as_i64().unwrap(), 2);
+        assert_eq!(derived.get("INITIATIVE").expect("valid value").as_i64().expect("valid value"), 2);
 
         // Max HP = 6 (d6 at L1) + 1 (CON) + 2*(4+1) (avg d6 + CON for L2-3)
         // = 7 + 10 = 17
-        assert_eq!(derived.get("MAX_HP").unwrap().as_i64().unwrap(), 17);
+        assert_eq!(derived.get("MAX_HP").expect("valid value").as_i64().expect("valid value"), 17);
     }
 
     #[test]
@@ -2182,19 +2182,19 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // Athletics is STR-based, proficient: +4 (STR) + 3 (prof) = +7
-        assert_eq!(derived.get("ATHLETICS_MOD").unwrap().as_i64().unwrap(), 7);
+        assert_eq!(derived.get("ATHLETICS_MOD").expect("valid value").as_i64().expect("valid value"), 7);
 
         // Perception is WIS-based, proficient: +1 (WIS) + 3 (prof) = +4
-        assert_eq!(derived.get("PERCEPTION_MOD").unwrap().as_i64().unwrap(), 4);
+        assert_eq!(derived.get("PERCEPTION_MOD").expect("valid value").as_i64().expect("valid value"), 4);
 
         // Intimidation is CHA-based, proficient: -1 (CHA) + 3 (prof) = +2
         assert_eq!(
-            derived.get("INTIMIDATION_MOD").unwrap().as_i64().unwrap(),
+            derived.get("INTIMIDATION_MOD").expect("valid value").as_i64().expect("valid value"),
             2
         );
 
         // Stealth is DEX-based, not proficient: +2 (DEX)
-        assert_eq!(derived.get("STEALTH_MOD").unwrap().as_i64().unwrap(), 2);
+        assert_eq!(derived.get("STEALTH_MOD").expect("valid value").as_i64().expect("valid value"), 2);
     }
 
     #[test]
@@ -2206,23 +2206,23 @@ mod tests {
         // Level 5 = +3 proficiency bonus
 
         // Stealth is DEX-based, expert: +4 (DEX) + 6 (double prof) = +10
-        assert_eq!(derived.get("STEALTH_MOD").unwrap().as_i64().unwrap(), 10);
+        assert_eq!(derived.get("STEALTH_MOD").expect("valid value").as_i64().expect("valid value"), 10);
 
         // Perception is WIS-based, expert: +1 (WIS) + 6 (double prof) = +7
-        assert_eq!(derived.get("PERCEPTION_MOD").unwrap().as_i64().unwrap(), 7);
+        assert_eq!(derived.get("PERCEPTION_MOD").expect("valid value").as_i64().expect("valid value"), 7);
 
         // Sleight of Hand is DEX-based, proficient: +4 (DEX) + 3 (prof) = +7
         assert_eq!(
             derived
                 .get("SLEIGHT_OF_HAND_MOD")
-                .unwrap()
+                .expect("valid value")
                 .as_i64()
-                .unwrap(),
+                .expect("valid value"),
             7
         );
 
         // Initiative = DEX mod = +4
-        assert_eq!(derived.get("INITIATIVE").unwrap().as_i64().unwrap(), 4);
+        assert_eq!(derived.get("INITIATIVE").expect("valid value").as_i64().expect("valid value"), 4);
     }
 
     #[test]
@@ -2235,8 +2235,8 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // Should default to level 1, proficiency +2
-        assert_eq!(derived.get("PROF_BONUS").unwrap().as_i64().unwrap(), 2);
-        assert_eq!(derived.get("STR_MOD").unwrap().as_i64().unwrap(), 2);
+        assert_eq!(derived.get("PROF_BONUS").expect("valid value").as_i64().expect("valid value"), 2);
+        assert_eq!(derived.get("STR_MOD").expect("valid value").as_i64().expect("valid value"), 2);
     }
 
     #[test]
@@ -2249,11 +2249,11 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // Should still calculate proficiency bonus
-        assert_eq!(derived.get("PROF_BONUS").unwrap().as_i64().unwrap(), 3);
+        assert_eq!(derived.get("PROF_BONUS").expect("valid value").as_i64().expect("valid value"), 3);
 
         // Missing abilities should not have modifiers
-        assert!(derived.get("STR_MOD").is_none());
-        assert!(derived.get("DEX_MOD").is_none());
+        assert!(!derived.contains_key("STR_MOD"));
+        assert!(!derived.contains_key("DEX_MOD"));
     }
 
     // ==========================================================================
@@ -2288,12 +2288,12 @@ mod tests {
         // Score too low
         let result = system.validate_field("STR", &SheetValue::Integer(0), &empty);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("between 1 and 30"));
+        assert!(result.expect("valid value").contains("between 1 and 30"));
 
         // Score too high
         let result = system.validate_field("INT", &SheetValue::Integer(31), &empty);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("between 1 and 30"));
+        assert!(result.expect("valid value").contains("between 1 and 30"));
 
         // Negative score
         let result = system.validate_field("WIS", &SheetValue::Integer(-5), &empty);
@@ -2309,7 +2309,7 @@ mod tests {
         let result =
             system.validate_field("STR", &SheetValue::String("sixteen".to_string()), &empty);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("must be a number"));
+        assert!(result.expect("valid value").contains("must be a number"));
 
         // Null value
         let result = system.validate_field("DEX", &SheetValue::Null, &empty);
@@ -2341,12 +2341,12 @@ mod tests {
         // Level 0
         let result = system.validate_field("LEVEL", &SheetValue::Integer(0), &empty);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("between 1 and 20"));
+        assert!(result.expect("valid value").contains("between 1 and 20"));
 
         // Level 21
         let result = system.validate_field("LEVEL", &SheetValue::Integer(21), &empty);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("between 1 and 20"));
+        assert!(result.expect("valid value").contains("between 1 and 20"));
     }
 
     #[test]
@@ -2362,12 +2362,12 @@ mod tests {
         // Empty name
         let result = system.validate_field("NAME", &SheetValue::String(String::new()), &empty);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("required"));
+        assert!(result.expect("valid value").contains("required"));
 
         // Wrong type
         let result = system.validate_field("NAME", &SheetValue::Integer(123), &empty);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("must be a string"));
+        assert!(result.expect("valid value").contains("must be a string"));
     }
 
     #[test]
@@ -2455,7 +2455,7 @@ mod tests {
             str_field.validation.is_some(),
             "STR should have validation rules"
         );
-        let validation = str_field.validation.as_ref().unwrap();
+        let validation = str_field.validation.as_ref().expect("valid value");
         assert_eq!(validation.min, Some(1));
         assert_eq!(validation.max, Some(30));
     }
@@ -2473,7 +2473,7 @@ mod tests {
             derived.contains_key("STR_MOD"),
             "Should produce STR_MOD derived field"
         );
-        assert_eq!(derived.get("STR_MOD").unwrap().as_i64().unwrap(), 3);
+        assert_eq!(derived.get("STR_MOD").expect("valid value").as_i64().expect("valid value"), 3);
     }
 
     #[test]

@@ -91,9 +91,9 @@ mod tests {
         let region_id = RegionId::new();
         let now = Utc::now();
         PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("Test PC").unwrap(),
+            CharacterName::new("Test PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -172,7 +172,7 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        let action_result = result.unwrap();
+        let action_result = result.expect("result should be Ok");
         assert_eq!(action_result.item_name, "Magic Sword");
         assert_eq!(action_result.quantity, 1);
     }
@@ -203,7 +203,7 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        let action_result = result.unwrap();
+        let action_result = result.expect("result should be Ok");
         assert_eq!(action_result.item_name, "Simple Dagger");
         assert_eq!(action_result.quantity, 1);
     }

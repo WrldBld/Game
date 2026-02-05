@@ -216,14 +216,12 @@ impl ResolveLlmModel {
                 pref,
                 first_model.id
             ))
-        } else if let Some(ref env) = env_default {
-            Some(format!(
+        } else {
+            env_default.as_ref().map(|env| format!(
                 "Environment default '{}' not available, using '{}'",
                 env,
                 first_model.id
             ))
-        } else {
-            None
         };
 
         tracing::info!(
@@ -304,13 +302,14 @@ impl ResolveLlmModel {
 
 /// Errors that can occur during model resolution.
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum ModelResolutionError {
     #[error("Failed to discover available models: {0}")]
     DiscoveryFailed(String),
-    
+
     #[error("No LLM models available from provider")]
     NoModelsAvailable,
-    
+
     #[error("Settings error: {0}")]
     Settings(#[from] crate::infrastructure::ports::RepoError),
 }

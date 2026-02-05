@@ -155,6 +155,7 @@ send_wrapper = "0.6"
 unsafe_code = "deny"           # No unsafe code allowed
 unused_lifetimes = "warn"
 dead_code = "warn"             # Keep as warn until dead code audit
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(testcontainers)'] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

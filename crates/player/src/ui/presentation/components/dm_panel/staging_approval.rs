@@ -137,10 +137,8 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     let mut selected_region_state = use_signal(|| initial_region_state_id);
 
     // Visual state details caching - stores full LocationStateData/RegionStateData
-    let mut location_state_details =
-        use_signal(|| HashMap::<String, LocationStateData>::new());
-    let mut region_state_details =
-        use_signal(|| HashMap::<String, RegionStateData>::new());
+    let mut location_state_details: Signal<HashMap<String, LocationStateData>> = use_signal(HashMap::new);
+    let mut region_state_details: Signal<HashMap<String, RegionStateData>> = use_signal(HashMap::new);
     let mut is_loading_details = use_signal(|| false);
 
     // Visual state details modal
@@ -236,9 +234,9 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
 
             // Only fetch if we have selected IDs that aren't cached yet
             let loc_needs_fetch = loc_uuid.is_some()
-                && loc_id.as_ref().map_or(false, |id| !location_state_details.read().contains_key(id));
+                && loc_id.as_ref().is_some_and(|id| !location_state_details.read().contains_key(id));
             let reg_needs_fetch = reg_uuid.is_some()
-                && reg_id.as_ref().map_or(false, |id| !region_state_details.read().contains_key(id));
+                && reg_id.as_ref().is_some_and(|id| !region_state_details.read().contains_key(id));
 
             if !loc_needs_fetch && !reg_needs_fetch {
                 // Nothing to fetch
@@ -276,8 +274,8 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     // ══════════════════════════════════════════════════════════════
 
     let _handle_open_location_details = {
-        let loc_id = selected_location_state.clone();
-        let loc_details = location_state_details.clone();
+        let loc_id = selected_location_state;
+        let loc_details = location_state_details;
         move |_: dioxus::prelude::Event<()>| {
             if let Some(ref id) = *loc_id.read() {
                 if let Some(loc) = loc_details.read().get(id).cloned() {
@@ -291,8 +289,8 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     };
 
     let _handle_open_region_details = {
-        let reg_id = selected_region_state.clone();
-        let reg_details = region_state_details.clone();
+        let reg_id = selected_region_state;
+        let reg_details = region_state_details;
         move |_: dioxus::prelude::Event<()>| {
             if let Some(ref id) = *reg_id.read() {
                 if let Some(reg) = reg_details.read().get(id).cloned() {

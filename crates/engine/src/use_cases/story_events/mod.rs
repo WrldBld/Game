@@ -852,7 +852,7 @@ mod tests {
 
             let result = ops.list(world_id, 10).await;
             assert!(result.is_ok());
-            let events = result.unwrap();
+            let events = result.expect("result should be Ok");
             assert_eq!(events.len(), 1);
             assert_eq!(events[0].summary, "Test summary");
         }
@@ -871,7 +871,7 @@ mod tests {
 
             let result = ops.get(event_id).await;
             assert!(result.is_ok());
-            assert!(result.unwrap().is_none());
+            assert!(result.expect("result should be Ok").is_none());
         }
 
         #[tokio::test]
@@ -895,7 +895,7 @@ mod tests {
                 .update(event_id, Some("Updated summary".to_string()), None)
                 .await;
             assert!(result.is_ok());
-            let updated = result.unwrap();
+            let updated = result.expect("result should be Ok");
             assert_eq!(updated.summary, "Updated summary");
         }
 

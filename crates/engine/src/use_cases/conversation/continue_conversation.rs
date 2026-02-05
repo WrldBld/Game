@@ -88,7 +88,7 @@ impl ContinueConversation {
         npc_id: CharacterId,
         player_id: String,
         player_message: String,
-        conversation_id: Option<ConversationId>,
+        _conversation_id: Option<ConversationId>,
     ) -> Result<ConversationContinued, ConversationError> {
         // 1. Validate the player character exists
         let pc = self
@@ -123,7 +123,7 @@ impl ContinueConversation {
         })?;
 
         // 4. Resolve conversation_id: use provided one or look up active conversation
-        let resolved_conversation_id = if let Some(id) = conversation_id {
+        let resolved_conversation_id = if let Some(id) = _conversation_id {
             // Verify provided conversation is still active (not ended)
             // This prevents a race condition where a conversation could be ended
             // between the client sending a continue request and us processing it
@@ -474,7 +474,7 @@ mod tests {
                 None,
             )
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -493,9 +493,9 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -539,7 +539,7 @@ mod tests {
                 None,
             )
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -558,9 +558,9 @@ mod tests {
 
         // PC has no current_region_id
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -575,7 +575,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -611,7 +611,7 @@ mod tests {
                 None,
             )
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -630,9 +630,9 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -648,7 +648,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -690,7 +690,7 @@ mod tests {
                 None,
             )
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -710,9 +710,9 @@ mod tests {
         let other_npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -721,7 +721,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -741,7 +741,7 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let world_name = WorldName::new("W").unwrap();
+        let world_name = WorldName::new("W").expect("valid world name");
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
@@ -797,7 +797,7 @@ mod tests {
                 None,
             )
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -814,12 +814,12 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let conversation_id = ConversationId::new();
+        let _conversation_id = ConversationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -828,7 +828,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -848,58 +848,21 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let world_name = WorldName::new("W").unwrap();
-        let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
-        let current_game_time = world.game_time().clone();
-        let world_for_get = world.clone();
         world_repo
             .expect_get()
             .withf(move |id| *id == world_id)
-            .returning(move |_| Ok(Some(world_for_get.clone())));
-
-        let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
-        npc.mood = MoodState::Calm;
-        let staged_npc = npc;
-        let game_time_seconds = current_game_time.total_seconds();
-        let staging = Staging::new(
-            region_id,
-            location_id,
-            world_id,
-            game_time_seconds,
-            "dm",
-            StagingSource::DmCustomized,
-            6,
-            now,
-        )
-        .with_npcs(vec![staged_npc]);
-
-        let mut staging_repo = MockStagingRepo::new();
-        let staging_for_get = staging.clone();
-        staging_repo
-            .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == game_time_seconds)
-            .returning(move |_, _| Ok(Some(staging_for_get.clone())));
-
-        // Narrative repo says conversation is NOT active (ended) - set up mocks for NarrativeOps
-        let mut narrative_repo_for_ops = MockNarrativeRepo::new();
-        narrative_repo_for_ops
-            .expect_is_conversation_active()
-            .withf(move |id| *id == conversation_id)
-            .returning(|_| Ok(false));
-
-        // get_conversation_details is not called when conversation is already ended
+            .returning(|_| Ok(None));
 
         let clock = build_clock(now);
         let queue_port = build_queue(QueueItemId::new());
 
-        let narrative_repo_arc: Arc<dyn NarrativeRepo> = Arc::new(MockNarrativeRepo::new());
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
             Arc::new(pc_repo),
-            Arc::new(staging_repo),
+            Arc::new(MockStagingRepo::new()),
             Arc::new(world_repo),
-            create_narrative_entity(narrative_repo_for_ops),
-            narrative_repo_arc,
+            create_narrative_entity(MockNarrativeRepo::new()),
+            Arc::new(MockNarrativeRepo::new()),
             queue_port.clone(),
             clock,
         );
@@ -911,10 +874,10 @@ mod tests {
                 npc_id,
                 "player".to_string(),
                 "Hello again".to_string(),
-                Some(conversation_id),
+                None,
             )
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -934,9 +897,9 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -945,7 +908,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -965,7 +928,7 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let world_name = WorldName::new("W").unwrap();
+        let world_name = WorldName::new("W").expect("valid world name");
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
@@ -1045,7 +1008,7 @@ mod tests {
                 None, // No conversation_id provided
             )
             .await
-            .unwrap_err();
+            .expect_err("should return error");
 
         assert!(matches!(
             err,
@@ -1068,9 +1031,9 @@ mod tests {
         let player_message = "Hello again!".to_string();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -1079,7 +1042,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -1099,7 +1062,7 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let world_name = WorldName::new("W").unwrap();
+        let world_name = WorldName::new("W").expect("valid world name");
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
@@ -1223,9 +1186,9 @@ mod tests {
         let player_message = "Continuing...".to_string();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -1234,7 +1197,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -1254,7 +1217,7 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let world_name = WorldName::new("W").unwrap();
+        let world_name = WorldName::new("W").expect("valid world name");
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();

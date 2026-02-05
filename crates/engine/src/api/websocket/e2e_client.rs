@@ -32,6 +32,7 @@ use wrldbldr_shared::{
 };
 
 /// Error type for E2E client operations.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Error)]
 pub enum E2EError {
     #[error("WebSocket connection failed: {0}")]
@@ -498,7 +499,7 @@ impl WsE2EClient {
     async fn send_client_message(&mut self, msg: &ClientMessage) -> Result<(), E2EError> {
         let json = serde_json::to_string(msg)?;
         self.ws
-            .send(WsMessage::Text(json.into()))
+            .send(WsMessage::Text(json))
             .await
             .map_err(|e| E2EError::SendFailed(e.to_string()))
     }

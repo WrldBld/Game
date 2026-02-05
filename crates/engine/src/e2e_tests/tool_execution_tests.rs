@@ -19,7 +19,6 @@
 
 use std::sync::Arc;
 
-use serde_json::json;
 use wrldbldr_domain::QueueItemId;
 
 use crate::queue_types::{ApprovalRequestData, DmApprovalDecision, ProposedTool};
@@ -120,7 +119,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request to inspect proposed tools
         let approval_data = ctx
@@ -325,7 +324,7 @@ async fn test_rejected_tool_not_executed() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get approval data
         let approval_data = ctx
@@ -517,7 +516,7 @@ async fn test_multiple_tools_executed_in_order() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get approval data
         let approval_data = ctx
@@ -939,7 +938,7 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
         // This should NOT panic - errors should be logged and skipped
         let result = tool_executor
             .execute(
-                approval_id.into(),
+                approval_id,
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: "Here are some items for you.".to_string(),
                     approved_tools: invalid_tool_ids.clone(),
@@ -954,7 +953,7 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
             result.is_ok(),
             "Execution should not panic on invalid tools"
         );
-        let outcome = result.unwrap();
+        let outcome = result.expect("Outcome should be present");
 
         // Dialogue should still be delivered
         assert!(outcome.approved, "Should still be approved");
@@ -1076,7 +1075,7 @@ async fn test_partial_tool_approval() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get approval data
         let approval_data = ctx

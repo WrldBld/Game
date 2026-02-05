@@ -11,10 +11,11 @@ use crate::value_objects::{Description, EventChainName, Tag};
 use crate::DomainError;
 
 /// Whether an event chain is currently available for play
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EventChainActivation {
     /// Chain is available for triggering events
+    #[default]
     Active,
     /// Chain is temporarily disabled
     Inactive,
@@ -28,16 +29,11 @@ impl EventChainActivation {
     }
 }
 
-impl Default for EventChainActivation {
-    fn default() -> Self {
-        Self::Active
-    }
-}
-
 /// Whether this chain is marked as a favorite for quick access
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EventChainFavorite {
+    #[default]
     Normal,
     Favorite,
 }
@@ -45,12 +41,6 @@ pub enum EventChainFavorite {
 impl EventChainFavorite {
     pub fn is_favorite(&self) -> bool {
         matches!(self, Self::Favorite)
-    }
-}
-
-impl Default for EventChainFavorite {
-    fn default() -> Self {
-        Self::Normal
     }
 }
 
@@ -471,7 +461,7 @@ mod tests {
 
     fn test_now() -> DateTime<Utc> {
         DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
-            .unwrap()
+            .expect("valid RFC3339 timestamp")
             .with_timezone(&Utc)
     }
 
@@ -479,8 +469,12 @@ mod tests {
     fn test_new() {
         let world_id = test_world_id();
         let now = test_now();
-        let chain =
-            EventChain::new(world_id, EventChainName::new("Test Chain").unwrap(), now).unwrap();
+        let chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test Chain").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
 
         assert_eq!(chain.name().to_string(), "Test Chain");
         assert_eq!(chain.world_id(), world_id);
@@ -498,8 +492,12 @@ mod tests {
     fn test_add_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         let event1 = test_event_id(1);
         let event2 = test_event_id(2);
 
@@ -518,8 +516,12 @@ mod tests {
     fn test_complete_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -540,8 +542,12 @@ mod tests {
     fn test_progress() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
         let event_c = test_event_id(3);
@@ -566,8 +572,12 @@ mod tests {
     fn test_is_complete() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -587,8 +597,12 @@ mod tests {
     fn test_reset() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         let event_a = test_event_id(1);
 
         chain.add_event(event_a, now);
@@ -606,8 +620,12 @@ mod tests {
     fn test_activate_deactivate() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
 
         assert!(chain.is_active());
 
@@ -626,8 +644,12 @@ mod tests {
     fn test_archive() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
 
         assert_eq!(chain.activation(), EventChainActivation::Active);
 
@@ -641,8 +663,12 @@ mod tests {
     fn test_contains_event() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -656,8 +682,12 @@ mod tests {
     fn test_is_event_completed() {
         let world_id = test_world_id();
         let now = test_now();
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         let event_a = test_event_id(1);
         let event_b = test_event_id(2);
 
@@ -673,7 +703,12 @@ mod tests {
     fn test_favorite_enum() {
         let world_id = test_world_id();
         let now = test_now();
-        let chain = EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
 
         assert_eq!(chain.favorite(), EventChainFavorite::Normal);
         assert!(!chain.is_favorite());
@@ -682,8 +717,12 @@ mod tests {
         assert_eq!(chain.favorite(), EventChainFavorite::Favorite);
         assert!(chain.is_favorite());
 
-        let mut chain =
-            EventChain::new(world_id, EventChainName::new("Test").unwrap(), now).unwrap();
+        let mut chain = EventChain::new(
+            world_id,
+            EventChainName::new("Test").expect("valid name"),
+            now,
+        )
+        .expect("valid chain");
         chain.set_favorite(EventChainFavorite::Favorite, now);
         assert_eq!(chain.favorite(), EventChainFavorite::Favorite);
         assert!(chain.is_favorite());

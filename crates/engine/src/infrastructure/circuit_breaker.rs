@@ -640,7 +640,7 @@ mod tests {
             .collect();
 
         for handle in handles {
-            handle.join().unwrap();
+            handle.join().expect("thread should join successfully");
         }
 
         let metrics = cb.metrics();

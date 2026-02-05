@@ -1140,16 +1140,16 @@ mod tests {
         #[test]
         fn round_trip_json() {
             let gt = GameTime::from_seconds(12345);
-            let json = serde_json::to_string(&gt).unwrap();
-            let restored: GameTime = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&gt).expect("serialize");
+            let restored: GameTime = serde_json::from_str(&json).expect("deserialize");
             assert_eq!(gt, restored);
         }
 
         #[test]
         fn round_trip_negative_time() {
             let gt = GameTime::from_seconds(-5000);
-            let json = serde_json::to_string(&gt).unwrap();
-            let restored: GameTime = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&gt).expect("serialize");
+            let restored: GameTime = serde_json::from_str(&json).expect("deserialize");
             assert_eq!(gt, restored);
         }
     }

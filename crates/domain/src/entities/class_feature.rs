@@ -236,7 +236,7 @@ mod tests {
             "PHB p.72",
         );
         feature.uses = Some(FeatureUses::short_rest(UsesFormula::Fixed { value: 1 }));
-        feature.tags.push(Tag::new("healing").unwrap());
+        feature.tags.push(Tag::new("healing").expect("valid tag"));
 
         let other = feature.clone();
         assert_eq!(feature, other);
@@ -275,7 +275,7 @@ mod tests {
             "PHB p.72",
         );
         feature.subclass_id = Some("champion".to_string());
-        feature.tags.push(Tag::new("combat").unwrap());
+        feature.tags.push(Tag::new("combat").expect("valid tag"));
 
         assert_eq!(feature.subclass_id.as_deref(), Some("champion"));
         assert!(feature.uses.is_none());
@@ -301,7 +301,7 @@ mod tests {
             "You can see in dim light within 60 feet...",
             "PHB p.20",
         );
-        trait_.tags.push(Tag::new("vision").unwrap());
+        trait_.tags.push(Tag::new("vision").expect("valid tag"));
 
         let other = trait_.clone();
         assert_eq!(trait_, other);

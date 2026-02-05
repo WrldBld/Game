@@ -390,28 +390,33 @@ impl App {
             )),
         );
 
-        // Create queue processing context
-        let queue_ctx = use_cases::queues::QueueProcessingContext::new(
+        // Create phase-specific queue processing dependencies
+        let player_action_deps = use_cases::queues::PlayerActionContextDeps::new(
             queue_port.clone(),
-            repos.challenge.clone(),
-            repos.narrative.clone(),
             repos.character.clone(),
             repos.player_character.clone(),
-            repos.staging.clone(),
             repos.scene.clone(),
             repos.world.clone(),
             repos.location.clone(),
+            repos.challenge.clone(),
             narrative.clone(),
+            settings_repo.clone(),
+        );
+
+        let llm_request_deps = use_cases::queues::LlmRequestContextDeps::new(
+            queue_port.clone(),
+            repos.challenge.clone(),
+            repos.narrative.clone(),
             settings_repo.clone(),
         );
 
         let queues = use_cases::QueueUseCases::new(
             Arc::new(use_cases::queues::ProcessPlayerAction::new(
-                queue_ctx.clone(),
+                player_action_deps,
                 prompt_templates_repo.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
-                queue_ctx,
+                llm_request_deps,
                 llm_port.clone(),
                 prompt_templates_repo.clone(),
                 ai.resolve_model.clone(),

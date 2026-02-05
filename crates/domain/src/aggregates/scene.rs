@@ -303,7 +303,10 @@ mod tests {
 
     fn create_test_scene() -> Scene {
         let act_id = ActId::new();
-        Scene::new(act_id, SceneName::new("Test Scene").unwrap())
+        Scene::new(
+            act_id,
+            SceneName::new("Test Scene").expect("valid scene name"),
+        )
     }
 
     mod constructor {
@@ -312,7 +315,10 @@ mod tests {
         #[test]
         fn new_creates_scene_with_correct_defaults() {
             let act_id = ActId::new();
-            let scene = Scene::new(act_id, SceneName::new("The Opening").unwrap());
+            let scene = Scene::new(
+                act_id,
+                SceneName::new("The Opening").expect("valid scene name"),
+            );
 
             assert_eq!(scene.name().as_str(), "The Opening");
             assert_eq!(scene.act_id(), act_id);
@@ -327,11 +333,16 @@ mod tests {
         fn builder_methods_work() {
             let act_id = ActId::new();
 
-            let scene = Scene::new(act_id, SceneName::new("The Climax").unwrap())
-                .with_time(TimeContext::Custom("Midnight".to_string()))
-                .with_directorial_notes(Description::new("Dramatic tension!").unwrap())
-                .with_order(5)
-                .with_backdrop_override("dark_throne_room.png");
+            let scene = Scene::new(
+                act_id,
+                SceneName::new("The Climax").expect("valid scene name"),
+            )
+            .with_time(TimeContext::Custom("Midnight".to_string()))
+            .with_directorial_notes(
+                Description::new("Dramatic tension!").expect("valid description"),
+            )
+            .with_order(5)
+            .with_backdrop_override("dark_throne_room.png");
 
             assert_eq!(scene.name().as_str(), "The Climax");
             assert!(matches!(scene.time_context(), TimeContext::Custom(s) if s == "Midnight"));
@@ -347,7 +358,7 @@ mod tests {
         #[test]
         fn set_name_works() {
             let mut scene = create_test_scene();
-            scene.set_name(SceneName::new("New Name").unwrap());
+            scene.set_name(SceneName::new("New Name").expect("valid scene name"));
             assert_eq!(scene.name().as_str(), "New Name");
         }
 

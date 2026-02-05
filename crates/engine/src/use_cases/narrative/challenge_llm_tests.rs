@@ -4,7 +4,7 @@
 //! for different challenge outcomes (success, failure, critical hits, etc.).
 //! Run with: `cargo test -p wrldbldr-engine narrative::challenge_llm -- --ignored`
 
-use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest};
+use crate::infrastructure::ports::{ChatMessage, LlmRequest};
 use crate::test_fixtures::llm_integration::*;
 
 // =============================================================================

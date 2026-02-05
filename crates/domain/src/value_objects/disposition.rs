@@ -334,7 +334,9 @@ mod tests {
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     #[test]
@@ -385,24 +387,26 @@ mod tests {
     #[test]
     fn test_disposition_parse() {
         assert_eq!(
-            "friendly".parse::<DispositionLevel>().unwrap(),
+            "friendly".parse::<DispositionLevel>().expect("valid value"),
             DispositionLevel::Friendly
         );
         assert_eq!(
-            "HOSTILE".parse::<DispositionLevel>().unwrap(),
+            "HOSTILE".parse::<DispositionLevel>().expect("valid value"),
             DispositionLevel::Hostile
         );
         assert_eq!(
-            "grateful".parse::<DispositionLevel>().unwrap(),
+            "grateful".parse::<DispositionLevel>().expect("valid value"),
             DispositionLevel::Grateful
         );
         assert_eq!(
-            "unknown".parse::<DispositionLevel>().unwrap(),
+            "unknown".parse::<DispositionLevel>().expect("valid value"),
             DispositionLevel::Unknown
         );
         // With forward-compatibility, unrecognized strings map to Unknown
         assert_eq!(
-            "invalid_value".parse::<DispositionLevel>().unwrap(),
+            "invalid_value"
+                .parse::<DispositionLevel>()
+                .expect("valid value"),
             DispositionLevel::Unknown
         );
     }

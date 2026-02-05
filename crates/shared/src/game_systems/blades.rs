@@ -1911,8 +1911,8 @@ mod tests {
         let system = BladesSystem::new();
         let schema = system.character_sheet_schema();
 
-        let identity = schema.sections.iter().find(|s| s.id == "identity").unwrap();
-        let playbook_field = identity.fields.iter().find(|f| f.id == "PLAYBOOK").unwrap();
+        let identity = schema.sections.iter().find(|s| s.id == "identity").expect("valid value");
+        let playbook_field = identity.fields.iter().find(|f| f.id == "PLAYBOOK").expect("valid value");
 
         if let SchemaFieldType::Select { options, .. } = &playbook_field.field_type {
             assert_eq!(options.len(), 7);
@@ -1938,7 +1938,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "attributes_actions")
-            .unwrap();
+            .expect("valid value");
 
         // Check that all 12 actions are present
         let action_ids = [
@@ -1970,7 +1970,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "stress_trauma")
-            .unwrap();
+            .expect("valid value");
 
         let trauma_ids = [
             "TRAUMA_COLD",
@@ -2017,11 +2017,11 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // Insight: 2 actions with dots (HUNT, STUDY)
-        assert_eq!(derived.get("INSIGHT").unwrap(), &SheetValue::Integer(2));
+        assert_eq!(derived.get("INSIGHT").expect("valid value"), &SheetValue::Integer(2));
         // Prowess: 3 actions with dots (FINESSE, PROWL, SKIRMISH)
-        assert_eq!(derived.get("PROWESS").unwrap(), &SheetValue::Integer(3));
+        assert_eq!(derived.get("PROWESS").expect("valid value"), &SheetValue::Integer(3));
         // Resolve: 1 action with dots (COMMAND)
-        assert_eq!(derived.get("RESOLVE").unwrap(), &SheetValue::Integer(1));
+        assert_eq!(derived.get("RESOLVE").expect("valid value"), &SheetValue::Integer(1));
     }
 
     #[test]
@@ -2041,7 +2041,7 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         assert_eq!(
-            derived.get("TRAUMA_COUNT").unwrap(),
+            derived.get("TRAUMA_COUNT").expect("valid value"),
             &SheetValue::Integer(3)
         );
     }
@@ -2059,7 +2059,7 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         assert_eq!(
-            derived.get("XP_TRIGGER").unwrap(),
+            derived.get("XP_TRIGGER").expect("valid value"),
             &SheetValue::String("Address challenges with stealth or evasion".to_string())
         );
     }
@@ -2076,7 +2076,7 @@ mod tests {
 
         let derived = system.calculate_derived_values(&values);
 
-        assert_eq!(derived.get("MAX_LOAD").unwrap(), &SheetValue::Integer(6));
+        assert_eq!(derived.get("MAX_LOAD").expect("valid value"), &SheetValue::Integer(6));
     }
 
     #[test]
@@ -2129,7 +2129,7 @@ mod tests {
         // Adding a 5th trauma should fail
         let result = system.validate_field("TRAUMA_RECKLESS", &SheetValue::Boolean(true), &values);
         assert!(result.is_some());
-        assert!(result.unwrap().contains("Maximum 4 traumas"));
+        assert!(result.expect("valid value").contains("Maximum 4 traumas"));
     }
 
     #[test]
@@ -2138,27 +2138,27 @@ mod tests {
         let defaults = system.default_values();
 
         // Actions default to 0
-        assert_eq!(defaults.get("HUNT").unwrap(), &SheetValue::Integer(0));
-        assert_eq!(defaults.get("SWAY").unwrap(), &SheetValue::Integer(0));
+        assert_eq!(defaults.get("HUNT").expect("valid value"), &SheetValue::Integer(0));
+        assert_eq!(defaults.get("SWAY").expect("valid value"), &SheetValue::Integer(0));
 
         // Stress defaults to 0
-        assert_eq!(defaults.get("STRESS").unwrap(), &SheetValue::Integer(0));
+        assert_eq!(defaults.get("STRESS").expect("valid value"), &SheetValue::Integer(0));
 
         // Traumas default to false
         assert_eq!(
-            defaults.get("TRAUMA_COLD").unwrap(),
+            defaults.get("TRAUMA_COLD").expect("valid value"),
             &SheetValue::Boolean(false)
         );
 
         // Load defaults to normal
         assert_eq!(
-            defaults.get("LOAD_LEVEL").unwrap(),
+            defaults.get("LOAD_LEVEL").expect("valid value"),
             &SheetValue::String("normal".to_string())
         );
 
         // Armor defaults to false
         assert_eq!(
-            defaults.get("ARMOR_STANDARD").unwrap(),
+            defaults.get("ARMOR_STANDARD").expect("valid value"),
             &SheetValue::Boolean(false)
         );
     }

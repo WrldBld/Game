@@ -175,6 +175,7 @@ pub struct VcrLlm {
     /// Cassette data (recordings).
     cassette: Mutex<LlmCassette>,
     /// Model name for recording.
+    #[allow(dead_code)]
     model_name: String,
 }
 
@@ -591,8 +592,8 @@ mod tests {
         let mut cassette = LlmCassette::new("test-model".to_string());
         cassette.add_recording("abc123".to_string(), recording);
 
-        let json = serde_json::to_string_pretty(&cassette).unwrap();
-        let mut parsed: LlmCassette = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string_pretty(&cassette).expect("Serialization should succeed");
+        let mut parsed: LlmCassette = serde_json::from_str(&json).expect("Deserialization should succeed");
 
         assert_eq!(parsed.version(), "2.0");
         assert_eq!(parsed.fingerprint_count(), 1);
@@ -605,7 +606,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fingerprint_playback_mode() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("TempDir creation should succeed");
         let cassette_path = temp_dir.path().join("test.json");
 
         // Create fingerprints for test requests
@@ -641,18 +642,19 @@ mod tests {
             },
         );
 
-        fs::write(&cassette_path, serde_json::to_string(&cassette).unwrap()).unwrap();
+        fs::write(&cassette_path, serde_json::to_string(&cassette).expect("Serialization should succeed"))
+            .expect("File write should succeed");
 
         // Load in playback mode
-        let vcr = VcrLlm::playback(cassette_path).unwrap();
+        let vcr = VcrLlm::playback(cassette_path).expect("VcrLlm playback should succeed");
 
         assert_eq!(vcr.playback_remaining(), 2);
 
         // Request in REVERSE order - should still work with fingerprinting
-        let response = vcr.generate(req2.clone()).await.unwrap();
+        let response = vcr.generate(req2.clone()).await.expect("Generation should succeed");
         assert_eq!(response.content, "World response");
 
-        let response = vcr.generate(req1.clone()).await.unwrap();
+        let response = vcr.generate(req1.clone()).await.expect("Generation should succeed");
         assert_eq!(response.content, "Hello response");
 
         assert_eq!(vcr.playback_remaining(), 0);
@@ -664,7 +666,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_repeated_identical_requests() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("TempDir creation should succeed");
         let cassette_path = temp_dir.path().join("test.json");
 
         // Create fingerprint for test request
@@ -698,16 +700,17 @@ mod tests {
             },
         );
 
-        fs::write(&cassette_path, serde_json::to_string(&cassette).unwrap()).unwrap();
+        fs::write(&cassette_path, serde_json::to_string(&cassette).expect("Serialization should succeed"))
+            .expect("File write should succeed");
 
-        let vcr = VcrLlm::playback(cassette_path).unwrap();
+        let vcr = VcrLlm::playback(cassette_path).expect("VcrLlm playback should succeed");
 
         // First call returns first recording
-        let response = vcr.generate(request.clone()).await.unwrap();
+        let response = vcr.generate(request.clone()).await.expect("Generation should succeed");
         assert_eq!(response.content, "First response");
 
         // Second call returns second recording (same fingerprint)
-        let response = vcr.generate(request.clone()).await.unwrap();
+        let response = vcr.generate(request.clone()).await.expect("Generation should succeed");
         assert_eq!(response.content, "Second response");
 
         // Third call fails (no more recordings)
@@ -724,7 +727,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_record_mode_saves_responses() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("TempDir should be created");
         let cassette_path = temp_dir.path().join("test_record.json");
 
         let mock_response = LlmResponse {
@@ -736,12 +739,12 @@ mod tests {
 
         let vcr = VcrLlm::recording(mock_llm.clone(), cassette_path.clone(), "test-model");
         let request = LlmRequest::new(vec![ChatMessage::user("Hello")]);
-        let response = vcr.generate(request).await.unwrap();
+        let response = vcr.generate(request).await.expect("LLM response should be generated");
 
         assert_eq!(response.content, "Mock response");
         assert_eq!(mock_llm.call_count(), 1);
 
-        vcr.save_cassette().unwrap();
+        vcr.save_cassette().expect("Cassette should be saved");
         assert!(cassette_path.exists());
     }
 
@@ -756,7 +759,7 @@ mod tests {
 
         let vcr = VcrLlm::live(mock_llm.clone());
         let request = LlmRequest::new(vec![ChatMessage::user("Hello")]);
-        let response = vcr.generate(request).await.unwrap();
+        let response = vcr.generate(request).await.expect("LLM response should be generated");
 
         assert_eq!(response.content, "Live response");
         assert_eq!(mock_llm.call_count(), 1);
@@ -765,9 +768,9 @@ mod tests {
 
     #[test]
     fn test_playback_invalid_json() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("TempDir should be created");
         let cassette_path = temp_dir.path().join("invalid.json");
-        std::fs::write(&cassette_path, "not valid json").unwrap();
+        std::fs::write(&cassette_path, "not valid json").expect("File should be written");
 
         let result = VcrLlm::playback(cassette_path);
         assert!(result.is_err());
@@ -775,15 +778,16 @@ mod tests {
 
     #[test]
     fn test_playback_incompatible_version() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("TempDir should be created");
         let cassette_path = temp_dir.path().join("old_version.json");
 
         let old_cassette = r#"{"version":"1.0","recorded_at":"","llm_model":"","recordings":{}}"#;
-        std::fs::write(&cassette_path, old_cassette).unwrap();
+        std::fs::write(&cassette_path, old_cassette).expect("File should be written");
 
         let result = VcrLlm::playback(cassette_path);
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(err.to_string().contains("version"));
+        match result {
+            Err(err) => assert!(err.to_string().contains("version"), "Error should mention version incompatibility"),
+            Ok(_) => panic!("Playback should fail with incompatible version"),
+        }
     }
 }

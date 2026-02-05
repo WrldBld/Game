@@ -245,7 +245,7 @@ pub(super) async fn handle_end_conversation(
 
     // Return success response to caller
     Some(ServerMessage::ConversationEnded {
-        npc_id: npc_id,
+        npc_id,
         npc_name: result.npc_name,
         pc_id: pc_id.to_string(),
         summary: result.summary,

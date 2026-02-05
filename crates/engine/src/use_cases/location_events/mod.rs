@@ -73,7 +73,7 @@ mod tests {
     use wrldbldr_domain::{LocationId, RegionName};
 
     fn create_test_region(location_id: LocationId) -> wrldbldr_domain::Region {
-        wrldbldr_domain::Region::new(location_id, RegionName::new("Test Region").unwrap())
+        wrldbldr_domain::Region::new(location_id, RegionName::new("Test Region").expect("valid region name"))
     }
 
     mod trigger_location_event {
@@ -119,7 +119,7 @@ mod tests {
                 .await;
 
             assert!(result.is_ok());
-            let event_result = result.unwrap();
+            let event_result = result.expect("result should be Ok");
             assert_eq!(event_result.region_id, region_id);
             assert_eq!(event_result.region_name, "Test Region");
             assert_eq!(event_result.description, "Something happened!");

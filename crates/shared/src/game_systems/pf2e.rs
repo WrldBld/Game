@@ -1944,12 +1944,12 @@ mod tests {
 
         let derived = system.calculate_derived_values(&values);
 
-        assert_eq!(derived.get("STR_MOD").unwrap(), &SheetValue::Integer(4));
-        assert_eq!(derived.get("DEX_MOD").unwrap(), &SheetValue::Integer(2));
-        assert_eq!(derived.get("CON_MOD").unwrap(), &SheetValue::Integer(1));
-        assert_eq!(derived.get("INT_MOD").unwrap(), &SheetValue::Integer(0));
-        assert_eq!(derived.get("WIS_MOD").unwrap(), &SheetValue::Integer(3));
-        assert_eq!(derived.get("CHA_MOD").unwrap(), &SheetValue::Integer(-1));
+        assert_eq!(derived.get("STR_MOD").expect("valid value"), &SheetValue::Integer(4));
+        assert_eq!(derived.get("DEX_MOD").expect("valid value"), &SheetValue::Integer(2));
+        assert_eq!(derived.get("CON_MOD").expect("valid value"), &SheetValue::Integer(1));
+        assert_eq!(derived.get("INT_MOD").expect("valid value"), &SheetValue::Integer(0));
+        assert_eq!(derived.get("WIS_MOD").expect("valid value"), &SheetValue::Integer(3));
+        assert_eq!(derived.get("CHA_MOD").expect("valid value"), &SheetValue::Integer(-1));
     }
 
     #[test]
@@ -1980,18 +1980,18 @@ mod tests {
 
         // Athletics: STR (+3) + Trained at level 5 (2 + 5 = 7) = 10
         assert_eq!(
-            derived.get("ATHLETICS_MOD").unwrap(),
+            derived.get("ATHLETICS_MOD").expect("valid value"),
             &SheetValue::Integer(10)
         );
 
         // Acrobatics: DEX (+2) + Expert at level 5 (4 + 5 = 9) = 11
         assert_eq!(
-            derived.get("ACROBATICS_MOD").unwrap(),
+            derived.get("ACROBATICS_MOD").expect("valid value"),
             &SheetValue::Integer(11)
         );
 
         // Stealth: DEX (+2) + Untrained (0) = 2
-        assert_eq!(derived.get("STEALTH_MOD").unwrap(), &SheetValue::Integer(2));
+        assert_eq!(derived.get("STEALTH_MOD").expect("valid value"), &SheetValue::Integer(2));
     }
 
     #[test]
@@ -2022,15 +2022,15 @@ mod tests {
 
         // Fortitude: CON (+3) + Expert at level 5 (4 + 5 = 9) = 12
         assert_eq!(
-            derived.get("FORTITUDE_MOD").unwrap(),
+            derived.get("FORTITUDE_MOD").expect("valid value"),
             &SheetValue::Integer(12)
         );
 
         // Reflex: DEX (+2) + Trained at level 5 (2 + 5 = 7) = 9
-        assert_eq!(derived.get("REFLEX_MOD").unwrap(), &SheetValue::Integer(9));
+        assert_eq!(derived.get("REFLEX_MOD").expect("valid value"), &SheetValue::Integer(9));
 
         // Will: WIS (+1) + Master at level 5 (6 + 5 = 11) = 12
-        assert_eq!(derived.get("WILL_MOD").unwrap(), &SheetValue::Integer(12));
+        assert_eq!(derived.get("WILL_MOD").expect("valid value"), &SheetValue::Integer(12));
     }
 
     #[test]
@@ -2053,7 +2053,7 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // AC: 10 + DEX (+2) + Trained at level 5 (2 + 5 = 7) + armor bonus (2) = 21
-        assert_eq!(derived.get("AC").unwrap(), &SheetValue::Integer(21));
+        assert_eq!(derived.get("AC").expect("valid value"), &SheetValue::Integer(21));
     }
 
     #[test]
@@ -2077,7 +2077,7 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // AC: 10 + DEX (capped to +2) + Trained at level 5 (7) + armor bonus (4) = 23
-        assert_eq!(derived.get("AC").unwrap(), &SheetValue::Integer(23));
+        assert_eq!(derived.get("AC").expect("valid value"), &SheetValue::Integer(23));
     }
 
     #[test]
@@ -2097,7 +2097,7 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // HP: Ancestry (8) + (Class (10) + CON (+2)) * Level (5) = 8 + (12 * 5) = 8 + 60 = 68
-        assert_eq!(derived.get("MAX_HP").unwrap(), &SheetValue::Integer(68));
+        assert_eq!(derived.get("MAX_HP").expect("valid value"), &SheetValue::Integer(68));
     }
 
     #[test]
@@ -2149,17 +2149,17 @@ mod tests {
         let system = Pf2eSystem::new();
         let defaults = system.default_values();
 
-        assert_eq!(defaults.get("LEVEL").unwrap(), &SheetValue::Integer(1));
-        assert_eq!(defaults.get("STR").unwrap(), &SheetValue::Integer(10));
-        assert_eq!(defaults.get("DEX").unwrap(), &SheetValue::Integer(10));
-        assert_eq!(defaults.get("CON").unwrap(), &SheetValue::Integer(10));
-        assert_eq!(defaults.get("INT").unwrap(), &SheetValue::Integer(10));
-        assert_eq!(defaults.get("WIS").unwrap(), &SheetValue::Integer(10));
-        assert_eq!(defaults.get("CHA").unwrap(), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("LEVEL").expect("valid value"), &SheetValue::Integer(1));
+        assert_eq!(defaults.get("STR").expect("valid value"), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("DEX").expect("valid value"), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("CON").expect("valid value"), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("INT").expect("valid value"), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("WIS").expect("valid value"), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("CHA").expect("valid value"), &SheetValue::Integer(10));
         assert_eq!(
-            defaults.get("HERO_POINTS").unwrap(),
+            defaults.get("HERO_POINTS").expect("valid value"),
             &SheetValue::Integer(1)
         );
-        assert_eq!(defaults.get("SPEED").unwrap(), &SheetValue::Integer(25));
+        assert_eq!(defaults.get("SPEED").expect("valid value"), &SheetValue::Integer(25));
     }
 }

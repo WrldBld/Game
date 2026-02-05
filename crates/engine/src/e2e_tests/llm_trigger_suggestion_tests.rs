@@ -30,14 +30,10 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use neo4rs::query;
-use uuid::Uuid;
 use wrldbldr_domain::{
     Description, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger,
-    NarrativeTriggerType, QueueItemId, TriggerLogic,
+    NarrativeTriggerType,
 };
-
-use crate::queue_types::DmApprovalDecision;
 
 use super::{
     approve_staging_with_npc, create_shared_log, create_test_player, E2ETestContext,
@@ -50,11 +46,13 @@ use super::{
 
 /// Helper to inspect what events/challenges were included in the LLM prompt.
 /// This allows tests to verify filtering logic without requiring LLM calls.
+#[allow(dead_code)]
 struct PromptInspector {
     pub events_in_prompt: Vec<String>,
     pub challenges_in_prompt: Vec<String>,
 }
 
+#[allow(dead_code)]
 impl PromptInspector {
     /// Extract event and challenge names from the system prompt.
     fn from_system_prompt(prompt: &str) -> Self {
@@ -234,7 +232,7 @@ async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get approval request to check for event suggestion
         let approval_data = ctx
@@ -269,7 +267,7 @@ async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
             "LLM should suggest the 'Marta Shares Local Rumors' event when player asks about rumors"
         );
 
-        let suggestion = approval_data.narrative_event_suggestion.as_ref().unwrap();
+        let suggestion = approval_data.narrative_event_suggestion.as_ref().expect("Event suggestion should be present");
 
         // ASSERTION 2: Suggestion should be for the correct event
         assert!(
@@ -391,7 +389,7 @@ async fn test_simple_dialogue_event_no_trigger_on_unrelated_dialogue() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         let approval_data = ctx
             .app
@@ -492,7 +490,7 @@ async fn test_multi_condition_event_filtered_when_flag_not_set() {
 
     let test_result = async {
         let common_room = ctx.world.region("Common Room").expect("Region not found");
-        let (player_id, pc_id) = create_test_player(
+        let (_player_id, pc_id) = create_test_player(
             ctx.graph(),
             ctx.world.world_id,
             common_room,
@@ -698,7 +696,7 @@ async fn test_multi_condition_event_triggers_when_flag_set() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         let approval_data = ctx
             .app
@@ -790,12 +788,12 @@ async fn test_triggered_event_not_in_prompt() {
         let event_id = NarrativeEventId::new();
         let event = NarrativeEvent::new(
             ctx.world.world_id,
-            NarrativeEventName::new("Already Triggered Event").unwrap(),
+            NarrativeEventName::new("Already Triggered Event").expect("Event name should be valid"),
             now,
         )
         .with_id(event_id)
         .with_description("This event has already been triggered")
-        .with_scene_direction(Description::new("You recall what happened before").unwrap())
+        .with_scene_direction(Description::new("You recall what happened before").expect("Description should be valid"))
         .with_trigger_condition(
             NarrativeTrigger::new(
                 NarrativeTriggerType::DialogueTopic {
@@ -889,12 +887,12 @@ async fn test_inactive_event_not_in_prompt() {
         let event_id = NarrativeEventId::new();
         let event = NarrativeEvent::new(
             ctx.world.world_id,
-            NarrativeEventName::new("Inactive Test Event").unwrap(),
+            NarrativeEventName::new("Inactive Test Event").expect("Event name should be valid"),
             now,
         )
         .with_id(event_id)
         .with_description("This event is not active")
-        .with_scene_direction(Description::new("This should not appear").unwrap())
+        .with_scene_direction(Description::new("This should not appear").expect("Description should be valid"))
         .with_trigger_condition(
             NarrativeTrigger::new(
                 NarrativeTriggerType::DialogueTopic {
@@ -988,12 +986,12 @@ async fn test_repeatable_triggered_event_in_prompt() {
         let event_id = NarrativeEventId::new();
         let event = NarrativeEvent::new(
             ctx.world.world_id,
-            NarrativeEventName::new("Repeatable Event").unwrap(),
+            NarrativeEventName::new("Repeatable Event").expect("Event name should be valid"),
             now,
         )
         .with_id(event_id)
         .with_description("This event can trigger multiple times")
-        .with_scene_direction(Description::new("Here we go again").unwrap())
+        .with_scene_direction(Description::new("Here we go again").expect("Description should be valid"))
         .with_trigger_condition(
             NarrativeTrigger::new(
                 NarrativeTriggerType::DialogueTopic {
@@ -1155,7 +1153,7 @@ async fn test_challenge_triggers_on_matching_dialogue() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         let approval_data = ctx
             .app
@@ -1188,7 +1186,7 @@ async fn test_challenge_triggers_on_matching_dialogue() {
             "LLM should suggest the 'Convince Grom' challenge when asking about his past"
         );
 
-        let suggestion = approval_data.challenge_suggestion.as_ref().unwrap();
+        let suggestion = approval_data.challenge_suggestion.as_ref().expect("Challenge suggestion should be present");
         tracing::info!(
             challenge_name = %suggestion.challenge_name,
             skill = %suggestion.skill_name,
@@ -1296,7 +1294,7 @@ async fn test_challenge_no_trigger_on_unrelated_dialogue() {
             .expect("Failed to process LLM request");
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         let approval_data = ctx
             .app

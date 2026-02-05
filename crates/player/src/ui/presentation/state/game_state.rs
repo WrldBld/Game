@@ -784,7 +784,7 @@ impl GameState {
         observation: wrldbldr_shared::ObservationSummaryData,
     ) {
         let mut obs_map = self.observations.write();
-        let pc_obs = obs_map.entry(pc_id).or_insert_with(Vec::new);
+        let pc_obs = obs_map.entry(pc_id).or_default();
         // Remove existing observation for the same NPC (if any)
         pc_obs.retain(|o| o.npc_id != observation.npc_id);
         // Add the updated observation

@@ -25,10 +25,11 @@ use wrldbldr_domain::{
 use crate::value_objects::Tag;
 
 /// Visibility status for story events in the timeline UI
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum StoryEventVisibility {
     /// Event is visible in the timeline
+    #[default]
     Visible,
     /// Event is hidden from timeline (but still tracked in system)
     Hidden,
@@ -37,12 +38,6 @@ pub enum StoryEventVisibility {
 impl StoryEventVisibility {
     pub fn is_hidden(&self) -> bool {
         matches!(self, Self::Hidden)
-    }
-}
-
-impl Default for StoryEventVisibility {
-    fn default() -> Self {
-        Self::Visible
     }
 }
 

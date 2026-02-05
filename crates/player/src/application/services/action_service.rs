@@ -94,10 +94,13 @@ mod tests {
         let (commands, mut rx) = create_test_command_bus();
         let svc = ActionService::new(commands);
 
-        svc.send_action(PlayerAction::custom("hello")).unwrap();
+        svc.send_action(PlayerAction::custom("hello"))
+            .expect("send should succeed in test");
 
         // Verify that a message was sent
-        let msg = rx.recv().await.unwrap();
+        let msg = rx.recv()
+            .await
+            .expect("message should be received in test");
         assert!(matches!(msg, BusMessage::Send(_)));
     }
 }

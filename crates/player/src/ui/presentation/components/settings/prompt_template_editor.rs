@@ -34,8 +34,8 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
 
     let is_loading = use_signal(|| true);
     let mut is_saving = use_signal(|| false);
-    let mut error = use_signal(|| Option::<String>::None);
-    let mut success_message = use_signal(|| Option::<String>::None);
+    let mut error: Signal<Option<String>> = use_signal(|| None);
+    let mut success_message: Signal<Option<String>> = use_signal(|| None);
 
     // Clone for handlers - clone BEFORE moving into closures
     let world_id = props.world_id.clone();
@@ -44,7 +44,7 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
     let template_key = props.template_key.clone();
     let template_key_for_save = template_key.clone();
     let template_key_for_reset = template_key.clone();
-    let mut template_value_for_change = template_value.clone();
+    let mut template_value_for_change = template_value;
     let service_for_save = service.clone();
     let service_for_reset = service.clone();
 
@@ -66,11 +66,11 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
         let svc = service_for_effect.clone();
 
         // Clone signals into async closure (Dioxus: cloned signals are read-write)
-        let mut template_value_clone = template_value.clone();
-        let mut is_override_clone = is_override.clone();
-        let mut default_value_clone = default_value.clone();
-        let mut is_loading_clone = is_loading.clone();
-        let mut error_clone = error.clone();
+        let mut template_value_clone = template_value;
+        let mut is_override_clone = is_override;
+        let mut default_value_clone = default_value;
+        let mut is_loading_clone = is_loading;
+        let mut error_clone = error;
 
         spawn_task(async move {
             match svc.get_template(&world_id_dep, &template_key_dep).await {
@@ -96,11 +96,11 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
         let _current_value = template_value.read().clone();
         let svc = service_for_save.clone();
         // Clone signals into async closure (Dioxus: cloned signals are read-write)
-        let mut template_value_clone = template_value.clone();
-        let mut is_override_clone = is_override.clone();
-        let mut is_saving_clone = is_saving.clone();
-        let mut error_clone = error.clone();
-        let mut success_message_clone = success_message.clone();
+        let mut template_value_clone = template_value;
+        let mut is_override_clone = is_override;
+        let mut is_saving_clone = is_saving;
+        let mut error_clone = error;
+        let mut success_message_clone = success_message;
 
         is_saving.set(true);
         error.set(None);
@@ -139,12 +139,12 @@ pub fn PromptTemplateEditor(props: PromptTemplateEditorProps) -> Element {
         let _default = default_value.read().clone();
         let svc = service_for_reset.clone();
         // Clone signals into async closure (Dioxus: cloned signals are read-write)
-        let mut template_value_clone = template_value.clone();
-        let mut is_override_clone = is_override.clone();
-        let mut is_saving_clone = is_saving.clone();
-        let mut error_clone = error.clone();
-        let mut success_message_clone = success_message.clone();
-        let mut default_value_clone = default_value.clone();
+        let mut template_value_clone = template_value;
+        let mut is_override_clone = is_override;
+        let mut is_saving_clone = is_saving;
+        let mut error_clone = error;
+        let mut success_message_clone = success_message;
+        let mut default_value_clone = default_value;
 
         is_saving.set(true);
         error.set(None);

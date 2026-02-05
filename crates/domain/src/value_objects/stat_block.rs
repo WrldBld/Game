@@ -620,12 +620,12 @@ mod tests {
 
         let all = stats.get_all_stats();
 
-        let str_value = all.get("STR").unwrap();
+        let str_value = all.get("STR").expect("valid value");
         assert_eq!(str_value.base(), 10);
         assert_eq!(str_value.modifier_total(), 4);
         assert_eq!(str_value.effective(), 14);
 
-        let dex_value = all.get("DEX").unwrap();
+        let dex_value = all.get("DEX").expect("valid value");
         assert_eq!(dex_value.base(), 14);
         assert_eq!(dex_value.modifier_total(), 0);
         assert_eq!(dex_value.effective(), 14);
@@ -664,14 +664,14 @@ mod tests {
 
     #[test]
     fn stat_block_hp_tracking() {
-        let stats = StatBlock::new().with_hp_validated(45, 50).unwrap();
+        let stats = StatBlock::new().with_hp_validated(45, 50).expect("valid value");
         assert_eq!(stats.current_hp(), Some(45));
         assert_eq!(stats.max_hp(), Some(50));
     }
 
     #[test]
     fn stat_block_hp_with_modifiers() {
-        let stats = StatBlock::new().with_hp_validated(45, 50).unwrap();
+        let stats = StatBlock::new().with_hp_validated(45, 50).expect("valid value");
 
         // Base values should be accessible
         assert_eq!(stats.get_base_current_hp(), Some(45));
@@ -696,7 +696,7 @@ mod tests {
     fn stat_block_hp_modifiers_stack() {
         let stats = StatBlock::new()
             .with_hp_validated(30, 30)
-            .unwrap()
+            .expect("valid value")
             .with_hp_modifier("Heroism", 10)
             .with_hp_modifier("Aid", 5)
             .with_hp_modifier("Inspiring Leader", 8);
@@ -709,7 +709,7 @@ mod tests {
     fn stat_block_hp_negative_modifiers() {
         let stats = StatBlock::new()
             .with_hp_validated(50, 50)
-            .unwrap()
+            .expect("valid value")
             .with_hp_modifier("Poison", -10)
             .with_max_hp_modifier("Exhaustion", -5);
 
@@ -721,7 +721,7 @@ mod tests {
     fn stat_block_hp_inactive_modifiers() {
         let stats = StatBlock::new()
             .with_hp_validated(40, 40)
-            .unwrap()
+            .expect("valid value")
             .with_hp_modifier_inactive("Dormant Blessing", 15);
 
         // Inactive modifier shouldn't affect effective HP
@@ -738,7 +738,7 @@ mod tests {
     fn stat_block_hp_toggle_modifier() {
         let stats = StatBlock::new()
             .with_hp_validated(30, 30)
-            .unwrap()
+            .expect("valid value")
             .with_hp_modifier("Rage Bonus", 10);
 
         let modifiers = stats.get_hp_modifiers();
@@ -782,15 +782,15 @@ mod tests {
         let stats = StatBlock::new();
         let result = stats.with_current_hp(Some(-1));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("negative"));
+        assert!(result.expect_err("should fail").to_string().contains("negative"));
     }
 
     #[test]
     fn with_current_hp_rejects_exceeds_max() {
-        let stats = StatBlock::new().with_max_hp(Some(50)).unwrap();
+        let stats = StatBlock::new().with_max_hp(Some(50)).expect("valid value");
         let result = stats.with_current_hp(Some(60));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("exceed"));
+        assert!(result.expect_err("should fail").to_string().contains("exceed"));
     }
 
     #[test]
@@ -798,15 +798,15 @@ mod tests {
         let stats = StatBlock::new();
         let result = stats.with_max_hp(Some(-1));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("negative"));
+        assert!(result.expect_err("should fail").to_string().contains("negative"));
     }
 
     #[test]
     fn with_max_hp_rejects_less_than_current() {
-        let stats = StatBlock::new().with_current_hp(Some(50)).unwrap();
+        let stats = StatBlock::new().with_current_hp(Some(50)).expect("valid value");
         let result = stats.with_max_hp(Some(40));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("less than"));
+        assert!(result.expect_err("should fail").to_string().contains("less than"));
     }
 
     #[test]
@@ -814,7 +814,7 @@ mod tests {
         let stats = StatBlock::new();
         let result = stats.with_hp_validated(-1, 50);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("negative"));
+        assert!(result.expect_err("should fail").to_string().contains("negative"));
     }
 
     #[test]
@@ -822,7 +822,7 @@ mod tests {
         let stats = StatBlock::new();
         let result = stats.with_hp_validated(60, 50);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("exceed"));
+        assert!(result.expect_err("should fail").to_string().contains("exceed"));
     }
 
     #[test]
@@ -830,7 +830,7 @@ mod tests {
         let stats = StatBlock::new();
         let result = stats.with_hp_validated(30, 50);
         assert!(result.is_ok());
-        let stats = result.unwrap();
+        let stats = result.expect("valid value");
         assert_eq!(stats.current_hp(), Some(30));
         assert_eq!(stats.max_hp(), Some(50));
     }

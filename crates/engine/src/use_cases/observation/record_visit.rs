@@ -108,12 +108,11 @@ impl RecordVisit {
 mod tests {
     use super::*;
     use crate::infrastructure::ports::{MockClockPort, MockLocationRepo, MockObservationRepo};
-    use chrono::TimeZone;
     use mockall::predicate::*;
     use wrldbldr_domain::{CharacterId, LocationId, Region, RegionName, WorldId};
 
     fn test_region(location_id: LocationId) -> Region {
-        Region::new(location_id, RegionName::new("Test Region").unwrap())
+        Region::new(location_id, RegionName::new("Test Region").expect("valid region name"))
     }
 
     fn test_staged_npc(character_id: CharacterId, is_present: bool, is_hidden: bool) -> StagedNpc {
@@ -171,7 +170,7 @@ mod tests {
     async fn skips_hidden_npcs() {
         use chrono::{TimeZone, Utc};
 
-        let mut observation_repo = MockObservationRepo::new();
+        let observation_repo = MockObservationRepo::new();
         let mut location_repo = MockLocationRepo::new();
         let mut clock = MockClockPort::new();
 

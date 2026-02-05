@@ -17,26 +17,26 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let hidden_npc_id = CharacterId::new();
 
     // World (manual time, so movement doesn't generate time suggestions).
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let mut world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
     let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures.
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
     .with_id(location_id);
 
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Unstaged Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Unstaged Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,
@@ -46,9 +46,9 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     );
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         location_id,
         now,
     )
@@ -57,13 +57,13 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
 
     let mut visible_npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("Visible NPC").expect("test: character name should be valid"),
         CampbellArchetype::Hero,
     );
     visible_npc = visible_npc.with_id(visible_npc_id);
     let mut hidden_npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("Hidden NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("Hidden NPC").expect("test: character name should be valid"),
         CampbellArchetype::Herald,
     );
     hidden_npc = hidden_npc.with_id(hidden_npc_id);
@@ -74,7 +74,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         location_state_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Location State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -96,7 +96,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Region State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -475,7 +475,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let mut got_staging_ready: Option<ServerMessage> = None;
     let mut got_visual_state: Option<ServerMessage> = None;
 
-    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+    tokio::time::timeout(Duration::from_secs(2), async {
         while got_staging_ready.is_none() || got_visual_state.is_none() {
             let msg = ws_recv_server(&mut player_ws).await;
             match msg {
@@ -484,10 +484,10 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
                 _ => {}
             }
         }
-    }).await.unwrap();
+    }).await.expect("test: should receive messages within timeout");
 
-    let staging_ready = got_staging_ready.unwrap();
-    let visual_state_changed = got_visual_state.unwrap();
+    let staging_ready = got_staging_ready.expect("test: should receive StagingReady");
+    let visual_state_changed = got_visual_state.expect("test: should receive VisualStateChanged");
 
     match staging_ready {
         ServerMessage::StagingReady {
@@ -539,26 +539,26 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
     let hidden_npc_id = CharacterId::new();
 
     // World (manual time, so movement doesn't generate time suggestions).
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let mut world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
     let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures.
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
     .with_id(location_id);
 
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Unstaged Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Unstaged Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,
@@ -568,26 +568,24 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
     );
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         location_id,
         now,
     )
     .with_id(pc_id);
 
-    let mut visible_npc = wrldbldr_domain::Character::new(
+    let _visible_npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("Visible NPC").expect("test: character name should be valid"),
         CampbellArchetype::Hero,
-    );
-    visible_npc = visible_npc.with_id(visible_npc_id);
-    let mut hidden_npc = wrldbldr_domain::Character::new(
+    ).with_id(visible_npc_id);
+    let _hidden_npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("Hidden NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("Hidden NPC").expect("test: character name should be valid"),
         CampbellArchetype::Herald,
-    );
-    hidden_npc = hidden_npc.with_id(hidden_npc_id);
+    ).with_id(hidden_npc_id);
 
     // Visual state fixtures: one valid state
     let valid_location_state_id = wrldbldr_domain::LocationStateId::new();
@@ -595,7 +593,7 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
         valid_location_state_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Valid Location State").unwrap(),
+        wrldbldr_domain::StateName::new("Valid Location State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -617,7 +615,7 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Valid Region State").unwrap(),
+        wrldbldr_domain::StateName::new("Valid Region State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -920,7 +918,7 @@ async fn when_dm_approves_staging_with_invalid_state_id_then_returns_validation_
 
     match error_response {
         ServerMessage::Error { code, message } => {
-            assert_eq!(code, "ValidationError");
+            assert_eq!(code, "validation_error");
             assert!(message.contains("Invalid location_state_id"));
             assert!(message.contains("not in available options for this staging request"));
         }
@@ -945,26 +943,26 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
     let visible_npc_id = CharacterId::new();
 
     // World (manual time)
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let mut world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
     let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
     .with_id(location_id);
 
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,
@@ -974,9 +972,9 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
     );
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         location_id,
         now,
     )
@@ -984,7 +982,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
 
     let mut visible_npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("Visible NPC").expect("test: character name should be valid"),
         CampbellArchetype::Hero,
     );
     visible_npc = visible_npc.with_id(visible_npc_id);
@@ -995,7 +993,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
         location_state1_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Location State 1").unwrap(),
+        wrldbldr_domain::StateName::new("Location State 1").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1016,7 +1014,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
         location_state2_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Location State 2").unwrap(),
+        wrldbldr_domain::StateName::new("Location State 2").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1038,7 +1036,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Region State 1").unwrap(),
+        wrldbldr_domain::StateName::new("Region State 1").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1059,7 +1057,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Region State 2").unwrap(),
+        wrldbldr_domain::StateName::new("Region State 2").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1421,7 +1419,7 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
     let mut got_staging_ready: Option<ServerMessage> = None;
     let mut got_visual_state: Option<ServerMessage> = None;
 
-    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+    tokio::time::timeout(Duration::from_secs(2), async {
         while got_staging_ready.is_none() || got_visual_state.is_none() {
             let msg = ws_recv_server(&mut player_ws).await;
             match msg {
@@ -1430,10 +1428,10 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
                 _ => {}
             }
         }
-    }).await.unwrap();
+    }).await.expect("test: should receive messages within timeout");
 
-    let staging_ready = got_staging_ready.unwrap();
-    let visual_state_changed = got_visual_state.unwrap();
+    let staging_ready = got_staging_ready.expect("test: should receive StagingReady");
+    let visual_state_changed = got_visual_state.expect("test: should receive VisualStateChanged");
 
     match staging_ready {
         ServerMessage::StagingReady {
@@ -1447,13 +1445,13 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
                 .any(|n| n.character_id == visible_npc_id.to_string()));
             // Visual state should be present with DM-selected states
             assert!(visual_state.is_some());
-            let vs = visual_state.as_ref().unwrap();
+            let vs = visual_state.as_ref().expect("test: visual_state should be present");
             assert!(vs.location_state.is_some());
             assert!(vs.region_state.is_some());
-            let loc_state = vs.location_state.as_ref().unwrap();
+            let loc_state = vs.location_state.as_ref().expect("test: location_state should be present");
             assert_eq!(loc_state.id, location_state2_id.to_string());
             assert_eq!(loc_state.name, "Location State 2");
-            let reg_state = vs.region_state.as_ref().unwrap();
+            let reg_state = vs.region_state.as_ref().expect("test: region_state should be present");
             assert_eq!(reg_state.id, region_state2_id.to_string());
             assert_eq!(reg_state.name, "Region State 2");
         }
@@ -1468,12 +1466,12 @@ async fn when_dm_approves_staging_with_valid_state_ids_then_sets_visual_state_so
             assert_eq!(got_region_id, Some(region_id.to_string()));
             // Visual state data should match StagingReady
             assert!(visual_state.is_some());
-            let vs = visual_state.as_ref().unwrap();
+            let vs = visual_state.as_ref().expect("test: visual_state should be present");
             assert!(vs.location_state.is_some());
             assert!(vs.region_state.is_some());
-            let loc_state = vs.location_state.as_ref().unwrap();
+            let loc_state = vs.location_state.as_ref().expect("test: location_state should be present");
             assert_eq!(loc_state.id, location_state2_id.to_string());
-            let reg_state = vs.region_state.as_ref().unwrap();
+            let reg_state = vs.region_state.as_ref().expect("test: region_state should be present");
             assert_eq!(reg_state.id, region_state2_id.to_string());
         }
         other => panic!("expected VisualStateChanged, got: {:?}", other),
@@ -1495,20 +1493,20 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let region_id = RegionId::new();
 
     // World (manual time)
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let mut world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
     let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(location_id);
 
     // Visual state fixtures: minimal states to satisfy fail-fast validation
@@ -1517,7 +1515,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         location_state_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Location State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1539,7 +1537,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Region State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1557,7 +1555,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,
@@ -1696,7 +1694,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
 
     assert!(result.is_ok(), "Auto-approval should succeed");
 
-    let payload = result.unwrap();
+    let payload = result.expect("test: result should be Ok");
     assert_eq!(payload.region_id, region_id);
     // No NPCs should be present since we didn't set up any rule-based NPCs
     assert!(payload.npcs_present.is_empty());
@@ -1715,20 +1713,20 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let region_id = RegionId::new();
 
     // World (manual time)
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let mut world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
      let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
     .with_id(location_id);
 
     // Visual state fixtures: minimal states to satisfy fail-fast validation
@@ -1737,7 +1735,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         location_state_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Location State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1759,7 +1757,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Region State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1777,7 +1775,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,
@@ -1934,26 +1932,26 @@ async fn when_dm_prestages_region_with_visual_state_ids_then_staging_is_persiste
     let pc_id = PlayerCharacterId::new();
 
     // World (manual time)
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let mut world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
     let _ = world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let _location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
     .with_id(location_id);
 
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,
@@ -1963,9 +1961,9 @@ async fn when_dm_prestages_region_with_visual_state_ids_then_staging_is_persiste
     );
 
     let _pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         location_id,
         now,
     )
@@ -1977,7 +1975,7 @@ async fn when_dm_prestages_region_with_visual_state_ids_then_staging_is_persiste
         location_state_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Night State").unwrap(),
+        wrldbldr_domain::StateName::new("Night State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -1999,7 +1997,7 @@ async fn when_dm_prestages_region_with_visual_state_ids_then_staging_is_persiste
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Region State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override

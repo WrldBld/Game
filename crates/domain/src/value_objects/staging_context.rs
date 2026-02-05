@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_roll_result_pass_when_rolled_less_than_chance() {
-        let result = RollResult::new(50, 30).unwrap();
+        let result = RollResult::new(50, 30).expect("valid value");
         assert_eq!(result.chance_percent(), 50);
         assert_eq!(result.rolled(), 30);
         assert!(result.passed());
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_roll_result_pass_when_equal() {
-        let result = RollResult::new(50, 50).unwrap();
+        let result = RollResult::new(50, 50).expect("valid value");
         assert_eq!(result.chance_percent(), 50);
         assert_eq!(result.rolled(), 50);
         assert!(result.passed());
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_roll_result_fail_when_rolled_higher() {
-        let result = RollResult::new(30, 50).unwrap();
+        let result = RollResult::new(30, 50).expect("valid value");
         assert_eq!(result.chance_percent(), 30);
         assert_eq!(result.rolled(), 50);
         assert!(!result.passed());
@@ -279,19 +279,19 @@ mod tests {
 
     #[test]
     fn test_roll_result_always_fail_at_zero_chance() {
-        let result = RollResult::new(0, 0).unwrap();
+        let result = RollResult::new(0, 0).expect("valid value");
         assert!(!result.passed());
 
-        let result = RollResult::new(0, 100).unwrap();
+        let result = RollResult::new(0, 100).expect("valid value");
         assert!(!result.passed());
     }
 
     #[test]
     fn test_roll_result_always_pass_at_100_chance() {
-        let result = RollResult::new(100, 0).unwrap();
+        let result = RollResult::new(100, 0).expect("valid value");
         assert!(result.passed());
 
-        let result = RollResult::new(100, 100).unwrap();
+        let result = RollResult::new(100, 100).expect("valid value");
         assert!(result.passed());
     }
 }

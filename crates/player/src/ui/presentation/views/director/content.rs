@@ -205,9 +205,9 @@ pub fn DirectorModeContent() -> Element {
     let mut game_state_for_conversation_end = game_state.clone();
     let conversation_service_for_conversation_end = conversation_service.clone();
     let session_state_for_conversation_end = session_state.clone();
-    let selected_conversation_id_for_read = selected_conversation_id.clone();
-    let mut show_conversations_for_end = show_conversations.clone();
-    let mut details_loading_for_end = details_loading.clone();
+    let selected_conversation_id_for_read = selected_conversation_id;
+    let mut show_conversations_for_end = show_conversations;
+    let mut details_loading_for_end = details_loading;
 
     // Prepare clones for modal handlers
 
@@ -483,11 +483,11 @@ pub fn DirectorModeContent() -> Element {
                                  onclick: {
                                      let conversation_service = conversation_service.clone();
                                      let session_state = session_state.clone();
-                                     let mut conversations_loading = conversations_loading.clone();
-                                     let mut show_conversations = show_conversations.clone();
+                                     let mut conversations_loading = conversations_loading;
+                                     let mut show_conversations = show_conversations;
                                      move |_| {
                                         // Load conversations when opening panel
-                                        if let Some(world_id) = session_state.world_id().read().clone() {
+                                        if let Some(world_id) = *session_state.world_id().read() {
                                             conversations_loading.set(true);
                                              if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
                                                 tracing::error!("Failed to list conversations: {}", e);
@@ -780,7 +780,7 @@ pub fn DirectorModeContent() -> Element {
                                             if let Err(e) = conversation_service_for_conversation_end.end_conversation_by_id(uuid, None) {
                                                 tracing::error!("Failed to end conversation: {}", e);
                                             }
-                                            if let Some(world_id) = session_state_for_conversation_end.world_id().read().clone() {
+                                            if let Some(world_id) = *session_state_for_conversation_end.world_id().read() {
                                                 let _ = conversation_service_for_conversation_end.list_active_conversations(world_id, false);
                                             }
                                             selected_conversation_id.set(None);
@@ -826,9 +826,9 @@ pub fn DirectorModeContent() -> Element {
                                     on_refresh: {
                                         let conversation_service = conversation_service.clone();
                                         let session_state = session_state.clone();
-                                        let mut conversations_loading = conversations_loading.clone();
+                                        let mut conversations_loading = conversations_loading;
                                         move |_| {
-                                            if let Some(world_id) = session_state.world_id().read().clone() {
+                                            if let Some(world_id) = *session_state.world_id().read() {
                                                 conversations_loading.set(true);
                                                 if let Err(e) = conversation_service.list_active_conversations(world_id, false) {
                                                     tracing::error!("Failed to refresh conversations: {}", e);
@@ -839,8 +839,8 @@ pub fn DirectorModeContent() -> Element {
                                     },
                                     on_view_details: {
                                         let conversation_service = conversation_service.clone();
-                                        let mut selected_conversation_id = selected_conversation_id.clone();
-                                        let mut details_loading = details_loading.clone();
+                                        let mut selected_conversation_id = selected_conversation_id;
+                                        let mut details_loading = details_loading;
                                         move |conv_id: String| {
                                             selected_conversation_id.set(Some(conv_id.clone()));
                                             details_loading.set(true);
@@ -996,7 +996,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                 tool_id: tool.id.clone(),
                                 tool_name: tool.name.clone(),
                                 tool_desc: tool.description.clone(),
-                                approved_tools: approved_tools.clone(),
+                                approved_tools: approved_tools,
                             }
                         }
                     }

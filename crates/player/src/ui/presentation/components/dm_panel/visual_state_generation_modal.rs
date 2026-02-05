@@ -121,7 +121,7 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
     let mut atmosphere_guidance = use_signal(String::new);
     let mut tags: Signal<Vec<String>> = use_signal(Vec::new);
     let mut tag_input = use_signal(String::new);
-    let mut asset_style = use_signal(|| AssetStyle::default());
+    let mut asset_style = use_signal(AssetStyle::default);
     let mut generate_backdrop = use_signal(|| true);
     let mut generate_sound = use_signal(|| true);
 
@@ -211,7 +211,7 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
         };
 
         let _command_bus = command_bus.clone();
-        let mut is_gen = is_generating.clone();
+        let mut is_gen = is_generating;
 
         spawn_task(async move {
             // For now, we'll create a simplified state without actual generation
@@ -515,7 +515,7 @@ pub fn VisualStateGenerationModal(props: VisualStateGenerationModalProps) -> Ele
                                 "This may take a moment..."
                             }
                         }
-                    } else if let Some(ref result) = generated_result.read().as_ref() {
+                    } else if let Some(result) = generated_result.read().as_ref() {
                         div {
                             class: "mt-6 p-4 bg-green-500/10 border border-green-500/50 rounded-lg",
                             div {

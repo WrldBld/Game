@@ -575,7 +575,7 @@ pub(super) async fn handle_lore_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::BadRequest,
-                        &format!("Invalid discovery source: {}", e),
+                        format!("Invalid about target: {}", e),
                     ))
                 }
             };
@@ -592,27 +592,25 @@ pub(super) async fn handle_lore_request(
             {
                 Ok(result) => {
                     // Emit LoreDiscovered event to the owning player
-                    if let Ok(lore_data) = state.app.use_cases.lore.ops.get(lore_uuid).await {
-                        if let Some(lore_detail) = lore_data {
-                            let discovered_chunk_ids: Vec<String> = chunk_uuids_clone
-                                .as_ref()
-                                .unwrap_or(&vec![])
-                                .iter()
-                                .map(|id| id.to_string())
-                                .collect();
+                    if let Ok(Some(lore_detail)) = state.app.use_cases.lore.ops.get(lore_uuid).await {
+                        let discovered_chunk_ids: Vec<String> = chunk_uuids_clone
+                            .as_ref()
+                            .unwrap_or(&vec![])
+                            .iter()
+                            .map(|id| id.to_string())
+                            .collect();
 
-                            let lore_discovered_msg = ServerMessage::LoreDiscovered {
-                                character_id,
-                                lore: convert_lore_detail_to_data(lore_detail),
-                                discovered_chunk_ids,
-                                discovery_source,
-                            };
-                            // Note: We need PlayerCharacterId, but char_uuid is CharacterId
-                            // The system tracks player characters separately from NPCs
-                            // We'll need to look up the PlayerCharacterId from CharacterId
-                            // For now, broadcast to world so the player gets it
-                            state.connections.broadcast_to_world(world_id, lore_discovered_msg).await;
-                        }
+                        let lore_discovered_msg = ServerMessage::LoreDiscovered {
+                            character_id,
+                            lore: convert_lore_detail_to_data(lore_detail),
+                            discovered_chunk_ids,
+                            discovery_source,
+                        };
+                        // Note: We need PlayerCharacterId, but char_uuid is CharacterId
+                        // The system tracks player characters separately from NPCs
+                        // We'll need to look up the PlayerCharacterId from CharacterId
+                        // For now, broadcast to world so the player gets it
+                        state.connections.broadcast_to_world(world_id, lore_discovered_msg).await;
                     }
                     Ok(ResponseResult::success(result))
                 }
@@ -746,7 +744,7 @@ pub(super) async fn handle_lore_request(
                     // Map from use-case DTO to protocol type
                     let protocol_entries: Vec<wrldbldr_shared::LoreJournalEntryData> = journal_entries
                         .into_iter()
-                        .map(|entry| convert_journal_entry_to_protocol(entry))
+                        .map(convert_journal_entry_to_protocol)
                         .collect();
                     Ok(ResponseResult::success(protocol_entries))
                 }
@@ -796,7 +794,7 @@ pub(super) async fn handle_lore_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::BadRequest,
-                        &format!("Invalid about target: {}", e),
+                        format!("Invalid about target: {}", e),
                     ))
                 }
             };
@@ -840,7 +838,7 @@ pub(super) async fn handle_lore_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::BadRequest,
-                        &format!("Invalid about target: {}", e),
+                        format!("Invalid about target: {}", e),
                     ))
                 }
             };
@@ -971,7 +969,7 @@ pub(super) async fn handle_lore_request(
                     Ok(ResponseResult::error(ErrorCode::NotFound, "Lore or location not found"))
                 }
                 Err(crate::use_cases::lore::LoreError::InvalidChunkIds(msg)) => {
-                    Ok(ResponseResult::error(ErrorCode::BadRequest, &format!("Invalid chunk IDs: {}", msg)))
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, format!("Invalid chunk IDs: {}", msg)))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,

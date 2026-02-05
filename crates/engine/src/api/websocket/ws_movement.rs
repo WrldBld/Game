@@ -184,7 +184,7 @@ fn staging_game_time_to_protocol(
 
     // Calculate total_seconds from day/hour/minute/second
     // Guard against day=0 causing negative total_seconds
-    let day_adjusted = gt.day.checked_sub(1).unwrap_or(0);
+    let day_adjusted = gt.day.saturating_sub(1);
     let total_seconds = (day_adjusted as i64) * 24 * 60 * 60
         + (gt.hour as i64) * 60 * 60
         + (gt.minute as i64) * 60

@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn test_parse_datetime_valid() {
-        let dt = parse_datetime("2024-01-15T10:30:00Z").unwrap();
+        let dt = parse_datetime("2024-01-15T10:30:00Z").expect("valid UTC datetime");
         assert_eq!(dt.year(), 2024);
         assert_eq!(dt.month(), 1);
         assert_eq!(dt.day(), 15);
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn test_parse_datetime_with_timezone() {
-        let dt = parse_datetime("2024-01-15T10:30:00+05:00").unwrap();
+        let dt = parse_datetime("2024-01-15T10:30:00+05:00").expect("valid datetime with timezone");
         // Should be converted to UTC
         assert_eq!(dt.hour(), 5); // 10:30 +05:00 = 05:30 UTC
     }

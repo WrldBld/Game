@@ -126,16 +126,16 @@ mod tests {
     #[test]
     fn test_stat_serde_roundtrip() {
         let stat = Stat::Dex;
-        let json = serde_json::to_string(&stat).unwrap();
+        let json = serde_json::to_string(&stat).expect("valid value");
         assert_eq!(json, "\"DEX\"");
-        let parsed: Stat = serde_json::from_str(&json).unwrap();
+        let parsed: Stat = serde_json::from_str(&json).expect("valid value");
         assert_eq!(parsed, stat);
     }
 
     #[test]
     fn test_stat_serde_unknown_becomes_custom() {
         let json = "\"UNKNOWN_STAT\"";
-        let parsed: Stat = serde_json::from_str(json).unwrap();
+        let parsed: Stat = serde_json::from_str(json).expect("valid value");
         assert_eq!(parsed, Stat::Custom);
     }
 }

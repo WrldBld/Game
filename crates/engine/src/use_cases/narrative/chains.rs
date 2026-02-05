@@ -198,7 +198,7 @@ impl EventChainOps {
             .narrative_repo
             .get_event(event_id)
             .await?
-            .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
+            .ok_or(EventChainError::EventNotFound(event_id))?;
 
         if event.world_id() != chain.world_id() {
             return Err(EventChainError::WorldMismatch);
@@ -230,7 +230,7 @@ impl EventChainOps {
             .narrative_repo
             .get_event(event_id)
             .await?
-            .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
+            .ok_or(EventChainError::EventNotFound(event_id))?;
 
         if event.world_id() != chain.world_id() {
             return Err(EventChainError::WorldMismatch);
@@ -258,7 +258,7 @@ impl EventChainOps {
             .narrative_repo
             .get_event(event_id)
             .await?
-            .ok_or_else(|| EventChainError::EventNotFound(event_id))?;
+            .ok_or(EventChainError::EventNotFound(event_id))?;
 
         // Validate event belongs to the same world as the chain
         if event.world_id() != chain.world_id() {

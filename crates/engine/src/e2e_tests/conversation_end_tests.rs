@@ -174,7 +174,7 @@ async fn test_end_conversation_without_summary() {
             .expect("Failed to stage NPC");
 
         // Start conversation
-        let (conversation_id, _response) = start_conversation_with_npc(
+        let (_conversation_id, _response) = start_conversation_with_npc(
             &ctx,
             pc_id,
             marta_id,
@@ -200,11 +200,12 @@ async fn test_end_conversation_without_summary() {
         );
 
         // Verify conversation is inactive
+        let conversation_id = end_result.conversation_id.expect("Conversation ID should be present");
         let is_active = ctx
             .app
             .repositories
             .narrative_repo
-            .is_conversation_active(end_result.conversation_id.unwrap())
+            .is_conversation_active(conversation_id)
             .await
             .expect("Failed to check if conversation is active");
 

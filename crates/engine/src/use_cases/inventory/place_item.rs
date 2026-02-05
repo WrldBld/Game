@@ -65,7 +65,7 @@ mod tests {
     use wrldbldr_domain::{Item, ItemId, ItemName, RegionId, WorldId};
 
     fn test_item(world_id: WorldId) -> Item {
-        Item::new(world_id, ItemName::new("Test Sword").unwrap())
+        Item::new(world_id, ItemName::new("Test Sword").expect("valid item name"))
     }
 
     #[tokio::test]

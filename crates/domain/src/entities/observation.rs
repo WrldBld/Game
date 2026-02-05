@@ -355,21 +355,29 @@ mod tests {
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     #[test]
     fn test_observation_type_from_str() {
         assert_eq!(
-            "direct".parse::<ObservationType>().unwrap(),
+            "direct"
+                .parse::<ObservationType>()
+                .expect("valid observation type"),
             ObservationType::Direct
         );
         assert_eq!(
-            "heard_about".parse::<ObservationType>().unwrap(),
+            "heard_about"
+                .parse::<ObservationType>()
+                .expect("valid observation type"),
             ObservationType::HeardAbout
         );
         assert_eq!(
-            "deduced".parse::<ObservationType>().unwrap(),
+            "deduced"
+                .parse::<ObservationType>()
+                .expect("valid observation type"),
             ObservationType::Deduced
         );
     }
@@ -446,15 +454,15 @@ mod tests {
     #[test]
     fn test_observation_type_from_key() {
         assert_eq!(
-            ObservationType::from_key("direct").unwrap(),
+            ObservationType::from_key("direct").expect("valid observation type"),
             ObservationType::Direct
         );
         assert_eq!(
-            ObservationType::from_key("heard_about").unwrap(),
+            ObservationType::from_key("heard_about").expect("valid observation type"),
             ObservationType::HeardAbout
         );
         assert_eq!(
-            ObservationType::from_key("deduced").unwrap(),
+            ObservationType::from_key("deduced").expect("valid observation type"),
             ObservationType::Deduced
         );
         assert!(ObservationType::from_key("invalid").is_err());

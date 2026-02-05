@@ -19,10 +19,10 @@ fn create_test_world(
     world_id: WorldId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> wrldbldr_domain::World {
-    let world_name = wrldbldr_domain::WorldName::new("Integration Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Integration Test World").expect("test: world name should be valid");
     wrldbldr_domain::World::new(world_name, now)
         .with_description(
-            wrldbldr_domain::Description::new("A test world for LLM integration").unwrap(),
+            wrldbldr_domain::Description::new("A test world for LLM integration").expect("test: description should be valid"),
         )
         .with_id(world_id)
         .with_rule_system(RuleSystemConfig::dnd_5e())

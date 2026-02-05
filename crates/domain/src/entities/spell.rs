@@ -531,7 +531,10 @@ mod tests {
         );
         spell.school = Some("Evocation".to_string());
         spell.higher_levels = Some("When cast at 4th level or higher...".to_string());
-        spell.tags = vec![Tag::new("damage").unwrap(), Tag::new("fire").unwrap()];
+        spell.tags = vec![
+            Tag::new("damage").expect("valid tag"),
+            Tag::new("fire").expect("valid tag"),
+        ];
 
         let other = spell.clone();
         assert_eq!(spell, other);

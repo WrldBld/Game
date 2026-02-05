@@ -153,7 +153,7 @@ impl ApproveSuggestion {
                     data.npc_id, // Already CharacterId, no conversion needed
                     Some(data.npc_name),
                     Some(data.proposed_dialogue),
-                    data.conversation_id.map(ConversationId::from),
+                    data.conversation_id,
                 )
             })
             .unwrap_or((None, None, None, None));
@@ -338,7 +338,7 @@ impl ApprovalDecisionFlow {
 
                     // Record to StoryEvent for narrative history
                     // Use actual player dialogue text if available, otherwise empty string
-                    let player_dialogue_text = player_dialogue.map(|d| d.clone()).unwrap_or_default();
+                    let player_dialogue_text = player_dialogue.cloned().unwrap_or_default();
                     if let Err(e) = self
                         .narrative
                         .record_dialogue_exchange(
@@ -562,7 +562,7 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use chrono::Utc;
-    use wrldbldr_domain::{ActionId, CharacterId, CharacterName, ConversationId, GameTime, GameTimeConfig, TimeMode, TimeCostConfig};
+    use wrldbldr_domain::{CharacterId, CharacterName, ConversationId, GameTime, GameTimeConfig, TimeMode, TimeCostConfig};
     use crate::infrastructure::ports::{
         ClockPort, MockPlayerCharacterRepo, MockWorldRepo, QueuePort,
     };
@@ -593,7 +593,7 @@ mod tests {
         }
 
         fn insert_approval(&self, id: wrldbldr_domain::QueueItemId, data: crate::queue_types::ApprovalRequestData) {
-            self.approvals.lock().unwrap().insert(id, data);
+            self.approvals.lock().expect("lock should not be poisoned").insert(id, data);
         }
     }
 
@@ -679,7 +679,7 @@ mod tests {
             &self,
             id: wrldbldr_domain::QueueItemId,
         ) -> Result<Option<crate::queue_types::ApprovalRequestData>, crate::infrastructure::ports::QueueError> {
-            Ok(self.approvals.lock().unwrap().get(&id).cloned())
+            Ok(self.approvals.lock().expect("lock should not be poisoned").get(&id).cloned())
         }
 
         async fn get_generation_read_state(
@@ -734,7 +734,7 @@ mod tests {
             ..Default::default()
         });
 
-        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
+        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").expect("valid world name");
         let world = wrldbldr_domain::aggregates::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config)
@@ -748,7 +748,7 @@ mod tests {
         let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
         // Set up player character
-        let pc_name = CharacterName::new("TestPC").unwrap();
+        let pc_name = CharacterName::new("TestPC").expect("valid character name");
         let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
             user_id,
             world_id,
@@ -837,7 +837,7 @@ mod tests {
             build_clock(now),
         ));
 
-        let clock = build_clock(now);
+        let _clock = build_clock(now);
 
         // Create a second mock for the flow
         let mut narrative_repo_mock2 = crate::infrastructure::ports::MockNarrativeRepo::new();
@@ -875,7 +875,7 @@ mod tests {
         assert_eq!(result.final_dialogue, Some("Hello there!".to_string()));
         assert_eq!(result.npc_id, Some(npc_id), "NPC ID should be present as CharacterId");
         assert!(result.time_suggestion.is_some(), "Time suggestion should be emitted");
-        let suggestion = result.time_suggestion.unwrap();
+        let suggestion = result.time_suggestion.expect("time suggestion should be Some");
         assert_eq!(suggestion.suggested_seconds, 300);
     }
 
@@ -898,7 +898,7 @@ mod tests {
             ..Default::default()
         });
 
-        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
+        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").expect("valid world name");
         let world = wrldbldr_domain::aggregates::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config)
@@ -911,7 +911,7 @@ mod tests {
             .returning(move |_| Ok(Some(world.clone())));
         let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
-        let pc_name = CharacterName::new("TestPC").unwrap();
+        let pc_name = CharacterName::new("TestPC").expect("valid character name");
         let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
             user_id,
             world_id,
@@ -1000,7 +1000,7 @@ mod tests {
             build_clock(now),
         ));
 
-        let clock = build_clock(now);
+        let _clock = build_clock(now);
 
         // Reuse the Arc for the flow
         let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
@@ -1043,7 +1043,7 @@ mod tests {
             ..Default::default()
         });
 
-        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
+        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").expect("valid world name");
         let world = wrldbldr_domain::aggregates::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config)
@@ -1056,7 +1056,7 @@ mod tests {
             .returning(move |_| Ok(Some(world.clone())));
         let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
-        let pc_name = CharacterName::new("TestPC").unwrap();
+        let pc_name = CharacterName::new("TestPC").expect("valid character name");
         let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
             user_id,
             world_id,
@@ -1145,7 +1145,7 @@ mod tests {
             build_clock(now),
         ));
 
-        let clock = build_clock(now);
+        let _clock = build_clock(now);
 
         let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
         let flow = ApprovalDecisionFlow::new(
@@ -1180,7 +1180,7 @@ mod tests {
         let conversation_id = ConversationId::new();
 
         let time_config = GameTimeConfig::default();
-        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
+        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").expect("valid world name");
         let world = wrldbldr_domain::aggregates::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config)
@@ -1193,7 +1193,7 @@ mod tests {
             .returning(move |_| Ok(Some(world.clone())));
         let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
-        let pc_name = CharacterName::new("TestPC").unwrap();
+        let pc_name = CharacterName::new("TestPC").expect("valid character name");
         let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
             user_id,
             world_id,
@@ -1262,7 +1262,7 @@ mod tests {
             build_clock(now),
         ));
 
-        let clock = build_clock(now);
+        let _clock = build_clock(now);
 
         let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
         let flow = ApprovalDecisionFlow::new(

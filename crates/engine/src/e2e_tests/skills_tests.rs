@@ -137,7 +137,7 @@ async fn test_skills_in_challenge_context() {
         .region("Common Room")
         .expect("Common Room should exist");
 
-    let (_, pc_id) = create_test_player(
+    let (_player_id, _pc_id) = create_test_player(
         ctx.graph(),
         ctx.world.world_id,
         common_room,

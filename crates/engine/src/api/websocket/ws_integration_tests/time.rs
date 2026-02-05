@@ -5,9 +5,9 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
 
     // World repo mock: always returns the same world and accepts saves.

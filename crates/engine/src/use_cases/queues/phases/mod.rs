@@ -760,9 +760,7 @@ mod tests {
 
     #[test]
     fn test_generate_phase_key_includes_phase_outputs() {
-        use crate::queue_types::{
-            Phase0ContextDigest, Phase1ChallengeTriggers, PhaseChallengeAnalysis, PhaseOutputs,
-        };
+        use crate::queue_types::{Phase0ContextDigest, PhaseOutputs};
         use wrldbldr_domain::WorldId;
 
         let world_id = WorldId::new();
@@ -826,16 +824,18 @@ mod tests {
         );
 
         // Test with Phase 0 context digest populated
-        let mut outputs_with_context = PhaseOutputs::default();
-        outputs_with_context.phase0_context = Some(Phase0ContextDigest {
-            scene_summary: "Different scene".to_string(),
-            player_action_digest: "Different action".to_string(),
-            npc_summary: "Different NPC".to_string(),
-            active_challenge_count: 5,
-            active_event_count: 3,
-            recent_topics: vec!["topic1".to_string()],
-            directorial_excerpt: Some("Different notes".to_string()),
-        });
+        let outputs_with_context = PhaseOutputs {
+            phase0_context: Some(Phase0ContextDigest {
+                scene_summary: "Different scene".to_string(),
+                player_action_digest: "Different action".to_string(),
+                npc_summary: "Different NPC".to_string(),
+                active_challenge_count: 5,
+                active_event_count: 3,
+                recent_topics: vec!["topic1".to_string()],
+                directorial_excerpt: Some("Different notes".to_string()),
+            }),
+            ..Default::default()
+        };
         let key_with_context = generate_phase_key(
             LlmPhase::ChallengeTriggers,
             &base_request,
@@ -909,16 +909,18 @@ mod tests {
         };
 
         // Build base phase outputs with Phase 0
-        let mut base_outputs = PhaseOutputs::default();
-        base_outputs.phase0_context = Some(Phase0ContextDigest {
-            scene_summary: "Scene".to_string(),
-            player_action_digest: "Action".to_string(),
-            npc_summary: "NPC".to_string(),
-            active_challenge_count: 1,
-            active_event_count: 0,
-            recent_topics: vec![],
-            directorial_excerpt: None,
-        });
+        let base_outputs = PhaseOutputs {
+            phase0_context: Some(Phase0ContextDigest {
+                scene_summary: "Scene".to_string(),
+                player_action_digest: "Action".to_string(),
+                npc_summary: "NPC".to_string(),
+                active_challenge_count: 1,
+                active_event_count: 0,
+                recent_topics: vec![],
+                directorial_excerpt: None,
+            }),
+            ..Default::default()
+        };
 
         // Phase 1 with no triggers
         let mut outputs_no_trigger = base_outputs.clone();
@@ -1024,27 +1026,31 @@ mod tests {
         };
 
         // Build identical phase outputs
-        let mut outputs1 = PhaseOutputs::default();
-        outputs1.phase0_context = Some(Phase0ContextDigest {
-            scene_summary: "Scene".to_string(),
-            player_action_digest: "Action".to_string(),
-            npc_summary: "NPC".to_string(),
-            active_challenge_count: 1,
-            active_event_count: 0,
-            recent_topics: vec!["topic1".to_string(), "topic2".to_string()],
-            directorial_excerpt: Some("Notes".to_string()),
-        });
+        let outputs1 = PhaseOutputs {
+            phase0_context: Some(Phase0ContextDigest {
+                scene_summary: "Scene".to_string(),
+                player_action_digest: "Action".to_string(),
+                npc_summary: "NPC".to_string(),
+                active_challenge_count: 1,
+                active_event_count: 0,
+                recent_topics: vec!["topic1".to_string(), "topic2".to_string()],
+                directorial_excerpt: Some("Notes".to_string()),
+            }),
+            ..Default::default()
+        };
 
-        let mut outputs2 = PhaseOutputs::default();
-        outputs2.phase0_context = Some(Phase0ContextDigest {
-            scene_summary: "Scene".to_string(),
-            player_action_digest: "Action".to_string(),
-            npc_summary: "NPC".to_string(),
-            active_challenge_count: 1,
-            active_event_count: 0,
-            recent_topics: vec!["topic1".to_string(), "topic2".to_string()],
-            directorial_excerpt: Some("Notes".to_string()),
-        });
+        let outputs2 = PhaseOutputs {
+            phase0_context: Some(Phase0ContextDigest {
+                scene_summary: "Scene".to_string(),
+                player_action_digest: "Action".to_string(),
+                npc_summary: "NPC".to_string(),
+                active_challenge_count: 1,
+                active_event_count: 0,
+                recent_topics: vec!["topic1".to_string(), "topic2".to_string()],
+                directorial_excerpt: Some("Notes".to_string()),
+            }),
+            ..Default::default()
+        };
 
         let key1 = generate_phase_key(
             LlmPhase::ChallengeTriggers,
@@ -1123,16 +1129,18 @@ mod tests {
             game_time: None,
         };
 
-        let mut outputs = PhaseOutputs::default();
-        outputs.phase0_context = Some(Phase0ContextDigest {
-            scene_summary: "Scene".to_string(),
-            player_action_digest: "Action".to_string(),
-            npc_summary: "NPC".to_string(),
-            active_challenge_count: 1,
-            active_event_count: 0,
-            recent_topics: vec![],
-            directorial_excerpt: None,
-        });
+        let outputs = PhaseOutputs {
+            phase0_context: Some(Phase0ContextDigest {
+                scene_summary: "Scene".to_string(),
+                player_action_digest: "Action".to_string(),
+                npc_summary: "NPC".to_string(),
+                active_challenge_count: 1,
+                active_event_count: 0,
+                recent_topics: vec![],
+                directorial_excerpt: None,
+            }),
+            ..Default::default()
+        };
 
         let key_phase1 = generate_phase_key(
             LlmPhase::ChallengeTriggers,

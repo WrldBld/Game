@@ -299,17 +299,17 @@ pub(crate) struct RecordingApprovalQueue {
 
 impl RecordingApprovalQueue {
     pub(crate) fn insert_approval(&self, id: QueueItemId, data: ApprovalRequestData) {
-        let mut guard = self.state.lock().unwrap();
+        let mut guard = self.state.lock().expect("test: mutex should not be poisoned");
         guard.approvals.insert(id, data);
     }
 
     pub(crate) fn completed_contains(&self, id: QueueItemId) -> bool {
-        let guard = self.state.lock().unwrap();
+        let guard = self.state.lock().expect("test: mutex should not be poisoned");
         guard.completed.contains(&id)
     }
 
     pub(crate) fn failed_contains(&self, id: QueueItemId) -> bool {
-        let guard = self.state.lock().unwrap();
+        let guard = self.state.lock().expect("test: mutex should not be poisoned");
         guard.failed.iter().any(|(got, _)| *got == id)
     }
 }
@@ -358,13 +358,13 @@ impl QueuePort for RecordingApprovalQueue {
     }
 
     async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError> {
-        let mut guard = self.state.lock().unwrap();
+        let mut guard = self.state.lock().expect("test: mutex should not be poisoned");
         guard.completed.push(id);
         Ok(())
     }
 
     async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError> {
-        let mut guard = self.state.lock().unwrap();
+        let mut guard = self.state.lock().expect("test: mutex should not be poisoned");
         guard.failed.push((id, error.to_string()));
         Ok(())
     }
@@ -400,7 +400,7 @@ impl QueuePort for RecordingApprovalQueue {
         &self,
         id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
-        let guard = self.state.lock().unwrap();
+        let guard = self.state.lock().expect("test: mutex should not be poisoned");
         Ok(guard.approvals.get(&id).cloned())
     }
 
@@ -766,28 +766,33 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
-    // Create queue processing context
-    let queue_ctx = crate::use_cases::queues::QueueProcessingContext::new(
+    // Create phase-specific queue processing dependencies
+    let player_action_deps = crate::use_cases::queues::PlayerActionContextDeps::new(
         queue_port.clone(),
-        challenge_repo.clone(),
-        narrative_repo.clone(),
         character_repo.clone(),
         player_character_repo.clone(),
-        staging_repo.clone(),
         scene_repo.clone(),
         world_repo.clone(),
         location_repo.clone(),
+        challenge_repo.clone(),
         narrative.clone(),
+        settings_repo.clone(),
+    );
+
+    let llm_request_deps = crate::use_cases::queues::LlmRequestContextDeps::new(
+        queue_port.clone(),
+        challenge_repo.clone(),
+        narrative_repo.clone(),
         settings_repo.clone(),
     );
 
     let queues = crate::use_cases::QueueUseCases::new(
         Arc::new(crate::use_cases::queues::ProcessPlayerAction::new(
-            queue_ctx.clone(),
+            player_action_deps,
             prompt_templates_repo.clone(),
         )),
         Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
-            queue_ctx,
+            llm_request_deps,
             llm_port.clone(),
             prompt_templates_repo.clone(),
             ai.resolve_model.clone(),
@@ -1103,13 +1108,13 @@ pub(crate) fn build_test_app(repos: TestAppRepos, now: DateTime<Utc>) -> Arc<App
 pub(crate) async fn spawn_ws_server(
     state: Arc<WsState>,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("test: should bind to address");
+    let addr = listener.local_addr().expect("test: should get local address");
 
     let router = axum::Router::new().route("/ws", get(ws_handler).with_state(state));
 
     let handle = tokio::spawn(async move {
-        axum::serve(listener, router).await.unwrap();
+        axum::serve(listener, router).await.expect("test: server should run");
     });
 
     (addr, handle)
@@ -1119,7 +1124,7 @@ pub(crate) async fn ws_connect(
     addr: SocketAddr,
 ) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
     let url = format!("ws://{}/ws", addr);
-    let (ws, _resp) = connect_async(url).await.unwrap();
+    let (ws, _resp) = connect_async(url).await.expect("test: should connect to websocket");
     ws
 }
 
@@ -1129,8 +1134,8 @@ pub(crate) async fn ws_send_client(
     >,
     msg: &wrldbldr_shared::ClientMessage,
 ) {
-    let json = serde_json::to_string(msg).unwrap();
-    ws.send(WsMessage::Text(json.into())).await.unwrap();
+    let json = serde_json::to_string(msg).expect("test: message should serialize");
+    ws.send(WsMessage::Text(json)).await.expect("test: should send message");
 }
 
 pub(crate) async fn ws_recv_server(
@@ -1139,14 +1144,20 @@ pub(crate) async fn ws_recv_server(
     >,
 ) -> wrldbldr_shared::ServerMessage {
     loop {
-        let msg = ws.next().await.unwrap().unwrap();
+        let msg = ws
+            .next()
+            .await
+            .expect("test: should receive message")
+            .expect("test: message should be Ok");
         match msg {
             WsMessage::Text(text) => {
-                return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text).unwrap();
+                return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text)
+                    .expect("test: should parse message");
             }
             WsMessage::Binary(bin) => {
-                let text = String::from_utf8(bin).unwrap();
-                return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text).unwrap();
+                let text = String::from_utf8(bin).expect("test: should convert binary to string");
+                return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text)
+                    .expect("test: should parse message");
             }
             _ => {}
         }
@@ -1172,7 +1183,7 @@ where
         }
     })
     .await
-    .unwrap()
+    .expect("test: should receive message within timeout")
 }
 
 pub(crate) async fn ws_expect_response_and_entity_changed(
@@ -1200,13 +1211,13 @@ pub(crate) async fn ws_expect_response_and_entity_changed(
                 _ => {}
             }
 
-            if response.is_some() && entity_changed.is_some() {
-                return (response.unwrap(), entity_changed.unwrap());
+            if let (Some(resp), Some(entity)) = (response.take(), entity_changed.take()) {
+                return (resp, entity);
             }
         }
     })
     .await
-    .unwrap()
+    .expect("test: should receive messages within timeout")
 }
 
 pub(crate) async fn ws_expect_no_message_matching<F>(

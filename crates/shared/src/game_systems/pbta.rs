@@ -2114,7 +2114,7 @@ mod tests {
         let system = PbtaSystem::apocalypse_world();
         let schema = system.character_sheet_schema();
 
-        let stats_section = schema.sections.iter().find(|s| s.id == "stats").unwrap();
+        let stats_section = schema.sections.iter().find(|s| s.id == "stats").expect("valid value");
         let stat_ids: Vec<&str> = stats_section.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(stat_ids.contains(&"Cool"));
@@ -2129,7 +2129,7 @@ mod tests {
         let system = PbtaSystem::dungeon_world();
         let schema = system.character_sheet_schema();
 
-        let stats_section = schema.sections.iter().find(|s| s.id == "stats").unwrap();
+        let stats_section = schema.sections.iter().find(|s| s.id == "stats").expect("valid value");
         let stat_ids: Vec<&str> = stats_section.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(stat_ids.contains(&"STR"));
@@ -2147,7 +2147,7 @@ mod tests {
         let system = PbtaSystem::monster_of_the_week();
         let schema = system.character_sheet_schema();
 
-        let harm_section = schema.sections.iter().find(|s| s.id == "harm").unwrap();
+        let harm_section = schema.sections.iter().find(|s| s.id == "harm").expect("valid value");
         let field_ids: Vec<&str> = harm_section.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"HARM"));
@@ -2160,7 +2160,7 @@ mod tests {
         let system = PbtaSystem::dungeon_world();
         let schema = system.character_sheet_schema();
 
-        let harm_section = schema.sections.iter().find(|s| s.id == "harm").unwrap();
+        let harm_section = schema.sections.iter().find(|s| s.id == "harm").expect("valid value");
         let field_ids: Vec<&str> = harm_section.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"CURRENT_HP"));
@@ -2306,7 +2306,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "resources")
-            .unwrap();
+            .expect("valid value");
         let field_ids: Vec<&str> = resources.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"XP"));
@@ -2324,7 +2324,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "resources")
-            .unwrap();
+            .expect("valid value");
         let field_ids: Vec<&str> = resources.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"BARTER"));
@@ -2339,7 +2339,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "resources")
-            .unwrap();
+            .expect("valid value");
         let field_ids: Vec<&str> = resources.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"COIN"));
@@ -2350,12 +2350,12 @@ mod tests {
     fn bonds_section_varies_by_variant() {
         let aw = PbtaSystem::apocalypse_world();
         let aw_schema = aw.character_sheet_schema();
-        let aw_bonds = aw_schema.sections.iter().find(|s| s.id == "bonds").unwrap();
+        let aw_bonds = aw_schema.sections.iter().find(|s| s.id == "bonds").expect("valid value");
         assert_eq!(aw_bonds.label, "Hx");
 
         let dw = PbtaSystem::dungeon_world();
         let dw_schema = dw.character_sheet_schema();
-        let dw_bonds = dw_schema.sections.iter().find(|s| s.id == "bonds").unwrap();
+        let dw_bonds = dw_schema.sections.iter().find(|s| s.id == "bonds").expect("valid value");
         assert_eq!(dw_bonds.label, "Bonds");
 
         let motw = PbtaSystem::monster_of_the_week();
@@ -2364,7 +2364,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "bonds")
-            .unwrap();
+            .expect("valid value");
         assert_eq!(motw_bonds.label, "History");
     }
 }

@@ -150,7 +150,7 @@ impl SettingsOps {
 
         if let Ok(val) = std::env::var("WRLDBLDR_LIST_DEFAULT_PAGE_SIZE") {
             if let Ok(size) = val.parse::<u32>() {
-                if size >= 10 && size <= 200 {
+                if (10..=200).contains(&size) {
                     updated = updated.with_list_default_page_size_override(Some(size));
                     tracing::info!(size, "Applied WRLDBLDR_LIST_DEFAULT_PAGE_SIZE environment variable");
                 } else {
@@ -169,7 +169,7 @@ impl SettingsOps {
 
         if let Ok(val) = std::env::var("WRLDBLDR_LIST_MAX_PAGE_SIZE") {
             if let Ok(size) = val.parse::<u32>() {
-                if size >= 50 && size <= 1000 {
+                if (50..=1000).contains(&size) {
                     updated = updated.with_list_max_page_size_override(Some(size));
                     tracing::info!(size, "Applied WRLDBLDR_LIST_MAX_PAGE_SIZE environment variable");
                 } else {

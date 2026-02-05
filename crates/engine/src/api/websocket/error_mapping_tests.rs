@@ -3,7 +3,7 @@
 //! Verifies that use case errors are correctly mapped to protocol ErrorCodes,
 //! and that the error_response helper produces correct ServerMessage values.
 //!
-//! Note: Enum variants serialize as PascalCase (Rust default per ADR-010).
+//! Note: ErrorCode enum uses snake_case serialization via serde(rename_all = "snake_case").
 
 use wrldbldr_shared::{ErrorCode, ServerMessage};
 
@@ -14,68 +14,70 @@ mod error_code_serialization {
     use super::*;
 
     #[test]
-    fn error_code_serializes_to_pascal_case() {
-        // Client errors - PascalCase per ADR-010 (Rust default)
+    fn error_code_serializes_to_snake_case() {
+        // Client errors - snake_case per ErrorCode serde attribute
         assert_eq!(
-            serde_json::to_string(&ErrorCode::BadRequest).unwrap(),
-            "\"BadRequest\""
+            serde_json::to_string(&ErrorCode::BadRequest).expect("test: should serialize"),
+            "\"bad_request\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::Unauthorized).unwrap(),
-            "\"Unauthorized\""
+            serde_json::to_string(&ErrorCode::Unauthorized).expect("test: should serialize"),
+            "\"unauthorized\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::Forbidden).unwrap(),
-            "\"Forbidden\""
+            serde_json::to_string(&ErrorCode::Forbidden).expect("test: should serialize"),
+            "\"forbidden\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::NotFound).unwrap(),
-            "\"NotFound\""
+            serde_json::to_string(&ErrorCode::NotFound).expect("test: should serialize"),
+            "\"not_found\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::Conflict).unwrap(),
-            "\"Conflict\""
+            serde_json::to_string(&ErrorCode::Conflict).expect("test: should serialize"),
+            "\"conflict\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::ValidationError).unwrap(),
-            "\"ValidationError\""
+            serde_json::to_string(&ErrorCode::ValidationError).expect("test: should serialize"),
+            "\"validation_error\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::RateLimitExceeded).unwrap(),
-            "\"RateLimitExceeded\""
+            serde_json::to_string(&ErrorCode::RateLimitExceeded).expect("test: should serialize"),
+            "\"rate_limit_exceeded\""
         );
 
         // Server errors
         assert_eq!(
-            serde_json::to_string(&ErrorCode::InternalError).unwrap(),
-            "\"InternalError\""
+            serde_json::to_string(&ErrorCode::InternalError).expect("test: should serialize"),
+            "\"internal_error\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::ServiceUnavailable).unwrap(),
-            "\"ServiceUnavailable\""
+            serde_json::to_string(&ErrorCode::ServiceUnavailable).expect("test: should serialize"),
+            "\"service_unavailable\""
         );
         assert_eq!(
-            serde_json::to_string(&ErrorCode::Timeout).unwrap(),
-            "\"Timeout\""
+            serde_json::to_string(&ErrorCode::Timeout).expect("test: should serialize"),
+            "\"timeout\""
         );
     }
 
     #[test]
-    fn error_code_deserializes_from_pascal_case() {
+    fn error_code_deserializes_from_snake_case() {
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"BadRequest\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"bad_request\"").expect("test: should deserialize"),
             ErrorCode::BadRequest
         );
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"NotFound\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"not_found\"").expect("test: should deserialize"),
             ErrorCode::NotFound
         );
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"ValidationError\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"validation_error\"")
+                .expect("test: should deserialize"),
             ErrorCode::ValidationError
         );
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"InternalError\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"internal_error\"")
+                .expect("test: should deserialize"),
             ErrorCode::InternalError
         );
     }
@@ -84,7 +86,8 @@ mod error_code_serialization {
     fn unknown_error_code_deserializes_to_unknown() {
         // Forward compatibility: unknown codes deserialize to Unknown
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"SomeFutureError\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"SomeFutureError\"")
+                .expect("test: should deserialize"),
             ErrorCode::Unknown
         );
     }
@@ -100,7 +103,7 @@ mod error_response_helper {
 
         match msg {
             ServerMessage::Error { code, message } => {
-                assert_eq!(code, "NotFound");
+                assert_eq!(code, "not_found");
                 assert_eq!(message, "Character not found");
             }
             _ => panic!("Expected ServerMessage::Error, got {:?}", msg),
@@ -109,18 +112,18 @@ mod error_response_helper {
 
     #[test]
     fn error_response_handles_all_error_codes() {
-        // PascalCase per ADR-010 (Rust default for enum variants)
+        // snake_case per ErrorCode serde attribute
         let test_cases = vec![
-            (ErrorCode::BadRequest, "BadRequest"),
-            (ErrorCode::Unauthorized, "Unauthorized"),
-            (ErrorCode::Forbidden, "Forbidden"),
-            (ErrorCode::NotFound, "NotFound"),
-            (ErrorCode::Conflict, "Conflict"),
-            (ErrorCode::ValidationError, "ValidationError"),
-            (ErrorCode::RateLimitExceeded, "RateLimitExceeded"),
-            (ErrorCode::InternalError, "InternalError"),
-            (ErrorCode::ServiceUnavailable, "ServiceUnavailable"),
-            (ErrorCode::Timeout, "Timeout"),
+            (ErrorCode::BadRequest, "bad_request"),
+            (ErrorCode::Unauthorized, "unauthorized"),
+            (ErrorCode::Forbidden, "forbidden"),
+            (ErrorCode::NotFound, "not_found"),
+            (ErrorCode::Conflict, "conflict"),
+            (ErrorCode::ValidationError, "validation_error"),
+            (ErrorCode::RateLimitExceeded, "rate_limit_exceeded"),
+            (ErrorCode::InternalError, "internal_error"),
+            (ErrorCode::ServiceUnavailable, "service_unavailable"),
+            (ErrorCode::Timeout, "timeout"),
         ];
 
         for (error_code, expected_str) in test_cases {
@@ -186,10 +189,10 @@ mod response_result_error_mapping {
     fn response_result_error_serializes_code_correctly() {
         let result = ResponseResult::error(ErrorCode::ValidationError, "Invalid input");
 
-        let json = serde_json::to_string(&result).unwrap();
+        let json = serde_json::to_string(&result).expect("test: should serialize");
 
-        // Verify the code is serialized as PascalCase (Rust default per ADR-010)
-        assert!(json.contains("\"code\":\"ValidationError\""));
+        // Verify the code is serialized as snake_case per ErrorCode serde attribute
+        assert!(json.contains("\"code\":\"validation_error\""));
         assert!(json.contains("\"message\":\"Invalid input\""));
     }
 
@@ -197,8 +200,9 @@ mod response_result_error_mapping {
     fn response_result_error_round_trips() {
         let original = ResponseResult::error(ErrorCode::Unauthorized, "Access denied");
 
-        let json = serde_json::to_string(&original).unwrap();
-        let deserialized: ResponseResult = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&original).expect("test: should serialize");
+        let deserialized: ResponseResult =
+            serde_json::from_str(&json).expect("test: should deserialize");
 
         match deserialized {
             ResponseResult::Error { code, message, .. } => {
@@ -237,9 +241,12 @@ mod error_mapping_consistency {
 
             // Get the code from ResponseResult serialization
             let response_result = ResponseResult::error(code, "test");
-            let json = serde_json::to_string(&response_result).unwrap();
-            let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-            let response_result_code = parsed["code"].as_str().unwrap();
+            let json = serde_json::to_string(&response_result).expect("test: should serialize");
+            let parsed: serde_json::Value =
+                serde_json::from_str(&json).expect("test: should deserialize");
+            let response_result_code = parsed["code"]
+                .as_str()
+                .expect("test: code should be a string");
 
             assert_eq!(
                 error_response_code, response_result_code,
@@ -290,22 +297,20 @@ mod catalog_error_sanitizer_tests {
 
     #[test]
     fn validation_errors_return_invalid_request_message() {
+        use wrldbldr_domain::DomainError;
+
         let test_cases = vec![
             (
                 CatalogError::Validation("invalid input".to_string()),
                 "validation",
             ),
-            (
-                CatalogError::InvalidActivationRules("bad json".to_string()),
-                "invalid activation rules",
-            ),
-            (
-                CatalogError::InvalidActivationLogic("bad logic".to_string()),
-                "invalid activation logic",
-            ),
             (CatalogError::NameEmpty, "name empty"),
             (CatalogError::NameTooLong, "name too long"),
             (CatalogError::DescriptionTooLong, "description too long"),
+            (
+                CatalogError::Domain(DomainError::validation("corrupt stored data")),
+                "domain error",
+            ),
         ];
 
         for (error, _desc) in test_cases {

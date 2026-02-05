@@ -358,13 +358,16 @@ mod tests {
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     #[test]
     fn test_region_state_creation() {
         let now = fixed_time();
-        let atm = Atmosphere::new("Warm candlelight flickers across polished brass...").unwrap();
+        let atm = Atmosphere::new("Warm candlelight flickers across polished brass...")
+            .expect("valid atmosphere");
         let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
@@ -372,9 +375,9 @@ mod tests {
             "Evening",
             now,
         )
-        .unwrap()
-        .with_description(Description::new("Warm evening atmosphere").unwrap())
-        .with_backdrop(AssetPath::new("/assets/tavern_evening.png").unwrap())
+        .expect("valid region state")
+        .with_description(Description::new("Warm evening atmosphere").expect("valid description"))
+        .with_backdrop(AssetPath::new("/assets/tavern_evening.png").expect("valid asset path"))
         .with_atmosphere(atm)
         .with_rule(ActivationRule::TimeOfDay {
             period: TimeOfDay::Evening,
@@ -398,7 +401,7 @@ mod tests {
             "Default",
             now,
         )
-        .unwrap();
+        .expect("valid default state");
 
         assert!(state.is_default());
         assert_eq!(state.activation_rules().len(), 1);
@@ -418,7 +421,7 @@ mod tests {
             "Test",
             now,
         )
-        .unwrap();
+        .expect("valid region state");
 
         // No rules - no soft rules
         assert!(!state.has_soft_rules());
@@ -449,8 +452,8 @@ mod tests {
             "Morning",
             now,
         )
-        .unwrap()
-        .with_backdrop(AssetPath::new("/assets/tavern_morning.png").unwrap())
+        .expect("valid value")
+        .with_backdrop(AssetPath::new("/assets/tavern_morning.png").expect("valid value"))
         .with_priority(10);
 
         let summary = state.summary();
@@ -472,7 +475,7 @@ mod tests {
             "Evening",
             now,
         )
-        .unwrap()
+        .expect("valid value")
         .with_generation_prompt("Warm tavern with flickering candles".to_string())
         .with_workflow_id("backdrop_v2".to_string());
 
@@ -502,7 +505,7 @@ mod tests {
             "Deterministic State",
             now,
         )
-        .unwrap();
+        .expect("valid value");
 
         assert_eq!(state.id(), specific_id);
         assert_eq!(state.name(), "Deterministic State");
@@ -513,7 +516,7 @@ mod tests {
         let now = fixed_time();
         let result = RegionState::new(RegionId::new(), LocationId::new(), WorldId::new(), "", now);
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("empty name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
     }
 
@@ -528,7 +531,7 @@ mod tests {
             now,
         );
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("whitespace-only name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
     }
 
@@ -544,7 +547,7 @@ mod tests {
             now,
         );
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("too long name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
         assert!(err.to_string().contains("100"));
     }
@@ -563,7 +566,7 @@ mod tests {
             now,
         );
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("too long name should fail");
         assert!(matches!(err, DomainError::Validation(_)));
         assert!(err.to_string().contains("100"));
     }

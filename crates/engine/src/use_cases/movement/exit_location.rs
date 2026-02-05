@@ -549,7 +549,7 @@ mod tests {
         let err = use_case
             .execute(pc_id, location_id, None)
             .await
-            .unwrap_err();
+            .expect_err("should fail");
         assert!(matches!(
             err,
             super::ExitLocationError::PlayerCharacterNotFound(_)
@@ -565,9 +565,9 @@ mod tests {
         let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             pc_location_id,
             now,
         )
@@ -596,7 +596,7 @@ mod tests {
         let err = use_case
             .execute(pc_id, target_location_id, None)
             .await
-            .unwrap_err();
+            .expect_err("should fail");
         assert!(matches!(err, super::ExitLocationError::LocationNotFound(_)));
     }
 
@@ -611,25 +611,25 @@ mod tests {
         let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             pc_location_id,
             now,
         )
         .with_id(pc_id);
 
-        let location_name = LocationName::new("Target").unwrap();
+        let location_name = LocationName::new("Target").expect("valid location name");
         let location =
             wrldbldr_domain::Location::new(world_id, location_name, LocationType::Interior)
-                .with_description(Description::new("Desc").unwrap())
+                .with_description(Description::new("Desc").expect("valid description"))
                 .with_id(target_location_id);
 
         let arrival_region_id = RegionId::new();
         let arrival_region = Region::from_storage(
             arrival_region_id,
             other_location_id,
-            RegionName::new("Arrival").unwrap(),
+            RegionName::new("Arrival").expect("valid region name"),
             Description::default(),
             None,
             None,
@@ -668,7 +668,7 @@ mod tests {
         let err = use_case
             .execute(pc_id, target_location_id, Some(arrival_region_id))
             .await
-            .unwrap_err();
+            .expect_err("should fail");
         assert!(matches!(
             err,
             super::ExitLocationError::RegionLocationMismatch
@@ -684,19 +684,19 @@ mod tests {
         let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             pc_location_id,
             now,
         )
         .with_id(pc_id);
 
-        let location_name = LocationName::new("Target").unwrap();
+        let location_name = LocationName::new("Target").expect("valid location name");
         // Location has default_region_id = None by default, no need to set it explicitly
         let location =
             wrldbldr_domain::Location::new(world_id, location_name, LocationType::Interior)
-                .with_description(Description::new("Desc").unwrap())
+                .with_description(Description::new("Desc").expect("valid description"))
                 .with_id(target_location_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
@@ -735,7 +735,7 @@ mod tests {
         let err = use_case
             .execute(pc_id, target_location_id, None)
             .await
-            .unwrap_err();
+            .expect_err("should fail");
         assert!(matches!(err, super::ExitLocationError::NoArrivalRegion));
     }
 
@@ -747,10 +747,10 @@ mod tests {
         let now = fixed_time();
 
         let target_location_id = LocationId::new();
-        let location_name = LocationName::new("Target").unwrap();
+        let location_name = LocationName::new("Target").expect("valid location name");
         let target_location =
             wrldbldr_domain::Location::new(world_id, location_name, LocationType::Interior)
-                .with_description(Description::new("Desc").unwrap())
+                .with_description(Description::new("Desc").expect("valid description"))
                 .with_id(target_location_id);
 
         let arrival_region_id = RegionId::new();
@@ -758,7 +758,7 @@ mod tests {
         let arrival_region = Region::from_storage(
             arrival_region_id,
             target_location_id,
-            RegionName::new("Arrival").unwrap(),
+            RegionName::new("Arrival").expect("valid region name"),
             Description::default(),
             None,
             None,
@@ -768,9 +768,9 @@ mod tests {
         );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             pc_location_id,
             now,
         )
@@ -827,7 +827,7 @@ mod tests {
         let err = use_case
             .execute(pc_id, target_location_id, Some(arrival_region_id))
             .await
-            .unwrap_err();
+            .expect_err("should fail");
         assert!(matches!(err, super::ExitLocationError::WorldNotFound(_)));
     }
 }

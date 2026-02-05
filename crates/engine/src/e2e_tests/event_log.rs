@@ -306,19 +306,19 @@ impl E2EEventLog {
 
     /// Set the world ID for this test.
     pub fn set_world_id(&self, world_id: WorldId) {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().expect("Lock should not be poisoned");
         data.world_id = Some(world_id.to_string());
     }
 
     /// Set the cassette path for this test.
     pub fn set_cassette_path(&self, path: &str) {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().expect("Lock should not be poisoned");
         data.cassette_path = Some(path.to_string());
     }
 
     /// Log an event.
     pub fn log(&self, event: E2EEvent) {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().expect("Lock should not be poisoned");
         data.events.push(TimestampedEvent {
             timestamp: Utc::now(),
             event,
@@ -327,7 +327,7 @@ impl E2EEventLog {
 
     /// Finalize the log with outcome and generate summary.
     pub fn finalize(&self, outcome: TestOutcome) {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock().expect("Lock should not be poisoned");
         data.ended_at = Some(Utc::now());
         data.outcome = Some(outcome);
         data.summary = Some(Self::generate_summary(&data.events));
@@ -412,7 +412,7 @@ impl E2EEventLog {
 
     /// Save the event log to a file.
     pub fn save(&self, path: &Path) -> Result<(), std::io::Error> {
-        let data = self.data.lock().unwrap();
+        let data = self.data.lock().expect("Lock should not be poisoned");
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
@@ -434,7 +434,7 @@ impl E2EEventLog {
 
     /// Get a copy of the summary (generates if not finalized).
     pub fn summary(&self) -> E2ESummary {
-        let data = self.data.lock().unwrap();
+        let data = self.data.lock().expect("Lock should not be poisoned");
         data.summary
             .clone()
             .unwrap_or_else(|| Self::generate_summary(&data.events))
@@ -447,7 +447,11 @@ impl E2EEventLog {
 
     /// Get the event count.
     pub fn event_count(&self) -> usize {
-        self.data.lock().unwrap().events.len()
+        self.data
+            .lock()
+            .expect("Lock should not be poisoned")
+            .events
+            .len()
     }
 }
 
@@ -544,7 +548,7 @@ mod tests {
             tools: Some(vec!["trigger_challenge".to_string()]),
         };
 
-        let json = serde_json::to_string(&event).unwrap();
+        let json = serde_json::to_string(&event).expect("Serialization should succeed");
         assert!(json.contains("LlmPromptSent"));
         assert!(json.contains("You are an NPC"));
     }

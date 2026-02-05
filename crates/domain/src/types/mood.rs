@@ -243,9 +243,22 @@ mod tests {
 
     #[test]
     fn test_mood_parse() {
-        assert_eq!("happy".parse::<MoodState>().unwrap(), MoodState::Happy);
-        assert_eq!("ANXIOUS".parse::<MoodState>().unwrap(), MoodState::Anxious);
-        assert_eq!("unknown".parse::<MoodState>().unwrap(), MoodState::Unknown);
+        assert_eq!(
+            "happy".parse::<MoodState>().expect("happy should parse"),
+            MoodState::Happy
+        );
+        assert_eq!(
+            "ANXIOUS"
+                .parse::<MoodState>()
+                .expect("ANXIOUS should parse"),
+            MoodState::Anxious
+        );
+        assert_eq!(
+            "unknown"
+                .parse::<MoodState>()
+                .expect("unknown should parse"),
+            MoodState::Unknown
+        );
         assert!("unknown_value".parse::<MoodState>().is_err());
     }
 

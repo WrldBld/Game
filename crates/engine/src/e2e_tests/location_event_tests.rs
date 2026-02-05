@@ -44,11 +44,11 @@ async fn test_player_enters_location_trigger() {
     // Create event with PlayerEntersLocation trigger using domain model
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Tavern Entry Event").unwrap(),
+        NarrativeEventName::new("Tavern Entry Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Triggered when entering the tavern")
-    .with_scene_direction(Description::new("The smell of ale greets you").unwrap())
+    .with_scene_direction(Description::new("The smell of ale greets you").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true);
 
@@ -304,11 +304,11 @@ async fn test_repeatable_location_event() {
     // Create a repeatable location event using domain model
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Recurring Greeting").unwrap(),
+        NarrativeEventName::new("Recurring Greeting").expect("Event name should be valid"),
         now,
     )
     .with_description("Happens every visit")
-    .with_scene_direction(Description::new("Welcome back").unwrap())
+    .with_scene_direction(Description::new("Welcome back").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_repeatable(true);

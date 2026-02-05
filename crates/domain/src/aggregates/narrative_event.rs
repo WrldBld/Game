@@ -681,7 +681,7 @@ impl NarrativeEvent {
         active: EventActivation,
         now: DateTime<Utc>,
     ) -> NarrativeEventUpdate {
-        let previous = self.activation.clone();
+        let previous = self.activation;
         self.activation = active;
         self.updated_at = now;
         NarrativeEventUpdate::ActivationChanged {
@@ -707,7 +707,7 @@ impl NarrativeEvent {
         favorite: FavoriteStatus,
         now: DateTime<Utc>,
     ) -> NarrativeEventUpdate {
-        let previous = self.favorite.clone();
+        let previous = self.favorite;
         self.favorite = favorite;
         self.updated_at = now;
         NarrativeEventUpdate::FavoriteChanged {
@@ -1022,7 +1022,9 @@ mod tests {
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     fn create_test_event() -> NarrativeEvent {
@@ -1030,7 +1032,7 @@ mod tests {
         let now = fixed_time();
         NarrativeEvent::new(
             world_id,
-            NarrativeEventName::new("Test Event").unwrap(),
+            NarrativeEventName::new("Test Event").expect("valid name"),
             now,
         )
     }
@@ -1044,7 +1046,7 @@ mod tests {
             let now = fixed_time();
             let event = NarrativeEvent::new(
                 world_id,
-                NarrativeEventName::new("The Revelation").unwrap(),
+                NarrativeEventName::new("The Revelation").expect("valid name"),
                 now,
             );
 
@@ -1077,13 +1079,15 @@ mod tests {
 
             let event = NarrativeEvent::new(
                 world_id,
-                NarrativeEventName::new("Epic Event").unwrap(),
+                NarrativeEventName::new("Epic Event").expect("valid name"),
                 now,
             )
             .with_description("A dramatic event")
-            .with_tag(Tag::new("drama").unwrap())
-            .with_tag(Tag::new("important").unwrap())
-            .with_scene_direction(Description::new("Build tension slowly").unwrap())
+            .with_tag(Tag::new("drama").expect("valid tag"))
+            .with_tag(Tag::new("important").expect("valid tag"))
+            .with_scene_direction(
+                Description::new("Build tension slowly").expect("valid description"),
+            )
             .with_suggested_opening("The air grows thick...")
             .with_repeatable(true)
             .with_priority(10)
@@ -1093,7 +1097,10 @@ mod tests {
             assert_eq!(event.description(), "A dramatic event");
             assert_eq!(
                 event.tags(),
-                &[Tag::new("drama").unwrap(), Tag::new("important").unwrap()]
+                &[
+                    Tag::new("drama").expect("valid tag"),
+                    Tag::new("important").expect("valid tag")
+                ]
             );
             assert_eq!(event.scene_direction(), "Build tension slowly");
             assert_eq!(event.suggested_opening(), Some("The air grows thick..."));
@@ -1169,7 +1176,10 @@ mod tests {
         #[test]
         fn set_name_works() {
             let mut event = create_test_event();
-            event.set_name(NarrativeEventName::new("New Name").unwrap(), fixed_time());
+            event.set_name(
+                NarrativeEventName::new("New Name").expect("valid name"),
+                fixed_time(),
+            );
             assert_eq!(event.name().as_str(), "New Name");
         }
 
@@ -1238,9 +1248,12 @@ mod tests {
             );
             trigger.is_required = true;
 
-            let event =
-                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now)
-                    .with_trigger_condition(trigger);
+            let event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Test").expect("valid name"),
+                now,
+            )
+            .with_trigger_condition(trigger);
 
             // Without flag set
             let context = TriggerContext::new();
@@ -1265,8 +1278,11 @@ mod tests {
             let world_id = WorldId::new();
             let now = fixed_time();
 
-            let mut event =
-                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+            let mut event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Test").expect("valid name"),
+                now,
+            );
 
             // Default is Active
             assert_eq!(event.activation(), EventActivation::Active);
@@ -1288,8 +1304,11 @@ mod tests {
             let world_id = WorldId::new();
             let now = fixed_time();
 
-            let mut event =
-                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+            let mut event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Test").expect("valid name"),
+                now,
+            );
 
             // Default is OneShot
             assert_eq!(event.repeatability(), EventRepeatability::OneShot);
@@ -1306,8 +1325,11 @@ mod tests {
             let world_id = WorldId::new();
             let now = fixed_time();
 
-            let mut event =
-                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+            let mut event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Test").expect("valid name"),
+                now,
+            );
 
             // Default is Normal
             assert_eq!(event.favorite(), FavoriteStatus::Normal);
@@ -1324,8 +1346,11 @@ mod tests {
             let world_id = WorldId::new();
             let now = fixed_time();
 
-            let mut event =
-                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now);
+            let mut event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Test").expect("valid name"),
+                now,
+            );
 
             // Default is Never
             assert!(matches!(event.trigger_status(), TriggerStatus::Never));

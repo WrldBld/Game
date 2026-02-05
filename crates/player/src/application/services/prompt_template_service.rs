@@ -47,6 +47,12 @@ pub struct PromptTemplateService {
     _http: (),
 }
 
+impl Default for PromptTemplateService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PromptTemplateService {
     pub fn new() -> Self {
         Self { _http: () }

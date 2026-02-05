@@ -43,11 +43,11 @@ async fn test_trigger_narrative_event() {
     // Create a simple event using the domain model
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Test Trigger Event").unwrap(),
+        NarrativeEventName::new("Test Trigger Event").expect("Event name should be valid"),
         Utc::now(),
     )
     .with_description("An event to be triggered")
-    .with_scene_direction(Description::new("Something dramatic happens").unwrap())
+    .with_scene_direction(Description::new("Something dramatic happens").expect("Description should be valid"))
     .with_priority(1)
     .with_active(true)
     .with_repeatable(false);
@@ -88,11 +88,11 @@ async fn test_repeatable_events() {
     // Create a repeatable event using the domain model
     let repeatable_event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Repeatable Event").unwrap(),
+        NarrativeEventName::new("Repeatable Event").expect("Event name should be valid"),
         Utc::now(),
     )
     .with_description("Can happen multiple times")
-    .with_scene_direction(Description::new("This can repeat").unwrap())
+    .with_scene_direction(Description::new("This can repeat").expect("Description should be valid"))
     .with_priority(1)
     .with_active(true)
     .with_repeatable(true);
@@ -107,11 +107,11 @@ async fn test_repeatable_events() {
     // Create a non-repeatable event using the domain model
     let non_repeatable_event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("One-Time Event").unwrap(),
+        NarrativeEventName::new("One-Time Event").expect("Event name should be valid"),
         Utc::now(),
     )
     .with_description("Can only happen once")
-    .with_scene_direction(Description::new("This is unique").unwrap())
+    .with_scene_direction(Description::new("This is unique").expect("Description should be valid"))
     .with_priority(1)
     .with_active(true)
     .with_repeatable(false);
@@ -158,11 +158,11 @@ async fn test_event_priority() {
     ] {
         let event = NarrativeEvent::new(
             ctx.world.world_id,
-            NarrativeEventName::new(name).unwrap(),
+            NarrativeEventName::new(name).expect("Event name should be valid"),
             Utc::now(),
         )
         .with_description("Priority test event")
-        .with_scene_direction(Description::new("Test").unwrap())
+        .with_scene_direction(Description::new("Test").expect("Description should be valid"))
         .with_priority(priority)
         .with_active(true)
         .with_repeatable(false);
@@ -235,11 +235,11 @@ async fn test_favorite_events() {
     // Create a favorite event using the domain model
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Favorite Event").unwrap(),
+        NarrativeEventName::new("Favorite Event").expect("Event name should be valid"),
         Utc::now(),
     )
     .with_description("A favorited event")
-    .with_scene_direction(Description::new("This is special").unwrap())
+    .with_scene_direction(Description::new("This is special").expect("Description should be valid"))
     .with_priority(5)
     .with_active(true)
     .with_repeatable(false)

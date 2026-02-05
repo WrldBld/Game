@@ -385,8 +385,8 @@ mod tests {
             },
         ];
         feat.category = Some("combat".to_string());
-        feat.tags.push(Tag::new("combat").unwrap());
-        feat.tags.push(Tag::new("melee").unwrap());
+        feat.tags.push(Tag::new("combat").expect("valid tag"));
+        feat.tags.push(Tag::new("melee").expect("valid tag"));
 
         let other = feat.clone();
         assert_eq!(feat, other);

@@ -26,7 +26,7 @@ mod chain_ops_world_ownership {
 
     fn create_test_chain(world_id: WorldId) -> EventChain {
         let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
-        EventChain::new(world_id, EventChainName::new("Test Chain").unwrap(), now)
+        EventChain::new(world_id, EventChainName::new("Test Chain").expect("valid chain name"), now)
             .expect("create chain")
     }
 
@@ -34,7 +34,7 @@ mod chain_ops_world_ownership {
         let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
         NarrativeEvent::new(
             world_id,
-            NarrativeEventName::new("Test Event").unwrap(),
+            NarrativeEventName::new("Test Event").expect("valid event name"),
             now,
         )
     }
@@ -162,7 +162,7 @@ mod chain_ops_world_ownership {
         let chain = create_test_chain(world1);
         let chain_id = chain.id();
         let event_world1 = create_test_event(world1);
-        let event_id = event_world1.id();
+        let _event_id = event_world1.id();
 
         // DON'T add event to chain - chain is empty
 

@@ -1721,7 +1721,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "characteristics")
-            .unwrap();
+            .expect("valid value");
 
         assert_eq!(char_section.fields.len(), 8);
 
@@ -1754,29 +1754,29 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // HP = (CON + SIZ) / 10 = (65 + 55) / 10 = 12
-        assert_eq!(derived.get("MAX_HP").unwrap().as_i64().unwrap(), 12);
+        assert_eq!(derived.get("MAX_HP").expect("valid value").as_i64().expect("valid value"), 12);
 
         // Sanity = POW = 55
-        assert_eq!(derived.get("MAX_SANITY").unwrap().as_i64().unwrap(), 55);
+        assert_eq!(derived.get("MAX_SANITY").expect("valid value").as_i64().expect("valid value"), 55);
 
         // MP = POW / 5 = 55 / 5 = 11
-        assert_eq!(derived.get("MAX_MP").unwrap().as_i64().unwrap(), 11);
+        assert_eq!(derived.get("MAX_MP").expect("valid value").as_i64().expect("valid value"), 11);
 
         // Move = 8 (STR > SIZ but DEX < SIZ, so mixed)
-        assert_eq!(derived.get("MOVE").unwrap().as_i64().unwrap(), 8);
+        assert_eq!(derived.get("MOVE").expect("valid value").as_i64().expect("valid value"), 8);
 
         // Build = 0 (STR + SIZ = 115, in 85-124 range)
-        assert_eq!(derived.get("BUILD").unwrap().as_i64().unwrap(), 0);
+        assert_eq!(derived.get("BUILD").expect("valid value").as_i64().expect("valid value"), 0);
 
         // Damage Bonus = "None" (STR + SIZ = 115)
         assert_eq!(
-            derived.get("DAMAGE_BONUS").unwrap().as_str().unwrap(),
+            derived.get("DAMAGE_BONUS").expect("valid value").as_str().expect("valid value"),
             "None"
         );
 
         // Half/Fifth values for STR
-        assert_eq!(derived.get("STR_HALF").unwrap().as_i64().unwrap(), 30);
-        assert_eq!(derived.get("STR_FIFTH").unwrap().as_i64().unwrap(), 12);
+        assert_eq!(derived.get("STR_HALF").expect("valid value").as_i64().expect("valid value"), 30);
+        assert_eq!(derived.get("STR_FIFTH").expect("valid value").as_i64().expect("valid value"), 12);
     }
 
     #[test]
@@ -1791,21 +1791,21 @@ mod tests {
 
         // Spot Hidden: 60 -> half=30, fifth=12
         assert_eq!(
-            derived.get("SPOT_HIDDEN_HALF").unwrap().as_i64().unwrap(),
+            derived.get("SPOT_HIDDEN_HALF").expect("valid value").as_i64().expect("valid value"),
             30
         );
         assert_eq!(
-            derived.get("SPOT_HIDDEN_FIFTH").unwrap().as_i64().unwrap(),
+            derived.get("SPOT_HIDDEN_FIFTH").expect("valid value").as_i64().expect("valid value"),
             12
         );
 
         // Library Use: 45 -> half=22, fifth=9
         assert_eq!(
-            derived.get("LIBRARY_USE_HALF").unwrap().as_i64().unwrap(),
+            derived.get("LIBRARY_USE_HALF").expect("valid value").as_i64().expect("valid value"),
             22
         );
         assert_eq!(
-            derived.get("LIBRARY_USE_FIFTH").unwrap().as_i64().unwrap(),
+            derived.get("LIBRARY_USE_FIFTH").expect("valid value").as_i64().expect("valid value"),
             9
         );
     }
@@ -1884,17 +1884,17 @@ mod tests {
         let defaults = system.default_values();
 
         // Characteristics default to 50
-        assert_eq!(defaults.get("STR").unwrap().as_i64().unwrap(), 50);
-        assert_eq!(defaults.get("CON").unwrap().as_i64().unwrap(), 50);
-        assert_eq!(defaults.get("POW").unwrap().as_i64().unwrap(), 50);
+        assert_eq!(defaults.get("STR").expect("valid value").as_i64().expect("valid value"), 50);
+        assert_eq!(defaults.get("CON").expect("valid value").as_i64().expect("valid value"), 50);
+        assert_eq!(defaults.get("POW").expect("valid value").as_i64().expect("valid value"), 50);
 
         // Luck defaults
-        assert_eq!(defaults.get("LUCK").unwrap().as_i64().unwrap(), 50);
+        assert_eq!(defaults.get("LUCK").expect("valid value").as_i64().expect("valid value"), 50);
 
         // Some skill defaults
-        assert_eq!(defaults.get("FIRST_AID").unwrap().as_i64().unwrap(), 30);
-        assert_eq!(defaults.get("SPOT_HIDDEN").unwrap().as_i64().unwrap(), 25);
-        assert_eq!(defaults.get("CTHULHU_MYTHOS").unwrap().as_i64().unwrap(), 0);
+        assert_eq!(defaults.get("FIRST_AID").expect("valid value").as_i64().expect("valid value"), 30);
+        assert_eq!(defaults.get("SPOT_HIDDEN").expect("valid value").as_i64().expect("valid value"), 25);
+        assert_eq!(defaults.get("CTHULHU_MYTHOS").expect("valid value").as_i64().expect("valid value"), 0);
     }
 
     #[test]
@@ -1902,7 +1902,7 @@ mod tests {
         let system = Coc7eSystem::new();
         let schema = system.character_sheet_schema();
 
-        let skills_section = schema.sections.iter().find(|s| s.id == "skills").unwrap();
+        let skills_section = schema.sections.iter().find(|s| s.id == "skills").expect("valid value");
 
         for field in &skills_section.fields {
             match &field.field_type {
@@ -1927,7 +1927,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.id == "resources")
-            .unwrap();
+            .expect("valid value");
 
         assert_eq!(resources_section.fields.len(), 4);
 
@@ -1947,7 +1947,7 @@ mod tests {
         let system = Coc7eSystem::new();
         let schema = system.character_sheet_schema();
 
-        let identity_section = schema.sections.iter().find(|s| s.id == "identity").unwrap();
+        let identity_section = schema.sections.iter().find(|s| s.id == "identity").expect("valid value");
 
         let field_ids: Vec<&str> = identity_section
             .fields

@@ -1564,7 +1564,7 @@ async fn test_player_leave_notifies_others() {
         let pc_b_before = pcs_before.iter().find(|pc| pc.id() == pc_b_id);
         assert!(pc_b_before.is_some(), "Player B should exist before leave");
         assert!(
-            pc_b_before.unwrap().is_active(),
+            pc_b_before.expect("Player B should exist").is_active(),
             "Player B should be active before leave"
         );
 

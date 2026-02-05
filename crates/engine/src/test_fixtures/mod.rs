@@ -119,14 +119,14 @@ pub mod worlds {
         use wrldbldr_domain::value_objects::RuleSystemConfig;
         use wrldbldr_domain::{Description, WorldName};
 
-        let name = WorldName::new("The Realm of Shadows").unwrap();
+        let name = WorldName::new("The Realm of Shadows").expect("world name should be valid");
         let description =
-            Description::new("A classic fantasy world for testing D&D 5e mechanics.").unwrap();
+            Description::new("A classic fantasy world for testing D&D 5e mechanics.").expect("description should be valid");
         let now = chrono::Utc::now();
         World::new(name, now)
             .with_description(description)
             .with_id(wrldbldr_domain::WorldId::from(
-                uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+                uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("static UUID should parse"),
             ))
             .with_rule_system(RuleSystemConfig::dnd_5e())
     }

@@ -135,7 +135,8 @@ pub struct DialogueState {
 impl DialogueState {
     /// Create a new DialogueState with empty values
     pub fn new() -> Self {
-        let state = Self {
+        // refresh_active_cache will be called after initialization via the struct methods
+        Self {
             dialogues_by_conversation: Signal::new(std::collections::HashMap::new()),
             active_conversation_id: Signal::new(None),
             is_llm_processing: Signal::new(false),
@@ -154,9 +155,7 @@ impl DialogueState {
             positioned_markers: Signal::new(Vec::new()),
             next_marker_index: Signal::new(0),
             current_action: Signal::new(None),
-        };
-        // refresh_active_cache will be called after initialization via the struct methods
-        state
+        }
     }
 
     /// Set the active conversation ID (for tracking multi-turn conversations)

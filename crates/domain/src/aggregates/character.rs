@@ -646,12 +646,14 @@ mod tests {
     use chrono::{DateTime, TimeZone, Utc};
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     fn create_test_character() -> Character {
         let world_id = WorldId::new();
-        let name = CharacterName::new("Test Hero").unwrap();
+        let name = CharacterName::new("Test Hero").expect("valid name");
         Character::new(world_id, name, CampbellArchetype::Hero)
     }
 
@@ -661,7 +663,7 @@ mod tests {
         #[test]
         fn new_creates_character_with_correct_defaults() {
             let world_id = WorldId::new();
-            let name = CharacterName::new("Gandalf").unwrap();
+            let name = CharacterName::new("Gandalf").expect("valid name");
             let character = Character::new(world_id, name, CampbellArchetype::Mentor);
 
             assert_eq!(character.name().as_str(), "Gandalf");
@@ -679,10 +681,10 @@ mod tests {
         #[test]
         fn builder_methods_work() {
             let world_id = WorldId::new();
-            let name = CharacterName::new("Frodo").unwrap();
-            let desc = Description::new("A hobbit").unwrap();
-            let sprite = AssetPath::new("sprites/frodo.png").unwrap();
-            let portrait = AssetPath::new("portraits/frodo.png").unwrap();
+            let name = CharacterName::new("Frodo").expect("valid name");
+            let desc = Description::new("A hobbit").expect("valid description");
+            let sprite = AssetPath::new("sprites/frodo.png").expect("valid asset path");
+            let portrait = AssetPath::new("portraits/frodo.png").expect("valid asset path");
             let character = Character::new(world_id, name, CampbellArchetype::Hero)
                 .with_description(desc)
                 .with_sprite(sprite)
@@ -731,8 +733,11 @@ mod tests {
 
         #[test]
         fn apply_damage_kills_character() {
-            let mut character = create_test_character()
-                .with_stats(StatBlock::new().with_hp_validated(20, 50).unwrap());
+            let mut character = create_test_character().with_stats(
+                StatBlock::new()
+                    .with_hp_validated(20, 50)
+                    .expect("valid HP"),
+            );
 
             let outcome = character.apply_damage(30);
             assert_eq!(outcome, DamageOutcome::Killed { damage_dealt: 30 });
@@ -741,8 +746,11 @@ mod tests {
 
         #[test]
         fn apply_damage_to_dead_character_returns_already_dead() {
-            let mut character = create_test_character()
-                .with_stats(StatBlock::new().with_hp_validated(10, 50).unwrap());
+            let mut character = create_test_character().with_stats(
+                StatBlock::new()
+                    .with_hp_validated(10, 50)
+                    .expect("valid HP"),
+            );
 
             character.apply_damage(100); // Kill
             let outcome = character.apply_damage(10); // Try again
@@ -779,8 +787,11 @@ mod tests {
 
         #[test]
         fn heal_caps_at_max_hp() {
-            let mut character = create_test_character()
-                .with_stats(StatBlock::new().with_hp_validated(45, 50).unwrap());
+            let mut character = create_test_character().with_stats(
+                StatBlock::new()
+                    .with_hp_validated(45, 50)
+                    .expect("valid HP"),
+            );
 
             let outcome = character.heal(20);
             assert_eq!(
@@ -794,8 +805,11 @@ mod tests {
 
         #[test]
         fn heal_at_max_hp_returns_already_full() {
-            let mut character = create_test_character()
-                .with_stats(StatBlock::new().with_hp_validated(50, 50).unwrap());
+            let mut character = create_test_character().with_stats(
+                StatBlock::new()
+                    .with_hp_validated(50, 50)
+                    .expect("valid HP"),
+            );
 
             let outcome = character.heal(10);
             assert_eq!(outcome, HealOutcome::AlreadyFull);
@@ -803,8 +817,11 @@ mod tests {
 
         #[test]
         fn heal_dead_character_returns_dead() {
-            let mut character = create_test_character()
-                .with_stats(StatBlock::new().with_hp_validated(10, 50).unwrap());
+            let mut character = create_test_character().with_stats(
+                StatBlock::new()
+                    .with_hp_validated(10, 50)
+                    .expect("valid HP"),
+            );
 
             character.apply_damage(100); // Kill
             let outcome = character.heal(10);
@@ -825,8 +842,11 @@ mod tests {
 
         #[test]
         fn resurrect_dead_character_restores_to_half_hp() {
-            let mut character = create_test_character()
-                .with_stats(StatBlock::new().with_hp_validated(100, 100).unwrap());
+            let mut character = create_test_character().with_stats(
+                StatBlock::new()
+                    .with_hp_validated(100, 100)
+                    .expect("valid HP"),
+            );
 
             character.apply_damage(200); // Kill
             assert!(character.is_dead());

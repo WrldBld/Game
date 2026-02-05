@@ -63,7 +63,7 @@ pub fn VisualStateDropdown(props: VisualStateDropdownProps) -> Element {
                 // State dropdown
                 select {
                     class: "flex-1 p-3 bg-dark-bg border border-gray-700 rounded-lg text-white",
-                    value: current_value.map(|s| s.clone()).unwrap_or_default(),
+                    value: current_value.cloned().unwrap_or_default(),
                     onchange: move |e| {
                         let value = e.value();
                         if value == "default" {

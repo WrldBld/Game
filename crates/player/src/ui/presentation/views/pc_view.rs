@@ -115,7 +115,9 @@ pub fn PCView() -> Element {
     let mut show_region_items_panel = use_signal(|| false);
 
     // End conversation confirmation modal state
-    let show_end_conversation_modal = use_signal(|| false);
+    // mut is required for closure capture (signals are Copy but need mut for .set())
+    #[allow(unused_mut)]
+    let mut show_end_conversation_modal = use_signal(|| false);
 
     // Error feedback state for user actions
     let mut action_error: Signal<Option<String>> = use_signal(|| None);
@@ -567,7 +569,7 @@ pub fn PCView() -> Element {
                 region_items_count: game_state.region_items.read().len(),
                 has_conversation: dialogue_state.has_active_conversation(),
                 on_end_conversation: Some(EventHandler::new({
-                    let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                    let mut show_end_conversation_modal = show_end_conversation_modal;
                     move |_| {
                         tracing::info!("Show end conversation confirmation");
                         show_end_conversation_modal.set(true);
@@ -966,7 +968,7 @@ pub fn PCView() -> Element {
                     npc_name: speaker_name.clone(),
                     on_confirm: {
                         let command_bus = command_bus.clone();
-                        let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                        let mut show_end_conversation_modal = show_end_conversation_modal;
                         let dialogue_state_for_closure = dialogue_state.clone();
                         move |_| {
                             let speaker_id = dialogue_state_for_closure.speaker_id.read().clone();
@@ -985,7 +987,7 @@ pub fn PCView() -> Element {
                         }
                     },
                     on_cancel: {
-                        let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                        let mut show_end_conversation_modal = show_end_conversation_modal;
                         move |_| {
                             show_end_conversation_modal.set(false);
                         }

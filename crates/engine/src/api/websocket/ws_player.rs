@@ -599,7 +599,6 @@ fn relationship_type_to_string(relationship_type: &wrldbldr_domain::Relationship
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Arc;
     use std::time::Duration;
     use wrldbldr_domain::{PlayerCharacterId, UserId, WorldId};
@@ -615,7 +614,7 @@ mod tests {
         let world_id = WorldId::new();
         let pc_id = PlayerCharacterId::new();
         let other_pc_id = PlayerCharacterId::new();
-        let user_id = UserId::new("user1").unwrap();
+        let user_id = UserId::new("user1").expect("test: user_id should be valid");
 
         // Setup world repo
         let mut world_repo = MockWorldRepo::new();
@@ -697,7 +696,7 @@ mod tests {
         let now = chrono::Utc::now();
         let world_id = WorldId::new();
         let pc_id = PlayerCharacterId::new();
-        let dm_user_id = UserId::new("dm").unwrap();
+        let dm_user_id = UserId::new("dm").expect("test: user_id should be valid");
 
         // Setup world repo
         let mut world_repo = MockWorldRepo::new();

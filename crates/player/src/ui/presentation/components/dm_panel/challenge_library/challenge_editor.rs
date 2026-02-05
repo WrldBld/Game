@@ -464,7 +464,7 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
                                         for region in props.regions.iter().filter(|r| {
                                             available_at_location_id.read()
                                                 .as_ref()
-                                                .map_or(true, |loc_id| loc_id == &r.location_id)
+                                                .is_none_or(|loc_id| loc_id == &r.location_id)
                                         }) {
                                             option { value: "{region.id}", "{region.name}" }
                                         }

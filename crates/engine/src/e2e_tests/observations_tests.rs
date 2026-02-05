@@ -250,11 +250,11 @@ async fn test_observation_count_trigger() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Keen Observer Event").unwrap(),
+        NarrativeEventName::new("Keen Observer Event").expect("Event name should be valid"),
         Utc::now(),
     )
     .with_description("Triggered after many observations")
-    .with_scene_direction(Description::new("Your keen eye has uncovered much").unwrap())
+    .with_scene_direction(Description::new("Your keen eye has uncovered much").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true);
 

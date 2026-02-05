@@ -3,20 +3,16 @@
 //! Tests conversation creation, dialogue turn persistence,
 //! conversation scoping, and dialogue history tracking.
 
-use chrono::Utc;
-use uuid::Uuid;
 use wrldbldr_domain::{
-    CampbellArchetype, Character, CharacterId, CharacterName, ConversationId, GameTime,
-    LocationId, MoodState, PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource,
-    StoryEvent, StoryEventType, StoryEventVisibility, UserId, WorldId, WorldName,
+    CharacterId, ConversationId, PlayerCharacterId, WorldId,
 };
 
 use crate::e2e_tests::SharedNeo4jHarness;
-use crate::infrastructure::neo4j::Neo4jNarrativeRepo;
-use crate::infrastructure::ports::{ClockPort, ConversationSpeaker, RepoError};
+use crate::infrastructure::ports::{ClockPort, ConversationSpeaker};
 
 // Helper to create a graph connection using the shared testcontainer harness.
 // Falls back to NEO4J_TEST_URI environment variable if set (for external Neo4j).
+#[allow(dead_code)]
 async fn create_test_graph() -> neo4rs::Graph {
     use neo4rs::ConfigBuilder;
 
@@ -43,14 +39,17 @@ async fn create_test_graph() -> neo4rs::Graph {
         .expect("Failed to create graph from harness")
 }
 
+#[allow(dead_code)]
 struct TestClock(chrono::DateTime<chrono::Utc>);
 
+#[allow(dead_code)]
 impl ClockPort for TestClock {
     fn now(&self) -> chrono::DateTime<chrono::Utc> {
         self.0
     }
 }
 
+#[allow(dead_code)]
 fn build_test_clock(now: chrono::DateTime<chrono::Utc>) -> std::sync::Arc<TestClock> {
     std::sync::Arc::new(TestClock(now))
 }
@@ -67,7 +66,7 @@ async fn test_create_conversation_creates_nodes_and_edges() {
 #[tokio::test]
 async fn test_conversation_persistence_flow() {
     // Test flow of conversation creation and turn persistence
-    let world_id = WorldId::new();
+    let _world_id = WorldId::new();
     let pc_id = PlayerCharacterId::new();
     let npc_id = CharacterId::new();
     let conversation_id = ConversationId::new();
@@ -93,7 +92,7 @@ async fn test_conversation_persistence_flow() {
     //    - Game time as epoch seconds (i64)
 
     // This is a structural test to ensure types align with updated signature
-    assert!(true, "Conversation persistence flow is structurally correct with ConversationSpeaker type");
+    // Conversation persistence flow is structurally correct with ConversationSpeaker type
 }
 
 #[tokio::test]

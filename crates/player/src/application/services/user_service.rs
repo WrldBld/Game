@@ -61,16 +61,16 @@ mod tests {
         fn save(&self, key: &str, value: &str) {
             self.data
                 .write()
-                .unwrap()
+                .expect("lock poisoned")
                 .insert(key.to_string(), value.to_string());
         }
 
         fn load(&self, key: &str) -> Option<String> {
-            self.data.read().unwrap().get(key).cloned()
+            self.data.read().expect("lock poisoned").get(key).cloned()
         }
 
         fn remove(&self, key: &str) {
-            self.data.write().unwrap().remove(key);
+            self.data.write().expect("lock poisoned").remove(key);
         }
     }
 

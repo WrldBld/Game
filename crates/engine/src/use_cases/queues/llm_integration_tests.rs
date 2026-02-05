@@ -3,7 +3,7 @@
 //! These tests require a running Ollama instance with the configured model.
 //! Run with: `cargo test -p wrldbldr-engine llm_integration -- --ignored`
 
-use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest};
+use crate::infrastructure::ports::{ChatMessage, LlmRequest};
 use crate::test_fixtures::llm_integration::*;
 
 // =============================================================================

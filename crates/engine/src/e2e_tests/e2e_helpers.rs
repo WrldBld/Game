@@ -163,6 +163,7 @@ pub struct E2ETestContext {
     /// Enable via `E2E_BENCHMARK=1` environment variable.
     pub benchmark: Option<Arc<E2EBenchmark>>,
     /// Test name used for logging and benchmark identification.
+    #[allow(dead_code)]
     test_name: String,
     _temp_dir: TempDir,
 }
@@ -489,7 +490,6 @@ impl E2ETestContext {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     /// Test that SettingsOps::load_settings_from_env correctly applies WRLDBLDR_LLM_MODEL_DEFAULT.
     ///
@@ -2339,15 +2339,15 @@ impl RecordingQueue {
     }
 
     pub fn player_actions(&self) -> Vec<PlayerActionData> {
-        self.player_actions.lock().unwrap().clone()
+        self.player_actions.lock().expect("Lock should not be poisoned").clone()
     }
 
     pub fn llm_requests(&self) -> Vec<LlmRequestData> {
-        self.llm_requests.lock().unwrap().clone()
+        self.llm_requests.lock().expect("Lock should not be poisoned").clone()
     }
 
     pub fn approvals(&self) -> Vec<ApprovalRequestData> {
-        self.approvals.lock().unwrap().clone()
+        self.approvals.lock().expect("Lock should not be poisoned").clone()
     }
 }
 
@@ -2357,7 +2357,7 @@ impl QueuePort for RecordingQueue {
         &self,
         data: &PlayerActionData,
     ) -> Result<QueueItemId, QueueError> {
-        self.player_actions.lock().unwrap().push(data.clone());
+        self.player_actions.lock().expect("Lock should not be poisoned").push(data.clone());
         Ok(Uuid::new_v4().into())
     }
 
@@ -2366,7 +2366,7 @@ impl QueuePort for RecordingQueue {
     }
 
     async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
-        self.llm_requests.lock().unwrap().push(data.clone());
+        self.llm_requests.lock().expect("Lock should not be poisoned").push(data.clone());
         Ok(Uuid::new_v4().into())
     }
 
@@ -2378,7 +2378,7 @@ impl QueuePort for RecordingQueue {
         &self,
         data: &ApprovalRequestData,
     ) -> Result<QueueItemId, QueueError> {
-        self.approvals.lock().unwrap().push(data.clone());
+        self.approvals.lock().expect("Lock should not be poisoned").push(data.clone());
         Ok(Uuid::new_v4().into())
     }
 
@@ -2468,7 +2468,7 @@ impl QueuePort for RecordingQueue {
         _phase_key: &str,
     ) -> Result<QueueItemId, QueueError> {
         // Record the request and return a new ID
-        self.llm_requests.lock().unwrap().push(next_request.clone());
+        self.llm_requests.lock().expect("Lock should not be poisoned").push(next_request.clone());
         Ok(Uuid::new_v4().into())
     }
 }

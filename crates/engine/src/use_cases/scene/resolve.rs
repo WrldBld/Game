@@ -326,7 +326,7 @@ mod tests {
         conditions: Vec<SceneCondition>,
     ) -> domain::Scene {
         let act_id = ActId::new();
-        domain::Scene::new(act_id, SceneName::new(name).unwrap())
+        domain::Scene::new(act_id, SceneName::new(name).expect("valid scene name"))
             .with_order(order)
             .with_time(time_context)
             .with_entry_conditions(conditions)
@@ -348,7 +348,7 @@ mod tests {
             .returning(|_| Ok(vec![]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(result.considered_scenes.is_empty());
@@ -370,10 +370,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        let resolved_scene = result.scene.unwrap();
+        let resolved_scene = result.scene.expect("scene should be Some");
         assert_eq!(resolved_scene.id(), scene_id);
         assert_eq!(resolved_scene.name().to_string(), scene_name);
 
@@ -406,10 +406,10 @@ mod tests {
             });
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        let resolved_scene = result.scene.unwrap();
+        let resolved_scene = result.scene.expect("scene should be Some");
         assert_eq!(resolved_scene.id(), high_priority_id);
         assert_eq!(resolved_scene.order(), 10);
 
@@ -437,10 +437,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
     }
 
     #[tokio::test]
@@ -467,10 +467,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
         assert!(result.considered_scenes[0].conditions_met);
     }
 
@@ -496,7 +496,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(!result.considered_scenes[0].conditions_met);
@@ -527,10 +527,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
     }
 
     #[tokio::test]
@@ -555,7 +555,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(result.considered_scenes[0].unmet_conditions[0].contains("Missing item"));
@@ -585,10 +585,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
     }
 
     #[tokio::test]
@@ -613,7 +613,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(result.considered_scenes[0].unmet_conditions[0].contains("Character not known"));
@@ -642,10 +642,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
     }
 
     #[tokio::test]
@@ -669,7 +669,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(result.considered_scenes[0].unmet_conditions[0].contains("Flag not set"));
@@ -701,10 +701,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
     }
 
     #[tokio::test]
@@ -728,7 +728,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(!result.considered_scenes[0].conditions_met);
@@ -758,14 +758,14 @@ mod tests {
                 .returning(move |_| Ok(vec![scene.clone()]));
 
             let use_case = ResolveScene::new(Arc::new(scene_repo));
-            let result = use_case.execute(region_id, &context).await.unwrap();
+            let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
             assert!(
                 result.scene.is_some(),
                 "TimeContext::Unspecified should match {:?}",
                 time
             );
-            assert_eq!(result.scene.unwrap().id(), scene_id);
+            assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
         }
     }
 
@@ -800,11 +800,11 @@ mod tests {
             .returning(move |_| Ok(vec![guarded_scene.clone(), fallback_scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         // Fallback should be selected since guarded scene's condition wasn't met
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), fallback_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), fallback_id);
 
         // Both scenes should be in considered list
         assert_eq!(result.considered_scenes.len(), 2);
@@ -838,7 +838,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         // Should NOT match because KnowsCharacter condition is not met
         assert!(result.scene.is_none());
@@ -882,10 +882,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
         assert!(result.considered_scenes[0].conditions_met);
         assert!(result.considered_scenes[0].unmet_conditions.is_empty());
     }
@@ -921,10 +921,10 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_some());
-        assert_eq!(result.scene.unwrap().id(), scene_id);
+        assert_eq!(result.scene.expect("scene should be Some").id(), scene_id);
     }
 
     #[tokio::test]
@@ -953,7 +953,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(
@@ -984,7 +984,7 @@ mod tests {
             .returning(move |_| Ok(vec![scene.clone()]));
 
         let use_case = ResolveScene::new(Arc::new(scene_repo));
-        let result = use_case.execute(region_id, &context).await.unwrap();
+        let result = use_case.execute(region_id, &context).await.expect("should succeed");
 
         assert!(result.scene.is_none());
         assert!(result.considered_scenes[0].unmet_conditions[0]
@@ -1029,7 +1029,7 @@ mod tests {
         let conditions = use_case
             .get_custom_conditions_for_region(region_id)
             .await
-            .unwrap();
+            .expect("should get custom conditions");
 
         // Should have 3 unique conditions (A, B, C)
         assert_eq!(conditions.len(), 3);
@@ -1066,7 +1066,7 @@ mod tests {
         let conditions = use_case
             .get_custom_conditions_for_region(region_id)
             .await
-            .unwrap();
+            .expect("should get custom conditions");
 
         // Should only have the Custom condition
         assert_eq!(conditions.len(), 1);

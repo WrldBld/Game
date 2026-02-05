@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use wrldbldr_domain::{
     ActId, CampbellArchetype, ChallengeId, CharacterId, DispositionLevel, LocationId,
-    LocationStateId, MonomythStage, MoodState, NarrativeEventId, RegionId, SceneId, TimeOfDay,
-    WantId, WorldId,
+    LocationStateId, MonomythStage, MoodState, NarrativeEventId, RegionId, SceneId, WantId,
+    WorldId,
 };
 
 use super::load_fixture;
@@ -696,8 +696,10 @@ pub fn load_thornhaven() -> TestWorld {
     }
 
     // Fixed world ID for Thornhaven
-    let world_id =
-        WorldId::from(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
+    let world_id = WorldId::from(
+        uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001")
+            .expect("static UUID should parse"),
+    );
 
     TestWorld {
         world_id,
@@ -743,9 +745,11 @@ use wrldbldr_domain::{
 
 /// Create a test world for testing.
 pub fn create_test_world(world_id: WorldId, now: chrono::DateTime<chrono::Utc>) -> World {
-    let world_name = WorldName::new("Test World").unwrap();
+    let world_name = WorldName::new("Test World").expect("test world name should be valid");
     World::new(world_name, now)
-        .with_description(Description::new("A test world").unwrap())
+        .with_description(
+            Description::new("A test world").expect("test description should be valid"),
+        )
         .with_id(world_id)
 }
 
@@ -755,7 +759,7 @@ pub fn create_test_npc(
     world_id: WorldId,
     _now: chrono::DateTime<chrono::Utc>,
 ) -> Character {
-    let name = CharacterName::new("Test NPC").unwrap();
+    let name = CharacterName::new("Test NPC").expect("test NPC name should be valid");
     Character::new(world_id, name, CampbellArchetype::Hero).with_id(npc_id)
 }
 
@@ -765,8 +769,8 @@ pub fn create_test_pc(
     world_id: WorldId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> PlayerCharacter {
-    let name = CharacterName::new("Test PC").unwrap();
-    let user_id = UserId::new("test-user").unwrap();
+    let name = CharacterName::new("Test PC").expect("test PC name should be valid");
+    let user_id = UserId::new("test-user").expect("test user ID should be valid");
     let location_id = LocationId::new();
     PlayerCharacter::new(user_id, world_id, name, location_id, now).with_id(pc_id)
 }
@@ -776,7 +780,7 @@ pub fn create_test_region(location_id: LocationId) -> Region {
     Region::from_storage(
         RegionId::new(),
         location_id,
-        RegionName::new("Test Region").unwrap(),
+        RegionName::new("Test Region").expect("test region name should be valid"),
         Description::default(),
         None,
         None,
@@ -827,11 +831,13 @@ mod tests {
     fn test_npc_lookup() {
         let world = load_thornhaven();
 
-        let marta = world.npc_data("Marta Hearthwood").unwrap();
+        let marta = world
+            .npc_data("Marta Hearthwood")
+            .expect("Marta should exist");
         assert_eq!(marta.base_archetype, CampbellArchetype::Mentor);
         assert_eq!(marta.default_disposition, DispositionLevel::Friendly);
 
-        let grom = world.npc_data("Grom Ironhand").unwrap();
+        let grom = world.npc_data("Grom Ironhand").expect("Grom should exist");
         assert_eq!(grom.base_archetype, CampbellArchetype::ThresholdGuardian);
     }
 
@@ -839,7 +845,7 @@ mod tests {
     fn test_relationships() {
         let world = load_thornhaven();
 
-        let marta_id = world.npc("Marta Hearthwood").unwrap();
+        let marta_id = world.npc("Marta Hearthwood").expect("Marta should exist");
         let marta_relationships = world.relationships_from(marta_id);
 
         // Marta has relationships with Grom, Tom, and Pip
@@ -850,7 +856,7 @@ mod tests {
     fn test_wants() {
         let world = load_thornhaven();
 
-        let marta_id = world.npc("Marta Hearthwood").unwrap();
+        let marta_id = world.npc("Marta Hearthwood").expect("Marta should exist");
         let marta_wants = world.wants_for(marta_id);
 
         // Marta has at least 2 wants (protect village, find out about mill)
@@ -866,7 +872,9 @@ mod tests {
     fn test_location_states() {
         let world = load_thornhaven();
 
-        let inn_id = world.location("The Drowsy Dragon Inn").unwrap();
+        let inn_id = world
+            .location("The Drowsy Dragon Inn")
+            .expect("Inn should exist");
         let inn_states = world.states_for_location(inn_id);
 
         // Inn has morning, evening, and default states
@@ -877,12 +885,14 @@ mod tests {
     fn test_featured_characters() {
         let world = load_thornhaven();
 
-        let scene_id = world.scene("Welcome to the Drowsy Dragon").unwrap();
+        let scene_id = world
+            .scene("Welcome to the Drowsy Dragon")
+            .expect("scene should exist");
         let featured = world.featured_in_scene(scene_id);
 
         // Scene features Marta
         assert!(!featured.is_empty());
-        let marta_id = world.npc("Marta Hearthwood").unwrap();
+        let marta_id = world.npc("Marta Hearthwood").expect("Marta should exist");
         assert!(featured.iter().any(|f| f.character_id == marta_id));
     }
 }

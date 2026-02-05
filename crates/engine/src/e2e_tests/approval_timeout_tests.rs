@@ -24,7 +24,7 @@ use wrldbldr_domain::{StagingSource, TimeSuggestionDecision};
 
 use super::*;
 use crate::infrastructure::cache::TtlCache;
-use crate::infrastructure::ports::{ClockPort, PendingStagingRequest, TimeSuggestion};
+use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
 use crate::use_cases::time::TimeSuggestionError;
 
 // =============================================================================
@@ -94,7 +94,7 @@ async fn test_staging_auto_approves_after_timeout() {
         result.err()
     );
 
-    let payload = result.unwrap();
+    let payload = result.expect("Auto-approval result should be available");
 
     // Verify the auto-approval was for the correct region
     assert_eq!(
@@ -126,7 +126,7 @@ async fn test_staging_auto_approves_after_timeout() {
         "Should have active staging after auto-approve"
     );
 
-    let staging = active_staging.unwrap();
+    let staging = active_staging.expect("Active staging should be available");
     assert_eq!(
         staging.source(),
         StagingSource::AutoApproved,
@@ -180,7 +180,7 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
         result.err()
     );
 
-    let _payload = result.unwrap();
+    let _payload = result.expect("Auto-approval result should be available");
 
     // Verify active staging has correct source
     let game_time_seconds = ctx
@@ -206,7 +206,7 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
         "Should have active staging after auto-approve"
     );
 
-    let staging = active_staging.unwrap();
+    let staging = active_staging.expect("Active staging should be available");
     assert_eq!(
         staging.source(),
         StagingSource::AutoApproved,
@@ -341,7 +341,7 @@ async fn test_player_can_interact_after_auto_staging() {
             "Should have active staging after auto-approve"
         );
 
-        let staging = active_staging.unwrap();
+        let staging = active_staging.expect("Active staging should be available");
         assert_eq!(
             staging.source(),
             StagingSource::AutoApproved,

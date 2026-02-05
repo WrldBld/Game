@@ -8,12 +8,21 @@
 
 mod catalog;
 mod resolve_state;
+mod validation;
 
 #[cfg(test)]
 mod llm_condition_tests;
 
 pub use catalog::{CatalogError, VisualStateCatalog, VisualStateDetails};
 pub use resolve_state::{ResolveVisualState, StateResolutionContext};
+pub use validation::{
+    validate_asset_path, validate_generation_prompt, validate_negative_prompt,
+    validate_state_description, validate_state_name, validate_state_name_required, validate_tags,
+    validate_workflow_id, ValidationResult,
+};
+
+// Re-export MAX_STATE_NAME as a pub const
+pub const MAX_STATE_NAME: usize = validation::MAX_STATE_NAME;
 
 use std::sync::Arc;
 

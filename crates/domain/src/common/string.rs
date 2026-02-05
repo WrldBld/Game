@@ -248,14 +248,14 @@ mod tests {
         fn valid_string() {
             let result = validate_trimmed_non_empty("hello", "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), "hello");
+            assert_eq!(result.expect("valid string"), "hello");
         }
 
         #[test]
         fn string_is_trimmed() {
             let result = validate_trimmed_non_empty("  hello  ", "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), "hello");
+            assert_eq!(result.expect("valid trimmed string"), "hello");
         }
 
         #[test]
@@ -263,7 +263,7 @@ mod tests {
             let result = validate_trimmed_non_empty("", "Test field", 100);
             assert!(result.is_err());
             assert!(result
-                .unwrap_err()
+                .expect_err("empty string should fail")
                 .to_string()
                 .contains("Test field cannot be empty"));
         }
@@ -272,7 +272,10 @@ mod tests {
         fn whitespace_only_rejected() {
             let result = validate_trimmed_non_empty("   ", "Test field", 100);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result
+                .expect_err("whitespace only should fail")
+                .to_string()
+                .contains("cannot be empty"));
         }
 
         #[test]
@@ -280,7 +283,10 @@ mod tests {
             let long = "a".repeat(101);
             let result = validate_trimmed_non_empty(&long, "Test field", 100);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("100"));
+            assert!(result
+                .expect_err("too long should fail")
+                .to_string()
+                .contains("100"));
         }
 
         #[test]
@@ -288,14 +294,17 @@ mod tests {
             let max = "a".repeat(100);
             let result = validate_trimmed_non_empty(&max, "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap().len(), 100);
+            assert_eq!(result.expect("max length should be valid").len(), 100);
         }
 
         #[test]
         fn error_message_contains_field_name() {
             let result = validate_trimmed_non_empty("", "Character name", 100);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("Character name"));
+            assert!(result
+                .expect_err("empty should fail")
+                .to_string()
+                .contains("Character name"));
         }
     }
 
@@ -306,28 +315,28 @@ mod tests {
         fn valid_string() {
             let result = validate_trimmed_max("hello", "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), "hello");
+            assert_eq!(result.expect("valid string"), "hello");
         }
 
         #[test]
         fn string_is_trimmed() {
             let result = validate_trimmed_max("  hello  ", "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), "hello");
+            assert_eq!(result.expect("valid trimmed string"), "hello");
         }
 
         #[test]
         fn empty_string_is_valid() {
             let result = validate_trimmed_max("", "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), "");
+            assert_eq!(result.expect("empty should be valid"), "");
         }
 
         #[test]
         fn whitespace_only_becomes_empty() {
             let result = validate_trimmed_max("   ", "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), "");
+            assert_eq!(result.expect("whitespace becomes empty"), "");
         }
 
         #[test]
@@ -335,7 +344,10 @@ mod tests {
             let long = "a".repeat(101);
             let result = validate_trimmed_max(&long, "Test field", 100);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("100"));
+            assert!(result
+                .expect_err("too long should fail")
+                .to_string()
+                .contains("100"));
         }
 
         #[test]
@@ -343,7 +355,7 @@ mod tests {
             let max = "a".repeat(100);
             let result = validate_trimmed_max(&max, "Test field", 100);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap().len(), 100);
+            assert_eq!(result.expect("max length valid").len(), 100);
         }
 
         #[test]
@@ -351,7 +363,10 @@ mod tests {
             let long = "a".repeat(101);
             let result = validate_trimmed_max(&long, "Description", 100);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("Description"));
+            assert!(result
+                .expect_err("too long should fail")
+                .to_string()
+                .contains("Description"));
         }
     }
 }

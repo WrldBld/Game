@@ -113,7 +113,7 @@ pub(super) async fn handle_approval_decision(
                 state.connections.broadcast_to_dms(world_id, dm_msg).await;
 
                 // Send DialogueResponse to all players (for visual novel display)
-                let npc_id = result.npc_id.clone();
+                let npc_id = result.npc_id;
                 if !dialogue.is_empty() {
                     if let Some(ref speaker_id) = npc_id {
                         let dialogue_msg = ServerMessage::DialogueResponse {

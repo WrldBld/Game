@@ -89,11 +89,10 @@ pub fn sanitize_catalog_error(error: &CatalogError, operation: &str) -> String {
 
         // Validation variants - client-friendly validation message
         CatalogError::Validation(_)
-        | CatalogError::InvalidActivationRules(_)
-        | CatalogError::InvalidActivationLogic(_)
         | CatalogError::NameEmpty
         | CatalogError::NameTooLong
-        | CatalogError::DescriptionTooLong => {
+        | CatalogError::DescriptionTooLong
+        | CatalogError::Domain(_) => {
             tracing::warn!(
                 error = %error,
                 operation = operation,

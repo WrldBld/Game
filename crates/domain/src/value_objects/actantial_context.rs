@@ -958,7 +958,10 @@ mod tests {
         let want_id = WantId::new();
         let result = WantContext::new(want_id, "Test", 1.5, 1);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("0.0..=1.0"));
+        assert!(result
+            .expect_err("invalid intensity should fail")
+            .to_string()
+            .contains("0.0..=1.0"));
     }
 
     #[test]
@@ -973,7 +976,10 @@ mod tests {
         let want_id = WantId::new();
         let result = WantContext::new(want_id, "Test", 0.5, 0);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains(">= 1"));
+        assert!(result
+            .expect_err("zero priority should fail")
+            .to_string()
+            .contains(">= 1"));
     }
 
     #[test]
@@ -981,7 +987,7 @@ mod tests {
         let want_id = WantId::new();
         let result = WantContext::new(want_id, "Test", 0.5, 1);
         assert!(result.is_ok());
-        let want = result.unwrap();
+        let want = result.expect("valid value");
         assert_eq!(want.intensity(), 0.5);
         assert_eq!(want.priority(), 1);
     }
@@ -991,10 +997,10 @@ mod tests {
         let want_id = WantId::new();
         let result1 = WantContext::new(want_id, "Test", 0.0, 1);
         assert!(result1.is_ok());
-        assert_eq!(result1.unwrap().intensity(), 0.0);
+        assert_eq!(result1.expect("valid value").intensity(), 0.0);
 
         let result2 = WantContext::new(want_id, "Test", 1.0, 1);
         assert!(result2.is_ok());
-        assert_eq!(result2.unwrap().intensity(), 1.0);
+        assert_eq!(result2.expect("valid value").intensity(), 1.0);
     }
 }

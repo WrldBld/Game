@@ -694,15 +694,17 @@ mod tests {
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+        Utc.timestamp_opt(1_700_000_000, 0)
+            .single()
+            .expect("valid timestamp")
     }
 
     fn create_test_pc() -> PlayerCharacter {
         let world_id = WorldId::new();
         let location_id = LocationId::new();
-        let name = CharacterName::new("Test Hero").unwrap();
+        let name = CharacterName::new("Test Hero").expect("valid character name");
         let now = fixed_time();
-        let user_id = UserId::new("user123").unwrap();
+        let user_id = UserId::new("user123").expect("valid user id");
         PlayerCharacter::new(user_id, world_id, name, location_id, now)
     }
 
@@ -713,9 +715,9 @@ mod tests {
         fn new_creates_pc_with_correct_defaults() {
             let world_id = WorldId::new();
             let location_id = LocationId::new();
-            let name = CharacterName::new("Frodo").unwrap();
+            let name = CharacterName::new("Frodo").expect("valid character name");
             let now = fixed_time();
-            let user_id = UserId::new("user123").unwrap();
+            let user_id = UserId::new("user123").expect("valid user id");
             let pc = PlayerCharacter::new(user_id, world_id, name, location_id, now);
 
             assert_eq!(pc.name().as_str(), "Frodo");
@@ -737,16 +739,16 @@ mod tests {
             let world_id = WorldId::new();
             let location_id = LocationId::new();
             let region_id = RegionId::new();
-            let name = CharacterName::new("Samwise").unwrap();
+            let name = CharacterName::new("Samwise").expect("valid character name");
             let now = fixed_time();
-            let user_id = UserId::new("user456").unwrap();
+            let user_id = UserId::new("user456").expect("valid user id");
 
             let pc = PlayerCharacter::new(user_id, world_id, name, location_id, now)
                 .with_description("A loyal gardener")
-                .unwrap()
+                .expect("valid description")
                 .with_starting_region(region_id)
-                .with_sprite(AssetPath::new("sprites/sam.png").unwrap())
-                .with_portrait(AssetPath::new("portraits/sam.png").unwrap());
+                .with_sprite(AssetPath::new("sprites/sam.png").expect("valid asset path"))
+                .with_portrait(AssetPath::new("portraits/sam.png").expect("valid asset path"));
 
             assert_eq!(pc.description(), Some("A loyal gardener"));
             assert_eq!(pc.current_region_id(), Some(region_id));
@@ -819,8 +821,11 @@ mod tests {
         #[test]
         fn touch_returns_updated() {
             let mut pc = create_test_pc();
-            let now = fixed_time();
-            let later = Utc.timestamp_opt(1_700_000_001, 0).unwrap();
+            let _now = fixed_time();
+            let later = Utc
+                .timestamp_opt(1_700_000_001, 0)
+                .single()
+                .expect("valid timestamp");
 
             let outcome = pc.touch(later);
             assert!(matches!(outcome, TouchOutcome::Updated));
@@ -922,9 +927,9 @@ mod tests {
         fn with_state_builder_works() {
             let world_id = WorldId::new();
             let location_id = LocationId::new();
-            let name = CharacterName::new("Gimli").unwrap();
+            let name = CharacterName::new("Gimli").expect("valid character name");
             let now = fixed_time();
-            let user_id = UserId::new("user789").unwrap();
+            let user_id = UserId::new("user789").expect("valid user id");
 
             let pc = PlayerCharacter::new(user_id.clone(), world_id, name, location_id, now)
                 .with_state(CharacterState::Inactive);
@@ -937,7 +942,7 @@ mod tests {
             let dead_pc = PlayerCharacter::new(
                 user_id,
                 world_id,
-                CharacterName::new("Ghost").unwrap(),
+                CharacterName::new("Ghost").expect("valid character name"),
                 location_id,
                 now,
             )
@@ -963,14 +968,14 @@ mod tests {
             // Description VO explicitly allows empty/whitespace strings
             let world_id = WorldId::new();
             let location_id = LocationId::new();
-            let name = CharacterName::new("Test").unwrap();
+            let name = CharacterName::new("Test").expect("valid character name");
             let now = fixed_time();
-            let user_id = UserId::new("user123").unwrap();
+            let user_id = UserId::new("user123").expect("valid user id");
 
             let result = PlayerCharacter::new(user_id, world_id, name, location_id, now)
                 .with_description("");
             assert!(result.is_ok());
-            assert_eq!(result.unwrap().description(), Some(""));
+            assert_eq!(result.expect("valid description").description(), Some(""));
         }
 
         #[test]
@@ -984,7 +989,8 @@ mod tests {
         #[test]
         fn set_description_clears_to_none() {
             let mut pc = create_test_pc();
-            pc.set_description(Some("Valid")).unwrap();
+            pc.set_description(Some("Valid"))
+                .expect("valid description");
             assert_eq!(pc.description(), Some("Valid"));
 
             let result = pc.set_description(Option::<String>::None);

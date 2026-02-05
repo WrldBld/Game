@@ -235,11 +235,11 @@ async fn test_lore_discovered_trigger() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Lore Revelation Event").unwrap(),
+        NarrativeEventName::new("Lore Revelation Event").expect("Event name should be valid"),
         now,
     )
     .with_description("Triggered when specific lore is discovered")
-    .with_scene_direction(Description::new("The knowledge changes everything").unwrap())
+    .with_scene_direction(Description::new("The knowledge changes everything").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -267,7 +267,7 @@ async fn test_lore_discovered_trigger() {
     );
 
     // Verify the event has the correct trigger
-    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    let found_event = events.iter().find(|e| e.id() == event.id()).expect("Event should be found");
     assert_eq!(found_event.name().as_str(), "Lore Revelation Event");
     assert!(!found_event.trigger_conditions().is_empty());
 }

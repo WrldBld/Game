@@ -622,7 +622,7 @@ warning
         assert_eq!(parsed.topics.len(), 3);
         assert!(parsed.topics.contains(&"heartstone".to_string()));
 
-        let challenge = parsed.challenge_suggestion.unwrap();
+        let challenge = parsed.challenge_suggestion.expect("result should be Some");
         assert_eq!(challenge.challenge_id, "hidden_artifact");
         assert_eq!(challenge.confidence, "high");
     }
@@ -656,7 +656,7 @@ warning
 
         assert!(parsed.dialogue.contains("curse has been broken"));
 
-        let event = parsed.narrative_event_suggestion.unwrap();
+        let event = parsed.narrative_event_suggestion.expect("result should be Some");
         assert_eq!(event.event_id, "curse_lifted");
         assert_eq!(event.matched_triggers.len(), 2);
     }
@@ -870,7 +870,7 @@ topic1
         let result = parse_llm_response(raw);
         assert!(result.is_err());
 
-        let err = result.unwrap_err();
+        let err = result.expect_err("should fail");
         match err {
             LegacyParseError::MissingDialogue => {
                 // Expected error type
@@ -895,7 +895,7 @@ Some thoughts.
         let result = parse_llm_response(raw);
         assert!(result.is_err());
 
-        let err = result.unwrap_err();
+        let err = result.expect_err("should fail");
         assert!(
             matches!(err, LegacyParseError::MissingDialogue),
             "Expected MissingDialogue for empty dialogue tag, got: {:?}",
@@ -911,7 +911,7 @@ Some thoughts.
         let result = parse_llm_response(raw);
         assert!(result.is_err());
 
-        let err = result.unwrap_err();
+        let err = result.expect_err("should fail");
         assert!(
             matches!(err, LegacyParseError::MissingDialogue),
             "Expected MissingDialogue for empty response, got: {:?}",
@@ -927,7 +927,7 @@ Some thoughts.
         let result = parse_llm_response(raw);
         assert!(result.is_err());
 
-        let err = result.unwrap_err();
+        let err = result.expect_err("should fail");
         assert!(
             matches!(err, LegacyParseError::MissingDialogue),
             "Expected MissingDialogue for whitespace-only response, got: {:?}",

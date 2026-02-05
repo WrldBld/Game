@@ -265,7 +265,7 @@ mod tests {
         #[test]
         fn clone_trait() {
             let state = CharacterState::Inactive;
-            let cloned = state.clone();
+            let cloned = state;
             assert_eq!(state, cloned);
         }
 

@@ -62,7 +62,7 @@ impl PlayerCharacterManagement {
     ) -> Result<wrldbldr_domain::PlayerCharacter, ManagementError> {
         let character_name: wrldbldr_domain::CharacterName = name
             .try_into()
-            .map_err(|e| ManagementError::Domain(e))?;
+            .map_err(ManagementError::Domain)?;
 
         let (starting_location_id, resolved_region_id) =
             self.resolve_spawn(world_id, starting_region_id).await?;

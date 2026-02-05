@@ -555,7 +555,7 @@ async fn resolve_template(
         .ok_or(ApiError::NotFound)?;
 
     // Get metadata for the template (label, description, etc.)
-    let metadata = app
+    let _metadata = app
         .use_cases
         .prompt_templates
         .get_template_metadata(&key)
@@ -692,7 +692,7 @@ mod prompt_template_tests {
                     .uri("/api/prompt-templates")
                     .method(axum::http::Method::GET)
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -727,7 +727,7 @@ mod prompt_template_tests {
                     .uri("/api/prompt-templates/resolve/dialogue.response_format")
                     .method(axum::http::Method::GET)
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -736,7 +736,7 @@ mod prompt_template_tests {
         let template: ResolvedTemplate = read_body_json(response).await;
         assert_eq!(template.key, "dialogue.response_format");
         assert_eq!(template.value, "resolved value");
-        assert_eq!(template.is_override, false);
+        assert!(!template.is_override);
         assert!(!template.default_value.is_empty());
     }
 
@@ -760,7 +760,7 @@ mod prompt_template_tests {
                     .uri("/api/prompt-templates/resolve/unknown.key")
                     .method(axum::http::Method::GET)
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -795,7 +795,7 @@ mod prompt_template_tests {
                     .body(Body::from(
                         serde_json::to_vec(&payload).expect("test: payload should serialize"),
                     ))
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -880,7 +880,7 @@ mod tests {
                     .uri("/api/settings")
                     .method(axum::http::Method::GET)
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -902,7 +902,7 @@ mod tests {
                     .uri("/api/settings/metadata")
                     .method(axum::http::Method::GET)
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -937,7 +937,7 @@ mod tests {
                     .body(Body::from(
                         serde_json::to_vec(&settings).expect("test: settings should serialize"),
                     ))
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -957,7 +957,7 @@ mod tests {
                     .uri("/api/rule-systems/D20/presets/Dnd5e")
                     .method(axum::http::Method::GET)
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();
@@ -978,10 +978,10 @@ mod tests {
 
         let now = Utc::now();
         let mut world = wrldbldr_domain::World::new(
-            wrldbldr_domain::WorldName::new("Test World").unwrap(),
+            wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid"),
             now,
         );
-        let _ = world.set_description(wrldbldr_domain::Description::new("Desc").unwrap(), now);
+        let _ = world.set_description(wrldbldr_domain::Description::new("Desc").expect("test: description should be valid"), now);
         let export = crate::use_cases::world::WorldExport {
             world: world.clone(),
             locations: Vec::new(),
@@ -1002,7 +1002,7 @@ mod tests {
                     .body(Body::from(
                         serde_json::to_vec(&export).expect("test: export should serialize"),
                     ))
-                    .unwrap(),
+                    .expect("test: request should build"),
             )
             .await
             .unwrap();

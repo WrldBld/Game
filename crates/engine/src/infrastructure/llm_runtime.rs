@@ -15,6 +15,7 @@ use crate::infrastructure::resilient_llm::ResilientLlmClient;
 /// This struct holds both the LLM client (for generation) and the models port
 /// (for discovery), ensuring they always use the same base_url.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct LlmRuntime {
     /// The LLM client for generation requests
     llm: Arc<dyn LlmPort>,
@@ -46,6 +47,7 @@ impl LlmRuntime {
     }
 
     /// Create a new LLM runtime with API key.
+    #[allow(dead_code)]
     pub fn with_api_key(
         llm: Arc<dyn LlmPort>,
         models: Arc<dyn LlmModelsPort>,
@@ -65,6 +67,7 @@ impl LlmRuntime {
     /// Create a new runtime from an OpenAI-compatible client.
     ///
     /// The client is wrapped with ResilientLlmClient for retry/circuit breaker.
+    #[allow(dead_code)]
     pub fn from_openai_client(
         client: Arc<crate::infrastructure::openai_compatible::OpenAICompatibleClient>,
         retry_config: crate::infrastructure::resilient_llm::RetryConfig,
@@ -85,16 +88,19 @@ impl LlmRuntime {
     }
 
     /// Get the LLM port for generation.
+    #[allow(dead_code)]
     pub fn llm(&self) -> Arc<dyn LlmPort> {
         self.llm.clone()
     }
 
     /// Get the models port for discovery.
+    #[allow(dead_code)]
     pub fn models(&self) -> Arc<dyn LlmModelsPort> {
         self.models.clone()
     }
 
     /// Get the effective base URL.
+    #[allow(dead_code)]
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
@@ -105,6 +111,7 @@ impl LlmRuntime {
     }
 
     /// Get the API key (if configured).
+    #[allow(dead_code)]
     pub fn api_key(&self) -> Option<&str> {
         self.api_key.as_deref()
     }
@@ -145,6 +152,7 @@ impl LlmRuntimeHolder {
     }
 
     /// Get the current base URL.
+    #[allow(dead_code)]
     pub fn base_url(&self) -> String {
         self.runtime.load().base_url().to_string()
     }
@@ -155,6 +163,7 @@ impl LlmRuntimeHolder {
     }
 
     /// Get the current API key (if configured).
+    #[allow(dead_code)]
     pub fn api_key(&self) -> Option<String> {
         self.runtime.load().api_key().map(String::from)
     }

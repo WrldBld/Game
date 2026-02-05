@@ -93,6 +93,6 @@ mod tests {
         let result = use_case.execute(world_id, false).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().conversations.len(), 0);
+        assert_eq!(result.expect("result should be Ok").conversations.len(), 0);
     }
 }

@@ -195,11 +195,6 @@ impl AssetOwnerId {
             AssetOwnerId::Item(id) => id.to_uuid(),
         }
     }
-
-    /// Convert to string representation
-    pub fn to_string(&self) -> String {
-        self.as_uuid().to_string()
-    }
 }
 
 impl fmt::Display for AssetOwnerId {
@@ -303,14 +298,14 @@ mod tests {
 
     #[test]
     fn test_user_id_display() {
-        let user_id = UserId::new("test_user").unwrap();
+        let user_id = UserId::new("test_user").expect("valid user id");
         assert_eq!(user_id.to_string(), "test_user");
         assert_eq!(format!("{}", user_id), "test_user");
     }
 
     #[test]
     fn test_user_id_conversions() {
-        let user_id = UserId::new("alice").unwrap();
+        let user_id = UserId::new("alice").expect("valid user id");
 
         // Convert to String
         let s: String = user_id.clone().into();
@@ -319,6 +314,6 @@ mod tests {
         // Convert from String
         let user_id2: Result<UserId, _> = "bob".try_into();
         assert!(user_id2.is_ok());
-        assert_eq!(user_id2.unwrap().as_str(), "bob");
+        assert_eq!(user_id2.expect("valid user id").as_str(), "bob");
     }
 }

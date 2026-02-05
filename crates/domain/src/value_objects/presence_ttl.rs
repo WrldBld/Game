@@ -29,10 +29,10 @@ use std::fmt;
 /// use wrldbldr_domain::value_objects::PresenceTtlHours;
 ///
 /// // Valid values
-/// let ttl = PresenceTtlHours::new(3).unwrap();
+/// let ttl = PresenceTtlHours::new(3).expect("valid value");
 /// assert_eq!(ttl.value(), 3);
 ///
-/// let zero = PresenceTtlHours::new(0).unwrap();
+/// let zero = PresenceTtlHours::new(0).expect("valid value");
 /// assert_eq!(zero.value(), 0);
 ///
 /// // Invalid values
@@ -66,7 +66,7 @@ impl PresenceTtlHours {
     /// ```
     /// use wrldbldr_domain::value_objects::PresenceTtlHours;
     ///
-    /// let valid = PresenceTtlHours::new(3).unwrap();
+    /// let valid = PresenceTtlHours::new(3).expect("valid value");
     /// assert_eq!(valid.value(), 3);
     ///
     /// let invalid = PresenceTtlHours::new(-1);
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn new_creates_valid_values() {
-        let ttl = PresenceTtlHours::new(3).unwrap();
+        let ttl = PresenceTtlHours::new(3).expect("valid value");
         assert_eq!(ttl.value(), 3);
     }
 
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn display_formats_correctly() {
-        let ttl = PresenceTtlHours::new(5).unwrap();
+        let ttl = PresenceTtlHours::new(5).expect("valid value");
         assert_eq!(ttl.to_string(), "5 hours");
     }
 }

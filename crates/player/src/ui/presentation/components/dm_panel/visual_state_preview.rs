@@ -41,7 +41,7 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                             // Combined state preview - show region state layered over location
                             div { class: "relative w-full h-full",
                                 // Location backdrop
-                                if let Some(ref backdrop) = loc_state.backdrop_override {
+                                if let Some(backdrop) = loc_state.backdrop_override.as_ref() {
                                     img {
                                         src: "{backdrop}",
                                         class: "w-full h-full object-cover opacity-50",
@@ -59,9 +59,9 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                     }
                                 }
                             }
-                        } else if let Some(ref loc_state) = location_state {
+                        } else if let Some(loc_state) = location_state {
                             // Location state only
-                            if let Some(ref backdrop) = loc_state.backdrop_override {
+                            if let Some(backdrop) = loc_state.backdrop_override.as_ref() {
                                 img {
                                     src: "{backdrop}",
                                     class: "w-full h-full object-cover",
@@ -73,9 +73,9 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                     "No backdrop image"
                                 }
                             }
-                        } else if let Some(ref reg_state) = region_state {
+                        } else if let Some(reg_state) = region_state {
                             // Region state only
-                            if let Some(ref backdrop) = reg_state.backdrop_override {
+                            if let Some(backdrop) = reg_state.backdrop_override.as_ref() {
                                 img {
                                     src: "{backdrop}",
                                     class: "w-full h-full object-cover",
@@ -93,24 +93,24 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                     // Description section
                     div { class: "space-y-2",
                         // Location state info
-                        if let Some(ref state) = location_state {
+                        if let Some(state) = location_state {
                             div {
                                 class: "p-2 bg-blue-500/10 border-l-2 border-blue-500",
                                 div { class: "text-blue-400 font-medium text-xs", "Location:" }
                                 div { class: "text-white text-sm", "{state.name}" }
-                                if let Some(ref atmosphere) = state.atmosphere_override {
+                                if let Some(atmosphere) = state.atmosphere_override.as_ref() {
                                     div { class: "text-gray-400 text-xs mt-1 italic", "{atmosphere}" }
                                 }
                             }
                         }
 
                         // Region state info
-                        if let Some(ref state) = region_state {
+                        if let Some(state) = region_state {
                             div {
                                 class: "p-2 bg-purple-500/10 border-l-2 border-purple-500",
                                 div { class: "text-purple-400 font-medium text-xs", "Region:" }
                                 div { class: "text-white text-sm", "{state.name}" }
-                                if let Some(ref atmosphere) = state.atmosphere_override {
+                                if let Some(atmosphere) = state.atmosphere_override.as_ref() {
                                     div { class: "text-gray-400 text-xs mt-1 italic", "{atmosphere}" }
                                 }
                             }
@@ -144,7 +144,7 @@ pub fn VisualStatePreview(props: VisualStatePreviewProps) -> Element {
                                 }
                             }
                         }
-                    } else if let Some(ref state) = location_state.or(region_state) {
+                    } else if let Some(state) = location_state.or(region_state) {
                         div { class: "space-y-1 text-xs text-gray-400",
                             if let Some(ref backdrop) = state.backdrop_override {
                                 div { class: "flex justify-between",

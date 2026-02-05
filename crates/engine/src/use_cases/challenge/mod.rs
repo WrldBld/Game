@@ -1059,499 +1059,9 @@ pub enum ChallengeError {
     Repo(#[from] RepoError),
 }
 
-#[cfg(test)]
-mod tests {
-    use std::sync::{Arc, Mutex};
-
-    use chrono::Utc;
-    use wrldbldr_domain::{
-        Challenge as DomainChallenge, ChallengeId, ChallengeName, ChallengeOutcomes, CharacterName,
-        Description, Difficulty, ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType,
-        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, Stat, UserId, WorldId,
-    };
-    use wrldbldr_domain::types::character_sheet::{CharacterSheetValues, SheetValue};
-
-    use crate::infrastructure::ports::{
-        ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo,
-        MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo, RandomPort,
-    };
-    use crate::test_fixtures::queue_mocks::MockQueueForTesting;
-
-    struct FixedClock(chrono::DateTime<chrono::Utc>);
-
-    impl ClockPort for FixedClock {
-        fn now(&self) -> chrono::DateTime<chrono::Utc> {
-            self.0
-        }
-    }
-
-    struct FixedRandom;
-
-    impl RandomPort for FixedRandom {
-        fn gen_range(&self, _min: i32, _max: i32) -> i32 {
-            1
-        }
-
-        fn gen_uuid(&self) -> uuid::Uuid {
-            uuid::Uuid::nil()
-        }
-    }
-
-    #[tokio::test]
-    async fn resolve_outcome_executes_pc_dependent_triggers() {
-        let world_id = WorldId::new();
-        let pc_id = PlayerCharacterId::new();
-        let challenge_id = ChallengeId::new();
-        let scene_id = SceneId::new();
-        let now = Utc::now();
-
-        let pc = DomainPc::new(
-            UserId::new("user-1").unwrap(),
-            world_id,
-            CharacterName::new("PC").unwrap(),
-            LocationId::new(),
-            now,
-        );
-
-        // Build success outcome with triggers using builder pattern
-        let mut success_outcome = Outcome::new("success");
-        success_outcome.triggers = vec![
-            OutcomeTrigger::reveal_persistent("secret"),
-            OutcomeTrigger::GiveItem {
-                item_name: "Key".to_string(),
-                item_description: Some("Rusty".to_string()),
-            },
-            OutcomeTrigger::modify_stat(Stat::Con, -1),
-            OutcomeTrigger::scene(scene_id),
-        ];
-
-        // ChallengeOutcomes doesn't have a constructor that takes Outcome objects directly,
-        // so we use serde roundtrip to construct it with our custom success outcome.
-        let failure_outcome = Outcome::new("failure");
-        let outcomes: ChallengeOutcomes = {
-            let json = serde_json::json!({
-                "success": serde_json::to_value(&success_outcome).unwrap(),
-                "failure": serde_json::to_value(&failure_outcome).unwrap(),
-                "partial": null,
-                "criticalSuccess": null,
-                "criticalFailure": null
-            });
-            serde_json::from_value(json).expect("valid outcomes json")
-        };
-
-        let challenge = DomainChallenge::new(
-            world_id,
-            ChallengeName::new("Test Challenge").unwrap(),
-            Difficulty::DC(10),
-        )
-        .with_outcomes(outcomes);
-
-        // ---------------------------------------------------------------------
-        // Challenge repo expectations
-        // ---------------------------------------------------------------------
-        let mut challenge_repo = MockChallengeRepo::new();
-        let challenge_for_get = challenge.clone();
-        challenge_repo
-            .expect_get()
-            .withf(move |id| *id == challenge_id)
-            .returning(move |_| Ok(Some(challenge_for_get.clone())));
-        challenge_repo
-            .expect_mark_resolved()
-            .withf(move |id| *id == challenge_id)
-            .returning(|_| Ok(()));
-        challenge_repo
-            .expect_record_resolution()
-            .withf(move |cid, pid, success| *cid == challenge_id && *pid == pc_id && *success)
-            .returning(|_, _, _| Ok(()));
-
-        // ---------------------------------------------------------------------
-        // Observation expectations
-        // ---------------------------------------------------------------------
-        let mut observation_repo = MockObservationRepo::new();
-        observation_repo
-            .expect_save_deduced_info()
-            .withf(move |id, info, _, _, _| {
-                *id == pc_id && info == "secret"
-            })
-            .returning(|_, _, _, _, _| Ok(()));
-
-        // ---------------------------------------------------------------------
-        // Inventory expectations (give_item_to_pc)
-        // ---------------------------------------------------------------------
-        let expected_item_id: Arc<Mutex<Option<ItemId>>> = Arc::new(Mutex::new(None));
-        let expected_item_id_for_save = expected_item_id.clone();
-        let mut item_repo = MockItemRepo::new();
-        item_repo
-            .expect_save()
-            .withf(|item| {
-                item.name.as_str() == "Key" && item.description == Some("Rusty".to_string())
-            })
-            .returning(move |item| {
-                let expected_item_id_for_save = expected_item_id_for_save.clone();
-                let item_id = item.id;
-                *expected_item_id_for_save.lock().unwrap() = Some(item_id);
-                Ok(())
-            });
-
-        let expected_item_id_for_add = expected_item_id.clone();
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        let pc_for_get = pc.clone();
-        pc_repo
-            .expect_get()
-            .withf(move |id| *id == pc_id)
-            .returning(move |_| Ok(Some(pc_for_get.clone())));
-        pc_repo
-            .expect_add_to_inventory()
-            .withf(move |id, item_id| {
-                *id == pc_id && Some(*item_id) == *expected_item_id_for_add.lock().unwrap()
-            })
-            .returning(|_, _| Ok(()));
-        pc_repo
-            .expect_modify_stat()
-            .withf(move |id, stat, delta| *id == pc_id && stat == "CON" && *delta == -1)
-            .returning(|_, _, _| Ok(crate::infrastructure::ports::StatModificationResult {
-                old_value: 10,
-                new_value: 9,
-                delta: -1,
-            }));
-
-        // ---------------------------------------------------------------------
-        // Scene expectations
-        // ---------------------------------------------------------------------
-        let mut scene_repo = MockSceneRepo::new();
-        scene_repo
-            .expect_set_current()
-            .withf(move |w, s| *w == world_id && *s == scene_id)
-            .returning(|_, _| Ok(()));
-
-        // ResolveOutcome takes port traits directly
-        let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
-
-        let resolve = super::ResolveOutcome::new(
-            Arc::new(challenge_repo),
-            Arc::new(item_repo),
-            pc_repo,
-            Arc::new(observation_repo),
-            Arc::new(scene_repo),
-        );
-
-        resolve
-            .execute_for_pc(challenge_id, OutcomeType::Success, pc_id)
-            .await
-            .expect("resolve outcome should succeed");
-    }
-
-    #[tokio::test]
-    async fn trigger_challenge_prompt_enriches_with_pc_skill_data() {
-        let challenge_id = ChallengeId::new();
-        let pc_id = PlayerCharacterId::new();
-        let world_id = WorldId::new();
-
-        // Create a challenge with check_stat = "strength"
-        let challenge = DomainChallenge::new(
-            world_id,
-            ChallengeName::new("Test Challenge").unwrap(),
-            Difficulty::DC(12),
-        )
-        .with_id(challenge_id)  // Set the ID to match what the mock expects
-        .with_check_stat(Stat::Str)
-        .with_description(Description::new("Test description").unwrap());
-
-        // Create a PC with sheet_data containing skill value
-        let mut sheet_data = CharacterSheetValues::default();
-        sheet_data.set("STR", SheetValue::Integer(5));
-
-        let pc = DomainPc::new(
-            UserId::new("user-1").unwrap(),
-            world_id,
-            CharacterName::new("PC").unwrap(),
-            LocationId::new(),
-            Utc::now(),
-        )
-        .with_sheet_data(sheet_data);
-
-        // Set up mock repos
-        let mut challenge_repo = MockChallengeRepo::new();
-        let challenge_for_get = challenge.clone();
-        challenge_repo
-            .expect_get()
-            .withf(move |id| *id == challenge_id)
-            .returning(move |_| Ok(Some(challenge_for_get.clone())));
-
-        // Mock get_availability to return empty (always available)
-        challenge_repo
-            .expect_get_availability()
-            .withf(move |id| *id == challenge_id)
-            .returning(move |_| Ok(vec![]));
-
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        let pc = pc.clone();
-        pc_repo
-            .expect_get()
-            .times(2)  // Called once in execute, once in validate_challenge_availability
-            .returning(move |_| Ok(Some(pc.clone())));
-
-        let mut world_repo = crate::infrastructure::ports::MockWorldRepo::new();
-
-        let trigger_prompt = super::TriggerChallengePrompt::new(
-            Arc::new(challenge_repo),
-            Arc::new(pc_repo),
-            Arc::new(world_repo),
-        );
-
-        let result = trigger_prompt
-            .execute(challenge_id, Some(pc_id))
-            .await
-            .expect("trigger prompt should succeed");
-
-        // Verify enriched data
-        assert_eq!(result.challenge_id, challenge_id);
-        assert_eq!(result.challenge_name, "Test Challenge");
-        assert_eq!(result.skill_name, "STR");
-        assert_eq!(result.character_modifier, 5);
-        assert_eq!(result.difficulty_display, "DC 12");
-        assert_eq!(result.suggested_dice, Some("1d20".to_string()));
-        assert_eq!(result.description, "Test description");
-    }
-
-    #[tokio::test]
-    async fn trigger_challenge_prompt_without_pc_returns_defaults() {
-        let challenge_id = ChallengeId::new();
-        let world_id = WorldId::new();
-
-        // Create a challenge without target PC
-        let challenge = DomainChallenge::new(
-            world_id,
-            ChallengeName::new("Test Challenge").unwrap(),
-            Difficulty::Percentage(50),
-        )
-        .with_description(Description::new("Test description").unwrap());
-
-        // Set up mock repos
-        let mut challenge_repo = MockChallengeRepo::new();
-        let challenge_for_get = challenge.clone();
-        challenge_repo
-            .expect_get()
-            .withf(move |id| *id == challenge_id)
-            .returning(move |_| Ok(Some(challenge_for_get.clone())));
-
-        // Mock get_availability to return empty (always available)
-        challenge_repo
-            .expect_get_availability()
-            .withf(move |id| *id == challenge_id)
-            .returning(move |_| Ok(vec![]));
-
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        pc_repo.expect_get().never(); // Should not be called without target PC
-
-        let mut world_repo = crate::infrastructure::ports::MockWorldRepo::new();
-
-        // Execute trigger prompt without target PC
-        let trigger_prompt = super::TriggerChallengePrompt::new(
-            Arc::new(challenge_repo),
-            Arc::new(pc_repo),
-            Arc::new(world_repo),
-        );
-
-        let result = trigger_prompt
-            .execute(challenge_id, None)
-            .await
-            .expect("trigger prompt should succeed");
-
-        // Verify default values when no target PC
-        assert_eq!(result.challenge_id, challenge_id);
-        assert_eq!(result.challenge_name, "Test Challenge");
-        assert_eq!(result.skill_name, ""); // Empty when no PC
-        assert_eq!(result.character_modifier, 0); // No modifier when no PC
-        assert_eq!(result.difficulty_display, "50%");
-        assert_eq!(result.suggested_dice, Some("1d20".to_string())); // Fallback default
-        assert_eq!(result.description, "Test description");
-    }
-
-    #[tokio::test]
-    async fn trigger_challenge_prompt_determines_dice_suggestion_by_difficulty_type() {
-        let pc_id = PlayerCharacterId::new();
-        let world_id = WorldId::new();
-
-        // Test DC difficulty (D20)
-        let challenge_dc = DomainChallenge::new(
-            world_id,
-            ChallengeName::new("DC Challenge").unwrap(),
-            Difficulty::DC(15),
-        )
-        .with_check_stat(Stat::Dex);
-
-        // Test Percentage difficulty (d100)
-        let challenge_percentile = DomainChallenge::new(
-            world_id,
-            ChallengeName::new("Percentile Challenge").unwrap(),
-            Difficulty::Percentage(65),
-        )
-        .with_check_stat(Stat::Dex);
-
-        // Set up mock repos
-        let mut challenge_repo = MockChallengeRepo::new();
-        let challenge_dc_for_return = challenge_dc.clone();
-        let challenge_percentile_for_return = challenge_percentile.clone();
-        let challenge_dc_id = challenge_dc.id();
-        let challenge_percentile_id = challenge_percentile.id();
-        challenge_repo
-            .expect_get()
-            .times(2)
-            .returning_st(move |id| {
-                if id == challenge_dc_id {
-                    Ok(Some(challenge_dc_for_return.clone()))
-                } else if id == challenge_percentile_id {
-                    Ok(Some(challenge_percentile_for_return.clone()))
-                } else {
-                    Ok(None)
-                }
-            });
-
-        let mut sheet_data = CharacterSheetValues::default();
-        sheet_data.set("dexterity", SheetValue::Integer(3));
-
-        let pc = DomainPc::new(
-            UserId::new("user-1").unwrap(),
-            world_id,
-            CharacterName::new("PC").unwrap(),
-            LocationId::new(),
-            Utc::now(),
-        )
-        .with_sheet_data(sheet_data);
-
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        pc_repo
-            .expect_get()
-            .times(4) // Called twice per execute (once in validate_challenge_availability, once in execute)
-            .returning(move |_| Ok(Some(pc.clone())));
-
-        // Mock get_availability for both challenges
-        challenge_repo
-            .expect_get_availability()
-            .times(2)
-            .returning(move |_| Ok(vec![]));
-
-        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
-
-        let trigger_prompt = super::TriggerChallengePrompt::new(
-            Arc::new(challenge_repo),
-            Arc::new(pc_repo),
-            Arc::new(world_repo),
-        );
-
-        // Test DC challenge
-        let result_dc = trigger_prompt
-            .execute(challenge_dc.id(), Some(pc_id))
-            .await
-            .expect("trigger prompt should succeed");
-        assert_eq!(
-            result_dc.suggested_dice,
-            Some("1d20".to_string())
-        );
-        assert_eq!(
-            result_dc.rule_system_hint,
-            Some("D20 systems: roll 1d20 + modifier".to_string())
-        );
-
-        // Test Percentage challenge
-        let result_percentile = trigger_prompt
-            .execute(challenge_percentile.id(), Some(pc_id))
-            .await
-            .expect("trigger prompt should succeed");
-        assert_eq!(
-            result_percentile.suggested_dice,
-            Some("1d100".to_string())
-        );
-        assert_eq!(
-            result_percentile.rule_system_hint,
-            Some("Call of Cthulhu 7e: roll d100, must roll under skill value".to_string())
-        );
-    }
-
-    #[tokio::test]
-    async fn execute_with_input_combines_modifiers_correctly() {
-        let world_id = WorldId::new();
-        let pc_id = PlayerCharacterId::new();
-
-        // Create challenge with check_stat - this generates its own ID
-        let challenge = DomainChallenge::new(
-            world_id,
-            ChallengeName::new("Test Challenge").unwrap(),
-            Difficulty::DC(10),
-        )
-        .with_check_stat(Stat::Str);
-        let challenge_id = challenge.id(); // Use the challenge's actual ID
-
-        // Create a PC for the test
-        let pc = DomainPc::new(
-            UserId::new("user-1").unwrap(),
-            world_id,
-            CharacterName::new("PC").unwrap(),
-            LocationId::new(),
-            Utc::now(),
-        );
-
-        // Set up mock repos
-        let mut challenge_repo = MockChallengeRepo::new();
-        let challenge_for_get = challenge.clone();
-        challenge_repo
-            .expect_get()
-            .withf(move |id| *id == challenge_id)
-            .returning(move |_| Ok(Some(challenge_for_get.clone())));
-        challenge_repo
-            .expect_get_availability()
-            .withf(move |id| *id == challenge_id)
-            .times(4) // Called 4 times total - 2 per execute_with_input call (once in execute_with_input, once in execute)
-            .returning(|_| Ok(vec![])); // Empty availability = always available
-
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        let pc_for_get = pc.clone();
-        pc_repo
-            .expect_get()
-            .withf(move |id| *id == pc_id)
-            .returning(move |_| Ok(Some(pc_for_get.clone())));
-
-        let queue_repo = MockQueueForTesting::new();
-
-        let random_port = FixedRandom;
-        let clock = FixedClock(Utc::now());
-        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
-
-        let roll_challenge = super::RollChallenge::new(
-            Arc::new(challenge_repo),
-            Arc::new(pc_repo),
-            Arc::new(queue_repo),
-            Arc::new(random_port),
-            Arc::new(clock),
-            Arc::new(world_repo),
-        );
-
-        // Test with formula roll (modifier from formula + skill modifier)
-        let input = wrldbldr_domain::DiceRollInput::Formula("1d20+2".to_string());
-        let result = roll_challenge
-            .execute_with_input(world_id, challenge_id, pc_id, input, 3) // Skill modifier = 3
-            .await
-            .expect("execute_with_input should succeed");
-
-        // Formula modifier (2) + Skill modifier (3) = 5 total modifier
-        assert_eq!(result.modifier, 5);
-        // Dice roll (1 from FixedRandom) + Total modifier (5) = 6
-        assert_eq!(result.total, 6);
-
-        // Test with manual roll
-        let input_manual = wrldbldr_domain::DiceRollInput::ManualResult(12);
-        let result_manual = roll_challenge
-            .execute_with_input(world_id, challenge_id, pc_id, input_manual, 4) // Skill modifier = 4
-            .await
-            .expect("execute_with_input should succeed");
-
-        // Manual roll has no formula modifier, just skill modifier
-        assert_eq!(result_manual.modifier, 4);
-        // Dice roll (12) + Skill modifier (4) = 16
-        assert_eq!(result_manual.total, 16);
-    }
-}
+// =============================================================================
+// Helper Functions (must be before test module to avoid items_after_test_module warning)
+// =============================================================================
 
 /// Validates that a challenge is available to a player character.
 ///
@@ -1625,3 +1135,498 @@ async fn validate_challenge_availability(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use chrono::Utc;
+    use wrldbldr_domain::{
+        Challenge as DomainChallenge, ChallengeId, ChallengeName, ChallengeOutcomes, CharacterName,
+        Description, Difficulty, ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType,
+        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, Stat, UserId, WorldId,
+    };
+    use wrldbldr_domain::types::character_sheet::{CharacterSheetValues, SheetValue};
+
+    use crate::infrastructure::ports::{
+        ClockPort, MockChallengeRepo, MockItemRepo,
+        MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo, RandomPort,
+    };
+    use crate::test_fixtures::queue_mocks::MockQueueForTesting;
+
+    struct FixedClock(chrono::DateTime<chrono::Utc>);
+
+    impl ClockPort for FixedClock {
+        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+            self.0
+        }
+    }
+
+    struct FixedRandom;
+
+    impl RandomPort for FixedRandom {
+        fn gen_range(&self, _min: i32, _max: i32) -> i32 {
+            1
+        }
+
+        fn gen_uuid(&self) -> uuid::Uuid {
+            uuid::Uuid::nil()
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_outcome_executes_pc_dependent_triggers() {
+        let world_id = WorldId::new();
+        let pc_id = PlayerCharacterId::new();
+        let challenge_id = ChallengeId::new();
+        let scene_id = SceneId::new();
+        let now = Utc::now();
+
+        let pc = DomainPc::new(
+            UserId::new("user-1").expect("valid user id"),
+            world_id,
+            CharacterName::new("PC").expect("valid character name"),
+            LocationId::new(),
+            now,
+        );
+
+        // Build success outcome with triggers using builder pattern
+        let mut success_outcome = Outcome::new("success");
+        success_outcome.triggers = vec![
+            OutcomeTrigger::reveal_persistent("secret"),
+            OutcomeTrigger::GiveItem {
+                item_name: "Key".to_string(),
+                item_description: Some("Rusty".to_string()),
+            },
+            OutcomeTrigger::modify_stat(Stat::Con, -1),
+            OutcomeTrigger::scene(scene_id),
+        ];
+
+        // ChallengeOutcomes doesn't have a constructor that takes Outcome objects directly,
+        // so we use serde roundtrip to construct it with our custom success outcome.
+        let failure_outcome = Outcome::new("failure");
+        let outcomes: ChallengeOutcomes = {
+            let json = serde_json::json!({
+                "success": serde_json::to_value(&success_outcome).expect("valid json"),
+                "failure": serde_json::to_value(&failure_outcome).expect("valid json"),
+                "partial": null,
+                "criticalSuccess": null,
+                "criticalFailure": null
+            });
+            serde_json::from_value(json).expect("valid outcomes json")
+        };
+
+        let challenge = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("Test Challenge").expect("valid challenge name"),
+            Difficulty::DC(10),
+        )
+        .with_outcomes(outcomes);
+
+        // ---------------------------------------------------------------------
+        // Challenge repo expectations
+        // ---------------------------------------------------------------------
+        let mut challenge_repo = MockChallengeRepo::new();
+        let challenge_for_get = challenge.clone();
+        challenge_repo
+            .expect_get()
+            .withf(move |id| *id == challenge_id)
+            .returning(move |_| Ok(Some(challenge_for_get.clone())));
+        challenge_repo
+            .expect_mark_resolved()
+            .withf(move |id| *id == challenge_id)
+            .returning(|_| Ok(()));
+        challenge_repo
+            .expect_record_resolution()
+            .withf(move |cid, pid, success| *cid == challenge_id && *pid == pc_id && *success)
+            .returning(|_, _, _| Ok(()));
+
+        // ---------------------------------------------------------------------
+        // Observation expectations
+        // ---------------------------------------------------------------------
+        let mut observation_repo = MockObservationRepo::new();
+        observation_repo
+            .expect_save_deduced_info()
+            .withf(move |id, info, _, _, _| {
+                *id == pc_id && info == "secret"
+            })
+            .returning(|_, _, _, _, _| Ok(()));
+
+        // ---------------------------------------------------------------------
+        // Inventory expectations (give_item_to_pc)
+        // ---------------------------------------------------------------------
+        let expected_item_id: Arc<Mutex<Option<ItemId>>> = Arc::new(Mutex::new(None));
+        let expected_item_id_for_save = expected_item_id.clone();
+        let mut item_repo = MockItemRepo::new();
+        item_repo
+            .expect_save()
+            .withf(|item| {
+                item.name.as_str() == "Key" && item.description == Some("Rusty".to_string())
+            })
+            .returning(move |item| {
+                let expected_item_id_for_save = expected_item_id_for_save.clone();
+                let item_id = item.id;
+                *expected_item_id_for_save.lock().expect("lock should not be poisoned") = Some(item_id);
+                Ok(())
+            });
+
+        let expected_item_id_for_add = expected_item_id.clone();
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+        pc_repo
+            .expect_add_to_inventory()
+            .withf(move |id, item_id| {
+                *id == pc_id && Some(*item_id) == *expected_item_id_for_add.lock().expect("lock should not be poisoned")
+            })
+            .returning(|_, _| Ok(()));
+        pc_repo
+            .expect_modify_stat()
+            .withf(move |id, stat, delta| *id == pc_id && stat == "CON" && *delta == -1)
+            .returning(|_, _, _| Ok(crate::infrastructure::ports::StatModificationResult {
+                old_value: 10,
+                new_value: 9,
+                delta: -1,
+            }));
+
+        // ---------------------------------------------------------------------
+        // Scene expectations
+        // ---------------------------------------------------------------------
+        let mut scene_repo = MockSceneRepo::new();
+        scene_repo
+            .expect_set_current()
+            .withf(move |w, s| *w == world_id && *s == scene_id)
+            .returning(|_, _| Ok(()));
+
+        // ResolveOutcome takes port traits directly
+        let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
+
+        let resolve = super::ResolveOutcome::new(
+            Arc::new(challenge_repo),
+            Arc::new(item_repo),
+            pc_repo,
+            Arc::new(observation_repo),
+            Arc::new(scene_repo),
+        );
+
+        resolve
+            .execute_for_pc(challenge_id, OutcomeType::Success, pc_id)
+            .await
+            .expect("resolve outcome should succeed");
+    }
+
+    #[tokio::test]
+    async fn trigger_challenge_prompt_enriches_with_pc_skill_data() {
+        let challenge_id = ChallengeId::new();
+        let pc_id = PlayerCharacterId::new();
+        let world_id = WorldId::new();
+
+        // Create a challenge with check_stat = "strength"
+        let challenge = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("Test Challenge").expect("valid challenge name"),
+            Difficulty::DC(12),
+        )
+        .with_id(challenge_id)  // Set the ID to match what the mock expects
+        .with_check_stat(Stat::Str)
+        .with_description(Description::new("Test description").expect("valid description"));
+
+        // Create a PC with sheet_data containing skill value
+        let mut sheet_data = CharacterSheetValues::default();
+        sheet_data.set("STR", SheetValue::Integer(5));
+
+        let pc = DomainPc::new(
+            UserId::new("user-1").expect("valid user id"),
+            world_id,
+            CharacterName::new("PC").expect("valid character name"),
+            LocationId::new(),
+            Utc::now(),
+        )
+        .with_sheet_data(sheet_data);
+
+        // Set up mock repos
+        let mut challenge_repo = MockChallengeRepo::new();
+        let challenge_for_get = challenge.clone();
+        challenge_repo
+            .expect_get()
+            .withf(move |id| *id == challenge_id)
+            .returning(move |_| Ok(Some(challenge_for_get.clone())));
+
+        // Mock get_availability to return empty (always available)
+        challenge_repo
+            .expect_get_availability()
+            .withf(move |id| *id == challenge_id)
+            .returning(move |_| Ok(vec![]));
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc = pc.clone();
+        pc_repo
+            .expect_get()
+            .times(2)  // Called once in execute, once in validate_challenge_availability
+            .returning(move |_| Ok(Some(pc.clone())));
+
+        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
+
+        let trigger_prompt = super::TriggerChallengePrompt::new(
+            Arc::new(challenge_repo),
+            Arc::new(pc_repo),
+            Arc::new(world_repo),
+        );
+
+        let result = trigger_prompt
+            .execute(challenge_id, Some(pc_id))
+            .await
+            .expect("trigger prompt should succeed");
+
+        // Verify enriched data
+        assert_eq!(result.challenge_id, challenge_id);
+        assert_eq!(result.challenge_name, "Test Challenge");
+        assert_eq!(result.skill_name, "STR");
+        assert_eq!(result.character_modifier, 5);
+        assert_eq!(result.difficulty_display, "DC 12");
+        assert_eq!(result.suggested_dice, Some("1d20".to_string()));
+        assert_eq!(result.description, "Test description");
+    }
+
+    #[tokio::test]
+    async fn trigger_challenge_prompt_without_pc_returns_defaults() {
+        let challenge_id = ChallengeId::new();
+        let world_id = WorldId::new();
+
+        // Create a challenge without target PC
+        let challenge = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("Test Challenge").expect("valid challenge name"),
+            Difficulty::Percentage(50),
+        )
+        .with_description(Description::new("Test description").expect("valid description"));
+
+        // Set up mock repos
+        let mut challenge_repo = MockChallengeRepo::new();
+        let challenge_for_get = challenge.clone();
+        challenge_repo
+            .expect_get()
+            .withf(move |id| *id == challenge_id)
+            .returning(move |_| Ok(Some(challenge_for_get.clone())));
+
+        // Mock get_availability to return empty (always available)
+        challenge_repo
+            .expect_get_availability()
+            .withf(move |id| *id == challenge_id)
+            .returning(move |_| Ok(vec![]));
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        pc_repo.expect_get().never(); // Should not be called without target PC
+
+        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
+
+        // Execute trigger prompt without target PC
+        let trigger_prompt = super::TriggerChallengePrompt::new(
+            Arc::new(challenge_repo),
+            Arc::new(pc_repo),
+            Arc::new(world_repo),
+        );
+
+        let result = trigger_prompt
+            .execute(challenge_id, None)
+            .await
+            .expect("trigger prompt should succeed");
+
+        // Verify default values when no target PC
+        assert_eq!(result.challenge_id, challenge_id);
+        assert_eq!(result.challenge_name, "Test Challenge");
+        assert_eq!(result.skill_name, ""); // Empty when no PC
+        assert_eq!(result.character_modifier, 0); // No modifier when no PC
+        assert_eq!(result.difficulty_display, "50%");
+        assert_eq!(result.suggested_dice, Some("1d20".to_string())); // Fallback default
+        assert_eq!(result.description, "Test description");
+    }
+
+    #[tokio::test]
+    async fn trigger_challenge_prompt_determines_dice_suggestion_by_difficulty_type() {
+        let pc_id = PlayerCharacterId::new();
+        let world_id = WorldId::new();
+
+        // Test DC difficulty (D20)
+        let challenge_dc = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("DC Challenge").expect("valid challenge name"),
+            Difficulty::DC(15),
+        )
+        .with_check_stat(Stat::Dex);
+
+        // Test Percentage difficulty (d100)
+        let challenge_percentile = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("Percentile Challenge").expect("valid challenge name"),
+            Difficulty::Percentage(65),
+        )
+        .with_check_stat(Stat::Dex);
+
+        // Set up mock repos
+        let mut challenge_repo = MockChallengeRepo::new();
+        let challenge_dc_for_return = challenge_dc.clone();
+        let challenge_percentile_for_return = challenge_percentile.clone();
+        let challenge_dc_id = challenge_dc.id();
+        let challenge_percentile_id = challenge_percentile.id();
+        challenge_repo
+            .expect_get()
+            .times(2)
+            .returning_st(move |id| {
+                if id == challenge_dc_id {
+                    Ok(Some(challenge_dc_for_return.clone()))
+                } else if id == challenge_percentile_id {
+                    Ok(Some(challenge_percentile_for_return.clone()))
+                } else {
+                    Ok(None)
+                }
+            });
+
+        let mut sheet_data = CharacterSheetValues::default();
+        sheet_data.set("dexterity", SheetValue::Integer(3));
+
+        let pc = DomainPc::new(
+            UserId::new("user-1").expect("valid user id"),
+            world_id,
+            CharacterName::new("PC").expect("valid character name"),
+            LocationId::new(),
+            Utc::now(),
+        )
+        .with_sheet_data(sheet_data);
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        pc_repo
+            .expect_get()
+            .times(4) // Called twice per execute (once in validate_challenge_availability, once in execute)
+            .returning(move |_| Ok(Some(pc.clone())));
+
+        // Mock get_availability for both challenges
+        challenge_repo
+            .expect_get_availability()
+            .times(2)
+            .returning(move |_| Ok(vec![]));
+
+        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
+
+        let trigger_prompt = super::TriggerChallengePrompt::new(
+            Arc::new(challenge_repo),
+            Arc::new(pc_repo),
+            Arc::new(world_repo),
+        );
+
+        // Test DC challenge
+        let result_dc = trigger_prompt
+            .execute(challenge_dc.id(), Some(pc_id))
+            .await
+            .expect("trigger prompt should succeed");
+        assert_eq!(
+            result_dc.suggested_dice,
+            Some("1d20".to_string())
+        );
+        assert_eq!(
+            result_dc.rule_system_hint,
+            Some("D20 systems: roll 1d20 + modifier".to_string())
+        );
+
+        // Test Percentage challenge
+        let result_percentile = trigger_prompt
+            .execute(challenge_percentile.id(), Some(pc_id))
+            .await
+            .expect("trigger prompt should succeed");
+        assert_eq!(
+            result_percentile.suggested_dice,
+            Some("1d100".to_string())
+        );
+        assert_eq!(
+            result_percentile.rule_system_hint,
+            Some("Call of Cthulhu 7e: roll d100, must roll under skill value".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_with_input_combines_modifiers_correctly() {
+        let world_id = WorldId::new();
+        let pc_id = PlayerCharacterId::new();
+
+        // Create challenge with check_stat - this generates its own ID
+        let challenge = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("Test Challenge").expect("valid challenge name"),
+            Difficulty::DC(10),
+        )
+        .with_check_stat(Stat::Str);
+        let challenge_id = challenge.id(); // Use the challenge's actual ID
+
+        // Create a PC for the test
+        let pc = DomainPc::new(
+            UserId::new("user-1").expect("valid user id"),
+            world_id,
+            CharacterName::new("PC").expect("valid character name"),
+            LocationId::new(),
+            Utc::now(),
+        );
+
+        // Set up mock repos
+        let mut challenge_repo = MockChallengeRepo::new();
+        let challenge_for_get = challenge.clone();
+        challenge_repo
+            .expect_get()
+            .withf(move |id| *id == challenge_id)
+            .returning(move |_| Ok(Some(challenge_for_get.clone())));
+        challenge_repo
+            .expect_get_availability()
+            .withf(move |id| *id == challenge_id)
+            .times(4) // Called 4 times total - 2 per execute_with_input call (once in execute_with_input, once in execute)
+            .returning(|_| Ok(vec![])); // Empty availability = always available
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let queue_repo = MockQueueForTesting::new();
+
+        let random_port = FixedRandom;
+        let clock = FixedClock(Utc::now());
+        let world_repo = crate::infrastructure::ports::MockWorldRepo::new();
+
+        let roll_challenge = super::RollChallenge::new(
+            Arc::new(challenge_repo),
+            Arc::new(pc_repo),
+            Arc::new(queue_repo),
+            Arc::new(random_port),
+            Arc::new(clock),
+            Arc::new(world_repo),
+        );
+
+        // Test with formula roll (modifier from formula + skill modifier)
+        let input = wrldbldr_domain::DiceRollInput::Formula("1d20+2".to_string());
+        let result = roll_challenge
+            .execute_with_input(world_id, challenge_id, pc_id, input, 3) // Skill modifier = 3
+            .await
+            .expect("execute_with_input should succeed");
+
+        // Formula modifier (2) + Skill modifier (3) = 5 total modifier
+        assert_eq!(result.modifier, 5);
+        // Dice roll (1 from FixedRandom) + Total modifier (5) = 6
+        assert_eq!(result.total, 6);
+
+        // Test with manual roll
+        let input_manual = wrldbldr_domain::DiceRollInput::ManualResult(12);
+        let result_manual = roll_challenge
+            .execute_with_input(world_id, challenge_id, pc_id, input_manual, 4) // Skill modifier = 4
+            .await
+            .expect("execute_with_input should succeed");
+
+        // Manual roll has no formula modifier, just skill modifier
+        assert_eq!(result_manual.modifier, 4);
+        // Dice roll (12) + Skill modifier (4) = 16
+        assert_eq!(result_manual.total, 16);
+    }
+}
+

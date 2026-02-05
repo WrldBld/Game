@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_map_bounds_contains_normal_case() {
-        let bounds = MapBounds::new(10, 20, 100, 50).unwrap();
+        let bounds = MapBounds::new(10, 20, 100, 50).expect("valid bounds");
         // Inside bounds
         assert!(bounds.contains(10, 20)); // Top-left corner
         assert!(bounds.contains(109, 69)); // Just inside bottom-right
@@ -378,7 +378,7 @@ mod tests {
     fn test_map_bounds_new_accepts_valid_bounds() {
         let bounds = MapBounds::new(10, 20, 100, 50);
         assert!(bounds.is_some());
-        let bounds = bounds.unwrap();
+        let bounds = bounds.expect("valid bounds");
         assert_eq!(bounds.x, 10);
         assert_eq!(bounds.y, 20);
         assert_eq!(bounds.width, 100);
@@ -424,7 +424,7 @@ mod tests {
         let connection = RegionConnection {
             from_region,
             to_region,
-            description: Some(Description::new("A narrow passage").unwrap()),
+            description: Some(Description::new("A narrow passage").expect("valid description")),
             bidirectional: false,
             is_locked: true,
             lock_description: Some("Requires a key".to_string()),

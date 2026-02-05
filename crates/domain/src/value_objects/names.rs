@@ -904,7 +904,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = CharacterName::new("Gandalf").unwrap();
+            let name = CharacterName::new("Gandalf").expect("valid value");
             assert_eq!(name.as_str(), "Gandalf");
             assert_eq!(name.to_string(), "Gandalf");
         }
@@ -913,7 +913,7 @@ mod tests {
         fn empty_name_rejected() {
             let result = CharacterName::new("");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("cannot be empty"));
         }
@@ -922,13 +922,13 @@ mod tests {
         fn whitespace_only_rejected() {
             let result = CharacterName::new("   ");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = CharacterName::new("  Frodo Baggins  ").unwrap();
+            let name = CharacterName::new("  Frodo Baggins  ").expect("valid value");
             assert_eq!(name.as_str(), "Frodo Baggins");
         }
 
@@ -937,7 +937,7 @@ mod tests {
             let long_name = "a".repeat(201);
             let result = CharacterName::new(long_name);
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("200"));
         }
@@ -945,26 +945,26 @@ mod tests {
         #[test]
         fn max_length_accepted() {
             let max_name = "a".repeat(200);
-            let name = CharacterName::new(max_name).unwrap();
+            let name = CharacterName::new(max_name).expect("valid value");
             assert_eq!(name.as_str().len(), 200);
         }
 
         #[test]
         fn try_from_string() {
-            let name: CharacterName = "Aragorn".to_string().try_into().unwrap();
+            let name: CharacterName = "Aragorn".to_string().try_into().expect("valid value");
             assert_eq!(name.as_str(), "Aragorn");
         }
 
         #[test]
         fn into_string() {
-            let name = CharacterName::new("Legolas").unwrap();
+            let name = CharacterName::new("Legolas").expect("valid value");
             let s: String = name.into();
             assert_eq!(s, "Legolas");
         }
 
         #[test]
         fn clone_preserves_name() {
-            let name = CharacterName::new("Gimli").unwrap();
+            let name = CharacterName::new("Gimli").expect("valid value");
             let cloned = name.clone();
             assert_eq!(cloned.as_str(), "Gimli");
         }
@@ -975,7 +975,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = LocationName::new("Rivendell").unwrap();
+            let name = LocationName::new("Rivendell").expect("valid value");
             assert_eq!(name.as_str(), "Rivendell");
         }
 
@@ -983,12 +983,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = LocationName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = LocationName::new("  Moria  ").unwrap();
+            let name = LocationName::new("  Moria  ").expect("valid value");
             assert_eq!(name.as_str(), "Moria");
         }
 
@@ -1001,7 +1001,7 @@ mod tests {
 
         #[test]
         fn clone_preserves_name() {
-            let name = LocationName::new("Gondor").unwrap();
+            let name = LocationName::new("Gondor").expect("valid value");
             let cloned = name.clone();
             assert_eq!(cloned.as_str(), "Gondor");
         }
@@ -1012,7 +1012,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = WorldName::new("Middle-earth").unwrap();
+            let name = WorldName::new("Middle-earth").expect("valid value");
             assert_eq!(name.as_str(), "Middle-earth");
         }
 
@@ -1020,12 +1020,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = WorldName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = WorldName::new("  Narnia  ").unwrap();
+            let name = WorldName::new("  Narnia  ").expect("valid value");
             assert_eq!(name.as_str(), "Narnia");
         }
 
@@ -1038,7 +1038,7 @@ mod tests {
 
         #[test]
         fn clone_preserves_name() {
-            let name = WorldName::new("Westeros").unwrap();
+            let name = WorldName::new("Westeros").expect("valid value");
             let cloned = name.clone();
             assert_eq!(cloned.as_str(), "Westeros");
         }
@@ -1049,7 +1049,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = SceneName::new("The Hidden Grove").unwrap();
+            let name = SceneName::new("The Hidden Grove").expect("valid value");
             assert_eq!(name.as_str(), "The Hidden Grove");
         }
 
@@ -1057,12 +1057,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = SceneName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = SceneName::new("  The Threshold  ").unwrap();
+            let name = SceneName::new("  The Threshold  ").expect("valid value");
             assert_eq!(name.as_str(), "The Threshold");
         }
 
@@ -1075,7 +1075,7 @@ mod tests {
 
         #[test]
         fn clone_preserves_name() {
-            let name = SceneName::new("Crossing the Bridge").unwrap();
+            let name = SceneName::new("Crossing the Bridge").expect("valid value");
             let cloned = name.clone();
             assert_eq!(cloned.as_str(), "Crossing the Bridge");
         }
@@ -1086,7 +1086,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = NarrativeEventName::new("The Door Unlocks").unwrap();
+            let name = NarrativeEventName::new("The Door Unlocks").expect("valid value");
             assert_eq!(name.as_str(), "The Door Unlocks");
         }
 
@@ -1094,12 +1094,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = NarrativeEventName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = NarrativeEventName::new("  A Sudden Storm  ").unwrap();
+            let name = NarrativeEventName::new("  A Sudden Storm  ").expect("valid value");
             assert_eq!(name.as_str(), "A Sudden Storm");
         }
 
@@ -1112,7 +1112,7 @@ mod tests {
 
         #[test]
         fn clone_preserves_name() {
-            let name = NarrativeEventName::new("The Oath Broken").unwrap();
+            let name = NarrativeEventName::new("The Oath Broken").expect("valid value");
             let cloned = name.clone();
             assert_eq!(cloned.as_str(), "The Oath Broken");
         }
@@ -1123,13 +1123,13 @@ mod tests {
 
         #[test]
         fn valid_description() {
-            let desc = Description::new("A powerful wizard").unwrap();
+            let desc = Description::new("A powerful wizard").expect("valid value");
             assert_eq!(desc.as_str(), "A powerful wizard");
         }
 
         #[test]
         fn empty_is_valid() {
-            let desc = Description::new("").unwrap();
+            let desc = Description::new("").expect("valid value");
             assert!(desc.is_empty());
             assert_eq!(desc.as_str(), "");
         }
@@ -1151,20 +1151,20 @@ mod tests {
             let long_desc = "a".repeat(5001);
             let result = Description::new(long_desc);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("5000"));
+            assert!(result.expect_err("should fail").to_string().contains("5000"));
         }
 
         #[test]
         fn max_length_accepted() {
             let max_desc = "a".repeat(5000);
-            let desc = Description::new(max_desc).unwrap();
+            let desc = Description::new(max_desc).expect("valid value");
             assert_eq!(desc.as_str().len(), 5000);
             assert!(!desc.is_empty());
         }
 
         #[test]
         fn clone_preserves_description() {
-            let desc = Description::new("An ancient elf lord").unwrap();
+            let desc = Description::new("An ancient elf lord").expect("valid value");
             let cloned = desc.clone();
             assert_eq!(cloned.as_str(), "An ancient elf lord");
         }
@@ -1181,7 +1181,7 @@ mod tests {
 
         #[test]
         fn valid_tag() {
-            let tag = Tag::new("combat").unwrap();
+            let tag = Tag::new("combat").expect("valid value");
             assert_eq!(tag.as_str(), "combat");
             assert_eq!(tag.to_string(), "combat");
         }
@@ -1190,7 +1190,7 @@ mod tests {
         fn empty_tag_rejected() {
             let result = Tag::new("");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("cannot be empty"));
         }
@@ -1199,25 +1199,25 @@ mod tests {
         fn whitespace_only_rejected() {
             let result = Tag::new("   ");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
         }
 
         #[test]
         fn tag_is_trimmed() {
-            let tag = Tag::new("  combat  ").unwrap();
+            let tag = Tag::new("  combat  ").expect("valid value");
             assert_eq!(tag.as_str(), "combat");
         }
 
         #[test]
         fn tag_is_lowercased() {
-            let tag = Tag::new("COMBAT").unwrap();
+            let tag = Tag::new("COMBAT").expect("valid value");
             assert_eq!(tag.as_str(), "combat");
         }
 
         #[test]
         fn mixed_case_tag_is_lowercased() {
-            let tag = Tag::new("High-Priority").unwrap();
+            let tag = Tag::new("High-Priority").expect("valid value");
             assert_eq!(tag.as_str(), "high-priority");
         }
 
@@ -1226,7 +1226,7 @@ mod tests {
             let long_tag = "a".repeat(51);
             let result = Tag::new(long_tag);
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("50"));
         }
@@ -1234,26 +1234,26 @@ mod tests {
         #[test]
         fn max_length_accepted() {
             let max_tag = "a".repeat(50);
-            let tag = Tag::new(max_tag).unwrap();
+            let tag = Tag::new(max_tag).expect("valid value");
             assert_eq!(tag.as_str().len(), 50);
         }
 
         #[test]
         fn try_from_string() {
-            let tag: Tag = "Stealth".to_string().try_into().unwrap();
+            let tag: Tag = "Stealth".to_string().try_into().expect("valid value");
             assert_eq!(tag.as_str(), "stealth"); // Lowercased
         }
 
         #[test]
         fn into_string() {
-            let tag = Tag::new("puzzle").unwrap();
+            let tag = Tag::new("puzzle").expect("valid value");
             let s: String = tag.into();
             assert_eq!(s, "puzzle");
         }
 
         #[test]
         fn clone_preserves_tag() {
-            let tag = Tag::new("exploration").unwrap();
+            let tag = Tag::new("exploration").expect("valid value");
             let cloned = tag.clone();
             assert_eq!(cloned.as_str(), "exploration");
         }
@@ -1264,7 +1264,7 @@ mod tests {
 
         #[test]
         fn valid_path() {
-            let path = AssetPath::new("assets/images/hero.png").unwrap();
+            let path = AssetPath::new("assets/images/hero.png").expect("valid value");
             assert_eq!(path.as_str(), "assets/images/hero.png");
             assert_eq!(path.to_string(), "assets/images/hero.png");
         }
@@ -1273,7 +1273,7 @@ mod tests {
         fn empty_path_rejected() {
             let result = AssetPath::new("");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("cannot be empty"));
         }
@@ -1286,7 +1286,7 @@ mod tests {
 
         #[test]
         fn path_is_trimmed() {
-            let path = AssetPath::new("  assets/hero.png  ").unwrap();
+            let path = AssetPath::new("  assets/hero.png  ").expect("valid value");
             assert_eq!(path.as_str(), "assets/hero.png");
         }
 
@@ -1295,14 +1295,14 @@ mod tests {
             let long_path = "a".repeat(501);
             let result = AssetPath::new(long_path);
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(err.to_string().contains("500"));
         }
 
         #[test]
         fn max_length_accepted() {
             let max_path = "a".repeat(500);
-            let path = AssetPath::new(max_path).unwrap();
+            let path = AssetPath::new(max_path).expect("valid value");
             assert_eq!(path.as_str().len(), 500);
         }
 
@@ -1310,7 +1310,7 @@ mod tests {
         fn null_byte_rejected() {
             let result = AssetPath::new("assets/\0/image.png");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(err.to_string().contains("control characters"));
         }
 
@@ -1323,19 +1323,19 @@ mod tests {
         #[test]
         fn newline_and_tab_allowed() {
             // These are valid in file content paths (though unusual)
-            let path = AssetPath::new("assets/path\twith\ttabs").unwrap();
+            let path = AssetPath::new("assets/path\twith\ttabs").expect("valid value");
             assert!(path.as_str().contains('\t'));
         }
 
         #[test]
         fn try_from_string() {
-            let path: AssetPath = "sprites/npc.png".to_string().try_into().unwrap();
+            let path: AssetPath = "sprites/npc.png".to_string().try_into().expect("valid value");
             assert_eq!(path.as_str(), "sprites/npc.png");
         }
 
         #[test]
         fn into_string() {
-            let path = AssetPath::new("map.png").unwrap();
+            let path = AssetPath::new("map.png").expect("valid value");
             let s: String = path.into();
             assert_eq!(s, "map.png");
         }
@@ -1346,7 +1346,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = RegionName::new("The Great Hall").unwrap();
+            let name = RegionName::new("The Great Hall").expect("valid value");
             assert_eq!(name.as_str(), "The Great Hall");
         }
 
@@ -1354,12 +1354,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = RegionName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = RegionName::new("  The Courtyard  ").unwrap();
+            let name = RegionName::new("  The Courtyard  ").expect("valid value");
             assert_eq!(name.as_str(), "The Courtyard");
         }
 
@@ -1376,7 +1376,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = ItemName::new("Sword of Flames").unwrap();
+            let name = ItemName::new("Sword of Flames").expect("valid value");
             assert_eq!(name.as_str(), "Sword of Flames");
         }
 
@@ -1384,12 +1384,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = ItemName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = ItemName::new("  Healing Potion  ").unwrap();
+            let name = ItemName::new("  Healing Potion  ").expect("valid value");
             assert_eq!(name.as_str(), "Healing Potion");
         }
 
@@ -1406,7 +1406,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = ChallengeName::new("Climb the Wall").unwrap();
+            let name = ChallengeName::new("Climb the Wall").expect("valid value");
             assert_eq!(name.as_str(), "Climb the Wall");
         }
 
@@ -1414,12 +1414,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = ChallengeName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = ChallengeName::new("  Pick the Lock  ").unwrap();
+            let name = ChallengeName::new("  Pick the Lock  ").expect("valid value");
             assert_eq!(name.as_str(), "Pick the Lock");
         }
 
@@ -1436,7 +1436,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = GoalName::new("Power").unwrap();
+            let name = GoalName::new("Power").expect("valid value");
             assert_eq!(name.as_str(), "Power");
         }
 
@@ -1444,12 +1444,12 @@ mod tests {
         fn empty_name_rejected() {
             let result = GoalName::new("");
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+            assert!(result.expect_err("should fail").to_string().contains("cannot be empty"));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = GoalName::new("  Revenge  ").unwrap();
+            let name = GoalName::new("  Revenge  ").expect("valid value");
             assert_eq!(name.as_str(), "Revenge");
         }
 
@@ -1467,7 +1467,7 @@ mod tests {
         #[test]
         fn valid_atmosphere() {
             let atm =
-                Atmosphere::new("Warm candlelight flickers across polished brass...").unwrap();
+                Atmosphere::new("Warm candlelight flickers across polished brass...").expect("valid value");
             assert_eq!(
                 atm.as_str(),
                 "Warm candlelight flickers across polished brass..."
@@ -1476,7 +1476,7 @@ mod tests {
 
         #[test]
         fn empty_is_valid() {
-            let atm = Atmosphere::new("").unwrap();
+            let atm = Atmosphere::new("").expect("valid value");
             assert!(atm.is_empty());
             assert_eq!(atm.as_str(), "");
         }
@@ -1495,13 +1495,13 @@ mod tests {
 
         #[test]
         fn whitespace_only_becomes_empty() {
-            let atm = Atmosphere::new("   ").unwrap();
+            let atm = Atmosphere::new("   ").expect("valid value");
             assert!(atm.is_empty());
         }
 
         #[test]
         fn is_trimmed() {
-            let atm = Atmosphere::new("  The air is thick with smoke.  ").unwrap();
+            let atm = Atmosphere::new("  The air is thick with smoke.  ").expect("valid value");
             assert_eq!(atm.as_str(), "The air is thick with smoke.");
         }
 
@@ -1510,33 +1510,33 @@ mod tests {
             let long_atm = "a".repeat(2001);
             let result = Atmosphere::new(long_atm);
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("2000"));
+            assert!(result.expect_err("should fail").to_string().contains("2000"));
         }
 
         #[test]
         fn max_length_accepted() {
             let max_atm = "a".repeat(2000);
-            let atm = Atmosphere::new(max_atm).unwrap();
+            let atm = Atmosphere::new(max_atm).expect("valid value");
             assert_eq!(atm.as_str().len(), 2000);
             assert!(!atm.is_empty());
         }
 
         #[test]
         fn try_from_string() {
-            let atm: Atmosphere = "A cold wind blows".to_string().try_into().unwrap();
+            let atm: Atmosphere = "A cold wind blows".to_string().try_into().expect("valid value");
             assert_eq!(atm.as_str(), "A cold wind blows");
         }
 
         #[test]
         fn into_string() {
-            let atm = Atmosphere::new("Musty").unwrap();
+            let atm = Atmosphere::new("Musty").expect("valid value");
             let s: String = atm.into();
             assert_eq!(s, "Musty");
         }
 
         #[test]
         fn clone_preserves_atmosphere() {
-            let atm = Atmosphere::new("Damp and cold").unwrap();
+            let atm = Atmosphere::new("Damp and cold").expect("valid value");
             let cloned = atm.clone();
             assert_eq!(cloned.as_str(), "Damp and cold");
         }
@@ -1547,7 +1547,7 @@ mod tests {
 
         #[test]
         fn valid_name() {
-            let name = StateName::new("Evening State").unwrap();
+            let name = StateName::new("Evening State").expect("valid value");
             assert_eq!(name.as_str(), "Evening State");
             assert_eq!(name.to_string(), "Evening State");
         }
@@ -1556,7 +1556,7 @@ mod tests {
         fn empty_name_rejected() {
             let result = StateName::new("");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("cannot be empty"));
         }
@@ -1565,13 +1565,13 @@ mod tests {
         fn whitespace_only_rejected() {
             let result = StateName::new("   ");
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
         }
 
         #[test]
         fn name_is_trimmed() {
-            let name = StateName::new("  Festival Day  ").unwrap();
+            let name = StateName::new("  Festival Day  ").expect("valid value");
             assert_eq!(name.as_str(), "Festival Day");
         }
 
@@ -1580,7 +1580,7 @@ mod tests {
             let long_name = "a".repeat(101);
             let result = StateName::new(long_name);
             assert!(result.is_err());
-            let err = result.unwrap_err();
+            let err = result.expect_err("should fail");
             assert!(matches!(err, DomainError::Validation(_)));
             assert!(err.to_string().contains("100"));
         }
@@ -1588,26 +1588,26 @@ mod tests {
         #[test]
         fn max_length_accepted() {
             let max_name = "a".repeat(100);
-            let name = StateName::new(max_name).unwrap();
+            let name = StateName::new(max_name).expect("valid value");
             assert_eq!(name.as_str().len(), 100);
         }
 
         #[test]
         fn try_from_string() {
-            let name: StateName = "Morning State".to_string().try_into().unwrap();
+            let name: StateName = "Morning State".to_string().try_into().expect("valid value");
             assert_eq!(name.as_str(), "Morning State");
         }
 
         #[test]
         fn into_string() {
-            let name = StateName::new("Under Siege").unwrap();
+            let name = StateName::new("Under Siege").expect("valid value");
             let s: String = name.into();
             assert_eq!(s, "Under Siege");
         }
 
         #[test]
         fn clone_preserves_name() {
-            let name = StateName::new("Holiday").unwrap();
+            let name = StateName::new("Holiday").expect("valid value");
             let cloned = name.clone();
             assert_eq!(cloned.as_str(), "Holiday");
         }
@@ -1623,7 +1623,7 @@ mod tests {
 
             #[test]
             fn valid_name() {
-                let name = EventChainName::new("The Hero's Journey").unwrap();
+                let name = EventChainName::new("The Hero's Journey").expect("valid value");
                 assert_eq!(name.as_str(), "The Hero's Journey");
                 assert_eq!(name.to_string(), "The Hero's Journey");
             }
@@ -1632,7 +1632,7 @@ mod tests {
             fn empty_name_rejected() {
                 let result = EventChainName::new("");
                 assert!(result.is_err());
-                let err = result.unwrap_err();
+                let err = result.expect_err("should fail");
                 assert!(matches!(err, DomainError::Validation(_)));
                 assert!(err.to_string().contains("cannot be empty"));
             }
@@ -1641,13 +1641,13 @@ mod tests {
             fn whitespace_only_rejected() {
                 let result = EventChainName::new("   ");
                 assert!(result.is_err());
-                let err = result.unwrap_err();
+                let err = result.expect_err("should fail");
                 assert!(matches!(err, DomainError::Validation(_)));
             }
 
             #[test]
             fn name_is_trimmed() {
-                let name = EventChainName::new("  The Dark Prophecy  ").unwrap();
+                let name = EventChainName::new("  The Dark Prophecy  ").expect("valid value");
                 assert_eq!(name.as_str(), "The Dark Prophecy");
             }
 
@@ -1656,7 +1656,7 @@ mod tests {
                 let long_name = "a".repeat(201);
                 let result = EventChainName::new(long_name);
                 assert!(result.is_err());
-                let err = result.unwrap_err();
+                let err = result.expect_err("should fail");
                 assert!(matches!(err, DomainError::Validation(_)));
                 assert!(err.to_string().contains("200"));
             }
@@ -1664,26 +1664,26 @@ mod tests {
             #[test]
             fn max_length_accepted() {
                 let max_name = "a".repeat(200);
-                let name = EventChainName::new(max_name).unwrap();
+                let name = EventChainName::new(max_name).expect("valid value");
                 assert_eq!(name.as_str().len(), 200);
             }
 
             #[test]
             fn try_from_string() {
-                let name: EventChainName = "A New Hope".to_string().try_into().unwrap();
+                let name: EventChainName = "A New Hope".to_string().try_into().expect("valid value");
                 assert_eq!(name.as_str(), "A New Hope");
             }
 
             #[test]
             fn into_string() {
-                let name = EventChainName::new("Rise of Empire").unwrap();
+                let name = EventChainName::new("Rise of Empire").expect("valid value");
                 let s: String = name.into();
                 assert_eq!(s, "Rise of Empire");
             }
 
             #[test]
             fn clone_preserves_name() {
-                let name = EventChainName::new("Return of the King").unwrap();
+                let name = EventChainName::new("Return of the King").expect("valid value");
                 let cloned = name.clone();
                 assert_eq!(cloned.as_str(), "Return of the King");
             }

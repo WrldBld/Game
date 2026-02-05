@@ -77,8 +77,8 @@ mod tests {
     #[test]
     fn test_serialize_deserialize() {
         let id1 = CorrelationId::new();
-        let serialized = serde_json::to_string(&id1).unwrap();
-        let id2: CorrelationId = serde_json::from_str(&serialized).unwrap();
+        let serialized = serde_json::to_string(&id1).expect("should serialize");
+        let id2: CorrelationId = serde_json::from_str(&serialized).expect("should deserialize");
         assert_eq!(id1, id2);
     }
 }

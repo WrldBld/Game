@@ -862,7 +862,7 @@ async fn callback_id_normalization_ensures_idempotency_and_consistent_lookups() 
         "Cancel with whitespace-only callback_id should not error"
     );
     assert!(
-        !empty_after_trim_result.unwrap(),
+        !empty_after_trim_result.expect("should have result"),
         "Cancel with whitespace-only callback_id should return false (no match)"
     );
 
@@ -872,7 +872,7 @@ async fn callback_id_normalization_ensures_idempotency_and_consistent_lookups() 
         "Delete with whitespace-only callback_id should not error"
     );
     assert!(
-        !delete_empty_result.unwrap(),
+        !delete_empty_result.expect("should have result"),
         "Delete with whitespace-only callback_id should return false (no match)"
     );
 }
@@ -1549,7 +1549,7 @@ async fn enqueue_llm_request_non_callback_id_unique_constraint_returns_database_
     );
 
     // Verify the error is a unique constraint violation
-    let err_string = insert_result.unwrap_err().to_string().to_lowercase();
+    let err_string = insert_result.expect_err("should be error").to_string().to_lowercase();
     assert!(
         err_string.contains("unique") || err_string.contains("constraint"),
         "Error should indicate a unique constraint violation: got {}",
@@ -1572,7 +1572,7 @@ async fn enqueue_llm_request_non_callback_id_unique_constraint_returns_database_
         phase_meta: None,
     };
 
-    let new_id = queue
+    let _new_id = queue
         .enqueue_llm_request(&new_request)
         .await
         .expect("enqueue after constraint test should succeed");

@@ -16,6 +16,10 @@ use crate::infrastructure::ports::{
     QueuePort, RandomPort, RegionStateRepo, RepoError,
 };
 use crate::queue_types::AssetGenerationData;
+use crate::use_cases::visual_state::validation::{
+    validate_generation_prompt, validate_state_description, validate_state_name_required,
+    validate_workflow_id,
+};
 
 /// Error type for visual state catalog operations
 #[derive(Debug, Error)]
@@ -41,12 +45,6 @@ pub enum CatalogError {
     #[error("Queue error: {0}")]
     Queue(#[from] crate::infrastructure::ports::QueueError),
 
-    #[error("Invalid activation rules JSON: {0}")]
-    InvalidActivationRules(String),
-
-    #[error("Invalid activation logic: {0}")]
-    InvalidActivationLogic(String),
-
     #[error("Name cannot be empty")]
     NameEmpty,
 
@@ -65,6 +63,16 @@ pub enum CatalogError {
 pub struct CatalogData {
     pub location_states: Vec<LocationState>,
     pub region_states: Vec<RegionState>,
+}
+
+/// Active state IDs for a location/region
+///
+/// Used to determine which visual states are currently active without
+/// fetching full state entities.
+#[derive(Debug, Clone, Default)]
+pub struct ActiveStateIds {
+    pub location_state_id: Option<LocationStateId>,
+    pub region_state_id: Option<RegionStateId>,
 }
 
 /// Visual state details (combined)
@@ -148,6 +156,37 @@ impl VisualStateCatalog {
             location_states,
             region_states,
         })
+    }
+
+    /// Get active state IDs for a location and/or region.
+    ///
+    /// This method centralizes active-state lookups to avoid direct repository
+    /// access from API handlers. Returns optional IDs for location and region
+    /// states that are currently active.
+    pub async fn get_active_state_ids(
+        &self,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
+    ) -> Result<ActiveStateIds, CatalogError> {
+        let mut active_ids = ActiveStateIds::default();
+
+        if let Some(loc_id) = location_id {
+            active_ids.location_state_id = self
+                .location_state_repo
+                .get_active(loc_id)
+                .await?
+                .map(|state| state.id());
+        }
+
+        if let Some(reg_id) = region_id {
+            active_ids.region_state_id = self
+                .region_state_repo
+                .get_active(reg_id)
+                .await?
+                .map(|state| state.id());
+        }
+
+        Ok(active_ids)
     }
 
     /// Get details of a specific visual state
@@ -400,26 +439,41 @@ impl VisualStateCatalog {
         generation_prompt: Option<String>,
         workflow_id: Option<String>,
     ) -> Result<LocationState, CatalogError> {
+        // Validate name and description length using shared validation helpers
+        if let Some(n) = &name {
+            let result = validate_state_name_required(n);
+            if !result.is_valid() {
+                return Err(CatalogError::Validation(
+                    result.error_message().unwrap_or("Invalid name").to_string(),
+                ));
+            }
+        }
+
+        let result = validate_state_description(description.as_deref());
+        if !result.is_valid() {
+            return Err(CatalogError::Validation(
+                result.error_message().unwrap_or("Invalid description").to_string(),
+            ));
+        }
+
+        // Validate generation fields
+        let result = validate_generation_prompt(generation_prompt.as_deref());
+        if !result.is_valid() {
+            return Err(CatalogError::Validation(
+                result.error_message().unwrap_or("Invalid generation prompt").to_string(),
+            ));
+        }
+
+        let result = validate_workflow_id(workflow_id.as_deref());
+        if !result.is_valid() {
+            return Err(CatalogError::Validation(
+                result.error_message().unwrap_or("Invalid workflow ID").to_string(),
+            ));
+        }
+
         // Load existing state
         let mut state = self.location_state_repo.get(id).await?
             .ok_or(CatalogError::LocationStateNotFound(id))?;
-
-        // Validate and update name
-        if let Some(n) = &name {
-            if n.trim().is_empty() {
-                return Err(CatalogError::NameEmpty);
-            }
-            if n.len() > 200 {
-                return Err(CatalogError::NameTooLong);
-            }
-        }
-
-        // Validate description length
-        if let Some(desc) = &description {
-            if desc.len() > 5000 {
-                return Err(CatalogError::DescriptionTooLong);
-            }
-        }
 
         // Update asset paths
         let backdrop = match backdrop_asset {
@@ -455,16 +509,28 @@ impl VisualStateCatalog {
         let activation_rules = activation_rules.unwrap_or_else(|| state.activation_rules().to_vec());
         let activation_logic = activation_logic.unwrap_or_else(|| state.activation_logic());
 
+        // Build validated name and description (fail-fast on invalid input)
+        let name_value = match name {
+            Some(n) => StateName::new(n)
+                .map_err(|e| CatalogError::Validation(format!("Invalid state name: {}", e)))?,
+            None => StateName::new(state.name().to_string())
+                .map_err(CatalogError::Domain)?,
+        };
+        let desc_value = match description {
+            Some(d) => Description::new(d)
+                .map_err(|e| CatalogError::Validation(format!("Invalid description: {}", e)))?,
+            None => Description::new(state.description().to_string())
+                .map_err(CatalogError::Domain)?,
+        };
+
         // Reconstruct with updates
         let now = self.clock.now();
         state = LocationState::from_storage(
             state.id(),
             state.location_id(),
             state.world_id(),
-            StateName::new(name.unwrap_or_else(|| state.name().to_string()))
-                .unwrap_or_else(|_| StateName::default()),
-            Description::new(description.unwrap_or_else(|| state.description().to_string()))
-                .unwrap_or_default(),
+            name_value,
+            desc_value,
             backdrop.or_else(|| state.backdrop_override().cloned()),
             atm.or_else(|| state.atmosphere_override().cloned()),
             sound.or_else(|| state.ambient_sound().cloned()),
@@ -500,26 +566,41 @@ impl VisualStateCatalog {
         generation_prompt: Option<String>,
         workflow_id: Option<String>,
     ) -> Result<RegionState, CatalogError> {
+        // Validate name and description length using shared validation helpers
+        if let Some(n) = &name {
+            let result = validate_state_name_required(n);
+            if !result.is_valid() {
+                return Err(CatalogError::Validation(
+                    result.error_message().unwrap_or("Invalid name").to_string(),
+                ));
+            }
+        }
+
+        let result = validate_state_description(description.as_deref());
+        if !result.is_valid() {
+            return Err(CatalogError::Validation(
+                result.error_message().unwrap_or("Invalid description").to_string(),
+            ));
+        }
+
+        // Validate generation fields
+        let result = validate_generation_prompt(generation_prompt.as_deref());
+        if !result.is_valid() {
+            return Err(CatalogError::Validation(
+                result.error_message().unwrap_or("Invalid generation prompt").to_string(),
+            ));
+        }
+
+        let result = validate_workflow_id(workflow_id.as_deref());
+        if !result.is_valid() {
+            return Err(CatalogError::Validation(
+                result.error_message().unwrap_or("Invalid workflow ID").to_string(),
+            ));
+        }
+
         // Load existing state
         let mut state = self.region_state_repo.get(id).await?
             .ok_or(CatalogError::RegionStateNotFound(id))?;
-
-        // Validate name
-        if let Some(n) = &name {
-            if n.trim().is_empty() {
-                return Err(CatalogError::NameEmpty);
-            }
-            if n.len() > 200 {
-                return Err(CatalogError::NameTooLong);
-            }
-        }
-
-        // Validate description length
-        if let Some(desc) = &description {
-            if desc.len() > 5000 {
-                return Err(CatalogError::DescriptionTooLong);
-            }
-        }
 
         // Update asset paths
         let backdrop = match backdrop_asset {
@@ -593,6 +674,23 @@ impl VisualStateCatalog {
         priority: i32,
         is_default: bool,
     ) -> Result<GeneratedVisualState, CatalogError> {
+        // Validate map generation constraints BEFORE any state creation or persistence
+        if generate_map {
+            // Map generation only supported for location states (has map_overlay field)
+            if region_id.is_some() {
+                return Err(CatalogError::Validation(
+                    "Map generation is only supported for location states".to_string(),
+                ));
+            }
+
+            // Map workflow must be configured
+            if map_workflow_id.is_none() {
+                return Err(CatalogError::Validation(
+                    "Map workflow not configured. Please set map_workflow in request.".to_string(),
+                ));
+            }
+        }
+
         // Determine target and get world_id
         let (world_id, location_state, region_state) =         if let Some(loc_id) = location_id {
             let location = self.location_repo.get_location(loc_id).await?
@@ -670,21 +768,10 @@ impl VisualStateCatalog {
             self.queue.enqueue_asset_generation(&data).await?;
         }
 
-        // Enqueue map generation if requested
+        // Enqueue map generation if requested (validation already done above)
         if generate_map {
-            // Map generation only supported for location states (has map_overlay field)
-            if location_state.is_none() {
-                return Err(CatalogError::Validation(
-                    "Map generation is only supported for location states".to_string(),
-                ));
-            }
-
-            // Map workflow must be configured
-            let map_workflow_id = map_workflow_id.ok_or_else(|| {
-                CatalogError::Validation(
-                    "Map workflow not configured. Please set map_workflow in request.".to_string(),
-                )
-            })?;
+            // Safe to unwrap because validation at lines 687-691 ensures map_workflow_id is Some when generate_map is true
+            let map_workflow_id = map_workflow_id.expect("map_workflow_id should be Some when generate_map is true (validation passed)");
 
             let entity_id: String = location_state
                 .as_ref()
@@ -715,7 +802,7 @@ impl VisualStateCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_domain::{Description, Location, LocationName, LocationType, Region, RegionName, WorldId};
+    use wrldbldr_domain::{Location, LocationName, LocationType, WorldId};
     use crate::infrastructure::ports::{
         MockAssetRepo, MockLocationRepo, MockLocationStateRepo, MockRegionStateRepo,
     };
@@ -725,29 +812,13 @@ mod tests {
 
     #[tokio::test]
     async fn generate_map_without_workflow_returns_validation_error() {
-        // Create a mock location
+        // Validation happens before any repo calls, so no mocks needed
         let location_id = LocationId::new();
-        let world_id = WorldId::new();
-        let mut mock_location_repo = MockLocationRepo::new();
-        mock_location_repo
-            .expect_get_location()
-            .returning(move |_| {
-                Ok(Some(Location::new(
-                    world_id,
-                    LocationName::new("Test Location").unwrap(),
-                    LocationType::Interior,
-                )))
-            });
 
-        // Mock location_state_repo.save - called when creating location state
-        let mut mock_location_state_repo = MockLocationStateRepo::new();
-        mock_location_state_repo
-            .expect_save()
-            .returning(|_| Ok(()));
-
+        // No repo expectations - validation should fail before any calls
         let catalog = VisualStateCatalog::new(
-            Arc::new(mock_location_repo),
-            Arc::new(mock_location_state_repo),
+            Arc::new(MockLocationRepo::new()),
+            Arc::new(MockLocationStateRepo::new()),
             Arc::new(MockRegionStateRepo::new()),
             Arc::new(MockImageGenPort::new()),
             Arc::new(MockAssetRepo::new()),
@@ -756,7 +827,7 @@ mod tests {
             Arc::new(SystemRandom::new()),
         );
 
-        // Try to generate map without workflow - should fail
+        // Try to generate map without workflow - should fail validation before any persistence
         let result = catalog
             .generate_visual_state(
                 Some(location_id),
@@ -768,7 +839,7 @@ mod tests {
                 None, // map_workflow_id not provided
                 vec![],
                 false, // generate_backdrop false
-                true,  // generate_map true - should fail
+                true,  // generate_map true - should fail validation
                 vec![],
                 ActivationLogic::All,
                 0,
@@ -777,7 +848,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("should fail") {
             CatalogError::Validation(msg) => {
                 assert!(msg.contains("map_workflow"));
             }
@@ -797,7 +868,7 @@ mod tests {
             .returning(move |_| {
                 Ok(Some(Location::new(
                     world_id,
-                    LocationName::new("Test Location").unwrap(),
+                    LocationName::new("Test Location").expect("valid location name"),
                     LocationType::Interior,
                 )))
             });
@@ -840,56 +911,19 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        let result = result.unwrap();
+        let result = result.expect("result should be Ok");
         assert!(!result.is_complete);
     }
 
     #[tokio::test]
     async fn generate_map_for_region_state_fails_validation() {
         let region_id = RegionId::new();
-        let location_id = LocationId::new();
-        let world_id = WorldId::new();
 
-        // Mock location repo - get_region is called before validation
-        // then get_location is called to get world_id
-        let mut mock_location_repo = MockLocationRepo::new();
-        mock_location_repo
-            .expect_get_region()
-            .withf(move |id| *id == region_id)
-            .returning(move |_| {
-                Ok(Some(Region::from_storage(
-                    region_id,
-                    location_id,
-                    RegionName::new("Test Region").unwrap(),
-                    Description::default(),
-                    None,
-                    None,
-                    None,
-                    false,
-                    0,
-                )))
-            });
-        mock_location_repo
-            .expect_get_location()
-            .withf(move |id| *id == location_id)
-            .returning(move |_| {
-                Ok(Some(Location::new(
-                    world_id,
-                    LocationName::new("Test Location").unwrap(),
-                    LocationType::Interior,
-                )))
-            });
-
-        // Mock region state repo - save is called before validation
-        let mut mock_region_state_repo = MockRegionStateRepo::new();
-        mock_region_state_repo
-            .expect_save()
-            .returning(|_| Ok(()));
-
+        // Validation happens before any repo calls, so no mocks needed
         let catalog = VisualStateCatalog::new(
-            Arc::new(mock_location_repo),
+            Arc::new(MockLocationRepo::new()),
             Arc::new(MockLocationStateRepo::new()),
-            Arc::new(mock_region_state_repo),
+            Arc::new(MockRegionStateRepo::new()),
             Arc::new(MockImageGenPort::new()),
             Arc::new(MockAssetRepo::new()),
             Arc::new(MockQueueForTesting::new()),
@@ -897,7 +931,7 @@ mod tests {
             Arc::new(SystemRandom::new()),
         );
 
-        // Try to generate map for region state - should fail
+        // Try to generate map for region state - should fail validation before any persistence
         let result = catalog
             .generate_visual_state(
                 None,
@@ -909,7 +943,7 @@ mod tests {
                 Some("map_v1".to_string()),
                 vec![],
                 false,
-                true, // generate_map true for region - should fail
+                true, // generate_map true for region - should fail validation
                 vec![],
                 ActivationLogic::All,
                 0,
@@ -918,7 +952,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("should fail") {
             CatalogError::Validation(msg) => {
                 assert!(msg.contains("Map generation is only supported for location states"));
             }

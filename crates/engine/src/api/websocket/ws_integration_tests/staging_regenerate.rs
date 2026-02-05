@@ -13,24 +13,24 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     let region_id = RegionId::new();
     let npc_id = CharacterId::new();
 
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
 
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
     .with_id(location_id);
 
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,

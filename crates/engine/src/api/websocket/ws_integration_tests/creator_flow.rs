@@ -12,9 +12,9 @@ fn create_dnd5e_world(
     world_id: WorldId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> wrldbldr_domain::World {
-    let world_name = wrldbldr_domain::WorldName::new("Test D&D 5e World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test D&D 5e World").expect("test: world name should be valid");
     wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("A test world").unwrap())
+        .with_description(wrldbldr_domain::Description::new("A test world").expect("test: description should be valid"))
         .with_id(world_id)
         .with_rule_system(RuleSystemConfig::dnd_5e())
 }
@@ -25,7 +25,7 @@ fn create_test_character(
     world_id: WorldId,
     _now: chrono::DateTime<chrono::Utc>,
 ) -> Character {
-    let name = wrldbldr_domain::CharacterName::new("Test Character").unwrap();
+    let name = wrldbldr_domain::CharacterName::new("Test Character").expect("test: character name should be valid");
     Character::new(world_id, name, wrldbldr_domain::CampbellArchetype::Hero)
         .with_id(character_id)
 }
@@ -46,7 +46,7 @@ async fn character_create_emits_entity_changed_broadcast() {
     // Setup character repo
     let mut character_repo = MockCharacterRepo::new();
     let character_id = CharacterId::new();
-    let character = create_test_character(character_id, world_id, now);
+    let _character = create_test_character(character_id, world_id, now);
 
     character_repo
         .expect_save()

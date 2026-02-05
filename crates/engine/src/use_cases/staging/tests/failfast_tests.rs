@@ -7,7 +7,6 @@
 
 #[cfg(test)]
 mod fail_fast_tests {
-    use super::*;
 
     /// Test: UUID validation errors are caught before reaching use case.
     ///

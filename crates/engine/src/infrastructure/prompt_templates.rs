@@ -69,6 +69,7 @@ impl SqlitePromptTemplateRepo {
     }
 
     /// Get a reference to the defaults store.
+    #[allow(dead_code)]
     pub fn defaults_store(&self) -> &PromptDefaultsStore {
         &self.defaults_store
     }

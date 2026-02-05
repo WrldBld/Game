@@ -714,7 +714,13 @@ mod tests {
         assert_eq!(identity.class_level("fighter"), 5);
         assert_eq!(identity.class_level("wizard"), 2);
         assert_eq!(identity.class_level("rogue"), 0);
-        assert_eq!(identity.primary_class().unwrap().class_id(), "fighter");
+        assert_eq!(
+            identity
+                .primary_class()
+                .expect("primary class exists")
+                .class_id(),
+            "fighter"
+        );
     }
 
     #[test]

@@ -81,17 +81,17 @@ impl E2EBenchmark {
 
     /// Start timing a named phase.
     pub fn start_phase(&self, name: &str) {
-        let mut active = self.active_phase.lock().unwrap();
+        let mut active = self.active_phase.lock().expect("Lock should not be poisoned");
         *active = Some((name.to_string(), Instant::now()));
     }
 
     /// End timing the current phase.
     pub fn end_phase(&self, name: &str) {
-        let mut active = self.active_phase.lock().unwrap();
+        let mut active = self.active_phase.lock().expect("Lock should not be poisoned");
         if let Some((phase_name, start)) = active.take() {
             if phase_name == name {
                 let duration_ms = start.elapsed().as_millis() as u64;
-                let mut phases = self.phases.lock().unwrap();
+                let mut phases = self.phases.lock().expect("Lock should not be poisoned");
                 phases.insert(
                     name.to_string(),
                     PhaseTiming {
@@ -105,7 +105,7 @@ impl E2EBenchmark {
 
     /// Record a Neo4j query timing.
     pub fn record_neo4j_query(&self, operation: &str, duration_ms: u64) {
-        let mut queries = self.neo4j_queries.lock().unwrap();
+        let mut queries = self.neo4j_queries.lock().expect("Lock should not be poisoned");
         queries.push(QueryTiming {
             operation: operation.to_string(),
             duration_ms,
@@ -114,7 +114,7 @@ impl E2EBenchmark {
 
     /// Record an LLM call timing.
     pub fn record_llm_call(&self, operation: &str, duration_ms: u64, tokens: Option<u32>) {
-        let mut calls = self.llm_calls.lock().unwrap();
+        let mut calls = self.llm_calls.lock().expect("Lock should not be poisoned");
         calls.push(LlmTiming {
             operation: operation.to_string(),
             duration_ms,
@@ -131,13 +131,13 @@ impl E2EBenchmark {
     pub fn summary(&self) -> BenchmarkSummary {
         let total_ms = self.total_duration_ms();
 
-        let phases = self.phases.lock().unwrap();
-        let neo4j_queries = self.neo4j_queries.lock().unwrap();
-        let llm_calls = self.llm_calls.lock().unwrap();
+        let phases = self.phases.lock().expect("Lock should not be poisoned");
+        let neo4j_queries = self.neo4j_queries.lock().expect("Lock should not be poisoned");
+        let llm_calls = self.llm_calls.lock().expect("Lock should not be poisoned");
 
         let neo4j_total_ms: u64 = neo4j_queries.iter().map(|q| q.duration_ms).sum();
         let llm_total_ms: u64 = llm_calls.iter().map(|c| c.duration_ms).sum();
-        let phase_total_ms: u64 = phases.values().map(|p| p.duration_ms).sum();
+        let _phase_total_ms: u64 = phases.values().map(|p| p.duration_ms).sum();
 
         // "Own code" time = total - external calls
         let own_code_ms = total_ms.saturating_sub(neo4j_total_ms + llm_total_ms);
@@ -261,7 +261,7 @@ static BENCHMARK_REGISTRY: OnceLock<Mutex<Vec<BenchmarkSummary>>> = OnceLock::ne
 /// Register a benchmark result for later aggregation.
 pub fn register_benchmark(summary: BenchmarkSummary) {
     let registry = BENCHMARK_REGISTRY.get_or_init(|| Mutex::new(Vec::new()));
-    let mut summaries = registry.lock().unwrap();
+    let mut summaries = registry.lock().expect("Lock should not be poisoned");
     summaries.push(summary);
 }
 
@@ -274,7 +274,7 @@ pub fn print_aggregate_benchmarks() {
         return;
     };
 
-    let summaries = registry.lock().unwrap();
+    let summaries = registry.lock().expect("Lock should not be poisoned");
     if summaries.is_empty() {
         println!("No benchmarks recorded");
         return;

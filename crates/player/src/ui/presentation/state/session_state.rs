@@ -51,7 +51,7 @@ impl SessionState {
 
     /// Accessor for show_time_to_players flag
     pub fn should_show_time_to_players(&self) -> Signal<bool> {
-        self.show_time_to_players.clone()
+        self.show_time_to_players
     }
 
     /// Update show_time_to_players flag
@@ -216,59 +216,59 @@ impl SessionState {
 
     /// User ID accessor (for components that need local user identifier)
     pub fn user_id(&self) -> Signal<Option<String>> {
-        self.connection.user_id.clone()
+        self.connection.user_id
     }
 
     /// User role accessor (for connection routes)
     pub fn user_role(&self) -> Signal<Option<ParticipantRole>> {
-        self.connection.user_role.clone()
+        self.connection.user_role
     }
 
     /// World ID accessor (for components that need current world identifier)
     pub fn world_id(&self) -> Signal<Option<Uuid>> {
-        self.connection.world_id.clone()
+        self.connection.world_id
     }
 
     /// ComfyUI connection state accessor
     pub fn comfyui_state(&self) -> Signal<String> {
-        self.connection.comfyui_state.clone()
+        self.connection.comfyui_state
     }
 
     /// ComfyUI error message accessor
     pub fn comfyui_message(&self) -> Signal<Option<String>> {
-        self.connection.comfyui_message.clone()
+        self.connection.comfyui_message
     }
 
     /// ComfyUI retry timer accessor
     pub fn comfyui_retry_in_seconds(&self) -> Signal<Option<u32>> {
-        self.connection.comfyui_retry_in_seconds.clone()
+        self.connection.comfyui_retry_in_seconds
     }
 
     /// Pending approvals accessor (for decision queue components)
     pub fn pending_approvals(
         &self,
     ) -> Signal<Vec<crate::presentation::state::approval_state::PendingApproval>> {
-        self.approval.pending_approvals.clone()
+        self.approval.pending_approvals
     }
 
     /// Connection status accessor (for session event handlers)
     pub fn connection_status(&self) -> Signal<ConnectionStatus> {
-        self.connection.connection_status.clone()
+        self.connection.connection_status
     }
 
     /// Error message accessor (for displaying connection errors)
     pub fn error_message(&self) -> Signal<Option<String>> {
-        self.connection.error_message.clone()
+        self.connection.error_message
     }
 
     /// Active challenge accessor (for challenge handlers)
     pub fn active_challenge(&self) -> Signal<Option<ChallengePromptData>> {
-        self.challenge.active_challenge.clone()
+        self.challenge.active_challenge
     }
 
     /// Conversation log accessor (for message handlers that need to push entries)
     pub fn conversation_log(&self) -> Signal<Vec<ConversationLogEntry>> {
-        self.approval.conversation_log.clone()
+        self.approval.conversation_log
     }
 
     // =========================================================================

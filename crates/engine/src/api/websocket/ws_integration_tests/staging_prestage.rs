@@ -14,25 +14,25 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let pc_id = PlayerCharacterId::new();
     let npc_id = CharacterId::new();
 
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let mut world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
     let _ = world.set_time_mode(TimeMode::Manual, now);
 
-    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").expect("test: location name should be valid");
     let location = wrldbldr_domain::Location::new(
         world_id,
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
     .with_id(location_id);
 
     let region = wrldbldr_domain::Region::from_storage(
         region_id,
         location_id,
-        wrldbldr_domain::value_objects::RegionName::new("Region").unwrap(),
+        wrldbldr_domain::value_objects::RegionName::new("Region").expect("test: region name should be valid"),
         wrldbldr_domain::Description::default(),
         None,
         None,
@@ -42,9 +42,9 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     );
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         location_id,
         now,
     )
@@ -53,7 +53,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
 
     let mut npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("NPC").expect("test: character name should be valid"),
         CampbellArchetype::Hero,
     );
     npc = npc.with_id(npc_id);
@@ -64,7 +64,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         location_state_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Location State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -86,7 +86,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         region_id,
         location_id,
         world_id,
-        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::StateName::new("Test Region State").expect("test: state name should be valid"),
         wrldbldr_domain::Description::default(),
         None, // backdrop_override
         None, // atmosphere_override
@@ -271,13 +271,13 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     repos
         .staging_repo
         .expect_save_and_activate_pending_staging_with_states()
-        .withf(move |s, r, loc_state_id, reg_state_id| {
+        .withf(move |_s, r, loc_state_id, reg_state_id| {
             *r == region_id
                 && loc_state_id == &Some(location_state_id_for_assertion)
                 && reg_state_id == &Some(region_state_id_for_assertion)
         })
         .returning(move |s, _region, _loc_state_id, _reg_state_id| {
-            let mut guard = shared_for_save_and_activate.lock().unwrap();
+            let mut guard = shared_for_save_and_activate.lock().expect("test: mutex should not be poisoned");
             guard.active = Some(s.clone());
             Ok(())
         });
@@ -287,7 +287,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .staging_repo
         .expect_get_active_staging()
         .returning(move |rid, _now| {
-            let guard = shared_for_get_active.lock().unwrap();
+            let guard = shared_for_get_active.lock().expect("test: mutex should not be poisoned");
             Ok(guard.active.clone().filter(|s| s.region_id() == rid))
         });
 

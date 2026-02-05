@@ -152,7 +152,7 @@ impl PendingStagingStoreImpl {
 
     /// Check if a request has already been processed.
     pub fn contains_processed(&self, key: &str) -> bool {
-        let processed_ids = self.processed_ids.read().unwrap();
+        let processed_ids = self.processed_ids.read().expect("processed_ids lock poisoned");
         processed_ids.contains(key)
     }
 
@@ -183,7 +183,7 @@ impl PendingStagingStoreImpl {
     /// Inserts the key into processed_ids and returns true only if it was not already present
     /// (i.e., the key was newly inserted). Returns false if the key was already in the set.
     pub fn mark_processed(&self, key: &str) -> bool {
-        let mut processed_ids = self.processed_ids.write().unwrap();
+        let mut processed_ids = self.processed_ids.write().expect("processed_ids lock poisoned");
         processed_ids.insert(key.to_string())
     }
 }

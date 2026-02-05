@@ -1408,10 +1408,9 @@ impl LoreRepo for Neo4jLoreRepo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::clock::FixedClock;
     use std::sync::Arc;
     use tokio::sync::Mutex;
-    use wrldbldr_domain::{LoreCategory, LocationId, RegionId, ItemId, WorldId, CharacterId};
+    use wrldbldr_domain::{LoreCategory, LocationId, ItemId, WorldId, CharacterId};
 
     // Global mutex to serialize Neo4j integration tests and prevent
     // concurrent DB cleanup races (each test wipes the database).
@@ -1453,16 +1452,16 @@ mod tests {
         create_test_character(&graph, character_id).await;
 
         // Save lore
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Link lore about character
         let target = wrldbldr_domain::value_objects::AboutTarget::Character {
             character_id,
         };
-        repo.link_lore_about(lore.id(), target).await.unwrap();
+        repo.link_lore_about(lore.id(), target).await.expect("should link lore about character");
 
         // Verify link exists
-        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        let targets = repo.get_lore_about_targets(lore.id()).await.expect("should get lore about targets");
         assert_eq!(targets.len(), 1);
         match &targets[0] {
             wrldbldr_domain::value_objects::AboutTarget::Character { character_id: id } => {
@@ -1486,16 +1485,16 @@ mod tests {
         create_test_location(&graph, location_id).await;
 
         // Save lore
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Link lore about location
         let target = wrldbldr_domain::value_objects::AboutTarget::Location {
             location_id,
         };
-        repo.link_lore_about(lore.id(), target).await.unwrap();
+        repo.link_lore_about(lore.id(), target).await.expect("should link lore about location");
 
         // Verify link exists
-        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        let targets = repo.get_lore_about_targets(lore.id()).await.expect("should get lore about targets");
         assert_eq!(targets.len(), 1);
         match &targets[0] {
             wrldbldr_domain::value_objects::AboutTarget::Location { location_id: id } => {
@@ -1519,21 +1518,21 @@ mod tests {
         create_test_character(&graph, character_id).await;
 
         // Save lore and link
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
         let target = wrldbldr_domain::value_objects::AboutTarget::Character {
             character_id,
         };
-        repo.link_lore_about(lore.id(), target.clone()).await.unwrap();
+        repo.link_lore_about(lore.id(), target.clone()).await.expect("should link lore about character");
 
         // Verify link exists
-        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        let targets = repo.get_lore_about_targets(lore.id()).await.expect("should get lore about targets");
         assert_eq!(targets.len(), 1);
 
         // Unlink
-        repo.unlink_lore_about(lore.id(), &target).await.unwrap();
+        repo.unlink_lore_about(lore.id(), &target).await.expect("should unlink lore");
 
         // Verify link removed
-        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        let targets = repo.get_lore_about_targets(lore.id()).await.expect("should get lore about targets");
         assert_eq!(targets.len(), 0);
     }
 
@@ -1551,13 +1550,13 @@ mod tests {
         create_test_location(&graph, location_id).await;
 
         // Save lore
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Mark as common lore
-        repo.mark_common_lore(location_id, lore.id(), None).await.unwrap();
+        repo.mark_common_lore(location_id, lore.id(), None).await.expect("should mark common lore");
 
         // Verify common lore exists
-        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        let common_lore = repo.get_location_common_lore(location_id).await.expect("should get location common lore");
         assert_eq!(common_lore.len(), 1);
         assert_eq!(common_lore[0].0, lore.id());
         assert!(common_lore[0].1.is_none()); // No chunk_ids means all chunks
@@ -1581,14 +1580,14 @@ mod tests {
         create_test_location(&graph, location_id).await;
 
         // Save lore with chunks
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Mark specific chunks as common
         let common_chunk_ids = vec![lore.chunks()[0].id];
-        repo.mark_common_lore(location_id, lore.id(), Some(common_chunk_ids.clone())).await.unwrap();
+        repo.mark_common_lore(location_id, lore.id(), Some(common_chunk_ids.clone())).await.expect("should mark common lore with chunks");
 
         // Verify common lore with specific chunks
-        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        let common_lore = repo.get_location_common_lore(location_id).await.expect("should get location common lore");
         assert_eq!(common_lore.len(), 1);
         assert_eq!(common_lore[0].0, lore.id());
         match &common_lore[0].1 {
@@ -1613,18 +1612,18 @@ mod tests {
         create_test_location(&graph, location_id).await;
 
         // Save lore and mark as common
-        repo.save(&lore).await.unwrap();
-        repo.mark_common_lore(location_id, lore.id(), None).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
+        repo.mark_common_lore(location_id, lore.id(), None).await.expect("should mark common lore");
 
         // Verify common lore exists
-        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        let common_lore = repo.get_location_common_lore(location_id).await.expect("should get location common lore");
         assert_eq!(common_lore.len(), 1);
 
         // Unmark
-        repo.unmark_common_lore(location_id, lore.id()).await.unwrap();
+        repo.unmark_common_lore(location_id, lore.id()).await.expect("should unmark common lore");
 
         // Verify common lore removed
-        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        let common_lore = repo.get_location_common_lore(location_id).await.expect("should get location common lore");
         assert_eq!(common_lore.len(), 0);
     }
 
@@ -1636,7 +1635,7 @@ mod tests {
         let location_id = LocationId::new();
 
         // Query common lore for location with no common lore
-        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        let common_lore = repo.get_location_common_lore(location_id).await.expect("should get location common lore");
         assert_eq!(common_lore.len(), 0);
     }
 
@@ -1690,13 +1689,13 @@ mod tests {
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
         let character_id = CharacterId::new();
-        let item_id = ItemId::new();
+        let _item_id = ItemId::new();
 
         // Create prerequisite nodes
         create_test_world(&graph, world_id).await;
         create_test_character(&graph, character_id).await;
 
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Create a KNOWS_LORE relationship (should NOT appear in get_lore_about_targets)
         let q = query(
@@ -1707,16 +1706,16 @@ mod tests {
         )
         .param("character_id", character_id.to_string())
         .param("lore_id", lore.id().to_string());
-        graph.run(q).await.unwrap();
+        graph.run(q).await.expect("should run query");
 
         // Create ABOUT_CHARACTER relationship (should appear)
         let target = wrldbldr_domain::value_objects::AboutTarget::Character {
             character_id,
         };
-        repo.link_lore_about(lore.id(), target).await.unwrap();
+        repo.link_lore_about(lore.id(), target).await.expect("should link lore about character");
 
         // Get targets - should only return ABOUT_* relationships
-        let targets = repo.get_lore_about_targets(lore.id()).await.unwrap();
+        let targets = repo.get_lore_about_targets(lore.id()).await.expect("should get lore about targets");
         assert_eq!(targets.len(), 1);
         match &targets[0] {
             wrldbldr_domain::value_objects::AboutTarget::Character { character_id: id } => {
@@ -1737,7 +1736,7 @@ mod tests {
 
         // Create prerequisite World before saving lore
         create_test_world(&graph, world_id).await;
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Try to link to non-existent location - should fail with NotFound
         let target = wrldbldr_domain::value_objects::AboutTarget::Location {
@@ -1746,7 +1745,7 @@ mod tests {
         let result = repo.link_lore_about(lore.id(), target).await;
 
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("should be error") {
             RepoError::NotFound { entity_type, .. } => {
                 assert_eq!(entity_type, "Location");
             }
@@ -1763,13 +1762,13 @@ mod tests {
         let lore = create_test_lore(world_id);
         let location_id = LocationId::new();
 
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Try to mark as common at non-existent location - should fail with NotFound
         let result = repo.mark_common_lore(location_id, lore.id(), None).await;
 
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("should be error") {
             RepoError::NotFound { entity_type, .. } => {
                 assert_eq!(entity_type, "Location");
             }
@@ -1790,14 +1789,14 @@ mod tests {
         ]);
 
         // Lore with only one chunk
-        let chunk_id = lore.chunks()[0].id;
+        let _chunk_id = lore.chunks()[0].id;
         let other_chunk_id = LoreChunkId::new(); // Not part of this lore
 
         // Create prerequisite nodes
         create_test_world(&graph, world_id).await;
         create_test_location(&graph, location_id).await;
 
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Try to mark with invalid chunk ID - should fail with ConstraintViolation
         let result = repo.mark_common_lore(
@@ -1807,7 +1806,7 @@ mod tests {
         ).await;
 
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("should be error") {
             RepoError::ConstraintViolation { .. } => {
                 // Expected
             }
@@ -1828,13 +1827,13 @@ mod tests {
         create_test_world(&graph, world_id).await;
         create_test_location(&graph, location_id).await;
 
-        repo.save(&lore).await.unwrap();
+        repo.save(&lore).await.expect("should save lore");
 
         // Mark with empty list - should normalize to None (all chunks)
-        repo.mark_common_lore(location_id, lore.id(), Some(vec![])).await.unwrap();
+        repo.mark_common_lore(location_id, lore.id(), Some(vec![])).await.expect("should mark common lore");
 
         // Verify it's stored as None
-        let common_lore = repo.get_location_common_lore(location_id).await.unwrap();
+        let common_lore = repo.get_location_common_lore(location_id).await.expect("should get location common lore");
         assert_eq!(common_lore.len(), 1);
         assert_eq!(common_lore[0].1, None); // None means all chunks
     }

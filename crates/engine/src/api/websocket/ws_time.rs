@@ -426,7 +426,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
         .time
         .suggestions
         .resolve(
-            &time_suggestions,
+            time_suggestions,
             world_id,
             suggestion_uuid.into(),
             domain_decision,
@@ -485,7 +485,7 @@ pub(super) async fn handle_time_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &sanitize_repo_error(&e, "getting game time"),
+                    sanitize_repo_error(&e, "getting game time"),
                 )),
             }
         }
@@ -1340,7 +1340,7 @@ mod tests {
 
         assert_eq!(protocol_data.seconds_advanced, 3600);
         assert!(protocol_data.reason.contains("1 hour"));
-        assert_eq!(protocol_data.period_changed, false);
+        assert!(!protocol_data.period_changed);
     }
 
     /// Test that time_advance_data_to_protocol detects period change
@@ -1358,7 +1358,7 @@ mod tests {
         );
         let protocol_data = time_advance_data_to_protocol(&domain_data);
 
-        assert_eq!(protocol_data.period_changed, true);
+        assert!(protocol_data.period_changed);
         assert_eq!(protocol_data.new_period, Some("Afternoon".to_string()));
     }
 

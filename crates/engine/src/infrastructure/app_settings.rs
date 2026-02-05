@@ -1768,6 +1768,25 @@ impl AppSettings {
             ..self
         }
     }
+
+    // ============================================================================
+    // Redaction for API Responses
+    // ============================================================================
+
+    /// Returns a redacted copy of settings safe for API responses.
+    ///
+    /// This method clears all sensitive fields (like `llm_api_key`) that should
+    /// never be returned to clients. Use this for all settings read endpoints.
+    ///
+    /// # Security Note
+    /// The `llm_api_key` field is set to `None` in the returned copy, ensuring
+    /// that even if the key is set in storage, it will not be exposed via API.
+    pub fn redacted_for_response(&self) -> Self {
+        Self {
+            llm_api_key: None,
+            ..self.clone()
+        }
+    }
 }
 
 // ============================================================================
@@ -1834,7 +1853,7 @@ mod tests {
         let counter = TokenCounter::default();
         // "Hello" = 5 chars, ~1.25 tokens -> ceil = 2
         let tokens = counter.count("Hello");
-        assert!(tokens >= 1 && tokens <= 3);
+        assert!((1..=3).contains(&tokens));
     }
 
     #[test]
@@ -1844,7 +1863,7 @@ mod tests {
         let text = "The quick brown fox jumps over the lazy dog. This is a sample sentence to test the token counting functionality.";
         let tokens = counter.count(text);
         // ~20 words * 1.33 = ~27 tokens
-        assert!(tokens >= 20 && tokens <= 35);
+        assert!((20..=35).contains(&tokens));
     }
 
     #[test]
@@ -2015,5 +2034,56 @@ mod tests {
 
         assert_eq!(settings.map_workflow_name(), Some("map_v1"));
         assert_eq!(settings.style_reference_asset_id(), Some("style_ref_123"));
+    }
+
+    #[test]
+    fn test_redacted_for_response_clears_api_key() {
+        let settings =
+            AppSettings::default().with_llm_api_key(Some("sk-secret123456789".to_string()));
+
+        // Verify the key is set
+        assert_eq!(settings.llm_api_key(), Some("sk-secret123456789"));
+
+        // Get redacted version
+        let redacted = settings.redacted_for_response();
+
+        // Verify the key is cleared in the redacted version
+        assert!(redacted.llm_api_key().is_none());
+
+        // Verify other fields are preserved
+        assert_eq!(
+            redacted.max_conversation_turns(),
+            settings.max_conversation_turns()
+        );
+        assert_eq!(redacted.llm_base_url(), settings.llm_base_url());
+    }
+
+    #[test]
+    fn test_redacted_for_response_preserves_other_fields() {
+        let settings = AppSettings::default()
+            .with_llm_api_key(Some("sk-secret".to_string()))
+            .with_llm_base_url("https://api.example.com")
+            .with_max_conversation_turns(100)
+            .with_default_max_stat_value(25);
+
+        let redacted = settings.redacted_for_response();
+
+        // API key should be cleared
+        assert!(redacted.llm_api_key().is_none());
+
+        // Other fields should be preserved
+        assert_eq!(redacted.llm_base_url(), "https://api.example.com");
+        assert_eq!(redacted.max_conversation_turns(), 100);
+        assert_eq!(redacted.default_max_stat_value(), 25);
+    }
+
+    #[test]
+    fn test_redacted_for_response_when_no_api_key() {
+        let settings = AppSettings::default(); // No API key set
+
+        let redacted = settings.redacted_for_response();
+
+        // Should remain None
+        assert!(redacted.llm_api_key().is_none());
     }
 }

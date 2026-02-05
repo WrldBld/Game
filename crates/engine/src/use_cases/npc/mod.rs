@@ -620,7 +620,7 @@ mod tests {
     fn create_test_character(id: CharacterId, name: &str) -> Character {
         Character::new(
             WorldId::new(),
-            CharacterName::new(name).unwrap(),
+            CharacterName::new(name).expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(id)
@@ -812,7 +812,7 @@ mod tests {
             let err = use_case
                 .set_mood(region_id, npc_id, MoodState::Happy)
                 .await
-                .unwrap_err();
+                .expect_err("should fail");
 
             assert!(matches!(err, NpcError::NotFound { .. }));
         }
@@ -1075,9 +1075,9 @@ mod tests {
             // Setup mocks for the reveal=false path which needs PC and World
             let mut player_character_repo = MockPlayerCharacterRepo::new();
             let pc = wrldbldr_domain::PlayerCharacter::new(
-                UserId::new("test-user").unwrap(),
+                UserId::new("test-user").expect("valid user id"),
                 world_id,
-                CharacterName::new("Test PC").unwrap(),
+                CharacterName::new("Test PC").expect("valid character name"),
                 location_id,
                 fixed_time(),
             );
@@ -1088,7 +1088,7 @@ mod tests {
 
             let mut world_repo = MockWorldRepo::new();
             let world = wrldbldr_domain::World::new(
-                wrldbldr_domain::value_objects::WorldName::new("Test World").unwrap(),
+                wrldbldr_domain::value_objects::WorldName::new("Test World").expect("valid world name"),
                 fixed_time(),
             )
             .with_id(world_id);
@@ -1101,7 +1101,7 @@ mod tests {
             let region = Region::from_storage(
                 region_id,
                 location_id,
-                RegionName::new("Test Region").unwrap(),
+                RegionName::new("Test Region").expect("valid region name"),
                 wrldbldr_domain::value_objects::Description::default(),
                 None,
                 None,
@@ -1280,7 +1280,7 @@ mod tests {
 
         #[tokio::test]
         async fn when_share_location_succeeds() {
-            let now = fixed_time();
+            let _now = fixed_time();
             let pc_id = PlayerCharacterId::new();
             let npc_id = CharacterId::new();
             let location_id = LocationId::new();
@@ -1300,7 +1300,7 @@ mod tests {
             let region_with_id = Region::from_storage(
                 region_id,
                 location_id,
-                RegionName::new("SharedRegion").unwrap(),
+                RegionName::new("SharedRegion").expect("valid region name"),
                 Description::default(),
                 None,
                 None,
@@ -1316,11 +1316,11 @@ mod tests {
 
             let mut player_character_repo = MockPlayerCharacterRepo::new();
             let now = fixed_time();
-            let user_id = UserId::new("test-user").unwrap();
+            let user_id = UserId::new("test-user").expect("valid user id");
             let pc = PlayerCharacter::new(
                 user_id,
                 world_id,
-                CharacterName::new("Test PC").unwrap(),
+                CharacterName::new("Test PC").expect("valid character name"),
                 LocationId::new(),
                 now,
             );
@@ -1331,7 +1331,7 @@ mod tests {
                 .returning(move |_| Ok(Some(pc_clone.clone())));
 
             let mut world_repo = MockWorldRepo::new();
-            let world = World::new(WorldName::new("Test World").unwrap(), now).with_id(world_id);
+            let world = World::new(WorldName::new("Test World").expect("valid world name"), now).with_id(world_id);
             let world_clone = world.clone();
             world_repo
                 .expect_get()
@@ -1392,7 +1392,7 @@ mod tests {
             let region = Region::from_storage(
                 region_id,
                 location_id,
-                RegionName::new("SharedRegion").unwrap(),
+                RegionName::new("SharedRegion").expect("valid region name"),
                 wrldbldr_domain::value_objects::Description::default(),
                 None,
                 None,
@@ -1406,11 +1406,11 @@ mod tests {
                 .returning(move |_| Ok(Some(region.clone())));
 
             let mut player_character_repo = MockPlayerCharacterRepo::new();
-            let user_id = UserId::new("test-user").unwrap();
+            let user_id = UserId::new("test-user").expect("valid user id");
             let pc = PlayerCharacter::new(
                 user_id,
                 world_id,
-                CharacterName::new("Test PC").unwrap(),
+                CharacterName::new("Test PC").expect("valid character name"),
                 LocationId::new(),
                 now,
             );
@@ -1421,7 +1421,7 @@ mod tests {
                 .returning(move |_| Ok(Some(pc_clone.clone())));
 
             let mut world_repo = MockWorldRepo::new();
-            let world = World::new(WorldName::new("Test World").unwrap(), now).with_id(world_id);
+            let world = World::new(WorldName::new("Test World").expect("valid world name"), now).with_id(world_id);
             let world_clone = world.clone();
             world_repo
                 .expect_get()
@@ -1475,7 +1475,7 @@ mod tests {
             let region_with_mismatch = Region::from_storage(
                 region_id,
                 mismatched_location_id, // Different location ID
-                RegionName::new("SharedRegion").unwrap(),
+                RegionName::new("SharedRegion").expect("valid region name"),
                 Description::default(),
                 None,
                 None,
@@ -1490,11 +1490,11 @@ mod tests {
                 .returning(move |_| Ok(Some(region_clone.clone())));
 
             let mut player_character_repo = MockPlayerCharacterRepo::new();
-            let user_id = UserId::new("test-user").unwrap();
+            let user_id = UserId::new("test-user").expect("valid user id");
             let pc = PlayerCharacter::new(
                 user_id,
                 world_id,
-                CharacterName::new("Test PC").unwrap(),
+                CharacterName::new("Test PC").expect("valid character name"),
                 location_id, // Current location
                 now,
             );
@@ -1505,7 +1505,7 @@ mod tests {
                 .returning(move |_| Ok(Some(pc_clone.clone())));
 
             let mut world_repo = MockWorldRepo::new();
-            let world = World::new(WorldName::new("Test World").unwrap(), now).with_id(world_id);
+            let world = World::new(WorldName::new("Test World").expect("valid world name"), now).with_id(world_id);
             let world_clone = world.clone();
             world_repo
                 .expect_get()
@@ -1533,7 +1533,7 @@ mod tests {
             // Should fail with InvalidInput error
             assert!(result.is_err());
             assert!(matches!(
-                result.unwrap_err(),
+                result.expect_err("should fail"),
                 NpcError::InvalidInput(_)
             ));
         }

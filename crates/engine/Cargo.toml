@@ -77,6 +77,10 @@ once_cell = { workspace = true }
 [lints]
 workspace = true
 
+# Note: For testcontainers cfg warnings, add to workspace Cargo.toml:
+# [lints.rust]
+# unexpected_cfgs = { level = "warn", check-cfg = ['cfg(testcontainers)'] }
+
 [[bin]]
 name = "wrldbldr-engine"
 path = "src/main.rs"

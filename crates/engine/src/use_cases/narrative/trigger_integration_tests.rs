@@ -470,7 +470,10 @@ fn test_extract_compendium_context_populates_all_fields() {
 
     // Assert: All fields should be populated
     assert!(ctx.origin_id.is_some(), "origin_id should be populated");
-    assert_eq!(ctx.origin_id.as_deref().unwrap(), "elf");
+    assert_eq!(
+        ctx.origin_id.as_deref().expect("origin_id should be Some"),
+        "elf"
+    );
 
     assert!(
         !ctx.class_levels.is_empty(),
@@ -516,9 +519,9 @@ fn test_extract_compendium_context_handles_empty_sheet() {
     let now = chrono::Utc::now();
     let world_id = WorldId::new();
     let location_id = LocationId::new();
-    let name = CharacterName::new("Empty").unwrap();
+    let name = CharacterName::new("Empty").expect("valid character name");
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("test").unwrap(),
+        wrldbldr_domain::UserId::new("test").expect("valid user id"),
         world_id,
         name,
         location_id,
@@ -556,7 +559,7 @@ fn create_test_event_with_triggers(
 
     NarrativeEvent::new(
         WorldId::new(),
-        NarrativeEventName::new(name).unwrap(),
+        NarrativeEventName::new(name).expect("valid event name"),
         chrono::Utc::now(),
     )
     .with_description(format!("Test event: {}", name))

@@ -415,7 +415,7 @@ mod tests {
         );
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("overlap should fail");
         assert!(err
             .to_string()
             .contains("Rules appear in both matched and unmatched"));
@@ -430,7 +430,7 @@ mod tests {
         );
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("empty rule should fail");
         assert!(err
             .to_string()
             .contains("Matched rule descriptions cannot be empty"));
@@ -445,7 +445,7 @@ mod tests {
         );
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("duplicate should fail");
         assert!(err.to_string().contains("Duplicate soft rules detected"));
     }
 }

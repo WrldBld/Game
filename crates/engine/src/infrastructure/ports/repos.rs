@@ -1094,6 +1094,7 @@ pub trait AssetRepo: Send + Sync {
 /// Repository for game flags (used in scene conditions and narrative triggers).
 #[async_trait]
 #[cfg_attr(test, mockall::automock)]
+#[allow(unused_lifetimes)]
 pub trait FlagRepo: Send + Sync {
     /// Get all set flags for a world (world-scoped flags).
     async fn get_world_flags(&self, world_id: WorldId) -> Result<Vec<String>, RepoError>;

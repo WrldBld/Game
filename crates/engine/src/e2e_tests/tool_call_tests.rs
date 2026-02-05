@@ -21,8 +21,6 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::QueueItemId;
-
 use crate::queue_types::DmApprovalDecision;
 
 use super::{
@@ -124,7 +122,7 @@ async fn test_npc_triggers_perception_check_via_tool() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be available");
 
         // Get the approval request to check for proposed tools
         let approval_data = ctx
@@ -314,7 +312,7 @@ async fn test_tool_call_outcome_affects_dialogue() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request for outcome suggestions");
 
-        let llm_processed = llm_result.unwrap();
+        let llm_processed = llm_result.expect("LLM result should be present");
         tracing::info!(
             approval_id = %llm_processed.approval_id,
             broadcast_events = llm_processed.broadcast_events.len(),
@@ -351,7 +349,7 @@ async fn test_tool_call_outcome_affects_dialogue() {
             .approval
             .decision_flow
             .execute(
-                approval_queue_id.into(),
+                approval_queue_id,
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: selected_outcome.clone(),
                     approved_tools: vec![], // No tools for this test
@@ -368,7 +366,7 @@ async fn test_tool_call_outcome_affects_dialogue() {
             "Should have outcome dialogue from LLM-generated suggestion"
         );
 
-        let dialogue = approval_result.final_dialogue.unwrap();
+        let dialogue = approval_result.final_dialogue.expect("Final dialogue should be present");
         tracing::info!(
             outcome_dialogue = %dialogue,
             "Challenge outcome dialogue (LLM-generated)"
@@ -503,7 +501,7 @@ async fn test_failed_challenge_changes_npc_response() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID").into(),
+                    .expect("Should have approval queue ID"),
                 DmApprovalDecision::Accept,
             )
             .await
@@ -515,7 +513,7 @@ async fn test_failed_challenge_changes_npc_response() {
             "Should have outcome dialogue describing failure"
         );
 
-        let dialogue = approval_result.final_dialogue.unwrap();
+        let dialogue = approval_result.final_dialogue.expect("Final dialogue should be present");
         tracing::info!(
             outcome_dialogue = %dialogue,
             "Failed challenge outcome dialogue"
@@ -670,7 +668,7 @@ async fn test_npc_gives_item_via_tool() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be available");
 
         // Get the approval request to check for proposed tools
         let approval_data = ctx
@@ -1100,9 +1098,9 @@ async fn test_dm_sees_proposed_tools() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
-        // Get the approval request to examine proposed tools
+        // Get the approval request to check for proposed tools
         let approval_data = ctx
             .app
             .queue
@@ -1288,7 +1286,7 @@ async fn test_dm_can_reject_tool_call() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request
         let approval_data = ctx
@@ -1470,7 +1468,7 @@ async fn test_dm_can_modify_tool_parameters() {
 
         assert!(llm_result.is_some(), "Should have processed an LLM request");
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request
         let approval_data = ctx
@@ -1686,7 +1684,7 @@ async fn test_multiple_tools_in_single_response() {
             "Should have processed an LLM request"
         );
 
-        let result = llm_result.unwrap();
+        let result = llm_result.expect("LLM result should be present");
 
         // Get the approval request
         let approval_data = ctx

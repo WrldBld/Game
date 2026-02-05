@@ -10,10 +10,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// This is a stable contract type used by both Engine and Player UI.
 /// Stored in settings and used for model resolution fallback logic.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(tag = "type", content = "value")]
 pub enum LlmModelPreference {
     /// Automatically select the best available model using fallback logic
+    #[default]
     Auto,
     /// Use a specific model ID
     Specific { model_id: String },
@@ -38,12 +39,6 @@ impl LlmModelPreference {
             Self::Specific { model_id } => Some(model_id),
             Self::Auto => None,
         }
-    }
-}
-
-impl Default for LlmModelPreference {
-    fn default() -> Self {
-        Self::Auto
     }
 }
 

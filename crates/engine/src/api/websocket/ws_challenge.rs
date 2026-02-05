@@ -152,7 +152,7 @@ pub(super) async fn handle_challenge_request(
                 ));
             }
 
-            if data.always_available.is_some() && data.always_available.unwrap()
+            if data.always_available == Some(true)
                 && (data.available_at_location_id.is_some() || data.available_at_region_id.is_some())
             {
                 return Ok(ResponseResult::error(
@@ -161,7 +161,7 @@ pub(super) async fn handle_challenge_request(
                 ));
             }
 
-            if data.always_available.is_some() && data.always_available.unwrap()
+            if data.always_available == Some(true)
                 && data.availability_time_restriction.is_some()
             {
                 return Ok(ResponseResult::error(
@@ -877,7 +877,7 @@ pub(super) async fn handle_challenge_outcome_decision(
     };
 
     // Parse resolution_id as typed QueueItemId at API boundary
-    let queue_item_id = match parse_id(&resolution_id, |u| wrldbldr_domain::QueueItemId::from(u), "Invalid request ID") {
+    let queue_item_id = match parse_id(&resolution_id, wrldbldr_domain::QueueItemId::from, "Invalid request ID") {
         Ok(id) => id,
         Err(e) => return Some(e),
     };

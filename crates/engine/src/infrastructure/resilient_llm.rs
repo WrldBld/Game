@@ -302,7 +302,7 @@ mod tests {
         let result = client.generate(request).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().content, "Success!");
+        assert_eq!(result.expect("should have result").content, "Success!");
     }
 
     #[tokio::test]
@@ -432,7 +432,7 @@ mod tests {
         let result = client.generate(request).await;
         assert!(result.is_err());
         assert!(result
-            .unwrap_err()
+            .expect_err("should be error")
             .to_string()
             .contains("Circuit breaker is open"));
     }

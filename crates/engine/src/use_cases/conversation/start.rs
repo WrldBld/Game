@@ -411,9 +411,9 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -422,7 +422,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -445,7 +445,7 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let mut world_repo = MockWorldRepo::new();
-        let world_name = WorldName::new("W").unwrap();
+        let world_name = WorldName::new("W").expect("valid world name");
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let world_for_get = world.clone();
         world_repo
@@ -488,7 +488,7 @@ mod tests {
                 "Hello".to_string(),
             )
             .await
-            .unwrap_err();
+            .expect_err("should fail with NpcNotInRegion");
 
         assert!(matches!(err, super::ConversationError::NpcNotInRegion));
         assert!(queue_port.recorded_player_actions().is_empty());
@@ -507,9 +507,9 @@ mod tests {
         let initial_dialogue = "Hello".to_string();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -518,7 +518,7 @@ mod tests {
 
         let npc = Character::new(
             world_id,
-            CharacterName::new("NPC").unwrap(),
+            CharacterName::new("NPC").expect("valid character name"),
             CampbellArchetype::Mentor,
         )
         .with_id(npc_id);
@@ -541,7 +541,7 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let mut world_repo = MockWorldRepo::new();
-        let world_name = WorldName::new("W").unwrap();
+        let world_name = WorldName::new("W").expect("valid world name");
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();

@@ -37,7 +37,7 @@ impl ActiveConversationSummary {
                     id: self.pc_id.to_string(),
                     name: self.pc_name.clone(),
                     participant_type: ProtocolParticipantType::Pc,
-                    turn_count: (self.turn_count + 1) / 2, // Approximate split
+                    turn_count: self.turn_count.div_ceil(2), // Approximate split
                     last_spoke_at: Some(
                         self.last_updated_at
                             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),

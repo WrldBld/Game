@@ -81,7 +81,7 @@ async fn test_advance_time() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Get initial world time
-    let world = ctx
+    let _world = ctx
         .app
         .repositories
         .world
@@ -199,11 +199,11 @@ async fn test_time_reached_trigger() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Midnight Event").unwrap(),
+        NarrativeEventName::new("Midnight Event").expect("Event name should be valid"),
         Utc::now(),
     )
     .with_description("Something happens after enough time passes")
-    .with_scene_direction(Description::new("The clock strikes twelve").unwrap())
+    .with_scene_direction(Description::new("The clock strikes twelve").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true);
 
@@ -262,11 +262,11 @@ async fn test_time_at_location_trigger() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Evening at Tavern Event").unwrap(),
+        NarrativeEventName::new("Evening at Tavern Event").expect("Event name should be valid"),
         Utc::now(),
     )
     .with_description("Something happens at the tavern in the evening")
-    .with_scene_direction(Description::new("The evening crowd gathers").unwrap())
+    .with_scene_direction(Description::new("The evening crowd gathers").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_active(true);
 

@@ -437,8 +437,8 @@ mod tests {
             .with_summary("A test lore entry")
             .with_chunk("First chunk of content")
             .with_chunk("Second chunk of content")
-            .with_tag(Tag::new("test").unwrap())
-            .with_tag(Tag::new("history").unwrap());
+            .with_tag(Tag::new("test").expect("valid tag"))
+            .with_tag(Tag::new("history").expect("valid tag"));
 
         assert_eq!(lore.title(), "Test Lore");
         assert_eq!(lore.summary(), "A test lore entry");
@@ -448,7 +448,10 @@ mod tests {
         assert_eq!(lore.tags().len(), 2);
         assert_eq!(
             lore.tags(),
-            &[Tag::new("test").unwrap(), Tag::new("history").unwrap()]
+            &[
+                Tag::new("test").expect("valid tag"),
+                Tag::new("history").expect("valid tag")
+            ]
         );
     }
 
@@ -494,15 +497,17 @@ mod tests {
     #[test]
     fn test_lore_category_from_str() {
         assert_eq!(
-            "historical".parse::<LoreCategory>().unwrap(),
+            "historical"
+                .parse::<LoreCategory>()
+                .expect("valid category"),
             LoreCategory::Historical
         );
         assert_eq!(
-            "SECRET".parse::<LoreCategory>().unwrap(),
+            "SECRET".parse::<LoreCategory>().expect("valid category"),
             LoreCategory::Secret
         );
         assert_eq!(
-            "unknown".parse::<LoreCategory>().unwrap(),
+            "unknown".parse::<LoreCategory>().expect("valid category"),
             LoreCategory::Unknown
         );
         // Invalid strings return an error

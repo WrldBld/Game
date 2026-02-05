@@ -152,7 +152,7 @@ pub(super) async fn handle_character_sheet_request(
             {
                 Ok(result) => {
                     // Resolve world_id from character_id
-                    let world_id = match get_character_world_id(&state, character_id_typed).await {
+                    let world_id = match get_character_world_id(state, character_id_typed).await {
                         Ok(wid) => wid,
                         Err(e) => {
                             tracing::error!(error = %e, "Failed to resolve world_id for character");
@@ -214,7 +214,7 @@ pub(super) async fn handle_character_sheet_request(
             {
                 Ok(result) => {
                     // Resolve world_id from character_id
-                    let world_id = match get_character_world_id(&state, character_id_typed).await {
+                    let world_id = match get_character_world_id(state, character_id_typed).await {
                         Ok(wid) => wid,
                         Err(e) => {
                             tracing::error!(error = %e, "Failed to resolve world_id for character");

@@ -1405,7 +1405,7 @@ mod tests {
         let system = FateCoreSystem::new();
         let schema = system.character_sheet_schema();
 
-        let skills_section = schema.sections.iter().find(|s| s.id == "skills").unwrap();
+        let skills_section = schema.sections.iter().find(|s| s.id == "skills").expect("valid value");
         assert_eq!(skills_section.fields.len(), 18); // 18 FATE Core skills
 
         // Verify skill field types are LadderRating
@@ -1428,7 +1428,7 @@ mod tests {
         let system = FateCoreSystem::new();
         let schema = system.character_sheet_schema();
 
-        let aspects_section = schema.sections.iter().find(|s| s.id == "aspects").unwrap();
+        let aspects_section = schema.sections.iter().find(|s| s.id == "aspects").expect("valid value");
         assert_eq!(aspects_section.fields.len(), 5); // High Concept, Trouble, 3 additional
 
         // High Concept and Trouble are required
@@ -1436,14 +1436,14 @@ mod tests {
             .fields
             .iter()
             .find(|f| f.id == "HIGH_CONCEPT")
-            .unwrap();
+            .expect("valid value");
         assert!(high_concept.required);
 
         let trouble = aspects_section
             .fields
             .iter()
             .find(|f| f.id == "TROUBLE")
-            .unwrap();
+            .expect("valid value");
         assert!(trouble.required);
     }
 

@@ -252,7 +252,7 @@ impl DiceFormula {
     /// ```ignore
     /// use wrldbldr_domain::value_objects::DiceFormula;
     ///
-    /// let formula = DiceFormula::parse("1d20+5").unwrap();
+    /// let formula = DiceFormula::parse("1d20+5").expect("valid value");
     ///
     /// // Production: use random adapter
     /// let result = formula.roll(|min, max| rng.random_range(min, max));
@@ -533,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_d20() {
-        let formula = DiceFormula::parse("1d20").unwrap();
+        let formula = DiceFormula::parse("1d20").expect("valid value");
         assert_eq!(formula.dice_count(), 1);
         assert_eq!(formula.die_size(), 20);
         assert_eq!(formula.modifier(), 0);
@@ -541,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_parse_shorthand_d20() {
-        let formula = DiceFormula::parse("d20").unwrap();
+        let formula = DiceFormula::parse("d20").expect("valid value");
         assert_eq!(formula.dice_count(), 1);
         assert_eq!(formula.die_size(), 20);
         assert_eq!(formula.modifier(), 0);
@@ -549,7 +549,7 @@ mod tests {
 
     #[test]
     fn test_parse_with_positive_modifier() {
-        let formula = DiceFormula::parse("1d20+5").unwrap();
+        let formula = DiceFormula::parse("1d20+5").expect("valid value");
         assert_eq!(formula.dice_count(), 1);
         assert_eq!(formula.die_size(), 20);
         assert_eq!(formula.modifier(), 5);
@@ -557,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_parse_with_negative_modifier() {
-        let formula = DiceFormula::parse("1d20-3").unwrap();
+        let formula = DiceFormula::parse("1d20-3").expect("valid value");
         assert_eq!(formula.dice_count(), 1);
         assert_eq!(formula.die_size(), 20);
         assert_eq!(formula.modifier(), -3);
@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn test_parse_multiple_dice() {
-        let formula = DiceFormula::parse("2d6+3").unwrap();
+        let formula = DiceFormula::parse("2d6+3").expect("valid value");
         assert_eq!(formula.dice_count(), 2);
         assert_eq!(formula.die_size(), 6);
         assert_eq!(formula.modifier(), 3);
@@ -573,7 +573,7 @@ mod tests {
 
     #[test]
     fn test_parse_d100() {
-        let formula = DiceFormula::parse("1d100").unwrap();
+        let formula = DiceFormula::parse("1d100").expect("valid value");
         assert_eq!(formula.dice_count(), 1);
         assert_eq!(formula.die_size(), 100);
         assert_eq!(formula.modifier(), 0);
@@ -581,7 +581,7 @@ mod tests {
 
     #[test]
     fn test_parse_case_insensitive() {
-        let formula = DiceFormula::parse("1D20+5").unwrap();
+        let formula = DiceFormula::parse("1D20+5").expect("valid value");
         assert_eq!(formula.dice_count(), 1);
         assert_eq!(formula.die_size(), 20);
         assert_eq!(formula.modifier(), 5);
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn test_parse_with_whitespace() {
-        let formula = DiceFormula::parse("  1d20+5  ").unwrap();
+        let formula = DiceFormula::parse("  1d20+5  ").expect("valid value");
         assert_eq!(formula.dice_count(), 1);
         assert_eq!(formula.die_size(), 20);
         assert_eq!(formula.modifier(), 5);
@@ -626,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_roll_deterministic() {
-        let formula = DiceFormula::parse("1d20").unwrap();
+        let formula = DiceFormula::parse("1d20").expect("valid value");
         // Fixed RNG that always returns 10
         let result = formula.roll(|_, _| 10);
         assert_eq!(result.total(), 10);
@@ -635,7 +635,7 @@ mod tests {
 
     #[test]
     fn test_roll_with_modifier() {
-        let formula = DiceFormula::parse("1d20+5").unwrap();
+        let formula = DiceFormula::parse("1d20+5").expect("valid value");
         // Fixed RNG that returns 14
         let result = formula.roll(|_, _| 14);
         assert_eq!(result.total(), 19); // 14 + 5
@@ -644,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_roll_multiple_dice() {
-        let formula = DiceFormula::parse("3d6").unwrap();
+        let formula = DiceFormula::parse("3d6").expect("valid value");
         let mut call_count = 0;
         let result = formula.roll(|_, _| {
             call_count += 1;
@@ -657,13 +657,13 @@ mod tests {
 
     #[test]
     fn test_breakdown_single_die() {
-        let result = DiceRollResult::new(DiceFormula::new(1, 20, 5).unwrap(), vec![14], 14, 5, 19);
+        let result = DiceRollResult::new(DiceFormula::new(1, 20, 5).expect("valid value"), vec![14], 14, 5, 19);
         assert_eq!(result.breakdown(), "1d20(14) + 5 = 19");
     }
 
     #[test]
     fn test_breakdown_multiple_dice() {
-        let result = DiceRollResult::new(DiceFormula::new(2, 6, 3).unwrap(), vec![4, 5], 9, 3, 12);
+        let result = DiceRollResult::new(DiceFormula::new(2, 6, 3).expect("valid value"), vec![4, 5], 9, 3, 12);
         assert_eq!(result.breakdown(), "2d6[4, 5] + 3 = 12");
     }
 
@@ -676,14 +676,14 @@ mod tests {
 
     #[test]
     fn test_natural_20() {
-        let result = DiceRollResult::new(DiceFormula::new(1, 20, 0).unwrap(), vec![20], 20, 0, 20);
+        let result = DiceRollResult::new(DiceFormula::new(1, 20, 0).expect("valid value"), vec![20], 20, 0, 20);
         assert!(result.is_natural_20());
         assert!(!result.is_natural_1());
     }
 
     #[test]
     fn test_natural_1() {
-        let result = DiceRollResult::new(DiceFormula::new(1, 20, 0).unwrap(), vec![1], 1, 0, 1);
+        let result = DiceRollResult::new(DiceFormula::new(1, 20, 0).expect("valid value"), vec![1], 1, 0, 1);
         assert!(result.is_natural_1());
         assert!(!result.is_natural_20());
     }
@@ -691,7 +691,7 @@ mod tests {
     #[test]
     fn test_dice_roll_input_formula() {
         let input = DiceRollInput::Formula("1d20+5".to_string());
-        let result = input.resolve(|_, _| 10).unwrap();
+        let result = input.resolve(|_, _| 10).expect("valid value");
         assert!(!result.is_manual());
         assert_eq!(result.total(), 15); // 10 + 5
     }
@@ -702,7 +702,7 @@ mod tests {
         // Manual result ignores RNG
         let result = input
             .resolve(|_, _| panic!("should not be called"))
-            .unwrap();
+            .expect("valid value");
         assert!(result.is_manual());
         assert_eq!(result.total(), 18);
     }
@@ -710,7 +710,7 @@ mod tests {
     #[test]
     fn test_resolve_with_modifier() {
         let input = DiceRollInput::Formula("1d20".to_string());
-        let result = input.resolve_with_modifier(5, |_, _| 10).unwrap();
+        let result = input.resolve_with_modifier(5, |_, _| 10).expect("valid value");
         assert_eq!(result.total(), 15); // 10 + 5
         assert_eq!(result.modifier_applied(), 5);
     }
@@ -733,9 +733,9 @@ mod tests {
 
     #[test]
     fn test_display() {
-        assert_eq!(DiceFormula::new(1, 20, 0).unwrap().display(), "1d20");
-        assert_eq!(DiceFormula::new(1, 20, 5).unwrap().display(), "1d20+5");
-        assert_eq!(DiceFormula::new(1, 20, -3).unwrap().display(), "1d20-3");
-        assert_eq!(DiceFormula::new(2, 6, 3).unwrap().display(), "2d6+3");
+        assert_eq!(DiceFormula::new(1, 20, 0).expect("valid value").display(), "1d20");
+        assert_eq!(DiceFormula::new(1, 20, 5).expect("valid value").display(), "1d20+5");
+        assert_eq!(DiceFormula::new(1, 20, -3).expect("valid value").display(), "1d20-3");
+        assert_eq!(DiceFormula::new(2, 6, 3).expect("valid value").display(), "2d6+3");
     }
 }

@@ -19,7 +19,7 @@
 use std::sync::Arc;
 
 use super::{
-    approve_staging_with_npc, create_e2e_llm, create_player_character_via_use_case,
+    approve_staging_with_npc, create_player_character_via_use_case,
     create_shared_log, create_test_player, start_conversation_with_npc, E2ETestContext,
     LoggingLlmDecorator, TestOutcome, VcrLlm,
 };
@@ -124,7 +124,7 @@ async fn test_staging_npc_in_region() {
             .expect("Staging query failed");
 
         assert!(staging.is_some(), "No active staging found");
-        let staged = staging.unwrap().npcs().to_vec();
+        let staged = staging.expect("Active staging should be present").npcs().to_vec();
         assert!(!staged.is_empty(), "No NPCs staged");
         assert!(
             staged.iter().any(|s| s.character_id == marta_id),
@@ -255,7 +255,7 @@ async fn test_multi_turn_conversation() {
             .expect("Failed to stage NPC");
 
         // Turn 1: Start conversation
-        let (conversation_id, response1) = start_conversation_with_npc(
+        let (_conversation_id, response1) = start_conversation_with_npc(
             &ctx,
             pc_id,
             marta_id,
@@ -369,7 +369,7 @@ async fn test_full_gameplay_session() {
             .expect("Failed to stage Marta");
 
         // === Phase 3: Start Conversation ===
-        let (conversation_id, response1) = start_conversation_with_npc(
+        let (_conversation_id, response1) = start_conversation_with_npc(
             &ctx,
             pc_id,
             marta_id,

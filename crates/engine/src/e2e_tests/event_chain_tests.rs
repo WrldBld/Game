@@ -88,12 +88,12 @@ async fn test_first_event_triggers_on_location_entry() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Chain Event A - Tavern Entry").unwrap(),
+        NarrativeEventName::new("Chain Event A - Tavern Entry").expect("Event name should be valid"),
         now,
     )
     .with_id(wrldbldr_domain::NarrativeEventId::from(event_id))
     .with_description("First event in chain - triggers on location entry")
-    .with_scene_direction(Description::new("The tavern buzzes with activity as you enter").unwrap())
+    .with_scene_direction(Description::new("The tavern buzzes with activity as you enter").expect("Description should be valid"))
     .with_trigger_condition(trigger)
     .with_priority(10);
 
@@ -205,12 +205,12 @@ async fn test_subsequent_event_unlocks_after_completion() {
     let event_a_id = wrldbldr_domain::NarrativeEventId::new();
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Chain Event A - Introduction").unwrap(),
+        NarrativeEventName::new("Chain Event A - Introduction").expect("Event name should be valid"),
         now,
     )
     .with_id(event_a_id)
     .with_description("First event in chain")
-    .with_scene_direction(Description::new("The stranger nods at you").unwrap())
+    .with_scene_direction(Description::new("The stranger nods at you").expect("Description should be valid"))
     .with_triggered(now, Some("default".to_string()), 1);
 
     ctx.app
@@ -258,12 +258,12 @@ async fn test_subsequent_event_unlocks_after_completion() {
 
     let event_b = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Chain Event B - Follow Up").unwrap(),
+        NarrativeEventName::new("Chain Event B - Follow Up").expect("Event name should be valid"),
         now,
     )
     .with_id(event_b_id)
     .with_description("Second event in chain - triggers after Event A")
-    .with_scene_direction(Description::new("The stranger approaches with more to say").unwrap())
+    .with_scene_direction(Description::new("The stranger approaches with more to say").expect("Description should be valid"))
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(event_completed_trigger)
     .with_priority(10);
@@ -383,13 +383,13 @@ async fn test_event_condition_checks_player_flags() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Secret Meeting").unwrap(),
+        NarrativeEventName::new("Secret Meeting").expect("Event name should be valid"),
         now,
     )
     .with_id(event_id)
     .with_description("Secret event only for those who met the stranger")
     .with_scene_direction(
-        Description::new("A hooded figure beckons you to a corner booth").unwrap(),
+        Description::new("A hooded figure beckons you to a corner booth").expect("Description should be valid"),
     )
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(flag_trigger)
@@ -550,14 +550,14 @@ async fn test_event_condition_checks_inventory() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("The Locked Door Opens").unwrap(),
+        NarrativeEventName::new("The Locked Door Opens").expect("Event name should be valid"),
         now,
     )
     .with_id(event_id)
     .with_description("A secret passage reveals itself when you hold the key")
     .with_scene_direction(
         Description::new("The innkeeper notices the key in your possession and nods knowingly")
-            .unwrap(),
+            .expect("Description should be valid"),
     )
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(inventory_trigger)
@@ -737,13 +737,13 @@ async fn test_event_condition_checks_stats() {
 
     let event_low_cha = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Charismatic Old Tom").unwrap(),
+        NarrativeEventName::new("Charismatic Old Tom").expect("Event name should be valid"),
         now,
     )
     .with_id(event_low_cha_id)
     .with_description("Event requiring Old Tom to have high charisma")
     .with_scene_direction(
-        Description::new("Old Tom captivates the room with his presence").unwrap(),
+        Description::new("Old Tom captivates the room with his presence").expect("Description should be valid"),
     )
     .with_trigger_condition(location_trigger_low)
     .with_trigger_condition(stat_trigger_low)
@@ -794,13 +794,13 @@ async fn test_event_condition_checks_stats() {
 
     let event_high_cha = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Charismatic Vera").unwrap(),
+        NarrativeEventName::new("Charismatic Vera").expect("Event name should be valid"),
         now,
     )
     .with_id(event_high_cha_id)
     .with_description("Event requiring Vera to have high charisma")
     .with_scene_direction(
-        Description::new("Vera's magnetic presence draws everyone's attention").unwrap(),
+        Description::new("Vera's magnetic presence draws everyone's attention").expect("Description should be valid"),
     )
     .with_trigger_condition(location_trigger_high)
     .with_trigger_condition(stat_trigger_high)
@@ -935,12 +935,12 @@ async fn test_chain_completes_in_order() {
 
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Chain Event A - The Introduction").unwrap(),
+        NarrativeEventName::new("Chain Event A - The Introduction").expect("Event name should be valid"),
         now,
     )
     .with_id(event_a_id)
     .with_description("First event in chain")
-    .with_scene_direction(Description::new("A mysterious stranger catches your eye").unwrap())
+    .with_scene_direction(Description::new("A mysterious stranger catches your eye").expect("Description should be valid"))
     .with_trigger_condition(location_trigger_a)
     .with_priority(10);
 
@@ -988,12 +988,12 @@ async fn test_chain_completes_in_order() {
 
     let event_b = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Chain Event B - The Revelation").unwrap(),
+        NarrativeEventName::new("Chain Event B - The Revelation").expect("Event name should be valid"),
         now,
     )
     .with_id(event_b_id)
     .with_description("Second event in chain")
-    .with_scene_direction(Description::new("The stranger reveals a dark secret").unwrap())
+    .with_scene_direction(Description::new("The stranger reveals a dark secret").expect("Description should be valid"))
     .with_trigger_condition(location_trigger_b)
     .with_trigger_condition(event_a_completed)
     .with_priority(10);
@@ -1042,12 +1042,12 @@ async fn test_chain_completes_in_order() {
 
     let event_c = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Chain Event C - The Decision").unwrap(),
+        NarrativeEventName::new("Chain Event C - The Decision").expect("Event name should be valid"),
         now,
     )
     .with_id(event_c_id)
     .with_description("Third event in chain")
-    .with_scene_direction(Description::new("You must now make a fateful choice").unwrap())
+    .with_scene_direction(Description::new("You must now make a fateful choice").expect("Description should be valid"))
     .with_trigger_condition(location_trigger_c)
     .with_trigger_condition(event_b_completed)
     .with_priority(10);
@@ -1301,12 +1301,12 @@ async fn test_chain_completion_triggers_final_effects() {
 
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Quest Start - The Call").unwrap(),
+        NarrativeEventName::new("Quest Start - The Call").expect("Event name should be valid"),
         now,
     )
     .with_id(event_a_id)
     .with_description("First event in quest chain")
-    .with_scene_direction(Description::new("A desperate villager approaches you").unwrap())
+    .with_scene_direction(Description::new("A desperate villager approaches you").expect("Description should be valid"))
     .with_trigger_condition(location_trigger_a)
     .with_priority(10);
 
@@ -1354,13 +1354,13 @@ async fn test_chain_completion_triggers_final_effects() {
 
     let event_final = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Quest Complete - The Reward").unwrap(),
+        NarrativeEventName::new("Quest Complete - The Reward").expect("Event name should be valid"),
         now,
     )
     .with_id(event_final_id)
     .with_description("Final event granting completion reward")
     .with_scene_direction(
-        Description::new("The villager returns with a reward for your heroism").unwrap(),
+        Description::new("The villager returns with a reward for your heroism").expect("Description should be valid"),
     )
     .with_trigger_condition(location_trigger_final)
     .with_trigger_condition(event_a_completed)
@@ -1581,12 +1581,12 @@ async fn test_partial_chain_persists_across_sessions() {
     // Event A: First in chain
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Persistent Chain A").unwrap(),
+        NarrativeEventName::new("Persistent Chain A").expect("Event name should be valid"),
         now,
     )
     .with_id(event_a_id)
     .with_description("First event in persistent chain")
-    .with_scene_direction(Description::new("The adventure begins").unwrap())
+    .with_scene_direction(Description::new("The adventure begins").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1622,12 +1622,12 @@ async fn test_partial_chain_persists_across_sessions() {
     // Event B: Requires Event A completion
     let event_b = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Persistent Chain B").unwrap(),
+        NarrativeEventName::new("Persistent Chain B").expect("Event name should be valid"),
         now,
     )
     .with_id(event_b_id)
     .with_description("Second event in persistent chain")
-    .with_scene_direction(Description::new("The plot thickens").unwrap())
+    .with_scene_direction(Description::new("The plot thickens").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1675,12 +1675,12 @@ async fn test_partial_chain_persists_across_sessions() {
     // Event C: Requires Event B completion
     let event_c = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Persistent Chain C").unwrap(),
+        NarrativeEventName::new("Persistent Chain C").expect("Event name should be valid"),
         now,
     )
     .with_id(event_c_id)
     .with_description("Third event in persistent chain")
-    .with_scene_direction(Description::new("The conclusion").unwrap())
+    .with_scene_direction(Description::new("The conclusion").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1963,12 +1963,12 @@ async fn test_chain_branch_based_on_outcome() {
     // Event A: Initial event with branching outcomes
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Branching Event A - The Offer").unwrap(),
+        NarrativeEventName::new("Branching Event A - The Offer").expect("Event name should be valid"),
         now,
     )
     .with_id(event_a_id)
     .with_description("Event with branching outcomes")
-    .with_scene_direction(Description::new("A mysterious figure makes you an offer").unwrap())
+    .with_scene_direction(Description::new("A mysterious figure makes you an offer").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2004,13 +2004,13 @@ async fn test_chain_branch_based_on_outcome() {
     // Event B: Accept path - requires Event A completed with "accept" outcome
     let event_b = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Branch B - Accepted Quest").unwrap(),
+        NarrativeEventName::new("Branch B - Accepted Quest").expect("Event name should be valid"),
         now,
     )
     .with_id(event_b_id)
     .with_description("Quest accepted path")
     .with_scene_direction(
-        Description::new("Having accepted the offer, you learn more details").unwrap(),
+        Description::new("Having accepted the offer, you learn more details").expect("Description should be valid"),
     )
     .with_trigger_condition(
         NarrativeTrigger::new(
@@ -2059,12 +2059,12 @@ async fn test_chain_branch_based_on_outcome() {
     // Event C: Refuse path - requires Event A completed with "refuse" outcome
     let event_c = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Branch C - Refused Quest").unwrap(),
+        NarrativeEventName::new("Branch C - Refused Quest").expect("Event name should be valid"),
         now,
     )
     .with_id(event_c_id)
     .with_description("Quest refused path")
-    .with_scene_direction(Description::new("Having refused, the stranger becomes hostile").unwrap())
+    .with_scene_direction(Description::new("Having refused, the stranger becomes hostile").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2256,12 +2256,12 @@ async fn test_alternate_branch_path() {
     // Event A: Initial event
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Alt Branch A - The Proposal").unwrap(),
+        NarrativeEventName::new("Alt Branch A - The Proposal").expect("Event name should be valid"),
         now,
     )
     .with_id(event_a_id)
     .with_description("Event with branching outcomes")
-    .with_scene_direction(Description::new("A shady character proposes a scheme").unwrap())
+    .with_scene_direction(Description::new("A shady character proposes a scheme").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2297,12 +2297,12 @@ async fn test_alternate_branch_path() {
     // Event B: Accept path (should NOT trigger in this test)
     let event_b = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Alt Branch B - Joined Scheme").unwrap(),
+        NarrativeEventName::new("Alt Branch B - Joined Scheme").expect("Event name should be valid"),
         now,
     )
     .with_id(event_b_id)
     .with_description("Joined the scheme path")
-    .with_scene_direction(Description::new("You've thrown in your lot with the schemer").unwrap())
+    .with_scene_direction(Description::new("You've thrown in your lot with the schemer").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2350,12 +2350,12 @@ async fn test_alternate_branch_path() {
     // Event C: Refuse path (should trigger in this test)
     let event_c = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Alt Branch C - Rejected Scheme").unwrap(),
+        NarrativeEventName::new("Alt Branch C - Rejected Scheme").expect("Event name should be valid"),
         now,
     )
     .with_id(event_c_id)
     .with_description("Rejected the scheme path")
-    .with_scene_direction(Description::new("You've made an enemy of the schemer").unwrap())
+    .with_scene_direction(Description::new("You've made an enemy of the schemer").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2551,12 +2551,12 @@ async fn test_repeatable_chain_can_restart() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("Repeatable Daily Quest").unwrap(),
+        NarrativeEventName::new("Repeatable Daily Quest").expect("Event name should be valid"),
         now,
     )
     .with_id(event_id)
     .with_description("A daily quest that can be repeated")
-    .with_scene_direction(Description::new("The innkeeper has another task for you").unwrap())
+    .with_scene_direction(Description::new("The innkeeper has another task for you").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2793,12 +2793,12 @@ async fn test_one_time_chain_cannot_repeat() {
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
-        NarrativeEventName::new("One-Time Main Quest").unwrap(),
+        NarrativeEventName::new("One-Time Main Quest").expect("Event name should be valid"),
         now,
     )
     .with_id(event_id)
     .with_description("A main quest that can only happen once")
-    .with_scene_direction(Description::new("The ancient prophecy is revealed").unwrap())
+    .with_scene_direction(Description::new("The ancient prophecy is revealed").expect("Description should be valid"))
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {

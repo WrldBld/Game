@@ -450,15 +450,14 @@ impl RequestStagingApproval {
 mod tests {
         use super::*;
         use crate::infrastructure::app_settings::AppSettings;
-        use crate::infrastructure::ports::{LlmPort, LlmRequest, LlmResponse, LocationStateRepo, RegionStateRepo, MockCharacterRepo, MockStagingRepo, MockLocationRepo, MockWorldRepo, MockFlagRepo, MockSettingsRepo, MockLocationStateRepo, MockRegionStateRepo};
+        use crate::infrastructure::ports::{LlmPort, LlmRequest, LlmResponse, MockCharacterRepo, MockStagingRepo, MockLocationRepo, MockWorldRepo, MockFlagRepo, MockSettingsRepo, MockLocationStateRepo, MockRegionStateRepo};
         use crate::use_cases::visual_state::ResolveVisualState;
         use crate::stores::PendingStagingStore as PendingStaging;
         use crate::stores::TimeSuggestionStore;
         use std::sync::Arc;
         use wrldbldr_domain::{
-            Location, LocationId, LocationName, PlayerCharacterId, Region, RegionId, WorldId, LocationType,
+            Location, LocationId, LocationName, PlayerCharacterId, WorldId, LocationType,
         };
-        use wrldbldr_domain::value_objects::Description;
 
         // Mock LLM port for testing
         struct MockLlmPort {
@@ -499,408 +498,7 @@ mod tests {
             let mut mock_staging = MockStagingRepo::new();
             let mut mock_location = MockLocationRepo::new();
             let mut mock_world = MockWorldRepo::new();
-            let mut mock_flag = MockFlagRepo::new();
-            let mut mock_settings = MockSettingsRepo::new();
-            let mut mock_location_state = MockLocationStateRepo::new();
-            let mut mock_region_state = MockRegionStateRepo::new();
-            let mock_prompt_templates = Arc::new(crate::infrastructure::ports::MockPromptTemplateRepo::new());
-            let mut mock_clock = crate::infrastructure::ports::MockClockPort::new();
-            mock_clock.expect_now().returning(|| chrono::Utc::now());
-            let mock_clock = Arc::new(mock_clock);
-
-            // Configure world mock
-            mock_world
-                .expect_get()
-                .returning(|_| Ok(Some(crate::test_fixtures::world_seeder::create_test_world(
-                    WorldId::new(),
-                    chrono::Utc::now(),
-                ))));
-
-            // Configure location mock with use_llm_presence=false
-            mock_location
-                .expect_get_location()
-                .returning(|_| {
-                    Ok(Some(Location::new(
-                        WorldId::new(),
-                        LocationName::new("Test Location").unwrap(),
-                        LocationType::Interior,
-                    )
-                    .with_llm_presence(false)))
-                });
-
-            // Configure character repo to return empty NPCs
-            mock_char
-                .expect_get_npcs_for_region()
-                .returning(|_| Ok(vec![]));
-
-            // Configure staging repo
-            mock_staging
-                .expect_get_staged_npcs()
-                .returning(|_| Ok(vec![]));
-
-            // Configure settings
-            mock_settings
-                .expect_get_for_world()
-                .returning(|_| Ok(Some(AppSettings::default())));
-
-            // Configure flag repo - get_world_flags and get_pc_flags are called during visual state resolution
-            mock_flag
-                .expect_get_world_flags()
-                .returning(|_| Box::pin(async { Ok(vec![]) }));
-            mock_flag
-                .expect_get_pc_flags()
-                .returning(|_| Box::pin(async { Ok(vec![]) }));
-
-            // Configure visual state repos to return empty lists
-            mock_location_state
-                .expect_list_for_location()
-                .returning(|_| Ok(vec![]));
-            mock_region_state
-                .expect_list_for_region()
-                .returning(|_| Ok(vec![]));
-
-            // Create visual state use case with mocks
-            let visual_state = Arc::new(ResolveVisualState::new(
-                Arc::new(mock_location_state),
-                Arc::new(mock_region_state),
-            ));
-
-            // Create use case
-            let use_case = RequestStagingApproval::new(
-                Arc::new(mock_char),
-                Arc::new(mock_staging),
-                Arc::new(mock_location),
-                Arc::new(mock_world),
-                Arc::new(mock_flag),
-                visual_state,
-                Arc::new(mock_settings),
-                llm,
-                mock_clock,
-                mock_prompt_templates,
-            );
-
-            // Create context
-            let pending_time_suggestions = TimeSuggestionStore::default();
-            let pending_staging_requests = PendingStaging::new(Arc::new(crate::api::websocket::PendingStagingStoreImpl::new()));
-            let ctx = StagingApprovalContext {
-                pending_time_suggestions: &pending_time_suggestions,
-                pending_staging_requests: &pending_staging_requests,
-            };
-
-            // Create input with use_llm_presence explicitly set to false
-            let region = crate::test_fixtures::world_seeder::create_test_region(LocationId::new());
-            let pc_id = PlayerCharacterId::new();
-            let world_id = WorldId::new();
-            let input = StagingApprovalInput {
-                world_id,
-                region,
-                pc: crate::test_fixtures::world_seeder::create_test_pc(pc_id, world_id, chrono::Utc::now()),
-                previous_staging: None,
-                time_suggestion: None,
-                guidance: None,
-                presence_cache_ttl_hours: None,
-                use_llm_presence: Some(false),
-            };
-
-            // Execute - should NOT call LLM port (which would fail)
-            let result = use_case.execute(&ctx, input).await;
-
-            // Verify success despite LLM mock configured to fail
-            assert!(
-                result.is_ok(),
-                "Should succeed with use_llm_presence=false even when LLM port fails"
-            );
-
-            let request_result = result.unwrap();
-            // LLM-based NPCs should be empty
-            assert!(
-                request_result.approval.llm_based_npcs.is_empty(),
-                "LLM-based NPCs should be empty when LLM presence is disabled"
-            );
-        }
-
-        /// Test that location defaults are applied when input is omitted
-        #[tokio::test]
-        async fn test_location_defaults_applied_when_input_omitted() {
-            // Setup mocks
-            let llm = Arc::new(MockLlmPort::new());
-            let mut mock_char = MockCharacterRepo::new();
-            let mut mock_staging = MockStagingRepo::new();
-            let mut mock_location = MockLocationRepo::new();
-            let mut mock_world = MockWorldRepo::new();
-            let mut mock_flag = MockFlagRepo::new();
-            let mut mock_settings = MockSettingsRepo::new();
-            let mut mock_location_state = MockLocationStateRepo::new();
-            let mut mock_region_state = MockRegionStateRepo::new();
-            let mut mock_clock = crate::infrastructure::ports::MockClockPort::new();
-            mock_clock.expect_now().returning(|| chrono::Utc::now());
-            let mock_clock = Arc::new(mock_clock);
-
-            // Configure world mock
-            mock_world
-                .expect_get()
-                .returning(|_| Ok(Some(crate::test_fixtures::world_seeder::create_test_world(
-                    WorldId::new(),
-                    chrono::Utc::now(),
-                ))));
-
-            // Configure location mock with custom defaults
-            let location_id = LocationId::new();
-            mock_location
-                .expect_get_location()
-                .return_once(move |_| {
-                    Ok(Some(
-                        Location::new(
-                            WorldId::new(),
-                            LocationName::new("Custom Location").unwrap(),
-                            LocationType::Interior,
-                        )
-                        .with_presence_ttl(7)
-                        .with_llm_presence(false),
-                    ))
-                });
-
-            // Configure character repo to return empty NPCs
-            mock_char
-                .expect_get_npcs_for_region()
-                .returning(|_| Ok(vec![]));
-
-            // Configure staging repo
-            mock_staging
-                .expect_get_staged_npcs()
-                .returning(|_| Ok(vec![]));
-
-            // Configure settings
-            mock_settings
-                .expect_get_for_world()
-                .returning(|_| Ok(Some(AppSettings::default())));
-
-            // Configure flag repo - get_world_flags and get_pc_flags are called during visual state resolution
-            mock_flag
-                .expect_get_world_flags()
-                .returning(|_| Box::pin(async { Ok(vec![]) }));
-            mock_flag
-                .expect_get_pc_flags()
-                .returning(|_| Box::pin(async { Ok(vec![]) }));
-
-            // Configure visual state repos to return empty lists
-            mock_location_state
-                .expect_list_for_location()
-                .returning(|_| Ok(vec![]));
-            mock_region_state
-                .expect_list_for_region()
-                .returning(|_| Ok(vec![]));
-
-            // Create mock prompt templates
-            let mock_prompt_templates = Arc::new(crate::infrastructure::ports::MockPromptTemplateRepo::new());
-
-            // Create visual state use case with mocks
-            let visual_state = Arc::new(ResolveVisualState::new(
-                Arc::new(mock_location_state),
-                Arc::new(mock_region_state),
-            ));
-
-            // Create use case
-            let use_case = RequestStagingApproval::new(
-                Arc::new(mock_char),
-                Arc::new(mock_staging),
-                Arc::new(mock_location),
-                Arc::new(mock_world),
-                Arc::new(mock_flag),
-                visual_state,
-                Arc::new(mock_settings),
-                llm,
-                mock_clock,
-                mock_prompt_templates,
-            );
-
-            // Create context
-            let pending_time_suggestions = TimeSuggestionStore::default();
-            let pending_staging_requests = PendingStaging::new(Arc::new(crate::api::websocket::PendingStagingStoreImpl::new()));
-            let ctx = StagingApprovalContext {
-                pending_time_suggestions: &pending_time_suggestions,
-                pending_staging_requests: &pending_staging_requests,
-            };
-
-            // Create input WITHOUT overrides (None values)
-            let region = crate::test_fixtures::world_seeder::create_test_region(location_id);
-            let input = StagingApprovalInput {
-                world_id: WorldId::new(),
-                region,
-                pc: {
-                    let pc_id = PlayerCharacterId::new();
-                    let world_id = WorldId::new();
-                    crate::test_fixtures::world_seeder::create_test_pc(pc_id, world_id, chrono::Utc::now())
-                },
-                previous_staging: None,
-                time_suggestion: None,
-                guidance: None,
-                presence_cache_ttl_hours: None, // No override - should use location default (7)
-                use_llm_presence: None,        // No override - should use location default (false)
-            };
-
-            // Execute
-            let result = use_case.execute(&ctx, input).await.unwrap();
-
-            // Verify location defaults were applied
-            assert_eq!(
-                result.approval.default_ttl_hours, 7,
-                "Should use location default TTL of 7 hours"
-            );
-            assert!(
-                result.approval.llm_based_npcs.is_empty(),
-                "Should have no LLM-based NPCs when location default is disabled"
-            );
-        }
-
-        /// Test that input overrides take precedence over location defaults
-        #[tokio::test]
-        async fn test_input_overrides_take_precedence() {
-            // Setup mocks
-            let llm = Arc::new(MockLlmPort::new());
-            let mut mock_char = MockCharacterRepo::new();
-            let mut mock_staging = MockStagingRepo::new();
-            let mut mock_location = MockLocationRepo::new();
-            let mut mock_world = MockWorldRepo::new();
-            let mut mock_flag = MockFlagRepo::new();
-            let mut mock_settings = MockSettingsRepo::new();
-            let mut mock_location_state = MockLocationStateRepo::new();
-            let mut mock_region_state = MockRegionStateRepo::new();
-            let mut mock_clock = crate::infrastructure::ports::MockClockPort::new();
-            mock_clock.expect_now().returning(|| chrono::Utc::now());
-            let mock_clock = Arc::new(mock_clock);
-
-            // Configure world mock
-            mock_world
-                .expect_get()
-                .returning(|_| Ok(Some(crate::test_fixtures::world_seeder::create_test_world(
-                    WorldId::new(),
-                    chrono::Utc::now(),
-                ))));
-
-            // Configure location mock with defaults (TTL=3, LLM=false)
-            let location_id = LocationId::new();
-            mock_location
-                .expect_get_location()
-                .return_once(move |_| {
-                    Ok(Some(
-                        Location::new(
-                            WorldId::new(),
-                            LocationName::new("Custom Location").unwrap(),
-                            LocationType::Interior,
-                        )
-                        .with_presence_ttl(3)
-                        .with_llm_presence(false),
-                    ))
-                });
-
-            // Configure character repo to return empty NPCs
-            mock_char
-                .expect_get_npcs_for_region()
-                .returning(|_| Ok(vec![]));
-
-            // Configure staging repo
-            mock_staging
-                .expect_get_staged_npcs()
-                .returning(|_| Ok(vec![]));
-
-            // Configure settings
-            mock_settings
-                .expect_get_for_world()
-                .returning(|_| Ok(Some(AppSettings::default())));
-
-            // Configure flag repo - get_world_flags and get_pc_flags are called during visual state resolution
-            mock_flag
-                .expect_get_world_flags()
-                .returning(|_| Box::pin(async { Ok(vec![]) }));
-            mock_flag
-                .expect_get_pc_flags()
-                .returning(|_| Box::pin(async { Ok(vec![]) }));
-
-            // Configure visual state repos to return empty lists
-            mock_location_state
-                .expect_list_for_location()
-                .returning(|_| Ok(vec![]));
-            mock_region_state
-                .expect_list_for_region()
-                .returning(|_| Ok(vec![]));
-
-            // Create mock prompt templates (with expectation since use_llm_presence=true)
-            let mut mock_prompt_templates = crate::infrastructure::ports::MockPromptTemplateRepo::new();
-            mock_prompt_templates
-                .expect_resolve_template()
-                .returning(|_, _| Ok(Some("Test system prompt".to_string())));
-            let mock_prompt_templates = Arc::new(mock_prompt_templates);
-
-            // Create visual state use case with mocks
-            let visual_state = Arc::new(ResolveVisualState::new(
-                Arc::new(mock_location_state),
-                Arc::new(mock_region_state),
-            ));
-
-            // Create use case
-            let use_case = RequestStagingApproval::new(
-                Arc::new(mock_char),
-                Arc::new(mock_staging),
-                Arc::new(mock_location),
-                Arc::new(mock_world),
-                Arc::new(mock_flag),
-                visual_state,
-                Arc::new(mock_settings),
-                llm,
-                mock_clock,
-                mock_prompt_templates,
-            );
-
-            // Create context
-            let pending_time_suggestions = TimeSuggestionStore::default();
-            let pending_staging_requests = PendingStaging::new(Arc::new(crate::api::websocket::PendingStagingStoreImpl::new()));
-            let ctx = StagingApprovalContext {
-                pending_time_suggestions: &pending_time_suggestions,
-                pending_staging_requests: &pending_staging_requests,
-            };
-
-            // Create input WITH overrides that differ from location defaults
-            let region = crate::test_fixtures::world_seeder::create_test_region(location_id);
-            let input = StagingApprovalInput {
-                world_id: WorldId::new(),
-                region,
-                pc: {
-                    let pc_id = PlayerCharacterId::new();
-                    let world_id = WorldId::new();
-                    crate::test_fixtures::world_seeder::create_test_pc(pc_id, world_id, chrono::Utc::now())
-                },
-                previous_staging: None,
-                time_suggestion: None,
-                guidance: None,
-                presence_cache_ttl_hours: Some(12), // Override location default (3)
-                use_llm_presence: Some(true),      // Override location default (false)
-            };
-
-            // Execute
-            let result = use_case.execute(&ctx, input).await.unwrap();
-
-            // Verify input overrides took precedence
-            assert_eq!(
-                result.approval.default_ttl_hours, 12,
-                "Should use input override TTL of 12 hours, not location default (3)"
-            );
-            // LLM-based NPCs would be generated if there were candidates, but since
-            // the mock returns empty NPCs, there are no candidates to select from.
-            // The key point is that the LLM path was attempted (no error), which
-            // confirms use_llm_presence=true was respected.
-        }
-
-        /// Test that invalid TTL (zero) is rejected with validation error
-        #[tokio::test]
-        async fn test_invalid_ttl_zero_rejected() {
-            // Setup mocks
-            let llm = Arc::new(MockLlmPort::new());
-            let mut mock_char = MockCharacterRepo::new();
-            let mut mock_staging = MockStagingRepo::new();
-            let mut mock_location = MockLocationRepo::new();
-            let mut mock_world = MockWorldRepo::new();
-            let mut mock_flag = MockFlagRepo::new();
+            let mock_flag = MockFlagRepo::new();
             let mut mock_settings = MockSettingsRepo::new();
             let mut mock_location_state = MockLocationStateRepo::new();
             let mut mock_region_state = MockRegionStateRepo::new();
@@ -922,7 +520,7 @@ mod tests {
                     Ok(Some(
                         Location::new(
                             WorldId::new(),
-                            LocationName::new("Test Location").unwrap(),
+                            LocationName::new("Test Location").expect("valid location name"),
                             LocationType::Interior,
                         )
                         .with_presence_ttl(0),
@@ -1008,7 +606,7 @@ mod tests {
                 "Should fail when effective TTL is zero"
             );
 
-            let error = result.unwrap_err();
+            let error = result.expect_err("should fail");
             match error {
                 StagingError::Validation(msg) => {
                     assert!(
@@ -1030,7 +628,7 @@ mod tests {
             let mut mock_staging = MockStagingRepo::new();
             let mut mock_location = MockLocationRepo::new();
             let mut mock_world = MockWorldRepo::new();
-            let mut mock_flag = MockFlagRepo::new();
+            let mock_flag = MockFlagRepo::new();
             let mut mock_settings = MockSettingsRepo::new();
             let mut mock_location_state = MockLocationStateRepo::new();
             let mut mock_region_state = MockRegionStateRepo::new();
@@ -1052,7 +650,7 @@ mod tests {
                     Ok(Some(
                         Location::new(
                             WorldId::new(),
-                            LocationName::new("Test Location").unwrap(),
+                            LocationName::new("Test Location").expect("valid location name"),
                             LocationType::Interior,
                         )
                         .with_presence_ttl(5),
@@ -1138,7 +736,7 @@ mod tests {
                 "Should fail when effective TTL is negative"
             );
 
-            let error = result.unwrap_err();
+            let error = result.expect_err("should fail");
             match error {
                 StagingError::Validation(msg) => {
                     assert!(

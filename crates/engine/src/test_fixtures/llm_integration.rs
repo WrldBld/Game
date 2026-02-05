@@ -126,7 +126,7 @@ pub fn log_llm_interaction(
 
     content.push_str("### Messages\n\n");
     for msg in &request.messages {
-        content.push_str(&format!("**{}:**\n", format!("{:?}", msg.role)));
+        content.push_str(&format!("**{:?}:**\n", msg.role));
         content.push_str("```\n");
         content.push_str(&msg.content);
         content.push_str("\n```\n\n");
@@ -1259,7 +1259,7 @@ mod tests {
         assert_eq!(character.name, "Custom NPC");
         assert_eq!(character.archetype, "Trickster");
         assert!(character.motivations.is_some());
-        assert_eq!(character.motivations.unwrap().known.len(), 1);
+        assert_eq!(character.motivations.expect("motivations should be set").known.len(), 1);
     }
 
     #[test]
@@ -1291,7 +1291,7 @@ mod tests {
 
         assert!(request.system_prompt.is_some());
         assert_eq!(request.messages.len(), 1);
-        let system = request.system_prompt.unwrap();
+        let system = request.system_prompt.expect("system_prompt should be set");
         assert!(system.contains("Marta Hearthwood"));
         assert!(system.contains("Mentor"));
     }

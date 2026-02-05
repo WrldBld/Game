@@ -398,14 +398,14 @@ mod tests {
     #[tokio::test]
     async fn test_ask_yes_no_returns_true_for_yes() {
         let asserter = SemanticAssert::new(Arc::new(MockLlm::yes()));
-        let result = asserter.ask_yes_no("test", "question?").await.unwrap();
+        let result = asserter.ask_yes_no("test", "question?").await.expect("Should get result");
         assert!(result);
     }
 
     #[tokio::test]
     async fn test_ask_yes_no_returns_false_for_no() {
         let asserter = SemanticAssert::new(Arc::new(MockLlm::no()));
-        let result = asserter.ask_yes_no("test", "question?").await.unwrap();
+        let result = asserter.ask_yes_no("test", "question?").await.expect("Should get result");
         assert!(!result);
     }
 
@@ -425,7 +425,7 @@ mod tests {
             .assert_dialogue_about("Hello world", "greetings", "test failure")
             .await;
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.expect_err("Should get error");
         assert!(matches!(err, AssertionError::Failed { .. }));
     }
 }

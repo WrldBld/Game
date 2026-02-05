@@ -541,7 +541,10 @@ mod tests {
             Arc::new(FixedClock(now)),
         );
 
-        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        let err = use_case
+            .execute(pc_id, region_id)
+            .await
+            .expect_err("should fail with PlayerCharacterNotFound");
         assert!(matches!(
             err,
             super::EnterRegionError::PlayerCharacterNotFound(_)
@@ -557,9 +560,9 @@ mod tests {
         let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         );
@@ -584,7 +587,7 @@ mod tests {
             Arc::new(FixedClock(now)),
         );
 
-        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        let err = use_case.execute(pc_id, region_id).await.expect_err("should fail");
         assert!(matches!(err, super::EnterRegionError::RegionNotFound(_)));
     }
 
@@ -597,9 +600,9 @@ mod tests {
         let now = fixed_time();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             pc_location_id,
             now,
         );
@@ -607,7 +610,7 @@ mod tests {
         let region = Region::from_storage(
             region_id,
             other_location_id,
-            RegionName::new("Target").unwrap(),
+            RegionName::new("Target").expect("valid region name"),
             Description::default(),
             None,
             None,
@@ -637,7 +640,7 @@ mod tests {
             Arc::new(FixedClock(now)),
         );
 
-        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        let err = use_case.execute(pc_id, region_id).await.expect_err("should fail");
         assert!(matches!(
             err,
             super::EnterRegionError::RegionNotInCurrentLocation
@@ -656,7 +659,7 @@ mod tests {
         let to_region = Region::from_storage(
             to_region_id,
             location_id,
-            RegionName::new("Target").unwrap(),
+            RegionName::new("Target").expect("valid region name"),
             Description::default(),
             None,
             None,
@@ -666,9 +669,9 @@ mod tests {
         );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -699,7 +702,7 @@ mod tests {
             Arc::new(FixedClock(now)),
         );
 
-        let err = use_case.execute(pc_id, to_region_id).await.unwrap_err();
+        let err = use_case.execute(pc_id, to_region_id).await.expect_err("should fail");
         assert!(matches!(err, super::EnterRegionError::NoPathToRegion));
     }
 
@@ -715,7 +718,7 @@ mod tests {
         let to_region = Region::from_storage(
             to_region_id,
             location_id,
-            RegionName::new("Target").unwrap(),
+            RegionName::new("Target").expect("valid region name"),
             Description::default(),
             None,
             None,
@@ -725,9 +728,9 @@ mod tests {
         );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -758,7 +761,7 @@ mod tests {
             Arc::new(FixedClock(now)),
         );
 
-        let err = use_case.execute(pc_id, to_region_id).await.unwrap_err();
+        let err = use_case.execute(pc_id, to_region_id).await.expect_err("should fail");
         assert!(matches!(err, super::EnterRegionError::Repo(_)));
     }
 
@@ -774,7 +777,7 @@ mod tests {
         let to_region = Region::from_storage(
             to_region_id,
             location_id,
-            RegionName::new("Target").unwrap(),
+            RegionName::new("Target").expect("valid region name"),
             Description::default(),
             None,
             None,
@@ -784,9 +787,9 @@ mod tests {
         );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         )
@@ -826,7 +829,7 @@ mod tests {
             Arc::new(FixedClock(now)),
         );
 
-        let err = use_case.execute(pc_id, to_region_id).await.unwrap_err();
+        let err = use_case.execute(pc_id, to_region_id).await.expect_err("should fail");
         let super::EnterRegionError::MovementBlocked(reason) = err else {
             panic!("expected MovementBlocked");
         };
@@ -844,7 +847,7 @@ mod tests {
         let region = Region::from_storage(
             region_id,
             location_id,
-            RegionName::new("Target").unwrap(),
+            RegionName::new("Target").expect("valid region name"),
             Description::default(),
             None,
             None,
@@ -854,9 +857,9 @@ mod tests {
         );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            UserId::new("user").unwrap(),
+            UserId::new("user").expect("valid user id"),
             world_id,
-            CharacterName::new("PC").unwrap(),
+            CharacterName::new("PC").expect("valid character name"),
             location_id,
             now,
         );
@@ -888,7 +891,7 @@ mod tests {
             Arc::new(FixedClock(now)),
         );
 
-        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        let err = use_case.execute(pc_id, region_id).await.expect_err("should fail");
         assert!(matches!(err, super::EnterRegionError::WorldNotFound(_)));
     }
 }

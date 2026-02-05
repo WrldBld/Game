@@ -349,6 +349,42 @@ pub struct GeneratedVisualStateData {
     pub is_complete: bool,
 }
 
+/// Response data for DeleteVisualState request
+///
+/// Contains confirmation of deletion and optional metadata about what was deleted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteVisualStateResponse {
+    /// Whether the deletion was successful
+    pub deleted: bool,
+    /// The location state ID that was deleted (if applicable)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_state_id: Option<Uuid>,
+    /// The region state ID that was deleted (if applicable)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region_state_id: Option<Uuid>,
+}
+
+/// Response data for SetActiveVisualState request
+///
+/// Contains confirmation of activation and details about which states are now active.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetActiveVisualStateResponse {
+    /// Whether the activation was successful
+    pub updated: bool,
+    /// The location ID that was updated (if applicable)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_id: Option<Uuid>,
+    /// The location state ID that is now active (if applicable)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_state_id: Option<Uuid>,
+    /// The region ID that was updated (if applicable)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region_id: Option<Uuid>,
+    /// The region state ID that is now active (if applicable)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region_state_id: Option<Uuid>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -360,8 +396,8 @@ mod tests {
             region_id: Some(Uuid::new_v4()),
         };
 
-        let json = serde_json::to_string(&req).unwrap();
-        let decoded: GetVisualStateCatalogRequest = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&req).expect("valid value");
+        let decoded: GetVisualStateCatalogRequest = serde_json::from_str(&json).expect("valid value");
 
         assert_eq!(decoded.location_id, req.location_id);
         assert_eq!(decoded.region_id, req.region_id);
@@ -412,11 +448,11 @@ mod tests {
             is_default: false,
         };
 
-        let json = serde_json::to_string(&req).unwrap();
-        let decoded: GenerateVisualStateRequest = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&req).expect("valid value");
+        let decoded: GenerateVisualStateRequest = serde_json::from_str(&json).expect("valid value");
 
         assert_eq!(decoded.name, "Evening");
-        assert_eq!(decoded.generate_backdrop, true);
+        assert!(decoded.generate_backdrop);
         assert_eq!(decoded.tags.len(), 2);
     }
 }

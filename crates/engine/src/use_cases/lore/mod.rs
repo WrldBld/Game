@@ -976,7 +976,7 @@ mod tests {
         let chunks: Vec<_> = chunk_orders
             .iter()
             .map(|&order| {
-                wrldbldr_domain::LoreChunk::new(&format!("Content {}", order)).with_order(order)
+                wrldbldr_domain::LoreChunk::new(format!("Content {}", order)).with_order(order)
             })
             .collect();
         lore.with_chunks(chunks)
@@ -1026,7 +1026,7 @@ mod tests {
             .returning(move |_| Ok(Some(lore.clone())));
         mock_repo.expect_save().returning(|saved_lore| {
             // Verify the new chunk has order 3 (next after 0,1,2)
-            let new_chunk = saved_lore.chunks().last().unwrap();
+            let new_chunk = saved_lore.chunks().last().expect("should have at least one chunk");
             assert_eq!(new_chunk.order, 3);
             Ok(())
         });
@@ -1141,10 +1141,10 @@ mod tests {
         let result = ops.revoke_knowledge(character_id, lore_id, None).await;
         assert!(result.is_ok());
 
-        let result = result.unwrap();
-        assert!(result.revoked);
-        assert!(!result.partial);
-        assert!(result.relationship_deleted);
+        let revoke_result = result.expect("result should be Ok");
+        assert!(revoke_result.revoked);
+        assert!(!revoke_result.partial);
+        assert!(revoke_result.relationship_deleted);
     }
 
     #[tokio::test]

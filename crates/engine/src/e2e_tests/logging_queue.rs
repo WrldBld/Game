@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
-use uuid::Uuid;
 use wrldbldr_domain::WorldId;
 
 use crate::queue_types::{
@@ -14,7 +13,7 @@ use crate::queue_types::{
 };
 
 use crate::infrastructure::ports::{
-    ClockPort, QueueError, QueueItem, QueueItemStatus, QueuePort,
+    QueueError, QueueItem, QueuePort,
 };
 use wrldbldr_domain::QueueItemId;
 

@@ -59,16 +59,16 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
     for i in 0..600 {
         let event = NarrativeEvent::new(
             world_id,
-            NarrativeEventName::new(format!("Event {i}")).unwrap(),
+            NarrativeEventName::new(format!("Event {i}")).expect("valid event name"),
             now,
         )
         .with_description("test")
         .with_trigger_conditions(vec![trigger.clone()])
         .with_trigger_logic(TriggerLogic::All)
-        .with_scene_direction(Description::new("sd").unwrap())
+        .with_scene_direction(Description::new("sd").expect("valid description"))
         .with_outcomes(vec![outcome.clone()])
         .with_default_outcome("default")
-        .with_priority(i as i32);
+        .with_priority(i);
 
         repo.save_event(&event).await.expect("save event");
     }
@@ -119,7 +119,7 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
             .expect("create character");
     }
 
-    let mut staging = Staging::new(
+    let staging = Staging::new(
         region_id,
         location_id,
         world_id,
@@ -228,7 +228,7 @@ async fn set_event_active_updates_activation_in_neo4j() {
     // Create an active event
     let event = NarrativeEvent::new(
         world_id,
-        NarrativeEventName::new("Test Event").unwrap(),
+        NarrativeEventName::new("Test Event").expect("valid event name"),
         now,
     );
     repo.save_event(&event).await.expect("save event");
@@ -281,11 +281,11 @@ async fn get_completed_events_returns_events_from_all_chains() {
 
     // Create two event chains
     let chain1_id = wrldbldr_domain::EventChainId::new();
-    let chain2_id = wrldbldr_domain::EventChainId::new();
+    let _chain2_id = wrldbldr_domain::EventChainId::new();
 
     let mut chain1 = wrldbldr_domain::EventChain::new(
         world_id,
-        wrldbldr_domain::EventChainName::new("Chain 1").unwrap(),
+        wrldbldr_domain::EventChainName::new("Chain 1").expect("valid chain name"),
         now,
     ).expect("create chain");
     chain1.add_event(wrldbldr_domain::NarrativeEventId::new(), now);
@@ -294,7 +294,7 @@ async fn get_completed_events_returns_events_from_all_chains() {
 
     let mut chain2 = wrldbldr_domain::EventChain::new(
         world_id,
-        wrldbldr_domain::EventChainName::new("Chain 2").unwrap(),
+        wrldbldr_domain::EventChainName::new("Chain 2").expect("valid chain name"),
         now,
     ).expect("create chain");
     chain2.add_event(wrldbldr_domain::NarrativeEventId::new(), now);
@@ -303,7 +303,7 @@ async fn get_completed_events_returns_events_from_all_chains() {
     // Mark events as completed in chain 1
     let mut chain1_reloaded = repo.get_chain(chain1_id).await.expect("load chain")
         .expect("chain should exist");
-    let event1 = *chain1_reloaded.events().get(0).expect("event exists");
+    let event1 = *chain1_reloaded.events().first().expect("event exists");
     let event2 = *chain1_reloaded.events().get(1).expect("event exists");
     chain1_reloaded.complete_event(event1, now);
     chain1_reloaded.complete_event(event2, now);
@@ -349,7 +349,7 @@ async fn get_chains_for_event_returns_containing_chains() {
     let chain1_id = wrldbldr_domain::EventChainId::new();
     let mut chain1 = wrldbldr_domain::EventChain::new(
         world_id,
-        wrldbldr_domain::EventChainName::new("Chain 1").unwrap(),
+        wrldbldr_domain::EventChainName::new("Chain 1").expect("valid chain name"),
         now,
     ).expect("create chain");
     chain1.add_event(event_id, now);
@@ -358,7 +358,7 @@ async fn get_chains_for_event_returns_containing_chains() {
     let chain2_id = wrldbldr_domain::EventChainId::new();
     let mut chain2 = wrldbldr_domain::EventChain::new(
         world_id,
-        wrldbldr_domain::EventChainName::new("Chain 2").unwrap(),
+        wrldbldr_domain::EventChainName::new("Chain 2").expect("valid chain name"),
         now,
     ).expect("create chain");
     chain2.add_event(event_id, now);

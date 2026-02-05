@@ -377,7 +377,7 @@ mod tests {
     }
 
     fn create_test_goal(world_id: WorldId) -> wrldbldr_domain::Goal {
-        wrldbldr_domain::Goal::new(world_id, GoalName::new("Test Goal").unwrap())
+        wrldbldr_domain::Goal::new(world_id, GoalName::new("Test Goal").expect("valid goal name"))
             .with_description("A test goal for testing")
     }
 
@@ -408,7 +408,7 @@ mod tests {
                 .await;
 
             assert!(result.is_ok());
-            let goal_details = result.unwrap();
+            let goal_details = result.expect("result should be Ok");
             assert_eq!(goal_details.goal.name().as_str(), "Power");
             assert_eq!(
                 goal_details.goal.description(),
@@ -437,7 +437,7 @@ mod tests {
 
             let result = ops.list(world_id).await;
             assert!(result.is_ok());
-            let goals = result.unwrap();
+            let goals = result.expect("result should be Ok");
             assert_eq!(goals.len(), 1);
             assert_eq!(goals[0].goal.name().as_str(), "Test Goal");
             assert_eq!(goals[0].usage_count, 5);
@@ -457,7 +457,7 @@ mod tests {
 
             let result = ops.get(goal_id).await;
             assert!(result.is_ok());
-            assert!(result.unwrap().is_none());
+            assert!(result.expect("result should be Ok").is_none());
         }
     }
 
@@ -490,7 +490,7 @@ mod tests {
                 .await;
 
             assert!(result.is_ok());
-            let want_details = result.unwrap();
+            let want_details = result.expect("result should be Ok");
             assert_eq!(want_details.want.description(), "Find the treasure");
             assert!((want_details.want.intensity() - 0.8).abs() < 0.001);
             assert_eq!(want_details.want.visibility(), WantVisibility::Known);
@@ -521,7 +521,7 @@ mod tests {
 
             let result = ops.list(character_id).await;
             assert!(result.is_ok());
-            let wants = result.unwrap();
+            let wants = result.expect("result should be Ok");
             assert_eq!(wants.len(), 1);
             assert_eq!(wants[0].want.description(), "Test want description");
             assert_eq!(wants[0].priority, 1);
@@ -570,9 +570,9 @@ mod tests {
 
             let result = ops.get_context(character_id).await;
             assert!(result.is_ok());
-            let ctx = result.unwrap();
+            let ctx = result.expect("result should be Ok");
             assert!(ctx.is_some());
-            assert_eq!(ctx.unwrap().character_name(), "Test Character");
+            assert_eq!(ctx.expect("context should be Some").character_name(), "Test Character");
         }
 
         #[tokio::test]
@@ -589,7 +589,7 @@ mod tests {
 
             let result = ops.get_context(character_id).await;
             assert!(result.is_ok());
-            assert!(result.unwrap().is_none());
+            assert!(result.expect("result should be Ok").is_none());
         }
     }
 

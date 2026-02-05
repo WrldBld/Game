@@ -10,9 +10,9 @@ async fn when_player_ends_conversation_then_broadcasts_to_world() {
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
 
     let mut world_repo = MockWorldRepo::new();
@@ -32,9 +32,9 @@ async fn when_player_ends_conversation_then_broadcasts_to_world() {
     let conversation_id = ConversationId::new();
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         location_id,
         now,
     )
@@ -42,7 +42,7 @@ async fn when_player_ends_conversation_then_broadcasts_to_world() {
 
     let mut npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("NPC").expect("test: character name should be valid"),
         wrldbldr_domain::value_objects::CampbellArchetype::Hero,
     );
     npc = npc.with_id(npc_id);
@@ -187,9 +187,9 @@ async fn when_dm_ends_conversation_then_returns_bad_request_error() {
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
 
     let mut world_repo = MockWorldRepo::new();
@@ -203,12 +203,12 @@ async fn when_dm_ends_conversation_then_returns_bad_request_error() {
 
     let pc_id = PlayerCharacterId::new();
     let npc_id = CharacterId::new();
-    let conversation_id = ConversationId::new();
+    let _conversation_id = ConversationId::new();
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         LocationId::new(),
         now,
     )
@@ -216,7 +216,7 @@ async fn when_dm_ends_conversation_then_returns_bad_request_error() {
 
     let mut npc = wrldbldr_domain::Character::new(
         world_id,
-        wrldbldr_domain::CharacterName::new("NPC").unwrap(),
+        wrldbldr_domain::CharacterName::new("NPC").expect("test: character name should be valid"),
         wrldbldr_domain::value_objects::CampbellArchetype::Hero,
     );
     npc = npc.with_id(npc_id);
@@ -237,18 +237,11 @@ async fn when_dm_ends_conversation_then_returns_bad_request_error() {
         .times(0..)
         .returning(move |_| Ok(Some(npc_for_get.clone())));
 
-    // Mock end conversation call
+    // Mock end conversation call - should NOT be called since DM has no PC
     repos
         .narrative_repo
         .expect_end_active_conversation()
-        .times(1)
-        .returning(move |p, n| {
-            if p == pc_id && n == npc_id {
-                Ok(Some(conversation_id))
-            } else {
-                Ok(None)
-            }
-        });
+        .times(0);
 
     let app = build_test_app(repos, now);
     let connections = Arc::new(ConnectionManager::new());
@@ -318,10 +311,10 @@ async fn when_dm_ends_conversation_then_returns_bad_request_error() {
 
     match dm_msg {
         ServerMessage::Error { code, message, .. } => {
-            assert_eq!(code, "BadRequest");
+            assert_eq!(code, "bad_request");
             assert!(message.contains("Must have a PC to end conversation") || message.contains("Must have a PC"));
         }
-        other => panic!("expected Error with BadRequest, got: {:?}", other),
+        other => panic!("expected Error with bad_request, got: {:?}", other),
     }
 
     server.abort();
@@ -332,9 +325,9 @@ async fn when_npc_not_found_then_returns_error() {
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
 
     let mut world_repo = MockWorldRepo::new();
@@ -350,9 +343,9 @@ async fn when_npc_not_found_then_returns_error() {
     let npc_id = CharacterId::new();
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        wrldbldr_domain::UserId::new("player-1").unwrap(),
+        wrldbldr_domain::UserId::new("player-1").expect("test: user_id should be valid"),
         world_id,
-        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        wrldbldr_domain::CharacterName::new("PC").expect("test: character name should be valid"),
         LocationId::new(),
         now,
     )
@@ -423,7 +416,7 @@ async fn when_npc_not_found_then_returns_error() {
 
     match error_msg {
         ServerMessage::Error { code, message, .. } => {
-            assert_eq!(code, "NotFound");
+            assert_eq!(code, "not_found");
             assert!(message.contains("NPC not found") || message.contains("not found"));
         }
         other => panic!("expected Error, got: {:?}", other),
@@ -437,9 +430,9 @@ async fn when_pc_not_found_then_returns_error() {
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world_name = wrldbldr_domain::WorldName::new("Test World").expect("test: world name should be valid");
     let world = wrldbldr_domain::World::new(world_name, now)
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_description(wrldbldr_domain::Description::new("desc").expect("test: description should be valid"))
         .with_id(world_id);
 
     let mut world_repo = MockWorldRepo::new();
@@ -510,7 +503,7 @@ async fn when_pc_not_found_then_returns_error() {
 
     match error_msg {
         ServerMessage::Error { code, message, .. } => {
-            assert_eq!(code, "NotFound");
+            assert_eq!(code, "not_found");
             assert!(message.contains("Player character not found") || message.contains("not found"));
         }
         other => panic!("expected Error, got: {:?}", other),
