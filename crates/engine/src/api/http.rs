@@ -875,9 +875,7 @@ fn workflow_config_to_full_dto(
 fn map_workflow_error(e: WorkflowError) -> ApiError {
     match e {
         WorkflowError::NotFound(_) => ApiError::NotFound,
-        WorkflowError::InvalidSlot(msg) | WorkflowError::Validation(msg) => {
-            ApiError::BadRequest(msg)
-        }
+        WorkflowError::Validation(msg) => ApiError::BadRequest(msg),
         e => {
             tracing::error!(error = %e, "Workflow operation failed");
             ApiError::Internal(e.to_string())

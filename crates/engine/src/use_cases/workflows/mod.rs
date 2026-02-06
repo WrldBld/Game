@@ -18,9 +18,6 @@ pub enum WorkflowError {
     #[error("Workflow configuration not found for slot: {0}")]
     NotFound(String),
 
-    #[error("Invalid workflow slot: {0}")]
-    InvalidSlot(String),
-
     #[error("Validation error: {0}")]
     Validation(String),
 

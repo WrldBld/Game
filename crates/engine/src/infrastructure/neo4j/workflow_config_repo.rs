@@ -21,6 +21,7 @@ impl Neo4jWorkflowConfigRepo {
     /// Initialize the database schema (constraints and indexes).
     ///
     /// Should be called once at application startup.
+    #[allow(dead_code)]
     pub async fn initialize_schema(&self) -> Result<(), RepoError> {
         // Create unique constraint on slot
         let constraint_query = query(
