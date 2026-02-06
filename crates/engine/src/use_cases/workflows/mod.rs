@@ -16,7 +16,7 @@ pub enum WorkflowError {
     Repo(#[from] RepoError),
 
     #[error("Workflow configuration not found for slot: {0}")]
-    NotFound(WorkflowSlot),
+    NotFound(String),
 
     #[error("Invalid workflow slot: {0}")]
     InvalidSlot(String),
@@ -146,7 +146,7 @@ impl DeleteWorkflow {
     pub async fn execute(&self, slot: WorkflowSlot) -> Result<(), WorkflowError> {
         // Check if the workflow exists
         if !self.repo.exists(slot).await? {
-            return Err(WorkflowError::NotFound(slot));
+            return Err(WorkflowError::NotFound(slot.as_str().to_string()));
         }
 
         self.repo.delete(slot).await.map_err(WorkflowError::from)
@@ -178,7 +178,7 @@ impl UpdateWorkflowDefaults {
             .repo
             .get_by_slot(slot)
             .await?
-            .ok_or(WorkflowError::NotFound(slot))?;
+            .ok_or(WorkflowError::NotFound(slot.as_str().to_string()))?;
 
         config.input_defaults = input_defaults;
         if let Some(locked) = locked_inputs {
@@ -217,7 +217,7 @@ impl TestWorkflow {
             .repo
             .get_by_slot(slot)
             .await?
-            .ok_or(WorkflowError::NotFound(slot))?;
+            .ok_or(WorkflowError::NotFound(slot.as_str().to_string()))?;
 
         let data = AssetGenerationData {
             world_id: None,
@@ -273,7 +273,7 @@ impl WorkflowUseCases {
 mod tests {
     use super::*;
     use crate::infrastructure::ports::{
-        MockClockPort, MockQueuePort, MockWorkflowConfigRepo, ImageRequest,
+        MockClockPort, MockQueuePort, MockWorkflowConfigRepo,
     };
     use chrono::Utc;
     use std::sync::Arc;
@@ -326,9 +326,10 @@ mod tests {
             create_test_workflow_json(),
             Utc::now().to_rfc3339(),
         );
+        let config_for_list = config.clone();
 
         repo.expect_list_all()
-            .returning(move || Ok(vec![config.clone()]));
+            .returning(move || Ok(vec![config_for_list.clone()]));
         repo.expect_get_by_slot()
             .with(mockall::predicate::eq(WorkflowSlot::CharacterPortrait))
             .returning(move |_| Ok(Some(config.clone())));

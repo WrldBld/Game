@@ -47,6 +47,8 @@ pub use types::{
     ConversationDetails, ConversationParticipantDetail, ConversationSpeaker, DialogueTurnDetail, ParticipantType,
     // WorldRole is re-exported from wrldbldr_domain via types module
     WorldRole,
+    // ControlNet Mapping Types
+    ControlNetMapping,
 };
 
 // =============================================================================

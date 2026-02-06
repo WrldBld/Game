@@ -26,9 +26,30 @@
 //!
 //! - `COMFYUI_E2E=1`: Required to enable e2e tests (tests are skipped otherwise)
 //! - `COMFYUI_URL`: Optional URL override (default: `http://127.0.0.1:8188`)
+//! - `COMFYUI_POLL_TIMEOUT_SECS`: Optional poll timeout in seconds (default: 120)
+
+use std::sync::Once;
 
 use crate::infrastructure::comfyui::ComfyUIClient;
 use crate::infrastructure::ports::{ImageGenPort, ImageRequest};
+
+/// Available checkpoint for model override tests.
+const AVAILABLE_CHECKPOINT: &str = "bridgeToonsComicMix_v60.safetensors";
+
+/// Default poll timeout for e2e tests (5 minutes).
+const E2E_POLL_TIMEOUT_SECS: &str = "300";
+
+static INIT: Once = Once::new();
+
+/// Initialize e2e test environment.
+///
+/// Sets up environment variables needed for e2e tests:
+/// - Increases poll timeout to accommodate slower generation times
+fn init_e2e_env() {
+    INIT.call_once(|| {
+        std::env::set_var("COMFYUI_POLL_TIMEOUT_SECS", E2E_POLL_TIMEOUT_SECS);
+    });
+}
 
 /// Check if ComfyUI e2e tests should run.
 ///
@@ -36,6 +57,13 @@ use crate::infrastructure::ports::{ImageGenPort, ImageRequest};
 /// Returns `true` only if `COMFYUI_E2E=1` is set.
 fn should_run_comfyui_e2e() -> bool {
     std::env::var("COMFYUI_E2E").unwrap_or_default() == "1"
+}
+
+/// Setup function called at the start of each e2e test.
+///
+/// Initializes the test environment if needed.
+fn setup_e2e_test() {
+    init_e2e_env();
 }
 
 /// Get the ComfyUI base URL from environment or use default.
@@ -48,8 +76,10 @@ fn get_comfyui_url() -> String {
 /// Skip macro for ComfyUI e2e tests.
 ///
 /// Returns a test result that indicates the test was skipped.
+/// Also initializes the e2e test environment (sets up timeout, etc.).
 macro_rules! skip_if_not_enabled {
     () => {
+        setup_e2e_test();
         if !should_run_comfyui_e2e() {
             eprintln!("Skipping ComfyUI e2e test. Set COMFYUI_E2E=1 to enable.");
             return;
@@ -400,7 +430,7 @@ async fn comfyui_portrait_v1_with_model_override() {
         0,
         0,
     )
-    .with_model_id("v1-5-pruned-emaonly.ckpt")
+    .with_model_id(AVAILABLE_CHECKPOINT)
     .with_negative_prompt("blurry, low quality")
     .with_prompt_prefix("masterpiece, best quality")
     .with_prompt_suffix("detailed, 8k")
@@ -451,14 +481,14 @@ async fn comfyui_backdrop_v1_with_full_settings() {
         1024,
         768,
     )
-    .with_model_id("sdxl.safetensors")
+    .with_model_id(AVAILABLE_CHECKPOINT)
     .with_negative_prompt("people, text, watermark")
     .with_prompt_prefix("fantasy art, digital painting")
     .with_prompt_suffix("highly detailed, cinematic lighting")
     .with_score_tokens_enabled(true)
     .with_pose_asset_id("castle_pose_001")
     .with_controlnet_mappings(vec![
-        crate::infrastructure::ports::ControlNetMapping {
+        crate::infrastructure::ports::types::ControlNetMapping {
             node_id: "15".to_string(),
             input_key: "image".to_string(),
             enabled: false, // Disabled for this test since we don't have actual pose files
@@ -498,7 +528,7 @@ fn image_request_builder_creates_correct_request() {
         .with_prompt_suffix("suffix")
         .with_score_tokens_enabled(false)
         .with_pose_asset_id("pose_123")
-        .with_controlnet_mappings(vec![crate::infrastructure::ports::ControlNetMapping {
+        .with_controlnet_mappings(vec![crate::infrastructure::ports::types::ControlNetMapping {
             node_id: "node_1".to_string(),
             input_key: "image".to_string(),
             enabled: true,

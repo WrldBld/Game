@@ -175,7 +175,7 @@ impl ComfyUIClient {
         // For now, return an error indicating dynamic workflows need to be looked up
         // The actual implementation would fetch from WorkflowConfigRepo
         Err(ImageGenError::GenerationFailed(format!(
-            "Dynamic workflow '{}' not found in embedded workflows. Use 'backdrop_v1' or 'portrait_v1'.",
+            "Unknown workflow ID: '{}'. Use 'backdrop_v1' or 'portrait_v1'.",
             request.workflow
         )))
     }
@@ -410,13 +410,16 @@ impl ComfyUIClient {
 
     /// Wait for a prompt to complete and return the first image
     async fn wait_for_completion(&self, prompt_id: &str) -> Result<ImageOutput, ImageGenError> {
-        const MAX_ATTEMPTS: u32 = 120; // 2 minutes with 1 second intervals
+        let max_attempts = Self::get_poll_timeout_secs();
         const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
-        for _ in 0..MAX_ATTEMPTS {
+        let mut prompt_appeared = false;
+
+        for _ in 0..max_attempts {
             let history = self.get_history(prompt_id).await?;
 
             if let Some(prompt_history) = history.prompts.get(prompt_id) {
+                prompt_appeared = true;
                 if prompt_history.status.completed {
                     // Find the first image output
                     for output in prompt_history.outputs.values() {
@@ -435,9 +438,29 @@ impl ComfyUIClient {
             sleep(POLL_INTERVAL).await;
         }
 
-        Err(ImageGenError::GenerationFailed(
-            "Generation timed out".to_string(),
-        ))
+        // Distinguish between "prompt never appeared" vs "prompt did not complete"
+        if prompt_appeared {
+            Err(ImageGenError::GenerationFailed(format!(
+                "Prompt {} was queued but did not complete within {} seconds",
+                prompt_id, max_attempts
+            )))
+        } else {
+            Err(ImageGenError::GenerationFailed(format!(
+                "Prompt {} never appeared in history within {} seconds",
+                prompt_id, max_attempts
+            )))
+        }
+    }
+
+    /// Get the poll timeout in seconds from environment variable or use default.
+    ///
+    /// Environment variable: `COMFYUI_POLL_TIMEOUT_SECS`
+    /// Default: 120 seconds
+    fn get_poll_timeout_secs() -> u32 {
+        std::env::var("COMFYUI_POLL_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(120)
     }
 }
 

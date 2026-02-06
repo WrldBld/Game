@@ -25,7 +25,7 @@ pub use crate::infrastructure::ports::{
     MockFlagRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
     MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
     MockPlayerCharacterRepo, MockPromptTemplateRepo, MockRegionStateRepo, MockSceneRepo,
-    MockSettingsRepo, MockStagingRepo,
+    MockSettingsRepo, MockStagingRepo, MockWorkflowConfigRepo,
 };
 use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, QueueType,
@@ -1085,7 +1085,7 @@ pub(crate) fn build_test_app_with_ports(
             repos.workflow_config_repo.map(Arc::new).unwrap_or_else(|| {
                 Arc::new(crate::infrastructure::ports::MockWorkflowConfigRepo::new())
             }),
-            clock.clone(),
+            clock_port.clone(),
             queue.clone(),
         ),
     };

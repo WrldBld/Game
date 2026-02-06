@@ -816,6 +816,10 @@ fn group_workflows_by_category(
 fn workflow_config_to_dto(
     config: wrldbldr_shared::workflow::WorkflowConfiguration,
 ) -> wrldbldr_shared::dto::WorkflowConfigResponseDto {
+    // Compute all derived values before moving any config fields
+    let has_primary_prompt = config.primary_prompt_mapping().is_some();
+    let has_negative_prompt = config.negative_prompt_mapping().is_some();
+
     let prompt_mappings: Vec<wrldbldr_shared::dto::PromptMappingDto> = config
         .prompt_mappings
         .into_iter()
@@ -830,8 +834,8 @@ fn workflow_config_to_dto(
         node_count: 0, // Will be populated from analysis if needed
         input_count: 0, // Will be populated from analysis if needed
         prompt_mappings,
-        has_primary_prompt: config.primary_prompt_mapping().is_some(),
-        has_negative_prompt: config.negative_prompt_mapping().is_some(),
+        has_primary_prompt,
+        has_negative_prompt,
         created_at: config.created_at,
         updated_at: config.updated_at,
     }
